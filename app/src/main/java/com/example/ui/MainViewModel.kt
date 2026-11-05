@@ -408,6 +408,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val user = repository.registerStudent(name, email, batch, pin)
         _isLoggedIn.value = true
         _showRoleSwitcher.value = false
+
+        // Automatically persist new student account & progress in Supabase PostgreSQL
+        viewModelScope.launch {
+            supabaseService.saveStudentAccount(
+                id = user.id,
+                name = user.name,
+                email = user.email,
+                batch = user.batch,
+                securityPin = pin
+            )
+        }
+
         return UnifiedLoginResult.Success(Role.STUDENT, user)
     }
 
@@ -421,7 +433,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val user = repository.registerTeacher(name, email, department, pin)
         _isLoggedIn.value = true
         _showRoleSwitcher.value = false
+
+        // Automatically persist faculty account in Supabase
+        viewModelScope.launch {
+            supabaseService.saveTeacherAccount(
+                id = user.id,
+                name = user.name,
+                email = user.email,
+                department = department,
+                securityPin = pin
+            )
+        }
+
         return UnifiedLoginResult.Success(Role.TEACHER, user)
+    }
+
+    fun addTeacher(name: String, email: String, department: String, securityPin: String): User {
+        val teacher = repository.addTeacher(name, email, department, securityPin)
+        viewModelScope.launch {
+            supabaseService.saveTeacherAccount(
+                id = teacher.id,
+                name = teacher.name,
+                email = teacher.email,
+                department = department,
+                securityPin = securityPin
+            )
+        }
+        return teacher
     }
 
     fun authenticateAndLogin(role: Role, passwordInput: String): Boolean {
@@ -514,11 +552,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val xpEarned = (eval.overallScore * 0.4).toInt()
             val coinsEarned = 10
             repository.addRewards(xpEarned, coinsEarned)
+            syncCurrentStudentProgressToSupabase()
+        }
+    }
+
+    fun syncCurrentStudentProgressToSupabase() {
+        if (currentUser.value.role == Role.STUDENT) {
+            val p = studentProfile.value
+            val user = currentUser.value
+            viewModelScope.launch {
+                supabaseService.syncStudentProgress(
+                    studentId = user.id,
+                    xp = p.xpPoints,
+                    coins = p.coins,
+                    speakingScore = p.speakingScore,
+                    completedStages = p.completedStagesCount
+                )
+                if (user.email.isNotBlank()) {
+                    supabaseService.syncStudentProgress(
+                        studentId = user.email.trim().lowercase(),
+                        xp = p.xpPoints,
+                        coins = p.coins,
+                        speakingScore = p.speakingScore,
+                        completedStages = p.completedStagesCount
+                    )
+                }
+            }
         }
     }
 
     fun completeStage(stageId: String, stars: Int, xpEarned: Int, coinsEarned: Int) {
         repository.completeStage(stageId, stars, xpEarned, coinsEarned)
+        syncCurrentStudentProgressToSupabase()
     }
 
     // Roleplay progression
@@ -542,6 +607,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // Completed Roleplay!
             _celebrationReward.value = 80 to 25
             repository.addRewards(80, 25)
+            syncCurrentStudentProgressToSupabase()
             _activeRoleplay.value = null
         }
     }
@@ -564,6 +630,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun rewardGameWin(xp: Int, coins: Int) {
         repository.addRewards(xp, coins)
         _celebrationReward.value = xp to coins
+        syncCurrentStudentProgressToSupabase()
     }
 
     fun dismissCelebration() {

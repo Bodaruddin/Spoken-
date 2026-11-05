@@ -1199,7 +1199,7 @@ fun AdminTeachersManagement(viewModel: MainViewModel, modifier: Modifier = Modif
                     } else if (securityPin.trim().length < 4) {
                         errorMsg = "Security PIN must be at least 4 digits."
                     } else {
-                        viewModel.repository.addTeacher(name, email, department, securityPin)
+                        viewModel.addTeacher(name, email, department, securityPin)
                         statusMsg = "Added $name to Academic Faculty with custom Security PIN!"
                         showAddTeacherDialog = false
                     }
