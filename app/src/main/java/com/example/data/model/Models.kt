@@ -226,3 +226,87 @@ data class AchievementBadge(
     val isUnlocked: Boolean,
     val progress: Float = 1.0f // 0.0 to 1.0
 )
+
+// Comprehensive student management profile for Admin & Teacher
+data class StudentManagementInfo(
+    val id: String,
+    val name: String,
+    val email: String,
+    val avatarEmoji: String = "🎓",
+    val batch: String = "Batch Alpha",
+    val level: LearningLevel = LearningLevel.ELEMENTARY,
+    val isActive: Boolean = true,
+    val speakingScore: Int = 82,
+    val pronunciationScore: Int = 85,
+    val fluencyScore: Int = 79,
+    val grammarScore: Int = 88,
+    val vocabularyScore: Int = 86,
+    val listeningScore: Int = 90,
+    val streakDays: Int = 7,
+    val xpPoints: Int = 1450,
+    val joinedDate: String = "Nov 2026",
+    val teacherNotes: String = "Dedicated learner. Shows high enthusiasm in live speaking roleplays."
+)
+
+// Dynamic Game Content Models
+data class WordMatchChallenge(
+    val id: String,
+    val word: String,
+    val definition: String,
+    val category: String = "General",
+    val createdBy: String = "System"
+)
+
+data class MissingLettersChallenge(
+    val id: String,
+    val fullWord: String,
+    val hint: String,
+    val missingIndices: List<Int>,
+    val createdBy: String = "System"
+)
+
+data class SentenceBuilderChallenge(
+    val id: String,
+    val targetSentence: String,
+    val hint: String = "Form a grammatically correct sentence",
+    val assameseTranslation: String = "",
+    val createdBy: String = "System"
+)
+
+data class ListenChooseChallenge(
+    val id: String,
+    val audioScript: String,
+    val question: String,
+    val options: List<String>,
+    val correctIndex: Int,
+    val createdBy: String = "System"
+)
+
+data class PronunciationBattleChallenge(
+    val id: String,
+    val challengeSentence: String,
+    val targetPhonemeFocus: String,
+    val difficulty: String = "Medium",
+    val passingScore: Int = 80,
+    val createdBy: String = "System"
+)
+
+data class FastVocabularyChallenge(
+    val id: String,
+    val word: String,
+    val prompt: String,
+    val options: List<String>,
+    val correctIndex: Int,
+    val createdBy: String = "System"
+)
+
+data class GrammarChallengeQuestion(
+    val id: String,
+    val question: String,
+    val options: List<String>,
+    val correctIndex: Int,
+    val explanation: String,
+    val category: String = "Tenses",
+    val createdBy: String = "System"
+)
+

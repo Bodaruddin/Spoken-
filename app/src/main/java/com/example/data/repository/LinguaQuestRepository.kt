@@ -367,18 +367,18 @@ class LinguaQuestRepository {
     )
     val badges: StateFlow<List<AchievementBadge>> = _badges.asStateFlow()
 
-    // Admin Managed Students
+    // Admin & Teacher Managed Students
     private val _adminStudents = MutableStateFlow(
         listOf(
-            User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", "Batch Alpha", true),
-            User("std_002", "Elena Rostova", "elena.r@linguaquest.edu", Role.STUDENT, "🦄", "Batch Alpha", true),
-            User("std_003", "David Chen", "david.c@linguaquest.edu", Role.STUDENT, "🐯", "Batch Beta", true),
-            User("std_004", "Amira Al-Mansoor", "amira.m@linguaquest.edu", Role.STUDENT, "🦁", "Batch Alpha", true),
-            User("std_005", "Lucas Silva", "lucas.s@linguaquest.edu", Role.STUDENT, "🐺", "Batch Beta", true),
-            User("std_006", "Hana Tanaka", "hana.t@linguaquest.edu", Role.STUDENT, "🌸", "Batch Gamma", false)
+            StudentManagementInfo("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", "🦉", "Batch Alpha", LearningLevel.ELEMENTARY, true, 82, 85, 79, 88, 86, 90, 7, 1450, "Nov 2026", "Consistently practices speaking. Excellent rhythm and confidence."),
+            StudentManagementInfo("std_002", "Elena Rostova", "elena.r@linguaquest.edu", "🦄", "Batch Alpha", LearningLevel.INTERMEDIATE, true, 94, 96, 92, 90, 95, 96, 19, 2850, "Oct 2026", "Top cohort fluency. Demonstrates near-native sentence intonation."),
+            StudentManagementInfo("std_003", "David Chen", "david.c@linguaquest.edu", "🐯", "Batch Beta", LearningLevel.INTERMEDIATE, true, 88, 89, 85, 91, 87, 92, 14, 2420, "Oct 2026", "Strong analytical vocabulary. Recommended for advanced debate roleplays."),
+            StudentManagementInfo("std_004", "Amira Al-Mansoor", "amira.m@linguaquest.edu", "🦁", "Batch Alpha", LearningLevel.ELEMENTARY, true, 78, 80, 74, 82, 80, 85, 8, 1390, "Nov 2026", "Needs extra practice on past tense irregular verbs and voiced /th/ sounds."),
+            StudentManagementInfo("std_005", "Lucas Silva", "lucas.s@linguaquest.edu", "🐺", "Batch Beta", LearningLevel.BEGINNER, true, 71, 72, 68, 75, 74, 80, 5, 1210, "Nov 2026", "Improving quickly. Benefit from daily sentence builder and word match games."),
+            StudentManagementInfo("std_006", "Hana Tanaka", "hana.t@linguaquest.edu", "🌸", "Batch Gamma", LearningLevel.BEGINNER, false, 65, 68, 62, 70, 71, 76, 3, 980, "Nov 2026", "Temporarily paused. Needs supportive speaking drills on basic greetings.")
         )
     )
-    val adminStudents: StateFlow<List<User>> = _adminStudents.asStateFlow()
+    val adminStudents: StateFlow<List<StudentManagementInfo>> = _adminStudents.asStateFlow()
 
     // Admin Managed Teachers
     private val _adminTeachers = MutableStateFlow(
@@ -389,6 +389,142 @@ class LinguaQuestRepository {
         )
     )
     val adminTeachers: StateFlow<List<User>> = _adminTeachers.asStateFlow()
+
+    // Dynamic Game Content Collections
+    private val _wordMatchChallenges = MutableStateFlow(
+        listOf(
+            WordMatchChallenge("wm_1", "Eloquence", "Fluent or persuasive speech", "Communication", "System"),
+            WordMatchChallenge("wm_2", "Resilience", "Ability to recover quickly from hardship", "Mindset", "System"),
+            WordMatchChallenge("wm_3", "Articulate", "Expressing ideas clearly and coherently", "Communication", "System"),
+            WordMatchChallenge("wm_4", "Pragmatic", "Sensible and practical rather than theoretical", "Academic", "System"),
+            WordMatchChallenge("wm_5", "Meticulous", "Showing great attention to detail and care", "General", "Prof. Eleanor Vance"),
+            WordMatchChallenge("wm_6", "Serendipity", "Finding pleasant things unexpectedly", "General", "Dean Arthur Pendelton")
+        )
+    )
+    val wordMatchChallenges: StateFlow<List<WordMatchChallenge>> = _wordMatchChallenges.asStateFlow()
+
+    private val _missingLettersChallenges = MutableStateFlow(
+        listOf(
+            MissingLettersChallenge("ml_1", "CONVERSATION", "An informal spoken exchange between people", listOf(2, 5, 8), "System"),
+            MissingLettersChallenge("ml_2", "PRONUNCIATION", "The correct way in which a word or language is spoken", listOf(2, 6, 9), "System"),
+            MissingLettersChallenge("ml_3", "FLUENCY", "Ability to speak smoothly, easily, and naturally", listOf(1, 4), "Prof. Eleanor Vance"),
+            MissingLettersChallenge("ml_4", "VOCABULARY", "The body of words used in a particular language", listOf(1, 5, 8), "System"),
+            MissingLettersChallenge("ml_5", "INTELLIGENT", "Having or showing mental alertness and capacity", listOf(3, 7), "Dr. Marcus Reed")
+        )
+    )
+    val missingLettersChallenges: StateFlow<List<MissingLettersChallenge>> = _missingLettersChallenges.asStateFlow()
+
+    private val _sentenceBuilderChallenges = MutableStateFlow(
+        listOf(
+            SentenceBuilderChallenge("sb_1", "She speaks English with natural confidence and clarity", "Daily speaking practice", "তাই স্বাভাৱিক আত্মবিশ্বাস আৰু স্পষ্টতাৰে ইংৰাজী কয়।", "System"),
+            SentenceBuilderChallenge("sb_2", "Clear pronunciation helps listeners understand your message easily", "Pronunciation guide", "স্পষ্ট উচ্চাৰণে শ্ৰোতাসকলক আপোনাৰ বাৰ্তা সহজে বুজিবলৈ সহায় কৰে।", "Prof. Eleanor Vance"),
+            SentenceBuilderChallenge("sb_3", "We practice speaking English every day to build fluency", "Study habits", "সাবলীলতা গঢ়ি তুলিবলৈ আমি প্ৰতিদিনে ইংৰাজী কোৱা অনুশীলন কৰোঁ।", "System"),
+            SentenceBuilderChallenge("sb_4", "Collaborative conversations improve confidence in professional workplace settings", "Workplace English", "পাৰস্পৰিক কথোপকথনে পেছাদাৰী কৰ্মক্ষেত্ৰত আত্মবিশ্বাস বৃদ্ধি কৰে।", "Dean Arthur Pendelton")
+        )
+    )
+    val sentenceBuilderChallenges: StateFlow<List<SentenceBuilderChallenge>> = _sentenceBuilderChallenges.asStateFlow()
+
+    private val _listenChooseChallenges = MutableStateFlow(
+        listOf(
+            ListenChooseChallenge(
+                id = "lc_1",
+                audioScript = "Could you please tell me how to get to the nearest subway station?",
+                question = "What is the speaker asking for directions to?",
+                options = listOf("The airport terminal", "The nearest subway station", "A nearby coffee shop", "The central library"),
+                correctIndex = 1,
+                createdBy = "System"
+            ),
+            ListenChooseChallenge(
+                id = "lc_2",
+                audioScript = "I would like a large cappuccino with oat milk and cinnamon sprinkle, please.",
+                question = "What coffee beverage did the customer request?",
+                options = listOf("Iced mocha with cream", "Hot black Americano", "Large cappuccino with oat milk", "Espresso double shot"),
+                correctIndex = 2,
+                createdBy = "System"
+            ),
+            ListenChooseChallenge(
+                id = "lc_3",
+                audioScript = "The flight to Chicago will be boarding through gate 24 in fifteen minutes.",
+                question = "What gate is the flight boarding through?",
+                options = listOf("Gate 14", "Gate 24", "Gate 42", "Gate 34"),
+                correctIndex = 1,
+                createdBy = "Prof. Eleanor Vance"
+            ),
+            ListenChooseChallenge(
+                id = "lc_4",
+                audioScript = "Our quarterly academic review will be held next Tuesday morning at nine sharp.",
+                question = "When is the team academic review scheduled?",
+                options = listOf("Next Tuesday at 9:00 AM", "This Friday at 3:00 PM", "Tomorrow at noon", "Next Monday at 10:00 AM"),
+                correctIndex = 0,
+                createdBy = "Dean Arthur Pendelton"
+            )
+        )
+    )
+    val listenChooseChallenges: StateFlow<List<ListenChooseChallenge>> = _listenChooseChallenges.asStateFlow()
+
+    private val _pronunciationBattleChallenges = MutableStateFlow(
+        listOf(
+            PronunciationBattleChallenge("pb_1", "The courageous astronaut explored uncharted territory", "Consonant clusters 'str', 'ch', 'pl'", "Medium", 80, "System"),
+            PronunciationBattleChallenge("pb_2", "Peter Piper picked a peck of pickled peppers", "Crisp explosive /p/ consonant rhythm", "Hard", 85, "System"),
+            PronunciationBattleChallenge("pb_3", "Thoughtful philosophers thoroughly examine their theories", "Voiced and voiceless 'th' phonemes", "Hard", 85, "Prof. Eleanor Vance"),
+            PronunciationBattleChallenge("pb_4", "She sells seashells by the shimmering seashore", "Sibilants /s/ vs /ʃ/ distinction", "Medium", 80, "System"),
+            PronunciationBattleChallenge("pb_5", "World development requires extraordinary perseverance", "Liquid 'r' and 'l' consonant blends", "Hard", 85, "Dean Arthur Pendelton")
+        )
+    )
+    val pronunciationBattleChallenges: StateFlow<List<PronunciationBattleChallenge>> = _pronunciationBattleChallenges.asStateFlow()
+
+    private val _fastVocabularyChallenges = MutableStateFlow(
+        listOf(
+            FastVocabularyChallenge("fv_1", "Articulate", "Choose the closest synonym for 'Articulate':", listOf("Expressive & clear", "Confused & hesitant", "Quiet & shy", "Angry & rude"), 0, "System"),
+            FastVocabularyChallenge("fv_2", "Eloquent", "What does 'Eloquent' describe?", listOf("Persuasive & graceful speaking", "Very fast running", "Complicated math", "Ancient architecture"), 0, "System"),
+            FastVocabularyChallenge("fv_3", "Pragmatic", "A 'Pragmatic' solution is one that is:", listOf("Practical & realistic", "Expensive & luxurious", "Theoretical & untested", "Careless & hurried"), 0, "Prof. Eleanor Vance"),
+            FastVocabularyChallenge("fv_4", "Resilience", "What is the best definition of 'Resilience'?", listOf("Bouncing back from hardship", "Forgetting the past", "Giving up easily", "Avoiding all conflict"), 0, "System"),
+            FastVocabularyChallenge("fv_5", "Collaborate", "When two people 'Collaborate', they:", listOf("Work jointly on a task", "Argue loudly", "Compete against each other", "Work completely alone"), 0, "Dean Arthur Pendelton")
+        )
+    )
+    val fastVocabularyChallenges: StateFlow<List<FastVocabularyChallenge>> = _fastVocabularyChallenges.asStateFlow()
+
+    private val _grammarChallenges = MutableStateFlow(
+        listOf(
+            GrammarChallengeQuestion(
+                id = "gc_1",
+                question = "If I ___ more time, I would practice conversational English every evening.",
+                options = listOf("have", "had", "will have", "would have"),
+                correctIndex = 1,
+                explanation = "Second conditional uses past simple ('had') in the 'if' clause for hypothetical situations.",
+                category = "Conditionals",
+                createdBy = "System"
+            ),
+            GrammarChallengeQuestion(
+                id = "gc_2",
+                question = "She has been living in London ___ over three years.",
+                options = listOf("since", "for", "during", "in"),
+                correctIndex = 1,
+                explanation = "Use 'for' to express a duration of time ('over three years').",
+                category = "Prepositions",
+                createdBy = "System"
+            ),
+            GrammarChallengeQuestion(
+                id = "gc_3",
+                question = "Listen! The professor ___ the key grammar points on the board.",
+                options = listOf("explains", "is explaining", "explained", "has explained"),
+                correctIndex = 1,
+                explanation = "Present continuous is used for actions taking place right at this moment ('Listen!').",
+                category = "Tenses",
+                createdBy = "Prof. Eleanor Vance"
+            ),
+            GrammarChallengeQuestion(
+                id = "gc_4",
+                question = "Neither the teacher nor the students ___ present at yesterday's rehearsal.",
+                options = listOf("was", "were", "is", "are"),
+                correctIndex = 1,
+                explanation = "With 'neither... nor', the verb agrees with the closer subject ('the students' -> 'were').",
+                category = "Subject-Verb Agreement",
+                createdBy = "Dean Arthur Pendelton"
+            )
+        )
+    )
+    val grammarChallenges: StateFlow<List<GrammarChallengeQuestion>> = _grammarChallenges.asStateFlow()
 
     // Switch Role
     fun switchRole(newRole: Role) {
@@ -453,29 +589,199 @@ class LinguaQuestRepository {
         }
     }
 
-    // Admin: Add Student
-    fun addStudent(name: String, email: String, batch: String) {
+    // --- STUDENT MANAGEMENT METHODS ---
+    fun addStudent(name: String, email: String, batch: String, level: LearningLevel = LearningLevel.BEGINNER, notes: String = "") {
         val newId = "std_${System.currentTimeMillis() % 10000}"
-        val newStudent = User(newId, name, email, Role.STUDENT, "🎓", batch, true)
+        val newStudent = StudentManagementInfo(
+            id = newId,
+            name = name,
+            email = email,
+            avatarEmoji = listOf("🎓", "🌟", "🚀", "💡", "🌿", "🦋").random(),
+            batch = batch,
+            level = level,
+            isActive = true,
+            speakingScore = 75,
+            pronunciationScore = 78,
+            fluencyScore = 72,
+            grammarScore = 80,
+            vocabularyScore = 76,
+            listeningScore = 82,
+            streakDays = 1,
+            xpPoints = 100,
+            joinedDate = "Nov 2026",
+            teacherNotes = notes.ifBlank { "Newly enrolled student. Initial speaking diagnostic scheduled." }
+        )
         _adminStudents.update { it + newStudent }
     }
 
-    // Admin: Bulk Import Simulation
-    fun bulkImportStudents(count: Int) {
-        val sampleNames = listOf("Liam O'Connor", "Zoe Kravitz", "Carlos Mendez", "Fatima Zahra", "Min-jun Park")
-        val newStudents = sampleNames.take(count).mapIndexed { i, name ->
-            val id = "std_${System.currentTimeMillis() % 1000 + i}"
-            User(id, name, "${name.lowercase().replace(" ", ".")}@linguaquest.edu", Role.STUDENT, "✨", "Batch Alpha", true)
+    fun updateStudent(updated: StudentManagementInfo) {
+        _adminStudents.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
         }
-        _adminStudents.update { it + newStudents }
     }
 
-    // Admin: Toggle Student Active
+    fun deleteStudent(studentId: String) {
+        _adminStudents.update { list ->
+            list.filterNot { it.id == studentId }
+        }
+    }
+
     fun toggleStudentActive(studentId: String) {
         _adminStudents.update { list ->
             list.map {
                 if (it.id == studentId) it.copy(isActive = !it.isActive) else it
             }
+        }
+    }
+
+    fun bulkImportStudents(count: Int) {
+        val sampleNames = listOf("Liam O'Connor", "Zoe Kravitz", "Carlos Mendez", "Fatima Zahra", "Min-jun Park", "Aisha Diallo")
+        val batches = listOf("Batch Alpha", "Batch Beta", "Batch Gamma")
+        val levels = listOf(LearningLevel.BEGINNER, LearningLevel.ELEMENTARY, LearningLevel.PRE_INTERMEDIATE)
+        val newStudents = sampleNames.take(count).mapIndexed { i, name ->
+            val id = "std_${System.currentTimeMillis() % 1000 + i}"
+            StudentManagementInfo(
+                id = id,
+                name = name,
+                email = "${name.lowercase().replace(" ", ".")}@linguaquest.edu",
+                avatarEmoji = listOf("🦄", "🦁", "🦊", "🐬", "🌸").random(),
+                batch = batches[i % batches.size],
+                level = levels[i % levels.size],
+                isActive = true,
+                speakingScore = (70..90).random(),
+                pronunciationScore = (72..92).random(),
+                fluencyScore = (68..88).random(),
+                grammarScore = (75..95).random(),
+                vocabularyScore = (70..90).random(),
+                listeningScore = (75..95).random(),
+                streakDays = (1..10).random(),
+                xpPoints = (500..2000).random(),
+                joinedDate = "Nov 2026",
+                teacherNotes = "Enrolled via batch CSV import. Standard diagnostic profile created."
+            )
+        }
+        _adminStudents.update { it + newStudents }
+    }
+
+    // --- GAME ADDITION & MANAGEMENT METHODS ---
+    fun addWordMatchChallenge(word: String, definition: String, category: String = "General", createdBy: String) {
+        val id = "wm_${System.currentTimeMillis()}"
+        val item = WordMatchChallenge(id, word.trim(), definition.trim(), category.trim(), createdBy)
+        _wordMatchChallenges.update { it + item }
+    }
+
+    fun deleteWordMatchChallenge(id: String) {
+        _wordMatchChallenges.update { it.filterNot { item -> item.id == id } }
+    }
+
+    fun updateWordMatchChallenge(updated: WordMatchChallenge) {
+        _wordMatchChallenges.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
+        }
+    }
+
+    fun addMissingLettersChallenge(fullWord: String, hint: String, createdBy: String) {
+        val id = "ml_${System.currentTimeMillis()}"
+        val cleaned = fullWord.trim().uppercase()
+        // Automatically choose 2-3 vowel or interior indices to mask if length permits
+        val indices = if (cleaned.length >= 6) {
+            listOf(1, cleaned.length / 2, cleaned.length - 2)
+        } else if (cleaned.length >= 4) {
+            listOf(1, cleaned.length - 2)
+        } else {
+            listOf(1)
+        }
+        val item = MissingLettersChallenge(id, cleaned, hint.trim(), indices, createdBy)
+        _missingLettersChallenges.update { it + item }
+    }
+
+    fun deleteMissingLettersChallenge(id: String) {
+        _missingLettersChallenges.update { it.filterNot { item -> item.id == id } }
+    }
+
+    fun updateMissingLettersChallenge(updated: MissingLettersChallenge) {
+        _missingLettersChallenges.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
+        }
+    }
+
+    fun addSentenceBuilderChallenge(targetSentence: String, hint: String = "Assemble syntax", assameseTranslation: String = "", createdBy: String) {
+        val id = "sb_${System.currentTimeMillis()}"
+        val item = SentenceBuilderChallenge(id, targetSentence.trim(), hint.trim(), assameseTranslation.trim(), createdBy)
+        _sentenceBuilderChallenges.update { it + item }
+    }
+
+    fun deleteSentenceBuilderChallenge(id: String) {
+        _sentenceBuilderChallenges.update { it.filterNot { item -> item.id == id } }
+    }
+
+    fun updateSentenceBuilderChallenge(updated: SentenceBuilderChallenge) {
+        _sentenceBuilderChallenges.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
+        }
+    }
+
+    fun addListenChooseChallenge(audioScript: String, question: String, options: List<String>, correctIndex: Int, createdBy: String) {
+        val id = "lc_${System.currentTimeMillis()}"
+        val item = ListenChooseChallenge(id, audioScript.trim(), question.trim(), options.map { it.trim() }, correctIndex, createdBy)
+        _listenChooseChallenges.update { it + item }
+    }
+
+    fun deleteListenChooseChallenge(id: String) {
+        _listenChooseChallenges.update { it.filterNot { item -> item.id == id } }
+    }
+
+    fun updateListenChooseChallenge(updated: ListenChooseChallenge) {
+        _listenChooseChallenges.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
+        }
+    }
+
+    fun addPronunciationBattleChallenge(sentence: String, phonemeFocus: String, difficulty: String = "Medium", passingScore: Int = 80, createdBy: String) {
+        val id = "pb_${System.currentTimeMillis()}"
+        val item = PronunciationBattleChallenge(id, sentence.trim(), phonemeFocus.trim(), difficulty, passingScore, createdBy)
+        _pronunciationBattleChallenges.update { it + item }
+    }
+
+    fun deletePronunciationBattleChallenge(id: String) {
+        _pronunciationBattleChallenges.update { it.filterNot { item -> item.id == id } }
+    }
+
+    fun updatePronunciationBattleChallenge(updated: PronunciationBattleChallenge) {
+        _pronunciationBattleChallenges.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
+        }
+    }
+
+    fun addFastVocabularyChallenge(word: String, prompt: String, options: List<String>, correctIndex: Int, createdBy: String) {
+        val id = "fv_${System.currentTimeMillis()}"
+        val item = FastVocabularyChallenge(id, word.trim(), prompt.trim(), options.map { it.trim() }, correctIndex, createdBy)
+        _fastVocabularyChallenges.update { it + item }
+    }
+
+    fun deleteFastVocabularyChallenge(id: String) {
+        _fastVocabularyChallenges.update { it.filterNot { item -> item.id == id } }
+    }
+
+    fun updateFastVocabularyChallenge(updated: FastVocabularyChallenge) {
+        _fastVocabularyChallenges.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
+        }
+    }
+
+    fun addGrammarChallenge(question: String, options: List<String>, correctIndex: Int, explanation: String, category: String = "Grammar", createdBy: String) {
+        val id = "gc_${System.currentTimeMillis()}"
+        val item = GrammarChallengeQuestion(id, question.trim(), options.map { it.trim() }, correctIndex, explanation.trim(), category.trim(), createdBy)
+        _grammarChallenges.update { it + item }
+    }
+
+    fun deleteGrammarChallenge(id: String) {
+        _grammarChallenges.update { it.filterNot { item -> item.id == id } }
+    }
+
+    fun updateGrammarChallenge(updated: GrammarChallengeQuestion) {
+        _grammarChallenges.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
         }
     }
 
@@ -486,3 +792,4 @@ class LinguaQuestRepository {
         _adminTeachers.update { it + newTeacher }
     }
 }
+

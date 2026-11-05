@@ -23,18 +23,17 @@ enum class StudentTab(val label: String, val iconEmoji: String) {
 enum class TeacherTab(val label: String, val iconEmoji: String) {
     DASHBOARD("Overview", "📊"),
     STUDENTS("Students", "👥"),
-    SPEAKING_REVIEW("Assessments", "🎧"),
-    ASSIGNMENTS("Assignments", "📝"),
-    LIVE_CLASSES("Classes", "🎥")
+    GAMES("Games Hub", "🎮"),
+    SPEAKING_REVIEW("Review", "🎧"),
+    ASSIGNMENTS("Tasks", "📝")
 }
 
 enum class AdminTab(val label: String, val iconEmoji: String) {
     DASHBOARD("Dashboard", "📈"),
     STUDENTS("Students", "🎓"),
+    GAMES("Games Hub", "🎮"),
     TEACHERS("Faculty", "👨‍🏫"),
-    CURRICULUM("Courses", "📚"),
-    ANALYTICS("Reports", "📋"),
-    SETTINGS("Settings", "⚙️")
+    CURRICULUM("Courses", "📚")
 }
 
 enum class SpeakingSubTab {
@@ -112,6 +111,96 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val badges = repository.badges
     val adminStudents = repository.adminStudents
     val adminTeachers = repository.adminTeachers
+
+    // Dynamic Game Content Flows
+    val wordMatchChallenges = repository.wordMatchChallenges
+    val missingLettersChallenges = repository.missingLettersChallenges
+    val sentenceBuilderChallenges = repository.sentenceBuilderChallenges
+    val listenChooseChallenges = repository.listenChooseChallenges
+    val pronunciationBattleChallenges = repository.pronunciationBattleChallenges
+    val fastVocabularyChallenges = repository.fastVocabularyChallenges
+    val grammarChallenges = repository.grammarChallenges
+
+    // Student Management helpers
+    fun updateStudent(student: StudentManagementInfo) {
+        repository.updateStudent(student)
+    }
+
+    fun deleteStudent(studentId: String) {
+        repository.deleteStudent(studentId)
+    }
+
+    // Game Management helpers
+    fun addWordMatchChallenge(word: String, definition: String, category: String, createdBy: String) {
+        repository.addWordMatchChallenge(word, definition, category, createdBy)
+    }
+    fun deleteWordMatchChallenge(id: String) {
+        repository.deleteWordMatchChallenge(id)
+    }
+
+    fun addMissingLettersChallenge(fullWord: String, hint: String, createdBy: String) {
+        repository.addMissingLettersChallenge(fullWord, hint, createdBy)
+    }
+    fun deleteMissingLettersChallenge(id: String) {
+        repository.deleteMissingLettersChallenge(id)
+    }
+
+    fun addSentenceBuilderChallenge(targetSentence: String, hint: String, assameseTranslation: String = "", createdBy: String) {
+        repository.addSentenceBuilderChallenge(targetSentence, hint, assameseTranslation, createdBy)
+    }
+    fun deleteSentenceBuilderChallenge(id: String) {
+        repository.deleteSentenceBuilderChallenge(id)
+    }
+
+    fun addListenChooseChallenge(audioScript: String, question: String, options: List<String>, correctIndex: Int, createdBy: String) {
+        repository.addListenChooseChallenge(audioScript, question, options, correctIndex, createdBy)
+    }
+    fun deleteListenChooseChallenge(id: String) {
+        repository.deleteListenChooseChallenge(id)
+    }
+
+    fun addPronunciationBattleChallenge(sentence: String, phonemeFocus: String, difficulty: String, passingScore: Int, createdBy: String) {
+        repository.addPronunciationBattleChallenge(sentence, phonemeFocus, difficulty, passingScore, createdBy)
+    }
+    fun deletePronunciationBattleChallenge(id: String) {
+        repository.deletePronunciationBattleChallenge(id)
+    }
+
+    fun addFastVocabularyChallenge(word: String, prompt: String, options: List<String>, correctIndex: Int, createdBy: String) {
+        repository.addFastVocabularyChallenge(word, prompt, options, correctIndex, createdBy)
+    }
+    fun deleteFastVocabularyChallenge(id: String) {
+        repository.deleteFastVocabularyChallenge(id)
+    }
+
+    fun addGrammarChallenge(question: String, options: List<String>, correctIndex: Int, explanation: String, category: String, createdBy: String) {
+        repository.addGrammarChallenge(question, options, correctIndex, explanation, category, createdBy)
+    }
+    fun deleteGrammarChallenge(id: String) {
+        repository.deleteGrammarChallenge(id)
+    }
+
+    fun updateWordMatchChallenge(updated: WordMatchChallenge) {
+        repository.updateWordMatchChallenge(updated)
+    }
+    fun updateMissingLettersChallenge(updated: MissingLettersChallenge) {
+        repository.updateMissingLettersChallenge(updated)
+    }
+    fun updateSentenceBuilderChallenge(updated: SentenceBuilderChallenge) {
+        repository.updateSentenceBuilderChallenge(updated)
+    }
+    fun updateListenChooseChallenge(updated: ListenChooseChallenge) {
+        repository.updateListenChooseChallenge(updated)
+    }
+    fun updatePronunciationBattleChallenge(updated: PronunciationBattleChallenge) {
+        repository.updatePronunciationBattleChallenge(updated)
+    }
+    fun updateFastVocabularyChallenge(updated: FastVocabularyChallenge) {
+        repository.updateFastVocabularyChallenge(updated)
+    }
+    fun updateGrammarChallenge(updated: GrammarChallengeQuestion) {
+        repository.updateGrammarChallenge(updated)
+    }
 
     // Navigation States
     private val _currentStudentTab = MutableStateFlow(StudentTab.HOME)
