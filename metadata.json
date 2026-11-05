@@ -1,6 +1,6 @@
 {
-  "name": "Speakly",
-  "description": "Interactive English speaking and language arcade learning platform with games and real-time assessments",
+  "name": "",
+  "description": "",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -383,12 +383,27 @@ class LinguaQuestRepository {
     // Admin Managed Teachers
     private val _adminTeachers = MutableStateFlow(
         listOf(
-            User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Batch Alpha & Beta", true),
-            User("tch_002", "Dr. Marcus Reed", "m.reed@linguaquest.edu", Role.TEACHER, "👨‍🏫", "Batch Beta & Gamma", true),
-            User("tch_003", "Prof. Chloe Bennett", "c.bennett@linguaquest.edu", Role.TEACHER, "👩‍💼", "Advanced Fluency", true)
+            User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Batch Alpha & Beta", true, securityPin = "7321"),
+            User("tch_002", "Dr. Marcus Reed", "m.reed@linguaquest.edu", Role.TEACHER, "👨‍🏫", "Batch Beta & Gamma", true, securityPin = "7321"),
+            User("tch_003", "Prof. Chloe Bennett", "c.bennett@linguaquest.edu", Role.TEACHER, "👩‍💼", "Advanced Fluency", true, securityPin = "7321")
         )
     )
     val adminTeachers: StateFlow<List<User>> = _adminTeachers.asStateFlow()
+
+    // Self-registration permissions (Admin controllable)
+    private val _allowStudentRegistration = MutableStateFlow(true)
+    val allowStudentRegistration: StateFlow<Boolean> = _allowStudentRegistration.asStateFlow()
+
+    private val _allowTeacherRegistration = MutableStateFlow(true)
+    val allowTeacherRegistration: StateFlow<Boolean> = _allowTeacherRegistration.asStateFlow()
+
+    fun setAllowStudentRegistration(allow: Boolean) {
+        _allowStudentRegistration.value = allow
+    }
+
+    fun setAllowTeacherRegistration(allow: Boolean) {
+        _allowTeacherRegistration.value = allow
+    }
 
     // Dynamic Game Content Collections
     private val _wordMatchChallenges = MutableStateFlow(
@@ -530,11 +545,21 @@ class LinguaQuestRepository {
     fun switchRole(newRole: Role) {
         val current = _currentUser.value
         val updatedUser = when (newRole) {
-            Role.STUDENT -> User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", "Batch Alpha")
-            Role.TEACHER -> User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Lead Instructor")
-            Role.ADMIN -> User("adm_001", "Dean Arthur Pendelton", "admin@linguaquest.edu", Role.ADMIN, "🛡️", "Head of Academics")
+            Role.STUDENT -> User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", "Batch Alpha", securityPin = "1234")
+            Role.TEACHER -> User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Lead Instructor", securityPin = "7321")
+            Role.ADMIN -> User("adm_001", "Dean Arthur Pendelton", "admin@linguaquest.edu", Role.ADMIN, "🛡️", "Head of Academics", securityPin = "9842")
         }
         _currentUser.value = updatedUser
+    }
+
+    fun setCurrentUser(user: User) {
+        _currentUser.value = user
+    }
+
+    fun setStudentProfileUserId(studentId: String, studentName: String) {
+        _studentProfile.update {
+            it.copy(userId = studentId)
+        }
     }
 
     // Gamification Updates: Add XP and Coins
@@ -785,11 +810,101 @@ class LinguaQuestRepository {
         }
     }
 
-    // Admin: Add Teacher
-    fun addTeacher(name: String, email: String, department: String) {
+    // Admin: Add Teacher with Security PIN
+    fun addTeacher(name: String, email: String, department: String, securityPin: String = "7321"): User {
         val newId = "tch_${System.currentTimeMillis() % 10000}"
-        val newTeacher = User(newId, name, email, Role.TEACHER, "👨‍🏫", department, true)
+        val pin = if (securityPin.isNotBlank()) securityPin.trim() else "7321"
+        val newTeacher = User(
+            id = newId,
+            name = name.trim(),
+            email = email.trim(),
+            role = Role.TEACHER,
+            avatarEmoji = listOf("👩‍🏫", "👨‍🏫", "👩‍💼", "🧑‍🏫").random(),
+            batch = department.trim().ifBlank { "Spoken English Dept" },
+            isActive = true,
+            securityPin = pin
+        )
         _adminTeachers.update { it + newTeacher }
+        return newTeacher
+    }
+
+    // Self-registration for Teacher
+    fun registerTeacher(name: String, email: String, department: String, securityPin: String): User {
+        val newId = "tch_${System.currentTimeMillis() % 10000}"
+        val pin = if (securityPin.isNotBlank()) securityPin.trim() else "7321"
+        val newTeacher = User(
+            id = newId,
+            name = name.trim(),
+            email = email.trim(),
+            role = Role.TEACHER,
+            avatarEmoji = listOf("👩‍🏫", "👨‍🏫", "👩‍💼", "🧑‍🏫").random(),
+            batch = department.trim().ifBlank { "Spoken English Dept" },
+            isActive = true,
+            securityPin = pin
+        )
+        _adminTeachers.update { it + newTeacher }
+        _currentUser.value = newTeacher
+        return newTeacher
+    }
+
+    // Self-registration for Student
+    fun registerStudent(name: String, email: String, batch: String, securityPin: String): User {
+        val newId = "std_${System.currentTimeMillis() % 10000}"
+        val pin = if (securityPin.isNotBlank()) securityPin.trim() else "1234"
+        val chosenBatch = batch.trim().ifBlank { "Batch Alpha" }
+        val newStudent = StudentManagementInfo(
+            id = newId,
+            name = name.trim(),
+            email = email.trim(),
+            avatarEmoji = listOf("🎓", "🌟", "🚀", "💡", "🌿", "🦋").random(),
+            batch = chosenBatch,
+            level = LearningLevel.BEGINNER,
+            isActive = true,
+            speakingScore = 75,
+            pronunciationScore = 78,
+            fluencyScore = 72,
+            grammarScore = 80,
+            vocabularyScore = 76,
+            listeningScore = 82,
+            streakDays = 1,
+            xpPoints = 100,
+            joinedDate = "Nov 2026",
+            teacherNotes = "New student registered via portal.",
+            securityPin = pin
+        )
+        _adminStudents.update { it + newStudent }
+
+        val studentUser = User(
+            id = newId,
+            name = newStudent.name,
+            email = newStudent.email,
+            role = Role.STUDENT,
+            avatarEmoji = newStudent.avatarEmoji,
+            batch = newStudent.batch,
+            isActive = true,
+            securityPin = pin
+        )
+        _currentUser.value = studentUser
+
+        _studentProfile.value = StudentProfile(
+            userId = newId,
+            currentLevel = LearningLevel.BEGINNER,
+            streakDays = 1,
+            xpPoints = 100,
+            coins = 50,
+            league = "Bronze League",
+            overallScore = 75,
+            speakingScore = 75,
+            pronunciationScore = 78,
+            fluencyScore = 72,
+            grammarScore = 80,
+            vocabularyScore = 76,
+            listeningScore = 82,
+            readingScore = 75,
+            completedStagesCount = 0,
+            speakingPracticeMinutes = 0
+        )
+        return studentUser
     }
 
     // -----------------------------------------------------------------

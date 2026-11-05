@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -500,11 +501,12 @@ fun RoleSwitcherDialog(
                             pinInput = it
                             pinError = false
                         },
-                        label = { Text("Security PIN or Password") },
-                        placeholder = { Text(if (target == Role.ADMIN) "PIN: 9842" else "PIN: 7321") },
+                        label = { Text("Security PIN") },
+                        placeholder = { Text("Enter security PIN") },
+                        visualTransformation = PasswordVisualTransformation(),
                         isError = pinError,
                         supportingText = if (pinError) {
-                            { Text("Incorrect PIN / Password. Access denied.", color = MaterialTheme.colorScheme.error) }
+                            { Text("Incorrect PIN. Access denied.", color = MaterialTheme.colorScheme.error) }
                         } else null,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -566,7 +568,7 @@ fun RoleSwitcherDialog(
 
                 RoleSelectionItem(
                     title = "Teacher Portal (Protected)",
-                    subtitle = "Prof. Eleanor Vance • Batch Alpha & Beta • Requires PIN 7321",
+                    subtitle = "Prof. Eleanor Vance • Batch Alpha & Beta • Faculty Verification",
                     emoji = "👩‍🏫",
                     isSelected = currentRole == Role.TEACHER,
                     onClick = {
@@ -577,7 +579,7 @@ fun RoleSwitcherDialog(
 
                 RoleSelectionItem(
                     title = "Admin Portal (Protected)",
-                    subtitle = "Dean Arthur Pendelton • Institutional Controls • Requires PIN 9842",
+                    subtitle = "Dean Arthur Pendelton • Institutional Controls • Admin Verification",
                     emoji = "🛡️",
                     isSelected = currentRole == Role.ADMIN,
                     onClick = {

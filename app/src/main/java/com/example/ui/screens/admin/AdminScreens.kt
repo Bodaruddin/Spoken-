@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
@@ -22,6 +23,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.LearningLevel
@@ -186,6 +190,69 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                             colors = ButtonDefaults.buttonColors(containerColor = AmberGold)
                         ) {
                             Text("🎯 Phonetics", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Account Permissions & Registration Controls
+        item {
+            val allowStudentReg by viewModel.allowStudentRegistration.collectAsState()
+            val allowTeacherReg by viewModel.allowTeacherRegistration.collectAsState()
+
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Rounded.Security, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(20.dp))
+                        Text("Account Registration & Access Permissions", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+                    Text(
+                        "Manage student onboarding permissions. Faculty instructors are added directly by the Administrator in the Faculty tab.",
+                        fontSize = 12.sp,
+                        color = MutedGray
+                    )
+
+                    // Student Registration Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Allow Students to Create New Account", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text("When enabled, learners can self-register and set their PIN on the sign-in screen", fontSize = 11.sp, color = MutedGray)
+                        }
+                        Switch(
+                            checked = allowStudentReg,
+                            onCheckedChange = { viewModel.setAllowStudentRegistration(it) }
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFEFF6FF),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("👨‍🏫", fontSize = 16.sp)
+                            Text(
+                                "Faculty members cannot self-register; they are added by Admin in the Faculty tab with their assigned security PIN.",
+                                fontSize = 11.sp,
+                                color = RoyalBlueDark,
+                                lineHeight = 15.sp
+                            )
                         }
                     }
                 }
@@ -1034,22 +1101,106 @@ fun AdminTeachersManagement(viewModel: MainViewModel, modifier: Modifier = Modif
         var name by remember { mutableStateOf("") }
         var email by remember { mutableStateOf("") }
         var department by remember { mutableStateOf("Spoken English Dept") }
+        var securityPin by remember { mutableStateOf("") }
+        var pinVisible by remember { mutableStateOf(false) }
+        var errorMsg by remember { mutableStateOf<String?>(null) }
 
         AlertDialog(
             onDismissRequest = { showAddTeacherDialog = false },
-            title = { Text("Add Faculty Instructor") },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("👨‍🏫", fontSize = 22.sp)
+                    Text("Add Faculty Instructor", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Teacher Name") })
-                    OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Institutional Email") })
-                    OutlinedTextField(value = department, onValueChange = { department = it }, label = { Text("Department / Cohort") })
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = {
+                            name = it
+                            errorMsg = null
+                        },
+                        label = { Text("Teacher Name") },
+                        leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null, tint = RoyalBlue) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = {
+                            email = it
+                            errorMsg = null
+                        },
+                        label = { Text("Institutional Email") },
+                        leadingIcon = { Icon(Icons.Rounded.Email, contentDescription = null, tint = RoyalBlue) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = department,
+                        onValueChange = {
+                            department = it
+                            errorMsg = null
+                        },
+                        label = { Text("Department / Cohort") },
+                        leadingIcon = { Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = securityPin,
+                        onValueChange = {
+                            securityPin = it
+                            errorMsg = null
+                        },
+                        label = { Text("Set Security PIN") },
+                        placeholder = { Text("e.g. 4-6 digit numeric PIN") },
+                        leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null, tint = RoyalBlue) },
+                        trailingIcon = {
+                            IconButton(onClick = { pinVisible = !pinVisible }) {
+                                Icon(
+                                    imageVector = if (pinVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                    contentDescription = if (pinVisible) "Hide PIN" else "Show PIN"
+                                )
+                            }
+                        },
+                        visualTransformation = if (pinVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        singleLine = true,
+                        supportingText = {
+                            Text("Assigned PIN for teacher to sign into teacher panel.", fontSize = 11.sp, color = MutedGray)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (errorMsg != null) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFFEE2E2),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = errorMsg ?: "",
+                                color = CoralAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
                 }
             },
             confirmButton = {
                 Button(onClick = {
-                    if (name.isNotBlank()) {
-                        viewModel.repository.addTeacher(name, email, department)
-                        statusMsg = "Added $name to Academic Faculty!"
+                    if (name.isBlank() || email.isBlank()) {
+                        errorMsg = "Please enter both teacher name and institutional email."
+                    } else if (securityPin.trim().length < 4) {
+                        errorMsg = "Security PIN must be at least 4 digits."
+                    } else {
+                        viewModel.repository.addTeacher(name, email, department, securityPin)
+                        statusMsg = "Added $name to Academic Faculty with custom Security PIN!"
                         showAddTeacherDialog = false
                     }
                 }) {

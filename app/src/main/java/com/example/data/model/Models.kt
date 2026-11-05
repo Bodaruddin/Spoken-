@@ -23,7 +23,8 @@ data class User(
     val avatarEmoji: String = "🦉",
     val batch: String = "Morning A",
     val isActive: Boolean = true,
-    val joinedDate: String = "Nov 2026"
+    val joinedDate: String = "Nov 2026",
+    val securityPin: String = ""
 )
 
 data class StudentProfile(
@@ -245,7 +246,8 @@ data class StudentManagementInfo(
     val streakDays: Int = 7,
     val xpPoints: Int = 1450,
     val joinedDate: String = "Nov 2026",
-    val teacherNotes: String = "Dedicated learner. Shows high enthusiasm in live speaking roleplays."
+    val teacherNotes: String = "Dedicated learner. Shows high enthusiasm in live speaking roleplays.",
+    val securityPin: String = "1234"
 )
 
 // Dynamic Game Content Models

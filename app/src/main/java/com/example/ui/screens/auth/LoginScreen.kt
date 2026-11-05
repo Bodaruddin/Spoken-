@@ -6,11 +6,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -35,37 +35,34 @@ import com.example.data.model.Role
 import com.example.ui.MainViewModel
 import com.example.ui.theme.*
 
+enum class AuthMode {
+    SIGN_IN,
+    CREATE_ACCOUNT
+}
+
 @Composable
 fun LoginScreen(
     viewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
-    var selectedRole by remember { mutableStateOf(Role.STUDENT) }
-    var email by remember { mutableStateOf("alex.morgan@linguaquest.edu") }
-    var password by remember { mutableStateOf("student123") }
-    var passwordVisible by remember { mutableStateOf(false) }
+    var authMode by remember { mutableStateOf(AuthMode.SIGN_IN) }
 
+    // Unified Sign In States
+    var email by remember { mutableStateOf("") }
+    var securityPin by remember { mutableStateOf("") }
+    var pinVisible by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
 
-    // Update default prefilled email & password when switching role
-    fun updateRoleCredentials(role: Role) {
-        selectedRole = role
-        loginError = null
-        when (role) {
-            Role.STUDENT -> {
-                email = "alex.morgan@linguaquest.edu"
-                password = "student123"
-            }
-            Role.TEACHER -> {
-                email = "e.vance@linguaquest.edu"
-                password = ""
-            }
-            Role.ADMIN -> {
-                email = "admin@linguaquest.edu"
-                password = ""
-            }
-        }
-    }
+    // Student Registration States
+    var regName by remember { mutableStateOf("") }
+    var regEmail by remember { mutableStateOf("") }
+    var regCohort by remember { mutableStateOf("Batch Alpha") }
+    var regPin by remember { mutableStateOf("") }
+    var regConfirmPin by remember { mutableStateOf("") }
+    var regPinVisible by remember { mutableStateOf(false) }
+    var regError by remember { mutableStateOf<String?>(null) }
+
+    val allowStudentReg by viewModel.allowStudentRegistration.collectAsState()
 
     Box(
         modifier = modifier
@@ -81,7 +78,7 @@ fun LoginScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             // App Branding Header
             Column(
@@ -114,7 +111,7 @@ fun LoginScreen(
                 )
 
                 Text(
-                    text = "Spoken English Learning & Gamified Education",
+                    text = "Spoken English Learning & Academic Portal",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     color = MutedGray,
@@ -122,252 +119,450 @@ fun LoginScreen(
                 )
             }
 
-            // Role Selection Tabs Card
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            // Mode Selector: Sign In vs Create Account
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        text = "Select Portal to Log In:",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    val isSignIn = authMode == AuthMode.SIGN_IN
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSignIn) MaterialTheme.colorScheme.surface else Color.Transparent,
+                        shadowElevation = if (isSignIn) 2.dp else 0.dp,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                authMode = AuthMode.SIGN_IN
+                                loginError = null
+                            }
+                            .testTag("tab_sign_in")
                     ) {
-                        RoleTabButton(
-                            title = "Student",
-                            emoji = "🦉",
-                            isSelected = selectedRole == Role.STUDENT,
-                            modifier = Modifier.weight(1f),
-                            onClick = { updateRoleCredentials(Role.STUDENT) }
-                        )
-
-                        RoleTabButton(
-                            title = "Teacher",
-                            emoji = "👩‍🏫",
-                            isSelected = selectedRole == Role.TEACHER,
-                            modifier = Modifier.weight(1f),
-                            onClick = { updateRoleCredentials(Role.TEACHER) }
-                        )
-
-                        RoleTabButton(
-                            title = "Admin",
-                            emoji = "🛡️",
-                            isSelected = selectedRole == Role.ADMIN,
-                            modifier = Modifier.weight(1f),
-                            onClick = { updateRoleCredentials(Role.ADMIN) }
+                        Text(
+                            text = "Sign In",
+                            fontSize = 13.sp,
+                            fontWeight = if (isSignIn) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSignIn) RoyalBlue else MutedGray,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 10.dp)
                         )
                     }
 
-                    // Role Description Banner
+                    val isRegister = authMode == AuthMode.CREATE_ACCOUNT
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = when (selectedRole) {
-                            Role.STUDENT -> Color(0xFFEFF6FF)
-                            Role.TEACHER -> Color(0xFFF3E8FF)
-                            Role.ADMIN -> Color(0xFFFEF3C7)
-                        },
-                        modifier = Modifier.fillMaxWidth()
+                        color = if (isRegister) MaterialTheme.colorScheme.surface else Color.Transparent,
+                        shadowElevation = if (isRegister) 2.dp else 0.dp,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                authMode = AuthMode.CREATE_ACCOUNT
+                                regError = null
+                            }
+                            .testTag("tab_create_account")
                     ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
+                        Text(
+                            text = "Create Student Account",
+                            fontSize = 13.sp,
+                            fontWeight = if (isRegister) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isRegister) RoyalBlue else MutedGray,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 10.dp)
+                        )
+                    }
+                }
+            }
+
+            // UNIFIED SIGN-IN FORM
+            if (authMode == AuthMode.SIGN_IN) {
+                Card(
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Column {
                             Text(
-                                text = when (selectedRole) {
-                                    Role.STUDENT -> "🦉"
-                                    Role.TEACHER -> "👩‍🏫"
-                                    Role.ADMIN -> "🛡️"
-                                },
-                                fontSize = 20.sp
+                                text = "Sign In to Your Account",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
-                            Column {
-                                Text(
-                                    text = when (selectedRole) {
-                                        Role.STUDENT -> "Student Learning Portal"
-                                        Role.TEACHER -> "Teacher & Faculty Portal"
-                                        Role.ADMIN -> "Global Administration Portal"
-                                    },
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = when (selectedRole) {
-                                        Role.STUDENT -> RoyalBlueDark
-                                        Role.TEACHER -> Color(0xFF7E22CE)
-                                        Role.ADMIN -> Color(0xFFB45309)
+                            Text(
+                                text = "Enter your email and security PIN to access your portal",
+                                fontSize = 12.sp,
+                                color = MutedGray
+                            )
+                        }
+
+                        // Email Field
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = {
+                                email = it
+                                loginError = null
+                            },
+                            label = { Text("Email or User ID") },
+                            placeholder = { Text("e.g. name@linguaquest.edu") },
+                            leadingIcon = {
+                                Icon(Icons.Rounded.Email, contentDescription = null, tint = RoyalBlue)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("login_email_input"),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                        )
+
+                        // Security PIN Field (Masked by default, never shown on screen)
+                        OutlinedTextField(
+                            value = securityPin,
+                            onValueChange = {
+                                securityPin = it
+                                loginError = null
+                            },
+                            label = { Text("Security PIN") },
+                            placeholder = { Text("Enter your security PIN") },
+                            leadingIcon = {
+                                Icon(Icons.Rounded.Lock, contentDescription = null, tint = RoyalBlue)
+                            },
+                            trailingIcon = {
+                                IconButton(onClick = { pinVisible = !pinVisible }) {
+                                    Icon(
+                                        imageVector = if (pinVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                        contentDescription = if (pinVisible) "Hide PIN" else "Show PIN"
+                                    )
+                                }
+                            },
+                            visualTransformation = if (pinVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("login_password_input"),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                        )
+
+                        // Error Banner
+                        AnimatedVisibility(visible = loginError != null) {
+                            loginError?.let { err ->
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFFFEE2E2),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, CoralAccent),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Lock, contentDescription = null, tint = CoralAccent, modifier = Modifier.size(16.dp))
+                                        Text(err, color = CoralAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     }
-                                )
+                                }
+                            }
+                        }
+
+                        // Single Unified Login Button
+                        Button(
+                            onClick = {
+                                val result = viewModel.unifiedLogin(email, securityPin)
+                                if (result is MainViewModel.UnifiedLoginResult.Error) {
+                                    loginError = result.message
+                                } else {
+                                    loginError = null
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("login_submit_button"),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+                        ) {
+                            Icon(Icons.AutoMirrored.Rounded.Login, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Sign In",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        // Link to Create Student Account
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    authMode = AuthMode.CREATE_ACCOUNT
+                                    regError = null
+                                }
+                            ) {
                                 Text(
-                                    text = when (selectedRole) {
-                                        Role.STUDENT -> "AI speaking partner, journey map, roleplays & 12 mini games"
-                                        Role.TEACHER -> "Manage batches, review voice drills, publish game challenges & assignments"
-                                        Role.ADMIN -> "Full institutional control, curriculum, database connection & faculty"
-                                    },
-                                    fontSize = 11.sp,
-                                    color = DeepNavy
+                                    text = "New Student? Create an account now",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = RoyalBlue
                                 )
                             }
                         }
                     }
                 }
-            }
 
-            // Login Form Card
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                // Security & Auto-Detection Information Card
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "Sign in to ${selectedRole.name.lowercase().replaceFirstChar { it.uppercase() }} Account",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    // Email Field
-                    OutlinedTextField(
-                        value = email,
-                        onValueChange = { email = it },
-                        label = { Text("Email or ID") },
-                        leadingIcon = {
-                            Icon(Icons.Rounded.Email, contentDescription = null, tint = RoyalBlue)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("login_email_input"),
-                        shape = RoundedCornerShape(14.dp),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-                    )
-
-                    // Password Field
-                    OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text("Password") },
-                        leadingIcon = {
-                            Icon(Icons.Rounded.Lock, contentDescription = null, tint = RoyalBlue)
-                        },
-                        trailingIcon = {
-                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                Icon(
-                                    imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                                    contentDescription = if (passwordVisible) "Hide password" else "Show password"
-                                )
-                            }
-                        },
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("login_password_input"),
-                        shape = RoundedCornerShape(14.dp),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
-                    )
-
-                    // Error Banner
-                    AnimatedVisibility(visible = loginError != null) {
-                        loginError?.let { err ->
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFFFEE2E2),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, CoralAccent),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(Icons.Filled.Lock, contentDescription = null, tint = CoralAccent, modifier = Modifier.size(16.dp))
-                                    Text(err, color = CoralAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-
-                    // Primary Login Button
-                    Button(
-                        onClick = {
-                            val success = viewModel.authenticateAndLogin(selectedRole, password)
-                            if (!success) {
-                                loginError = when (selectedRole) {
-                                    Role.ADMIN -> "Access Denied: Incorrect Admin password or PIN."
-                                    Role.TEACHER -> "Access Denied: Incorrect Teacher password or PIN."
-                                    else -> "Invalid credentials."
-                                }
-                            } else {
-                                loginError = null
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(50.dp)
-                            .testTag("login_submit_button"),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = when (selectedRole) {
-                                Role.STUDENT -> RoyalBlue
-                                else -> DeepNavy
-                            }
-                        )
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = "Sign In as ${selectedRole.name.lowercase().replaceFirstChar { it.uppercase() }}",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-
-                    // 1-Click Fast Demo Login (STUDENTS ONLY)
-                    if (selectedRole == Role.STUDENT) {
-                        OutlinedButton(
-                            onClick = {
-                                viewModel.authenticateAndLogin(Role.STUDENT, "student123")
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(46.dp)
-                                .testTag("one_click_demo_login_button"),
-                            shape = RoundedCornerShape(14.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.5.dp, RoyalBlue)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                Icons.Rounded.FlashOn,
-                                contentDescription = null,
-                                tint = RoyalBlue,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(6.dp))
+                            Icon(Icons.Filled.Shield, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(18.dp))
                             Text(
-                                text = "Quick 1-Click Enter as Student",
-                                fontSize = 13.sp,
+                                text = "Universal Single Sign-On",
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
-                    } else {
-                        // Staff Protected Notice
+                        Text(
+                            text = "Speakly automatically routes you to the Administrator, Faculty, or Student portal upon verifying your registered email and PIN.",
+                            fontSize = 11.sp,
+                            color = MutedGray,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+            } else {
+                // CREATE STUDENT ACCOUNT FORM (ONLY FOR STUDENTS)
+                Card(
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("🦉", fontSize = 22.sp)
+                                Text(
+                                    text = "Create Student Account",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = "Register your learner profile to access spoken English roleplays and games",
+                                fontSize = 12.sp,
+                                color = MutedGray
+                            )
+                        }
+
+                        // Check Permission
+                        if (!allowStudentReg) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFFFEF2F2),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CoralAccent),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Icon(Icons.Filled.Lock, contentDescription = null, tint = CoralAccent, modifier = Modifier.size(18.dp))
+                                        Text(
+                                            text = "Student Registration Restricted",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = CoralAccent
+                                        )
+                                    }
+                                    Text(
+                                        text = "Self-registration for students is currently closed by the Institution Administrator. Please contact academic staff to be enrolled.",
+                                        fontSize = 12.sp,
+                                        color = DeepNavy
+                                    )
+                                }
+                            }
+                        } else {
+                            // Full Name Field
+                            OutlinedTextField(
+                                value = regName,
+                                onValueChange = {
+                                    regName = it
+                                    regError = null
+                                },
+                                label = { Text("Full Name") },
+                                placeholder = { Text("e.g. Jordan Smith") },
+                                leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null, tint = RoyalBlue) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("register_student_name"),
+                                shape = RoundedCornerShape(14.dp),
+                                singleLine = true
+                            )
+
+                            // Email Address Field
+                            OutlinedTextField(
+                                value = regEmail,
+                                onValueChange = {
+                                    regEmail = it
+                                    regError = null
+                                },
+                                label = { Text("Email Address") },
+                                placeholder = { Text("e.g. jordan.s@example.com") },
+                                leadingIcon = { Icon(Icons.Rounded.Email, contentDescription = null, tint = RoyalBlue) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("register_student_email"),
+                                shape = RoundedCornerShape(14.dp),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                            )
+
+                            // Batch / Cohort Field
+                            OutlinedTextField(
+                                value = regCohort,
+                                onValueChange = {
+                                    regCohort = it
+                                    regError = null
+                                },
+                                label = { Text("Batch / Cohort") },
+                                leadingIcon = { Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                singleLine = true
+                            )
+
+                            // Set Security PIN Field
+                            OutlinedTextField(
+                                value = regPin,
+                                onValueChange = {
+                                    regPin = it
+                                    regError = null
+                                },
+                                label = { Text("Set Security PIN (4-6 digits)") },
+                                placeholder = { Text("Choose a private PIN") },
+                                leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null, tint = RoyalBlue) },
+                                trailingIcon = {
+                                    IconButton(onClick = { regPinVisible = !regPinVisible }) {
+                                        Icon(
+                                            imageVector = if (regPinVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                            contentDescription = if (regPinVisible) "Hide PIN" else "Show PIN"
+                                        )
+                                    }
+                                },
+                                visualTransformation = if (regPinVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                            )
+
+                            // Confirm Security PIN Field
+                            OutlinedTextField(
+                                value = regConfirmPin,
+                                onValueChange = {
+                                    regConfirmPin = it
+                                    regError = null
+                                },
+                                label = { Text("Confirm Security PIN") },
+                                leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null, tint = RoyalBlue) },
+                                visualTransformation = if (regPinVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                            )
+
+                            // Error Banner
+                            AnimatedVisibility(visible = regError != null) {
+                                regError?.let { err ->
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFFFEE2E2),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, CoralAccent),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(Icons.Filled.Error, contentDescription = null, tint = CoralAccent, modifier = Modifier.size(16.dp))
+                                            Text(err, color = CoralAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Register Button
+                            Button(
+                                onClick = {
+                                    if (regName.isBlank() || regEmail.isBlank() || regPin.isBlank()) {
+                                        regError = "Please fill in all required fields."
+                                    } else if (regPin.trim().length < 4) {
+                                        regError = "Security PIN must be at least 4 digits."
+                                    } else if (regPin.trim() != regConfirmPin.trim()) {
+                                        regError = "Security PINs do not match. Please re-enter."
+                                    } else {
+                                        val result = viewModel.registerStudent(regName, regEmail, regCohort, regPin)
+                                        if (result is MainViewModel.UnifiedLoginResult.Error) {
+                                            regError = result.message
+                                        } else {
+                                            regError = null
+                                        }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp)
+                                    .testTag("register_student_button"),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+                            ) {
+                                Icon(Icons.AutoMirrored.Rounded.Login, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Create Student Account & Enter",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+
+                        // Faculty note
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFFF1F5F9),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -375,97 +570,38 @@ fun LoginScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Filled.Shield, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Rounded.Info, contentDescription = null, tint = MutedGray, modifier = Modifier.size(16.dp))
                                 Text(
-                                    text = if (selectedRole == Role.ADMIN)
-                                        "Admin Access Protected: Password or PIN 9842 required."
-                                    else
-                                        "Faculty Access Protected: Password or PIN 7321 required.",
+                                    text = "Faculty instructors are added directly by the Administrator with their assigned security PIN.",
                                     fontSize = 11.sp,
                                     color = MutedGray,
-                                    fontWeight = FontWeight.Medium
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
+
+                        // Switch back to Sign In
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    authMode = AuthMode.SIGN_IN
+                                    loginError = null
+                                }
+                            ) {
+                                Text(
+                                    text = "Already have an account? Sign In",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = RoyalBlue
                                 )
                             }
                         }
                     }
                 }
             }
-
-            // Demo Credentials Information Box
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = "Access & Security Policy:",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    DemoCredentialRow("Student:", "alex.morgan@linguaquest.edu (Public access for all learners)") {
-                        updateRoleCredentials(Role.STUDENT)
-                    }
-                    Text(
-                        text = "🔐 Teacher & Admin portals are secured against unauthorized access. Faculty and Administrator credentials or security PINs are strictly required.",
-                        fontSize = 11.sp,
-                        color = MutedGray,
-                        lineHeight = 15.sp
-                    )
-                }
-            }
         }
-    }
-}
-
-@Composable
-fun RoleTabButton(
-    title: String,
-    emoji: String,
-    isSelected: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-        border = if (isSelected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-        modifier = modifier
-            .clickable { onClick() }
-            .testTag("role_tab_${title.lowercase()}")
-    ) {
-        Column(
-            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(emoji, fontSize = 20.sp)
-            Text(
-                text = title,
-                fontSize = 12.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-}
-
-@Composable
-fun DemoCredentialRow(roleLabel: String, credentialText: String, onSelect: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onSelect() }
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(roleLabel, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
-        Text(credentialText, fontSize = 11.sp, color = MutedGray)
     }
 }

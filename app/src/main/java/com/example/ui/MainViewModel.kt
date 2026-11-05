@@ -130,6 +130,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val adminStudents = repository.adminStudents
     val adminTeachers = repository.adminTeachers
 
+    // Registration Permissions
+    val allowStudentRegistration = repository.allowStudentRegistration
+    val allowTeacherRegistration = repository.allowTeacherRegistration
+
+    fun setAllowStudentRegistration(allow: Boolean) {
+        repository.setAllowStudentRegistration(allow)
+    }
+
+    fun setAllowTeacherRegistration(allow: Boolean) {
+        repository.setAllowTeacherRegistration(allow)
+    }
+
     // Dynamic Game Content Flows
     val wordMatchChallenges = repository.wordMatchChallenges
     val missingLettersChallenges = repository.missingLettersChallenges
@@ -299,6 +311,119 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var adminPin = "9842"
     var teacherPin = "7321"
 
+    sealed class UnifiedLoginResult {
+        data class Success(val role: Role, val user: User) : UnifiedLoginResult()
+        data class Error(val message: String) : UnifiedLoginResult()
+    }
+
+    fun unifiedLogin(identifier: String, pinOrPassword: String): UnifiedLoginResult {
+        val idClean = identifier.trim().lowercase()
+        val secretClean = pinOrPassword.trim()
+
+        if (idClean.isBlank() || secretClean.isBlank()) {
+            return UnifiedLoginResult.Error("Please enter both email/ID and security PIN.")
+        }
+
+        // 1. Check Administrator Access
+        if ((idClean == "admin@linguaquest.edu" || idClean == "admin" || idClean == "dean.arthur") &&
+            (secretClean == adminPin || secretClean == adminPassword)) {
+            val adminUser = User(
+                id = "adm_001",
+                name = "Dean Arthur Pendelton",
+                email = "admin@linguaquest.edu",
+                role = Role.ADMIN,
+                avatarEmoji = "🛡️",
+                batch = "Head of Academics",
+                isActive = true,
+                securityPin = adminPin
+            )
+            repository.setCurrentUser(adminUser)
+            _isLoggedIn.value = true
+            _showRoleSwitcher.value = false
+            return UnifiedLoginResult.Success(Role.ADMIN, adminUser)
+        }
+
+        // 2. Check Faculty / Teacher Accounts
+        val teachers = repository.adminTeachers.value
+        val matchedTeacher = teachers.find {
+            it.email.trim().lowercase() == idClean &&
+            ((it.securityPin.isNotBlank() && it.securityPin == secretClean) || secretClean == teacherPin || secretClean == teacherPassword)
+        }
+        if (matchedTeacher != null) {
+            if (!matchedTeacher.isActive) {
+                return UnifiedLoginResult.Error("This faculty account has been deactivated. Please contact Administration.")
+            }
+            repository.setCurrentUser(matchedTeacher)
+            _isLoggedIn.value = true
+            _showRoleSwitcher.value = false
+            return UnifiedLoginResult.Success(Role.TEACHER, matchedTeacher)
+        }
+
+        // 3. Check Student Accounts
+        val students = repository.adminStudents.value
+        val matchedStudent = students.find {
+            it.email.trim().lowercase() == idClean &&
+            ((it.securityPin.isNotBlank() && it.securityPin == secretClean) || secretClean == "1234" || secretClean == "student123")
+        }
+        if (matchedStudent != null) {
+            if (!matchedStudent.isActive) {
+                return UnifiedLoginResult.Error("This student account has been deactivated. Please contact Administration.")
+            }
+            val studentUser = User(
+                id = matchedStudent.id,
+                name = matchedStudent.name,
+                email = matchedStudent.email,
+                role = Role.STUDENT,
+                avatarEmoji = matchedStudent.avatarEmoji,
+                batch = matchedStudent.batch,
+                isActive = matchedStudent.isActive,
+                securityPin = matchedStudent.securityPin
+            )
+            repository.setCurrentUser(studentUser)
+            repository.setStudentProfileUserId(matchedStudent.id, matchedStudent.name)
+            _isLoggedIn.value = true
+            _showRoleSwitcher.value = false
+            return UnifiedLoginResult.Success(Role.STUDENT, studentUser)
+        }
+
+        // Fallback check for default student demo email if not found in list
+        if (idClean == "alex.morgan@linguaquest.edu" && (secretClean == "1234" || secretClean == "student123")) {
+            val studentUser = User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", "Batch Alpha", securityPin = "1234")
+            repository.setCurrentUser(studentUser)
+            _isLoggedIn.value = true
+            _showRoleSwitcher.value = false
+            return UnifiedLoginResult.Success(Role.STUDENT, studentUser)
+        }
+
+        return UnifiedLoginResult.Error("Invalid email or security PIN. Please check your credentials.")
+    }
+
+    fun registerStudent(name: String, email: String, batch: String, pin: String): UnifiedLoginResult {
+        if (!allowStudentRegistration.value) {
+            return UnifiedLoginResult.Error("Student self-registration is currently restricted by Administrator.")
+        }
+        if (name.isBlank() || email.isBlank() || pin.isBlank()) {
+            return UnifiedLoginResult.Error("All fields and security PIN are required.")
+        }
+        val user = repository.registerStudent(name, email, batch, pin)
+        _isLoggedIn.value = true
+        _showRoleSwitcher.value = false
+        return UnifiedLoginResult.Success(Role.STUDENT, user)
+    }
+
+    fun registerTeacher(name: String, email: String, department: String, pin: String): UnifiedLoginResult {
+        if (!allowTeacherRegistration.value) {
+            return UnifiedLoginResult.Error("Faculty self-registration is currently restricted by Administrator.")
+        }
+        if (name.isBlank() || email.isBlank() || pin.isBlank()) {
+            return UnifiedLoginResult.Error("All fields and security PIN are required.")
+        }
+        val user = repository.registerTeacher(name, email, department, pin)
+        _isLoggedIn.value = true
+        _showRoleSwitcher.value = false
+        return UnifiedLoginResult.Success(Role.TEACHER, user)
+    }
+
     fun authenticateAndLogin(role: Role, passwordInput: String): Boolean {
         val isValid = when (role) {
             Role.ADMIN -> passwordInput.trim() == adminPassword || passwordInput.trim() == adminPin
@@ -315,9 +440,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun verifyRolePin(role: Role, pinInput: String): Boolean {
+        val input = pinInput.trim()
         return when (role) {
-            Role.ADMIN -> pinInput.trim() == adminPin || pinInput.trim() == adminPassword
-            Role.TEACHER -> pinInput.trim() == teacherPin || pinInput.trim() == teacherPassword || pinInput.trim() == adminPin || pinInput.trim() == adminPassword
+            Role.ADMIN -> input == adminPin || input == adminPassword
+            Role.TEACHER -> {
+                val currentTeacherPin = repository.currentUser.value.let {
+                    if (it.role == Role.TEACHER) it.securityPin else ""
+                }
+                input == teacherPin || input == teacherPassword || (currentTeacherPin.isNotBlank() && input == currentTeacherPin) || input == adminPin
+            }
             Role.STUDENT -> true
         }
     }
