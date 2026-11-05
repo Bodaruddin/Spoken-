@@ -103,7 +103,7 @@ class SupabaseService {
 
     companion object {
         val SQL_SCHEMA_BLUEPRINT = """
-            -- LinguaQuest Supabase PostgreSQL Schema
+            -- Speakly Supabase PostgreSQL Schema
             -- Run this in your Supabase SQL Editor:
 
             CREATE TABLE IF NOT EXISTS student_progress (

@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "LinguaQuest"
+rootProject.name = "Speakly"
 
 include(":app")

@@ -1,5 +1,5 @@
 {
-  "name": "LinguaQuest",
+  "name": "Speakly",
   "description": "Premium Spoken English learning platform with AI speaking practice, interactive games, roleplay dialogues, pronunciation coach, and 3 distinct Admin, Teacher, and Student portals.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

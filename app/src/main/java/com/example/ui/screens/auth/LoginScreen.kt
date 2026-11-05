@@ -96,14 +96,14 @@ fun LoginScreen(
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.img_hero_mascot),
-                        contentDescription = "LinguaQuest Mascot",
+                        contentDescription = "Speakly Mascot",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
                 }
 
                 Text(
-                    text = "LinguaQuest",
+                    text = "Speakly",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = DeepNavy,

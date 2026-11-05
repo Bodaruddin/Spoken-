@@ -75,7 +75,7 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                     }
                     Column {
                         Text("Dean Arthur Pendelton", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                        Text("Global Academic Administrator • LinguaQuest", fontSize = 12.sp, color = MutedGray)
+                        Text("Global Academic Administrator • Speakly", fontSize = 12.sp, color = MutedGray)
                     }
                 }
             }
@@ -385,7 +385,7 @@ fun AdminAnalytics(viewModel: MainViewModel, modifier: Modifier = Modifier) {
             ) {
                 Text("Institutional Performance Reports", fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Button(
-                    onClick = { exportToast = "Report exported to LinguaQuest_Report_Nov2026.pdf" },
+                    onClick = { exportToast = "Report exported to Speakly_Report_Nov2026.pdf" },
                     shape = RoundedCornerShape(10.dp)
                 ) {
                     Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))

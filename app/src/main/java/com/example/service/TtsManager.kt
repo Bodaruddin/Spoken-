@@ -44,8 +44,8 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         if (!isInitialized || tts == null) return
         tts?.setSpeechRate(if (slowSpeed) 0.72f else 0.95f)
         val params = HashMap<String, String>()
-        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "LinguaQuestUtterance"
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "LinguaQuestUtterance")
+        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "SpeaklyUtterance"
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "SpeaklyUtterance")
     }
 
     fun stop() {

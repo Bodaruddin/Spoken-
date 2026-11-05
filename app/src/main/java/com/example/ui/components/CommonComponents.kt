@@ -69,11 +69,11 @@ fun AppTopBar(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("LQ", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                    Text("SP", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
                 }
                 Column {
                     Text(
-                        text = "LinguaQuest",
+                        text = "Speakly",
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp,
                         color = MaterialTheme.colorScheme.onSurface
@@ -479,7 +479,7 @@ fun RoleSwitcherDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "Switch between the three fully-functional portals of LinguaQuest:",
+                    "Switch between the three fully-functional portals of Speakly:",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

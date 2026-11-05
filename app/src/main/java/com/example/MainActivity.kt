@@ -30,14 +30,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                LinguaQuestApp()
+                SpeaklyApp()
             }
         }
     }
 }
 
 @Composable
-fun LinguaQuestApp(viewModel: MainViewModel = viewModel()) {
+fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
     val context = LocalContext.current
     val currentUser by viewModel.currentUser.collectAsState()
     val studentProfile by viewModel.studentProfile.collectAsState()
