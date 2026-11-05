@@ -481,23 +481,65 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column {
-                    Text("Game & Challenge Creator", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("Publish and edit interactive learning challenges for students", fontSize = 12.sp, color = MutedGray)
-                }
-
-                Button(
-                    onClick = { showCreateDialog = true },
-                    shape = RoundedCornerShape(12.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("New Question", fontSize = 12.sp)
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(RoyalBlue, PurpleAccent)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🎮", fontSize = 20.sp)
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "Game & Challenge Creator",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Text(
+                                "Publish & edit interactive learning challenges for students",
+                                fontSize = 11.sp,
+                                color = MutedGray,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = { showCreateDialog = true },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("New", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
                 }
             }
         }
@@ -506,7 +548,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         item {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 4.dp)
+                contentPadding = PaddingValues(vertical = 2.dp)
             ) {
                 items(GameCategoryFilter.values()) { cat ->
                     val isSel = selectedCategory == cat
@@ -526,7 +568,8 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                                 cat.title,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 12.sp,
-                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface
+                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
                             )
                         }
                     }
@@ -545,11 +588,16 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                     .clickable { showCreateDialog = true }
             ) {
                 Row(
-                    modifier = Modifier.padding(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -562,16 +610,28 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                         ) {
                             Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
                         }
-                        Column {
-                            Text("+ Add New ${selectedCategory.title} Question", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepNavy)
-                            Text("Create a question or drill to publish directly to students", fontSize = 11.sp, color = MutedGray)
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "+ Add New ${selectedCategory.title} Question",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = DeepNavy,
+                                maxLines = 1
+                            )
+                            Text(
+                                "Create a question or drill to publish directly to students",
+                                fontSize = 11.sp,
+                                color = MutedGray,
+                                maxLines = 1
+                            )
                         }
                     }
                     Button(
                         onClick = { showCreateDialog = true },
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Text("Add New", fontSize = 12.sp)
+                        Text("Add New", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                 }
             }

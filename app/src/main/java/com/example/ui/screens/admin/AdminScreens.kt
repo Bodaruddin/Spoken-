@@ -222,36 +222,79 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column {
-                    Text("Student Director Roster", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("${students.size} enrolled learners", fontSize = 12.sp, color = MutedGray)
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(
-                        onClick = {
-                            viewModel.repository.bulkImportStudents(3)
-                            statusMsg = "Successfully imported 3 student records via CSV spreadsheet!"
-                        },
-                        shape = RoundedCornerShape(10.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(Icons.Filled.FileUpload, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("CSV Bulk", fontSize = 11.sp)
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(RoyalBlue, PurpleAccent)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🎓", fontSize = 20.sp)
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "Student Roster",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Text(
+                                "${students.size} enrolled learners",
+                                fontSize = 11.sp,
+                                color = MutedGray,
+                                maxLines = 1
+                            )
+                        }
                     }
 
-                    Button(
-                        onClick = { showAddDialog = true },
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Add Student", fontSize = 11.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilledTonalButton(
+                            onClick = {
+                                viewModel.repository.bulkImportStudents(3)
+                                statusMsg = "Successfully imported 3 student records via CSV spreadsheet!"
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Filled.FileUpload, contentDescription = null, modifier = Modifier.size(13.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text("CSV", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        }
+
+                        Button(
+                            onClick = { showAddDialog = true },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(13.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text("Add", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        }
                     }
                 }
             }
@@ -461,30 +504,75 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Column {
-                    Text("Curriculum Games Hub Manager", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("Institutional repository of speaking and language arcade games", fontSize = 12.sp, color = MutedGray)
-                }
-
-                Button(
-                    onClick = { showCreateDialog = true },
-                    shape = RoundedCornerShape(12.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("New Question", fontSize = 11.sp)
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(RoyalBlue, PurpleAccent)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🎮", fontSize = 20.sp)
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "Curriculum Games Hub Manager",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Text(
+                                "Institutional repository of arcade games",
+                                fontSize = 11.sp,
+                                color = MutedGray,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = { showCreateDialog = true },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("New", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
                 }
             }
         }
 
         // Category Switcher
         item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 2.dp)
+            ) {
                 items(GameCategoryFilter.values()) { cat ->
                     val isSel = selectedCategory == cat
                     Surface(
@@ -503,7 +591,8 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                                 cat.title,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 12.sp,
-                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface
+                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
                             )
                         }
                     }
@@ -522,11 +611,16 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                     .clickable { showCreateDialog = true }
             ) {
                 Row(
-                    modifier = Modifier.padding(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -539,16 +633,28 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                         ) {
                             Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
                         }
-                        Column {
-                            Text("+ Add New ${selectedCategory.title} Question", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = DeepNavy)
-                            Text("Author questions and immediately deploy to student arcade", fontSize = 11.sp, color = MutedGray)
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "+ Add New ${selectedCategory.title} Question",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = DeepNavy,
+                                maxLines = 1
+                            )
+                            Text(
+                                "Author questions and immediately deploy to student arcade",
+                                fontSize = 11.sp,
+                                color = MutedGray,
+                                maxLines = 1
+                            )
                         }
                     }
                     Button(
                         onClick = { showCreateDialog = true },
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Text("Add New", fontSize = 12.sp)
+                        Text("Add New", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                 }
             }
@@ -800,19 +906,65 @@ fun AdminTeachersManagement(viewModel: MainViewModel, modifier: Modifier = Modif
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Faculty & Instructor Staff", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Button(
-                    onClick = { showAddTeacherDialog = true },
-                    shape = RoundedCornerShape(10.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Add Faculty", fontSize = 11.sp)
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(RoyalBlue, PurpleAccent)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("👨‍🏫", fontSize = 20.sp)
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "Faculty & Instructors",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Text(
+                                "Manage teaching staff & course assignments",
+                                fontSize = 11.sp,
+                                color = MutedGray,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = { showAddTeacherDialog = true },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
                 }
             }
         }
@@ -901,19 +1053,65 @@ fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Mod
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Course Curriculum & CEFR Framework", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Button(
-                    onClick = { exportToast = "Report exported to Speakly_Academic_Audit.pdf" },
-                    shape = RoundedCornerShape(10.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Export Audit", fontSize = 11.sp)
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(RoyalBlue, PurpleAccent)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("📚", fontSize = 20.sp)
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                "Course Curriculum",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Text(
+                                "CEFR framework & speaking levels",
+                                fontSize = 11.sp,
+                                color = MutedGray,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = { exportToast = "Report exported to Speakly_Academic_Audit.pdf" },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Export", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
                 }
             }
         }
@@ -933,20 +1131,44 @@ fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Surface(
                             shape = RoundedCornerShape(10.dp),
                             color = RoyalBlue
                         ) {
-                            Text(lvl.cefr, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                            Text(
+                                lvl.cefr,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
                         }
-                        Column {
-                            Text(lvl.displayName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Text("18 Core Lessons • 42 Speaking Activities", fontSize = 12.sp, color = MutedGray)
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                lvl.displayName,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                maxLines = 1
+                            )
+                            Text(
+                                "18 Lessons • 42 Speaking Tasks",
+                                fontSize = 11.sp,
+                                color = MutedGray,
+                                maxLines = 1
+                            )
                         }
                     }
 
@@ -954,7 +1176,14 @@ fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                         shape = RoundedCornerShape(8.dp),
                         color = Color(0xFFDCFCE7)
                     ) {
-                        Text("Published", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = EmeraldSuccess, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                        Text(
+                            "Published",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = EmeraldSuccess,
+                            maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
                     }
                 }
             }
@@ -976,7 +1205,7 @@ fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                             Text("Automated Daily Reminders", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text("Push notification reminders for student streaks", fontSize = 11.sp, color = MutedGray)
                         }
@@ -990,7 +1219,7 @@ fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                             Text("Offline Data Synchronization", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text("Automatic background sync when device reconnects", fontSize = 11.sp, color = MutedGray)
                         }
@@ -1004,15 +1233,16 @@ fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                             Text("Supabase Cloud Database", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text("External PostgreSQL tables & student metrics sync", fontSize = 11.sp, color = MutedGray)
                         }
                         Button(
                             onClick = { viewModel.toggleSupabaseModal(true) },
-                            shape = RoundedCornerShape(10.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                         ) {
-                            Text("Connect DB", fontSize = 11.sp)
+                            Text("Connect DB", fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
                     }
                 }
