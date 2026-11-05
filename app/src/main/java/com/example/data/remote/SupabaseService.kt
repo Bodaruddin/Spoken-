@@ -25,12 +25,14 @@ class SupabaseService {
 
     // Configurable endpoint & key (defaults to BuildConfig or user input)
     var supabaseUrl: String = try {
-        BuildConfig.SUPABASE_URL.takeIf { it.isNotBlank() && !it.contains("your-project") } ?: ""
-    } catch (e: Exception) { "" }
+        val field = BuildConfig::class.java.getField("SUPABASE_URL")
+        (field.get(null) as? String)?.takeIf { it.isNotBlank() && !it.contains("your-project") } ?: ""
+    } catch (_: Exception) { "" }
 
     var supabaseAnonKey: String = try {
-        BuildConfig.SUPABASE_ANON_KEY.takeIf { it.isNotBlank() && !it.contains("your-supabase") } ?: ""
-    } catch (e: Exception) { "" }
+        val field = BuildConfig::class.java.getField("SUPABASE_ANON_KEY")
+        (field.get(null) as? String)?.takeIf { it.isNotBlank() && !it.contains("your-supabase") } ?: ""
+    } catch (_: Exception) { "" }
 
     fun isConfigured(): Boolean {
         return supabaseUrl.isNotBlank() && supabaseAnonKey.isNotBlank()

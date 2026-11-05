@@ -492,6 +492,14 @@ fun RoleSwitcherDialog(
                 )
 
                 RoleSelectionItem(
+                    title = "Teacher Portal",
+                    subtitle = "Prof. Eleanor Vance • Batch Alpha & Beta • Review voice drills & create challenges",
+                    emoji = "👩‍🏫",
+                    isSelected = currentRole == Role.TEACHER,
+                    onClick = { onRoleSelected(Role.TEACHER) }
+                )
+
+                RoleSelectionItem(
                     title = "Admin Portal",
                     subtitle = "Dean Arthur Pendelton • Faculty, Course & Database Management",
                     emoji = "🛡️",
