@@ -124,31 +124,33 @@ fun AppTopBar(
                     )
                 }
 
-                // Supabase Cloud DB Pill
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = if (isCloudConnected) Color(0xFFDCFCE7) else MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier
-                        .testTag("cloud_connect_button")
-                        .clickable { onCloudClick() }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                // Supabase Cloud DB Pill (Exclusive to Administrator Role)
+                if (role == Role.ADMIN) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isCloudConnected) Color(0xFFDCFCE7) else MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier
+                            .testTag("cloud_connect_button")
+                            .clickable { onCloudClick() }
                     ) {
-                        Icon(
-                            imageVector = if (isCloudConnected) Icons.Filled.CloudDone else Icons.Rounded.CloudQueue,
-                            contentDescription = "Cloud Database",
-                            modifier = Modifier.size(16.dp),
-                            tint = if (isCloudConnected) EmeraldSuccess else MutedGray
-                        )
-                        Text(
-                            text = if (isCloudConnected) "Sync" else "DB",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isCloudConnected) EmeraldSuccess else MutedGray
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isCloudConnected) Icons.Filled.CloudDone else Icons.Rounded.CloudQueue,
+                                contentDescription = "Cloud Database",
+                                modifier = Modifier.size(16.dp),
+                                tint = if (isCloudConnected) EmeraldSuccess else MutedGray
+                            )
+                            Text(
+                                text = if (isCloudConnected) "Sync" else "DB",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isCloudConnected) EmeraldSuccess else MutedGray
+                            )
+                        }
                     }
                 }
 

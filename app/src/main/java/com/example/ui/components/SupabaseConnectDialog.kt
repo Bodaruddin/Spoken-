@@ -45,6 +45,11 @@ fun SupabaseConnectDialog(
     val currentUser by viewModel.currentUser.collectAsState()
     val isAdmin = currentUser.role == com.example.data.model.Role.ADMIN
 
+    if (!isAdmin) {
+        LaunchedEffect(Unit) { onDismiss() }
+        return
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {

@@ -86,7 +86,11 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                         xp = studentProfile.xpPoints,
                         coins = studentProfile.coins,
                         onRoleClick = { viewModel.toggleRoleSwitcher(true) },
-                        onCloudClick = { viewModel.toggleSupabaseModal(true) },
+                        onCloudClick = {
+                            if (currentUser.role == Role.ADMIN) {
+                                viewModel.toggleSupabaseModal(true)
+                            }
+                        },
                         isCloudConnected = supabaseStatus is com.example.data.remote.SupabaseConnectionState.Connected,
                         onLogoutClick = { viewModel.logout() }
                     )
