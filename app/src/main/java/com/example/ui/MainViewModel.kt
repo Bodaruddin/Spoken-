@@ -96,6 +96,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun connectSupabase(url: String, key: String) {
+        if (currentUser.value.role != Role.ADMIN) {
+            _supabaseStatus.value = com.example.data.remote.SupabaseConnectionState.Error("Access Restricted: Only Administrators can configure and connect the database.")
+            return
+        }
         viewModelScope.launch {
             _supabaseStatus.value = com.example.data.remote.SupabaseConnectionState.Connecting
             val result = supabaseService.testConnection(url, key)

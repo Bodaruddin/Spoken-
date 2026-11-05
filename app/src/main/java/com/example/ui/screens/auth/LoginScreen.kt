@@ -53,11 +53,7 @@ fun LoginScreen(
                 email = "alex.morgan@linguaquest.edu"
                 password = "student123"
             }
-            Role.TEACHER -> {
-                email = "e.vance@linguaquest.edu"
-                password = "teacher123"
-            }
-            Role.ADMIN -> {
+            else -> {
                 email = "admin@linguaquest.edu"
                 password = "admin123"
             }
@@ -139,7 +135,7 @@ fun LoginScreen(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         RoleTabButton(
                             title = "Student",
@@ -147,14 +143,6 @@ fun LoginScreen(
                             isSelected = selectedRole == Role.STUDENT,
                             modifier = Modifier.weight(1f),
                             onClick = { updateRoleCredentials(Role.STUDENT) }
-                        )
-
-                        RoleTabButton(
-                            title = "Teacher",
-                            emoji = "👩‍🏫",
-                            isSelected = selectedRole == Role.TEACHER,
-                            modifier = Modifier.weight(1f),
-                            onClick = { updateRoleCredentials(Role.TEACHER) }
                         )
 
                         RoleTabButton(
@@ -171,8 +159,7 @@ fun LoginScreen(
                         shape = RoundedCornerShape(12.dp),
                         color = when (selectedRole) {
                             Role.STUDENT -> Color(0xFFEFF6FF)
-                            Role.TEACHER -> Color(0xFFFDF4FF)
-                            Role.ADMIN -> Color(0xFFFEF3C7)
+                            else -> Color(0xFFFEF3C7)
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -184,8 +171,7 @@ fun LoginScreen(
                             Text(
                                 text = when (selectedRole) {
                                     Role.STUDENT -> "🦉"
-                                    Role.TEACHER -> "👩‍🏫"
-                                    Role.ADMIN -> "🛡️"
+                                    else -> "🛡️"
                                 },
                                 fontSize = 20.sp
                             )
@@ -193,22 +179,19 @@ fun LoginScreen(
                                 Text(
                                     text = when (selectedRole) {
                                         Role.STUDENT -> "Student Learning Portal"
-                                        Role.TEACHER -> "Teacher & Instructor Portal"
-                                        Role.ADMIN -> "Global Administration Portal"
+                                        else -> "Global Administration Portal"
                                     },
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
                                     color = when (selectedRole) {
                                         Role.STUDENT -> RoyalBlueDark
-                                        Role.TEACHER -> PurpleDark
-                                        Role.ADMIN -> Color(0xFFB45309)
+                                        else -> Color(0xFFB45309)
                                     }
                                 )
                                 Text(
                                     text = when (selectedRole) {
                                         Role.STUDENT -> "AI speaking partner, journey map, roleplays & 12 mini games"
-                                        Role.TEACHER -> "Listen to student recordings, grade fluency & manage assignments"
-                                        Role.ADMIN -> "Full institutional control, manage faculty, students & analytics"
+                                        else -> "Full institutional control, curriculum, database connection & faculty"
                                     },
                                     fontSize = 11.sp,
                                     color = DeepNavy
@@ -289,8 +272,7 @@ fun LoginScreen(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = when (selectedRole) {
                                 Role.STUDENT -> RoyalBlue
-                                Role.TEACHER -> PurpleAccent
-                                Role.ADMIN -> DeepNavy
+                                else -> DeepNavy
                             }
                         )
                     ) {
@@ -314,8 +296,7 @@ fun LoginScreen(
                             1.5.dp,
                             when (selectedRole) {
                                 Role.STUDENT -> RoyalBlue
-                                Role.TEACHER -> PurpleAccent
-                                Role.ADMIN -> AmberGold
+                                else -> AmberGold
                             }
                         )
                     ) {
@@ -324,8 +305,7 @@ fun LoginScreen(
                             contentDescription = null,
                             tint = when (selectedRole) {
                                 Role.STUDENT -> RoyalBlue
-                                Role.TEACHER -> PurpleAccent
-                                Role.ADMIN -> AmberGold
+                                else -> AmberGold
                             },
                             modifier = Modifier.size(18.dp)
                         )
@@ -358,9 +338,6 @@ fun LoginScreen(
                     )
                     DemoCredentialRow("Student:", "alex.morgan@linguaquest.edu (Alex Morgan, A2)") {
                         updateRoleCredentials(Role.STUDENT)
-                    }
-                    DemoCredentialRow("Teacher:", "e.vance@linguaquest.edu (Prof. Eleanor Vance)") {
-                        updateRoleCredentials(Role.TEACHER)
                     }
                     DemoCredentialRow("Admin:", "admin@linguaquest.edu (Dean Arthur Pendelton)") {
                         updateRoleCredentials(Role.ADMIN)

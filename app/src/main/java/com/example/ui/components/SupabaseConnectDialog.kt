@@ -42,6 +42,9 @@ fun SupabaseConnectDialog(
     var showSqlSchema by remember { mutableStateOf(false) }
     var copiedFeedback by remember { mutableStateOf(false) }
 
+    val currentUser by viewModel.currentUser.collectAsState()
+    val isAdmin = currentUser.role == com.example.data.model.Role.ADMIN
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -71,6 +74,58 @@ fun SupabaseConnectDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Admin Restriction Notice for Students
+                if (!isAdmin) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFFEF3C7),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text("🔒", fontSize = 20.sp)
+                            Column {
+                                Text(
+                                    text = "Administrator Access Required",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFB45309)
+                                )
+                                Text(
+                                    text = "Only Administrators can configure credentials and connect the database. Student accounts have read-only status access.",
+                                    fontSize = 11.sp,
+                                    color = DeepNavy
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFEFF6FF),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("🛡️", fontSize = 14.sp)
+                            Text(
+                                text = "Admin Authorized: Dean Arthur Pendelton",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = RoyalBlueDark
+                            )
+                        }
+                    }
+                }
+
                 // Connection Status Pill
                 Surface(
                     shape = RoundedCornerShape(12.dp),
@@ -117,8 +172,10 @@ fun SupabaseConnectDialog(
                 // Input URL
                 OutlinedTextField(
                     value = inputUrl,
-                    onValueChange = { inputUrl = it },
-                    label = { Text("Supabase Project URL") },
+                    onValueChange = { if (isAdmin) inputUrl = it },
+                    enabled = isAdmin,
+                    readOnly = !isAdmin,
+                    label = { Text("Supabase Project URL" + if (!isAdmin) " (Admin Locked)" else "") },
                     placeholder = { Text("https://your-project.supabase.co") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -128,27 +185,62 @@ fun SupabaseConnectDialog(
                 // Input Anon Key
                 OutlinedTextField(
                     value = inputKey,
-                    onValueChange = { inputKey = it },
-                    label = { Text("Supabase Anon Key (Public)") },
+                    onValueChange = { if (isAdmin) inputKey = it },
+                    enabled = isAdmin,
+                    readOnly = !isAdmin,
+                    label = { Text("Supabase Anon Key (Public)" + if (!isAdmin) " (Admin Locked)" else "") },
                     placeholder = { Text("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true
                 )
 
-                Button(
-                    onClick = {
-                        viewModel.connectSupabase(inputUrl, inputKey)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("test_connect_supabase_button"),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3ECF8E))
-                ) {
-                    Icon(Icons.Filled.CloudDone, contentDescription = null, tint = Color.Black)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Test & Connect Supabase", fontWeight = FontWeight.Bold, color = Color.Black)
+                if (isAdmin) {
+                    Button(
+                        onClick = {
+                            viewModel.connectSupabase(inputUrl, inputKey)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("test_connect_supabase_button"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3ECF8E))
+                    ) {
+                        Icon(Icons.Filled.CloudDone, contentDescription = null, tint = Color.Black)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Test & Connect Supabase", fontWeight = FontWeight.Bold, color = Color.Black)
+                    }
+                } else {
+                    Button(
+                        onClick = {},
+                        enabled = false,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("student_connect_supabase_locked_button"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            disabledContainerColor = Color(0xFFE2E8F0),
+                            disabledContentColor = MutedGray
+                        )
+                    ) {
+                        Icon(Icons.Filled.Lock, contentDescription = null, tint = MutedGray, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Only Admin Can Connect Database", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MutedGray)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            onDismiss()
+                            viewModel.toggleRoleSwitcher(true)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, RoyalBlue)
+                    ) {
+                        Icon(Icons.Rounded.Shield, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Switch to Admin Account to Connect", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+                    }
                 }
 
                 HorizontalDivider()

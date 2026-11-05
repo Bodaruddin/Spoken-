@@ -94,22 +94,16 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
             },
             bottomBar = {
                 when (currentUser.role) {
-                    Role.STUDENT -> {
-                        StudentBottomBar(
-                            currentTab = currentStudentTab,
-                            onTabSelected = { viewModel.selectStudentTab(it) }
-                        )
-                    }
-                    Role.TEACHER -> {
-                        TeacherBottomBar(
-                            currentTab = currentTeacherTab,
-                            onTabSelected = { viewModel.selectTeacherTab(it) }
-                        )
-                    }
                     Role.ADMIN -> {
                         AdminBottomBar(
                             currentTab = currentAdminTab,
                             onTabSelected = { viewModel.selectAdminTab(it) }
+                        )
+                    }
+                    else -> {
+                        StudentBottomBar(
+                            currentTab = currentStudentTab,
+                            onTabSelected = { viewModel.selectStudentTab(it) }
                         )
                     }
                 }
@@ -119,10 +113,13 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .then(if (currentUser.role == Role.STUDENT) Modifier.statusBarsPadding() else Modifier)
+                    .then(if (currentUser.role != Role.ADMIN) Modifier.statusBarsPadding() else Modifier)
             ) {
                 when (currentUser.role) {
-                    Role.STUDENT -> {
+                    Role.ADMIN -> {
+                        AdminMainScreen(viewModel = viewModel)
+                    }
+                    else -> {
                         when (currentStudentTab) {
                             StudentTab.HOME -> StudentHomeScreen(viewModel = viewModel)
                             StudentTab.LEARN -> LearningJourneyScreen(viewModel = viewModel)
@@ -130,12 +127,6 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                             StudentTab.GAMES -> GamesHubScreen(viewModel = viewModel)
                             StudentTab.PROFILE -> StudentProfileScreen(viewModel = viewModel)
                         }
-                    }
-                    Role.TEACHER -> {
-                        TeacherMainScreen(viewModel = viewModel)
-                    }
-                    Role.ADMIN -> {
-                        AdminMainScreen(viewModel = viewModel)
                     }
                 }
             }

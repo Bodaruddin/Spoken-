@@ -81,8 +81,7 @@ fun AppTopBar(
                     Text(
                         text = when (role) {
                             Role.STUDENT -> "Student Portal"
-                            Role.TEACHER -> "Teacher Portal"
-                            Role.ADMIN -> "Admin Control"
+                            else -> "Admin Control"
                         },
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.primary,
@@ -479,7 +478,7 @@ fun RoleSwitcherDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    "Switch between the three fully-functional portals of Speakly:",
+                    "Switch between the available portals of Speakly:",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -493,16 +492,8 @@ fun RoleSwitcherDialog(
                 )
 
                 RoleSelectionItem(
-                    title = "Teacher Portal",
-                    subtitle = "Prof. Eleanor Vance • 24 Students • Grade Audio",
-                    emoji = "👩‍🏫",
-                    isSelected = currentRole == Role.TEACHER,
-                    onClick = { onRoleSelected(Role.TEACHER) }
-                )
-
-                RoleSelectionItem(
                     title = "Admin Portal",
-                    subtitle = "Dean Arthur Pendelton • Faculty & Course Management",
+                    subtitle = "Dean Arthur Pendelton • Faculty, Course & Database Management",
                     emoji = "🛡️",
                     isSelected = currentRole == Role.ADMIN,
                     onClick = { onRoleSelected(Role.ADMIN) }
