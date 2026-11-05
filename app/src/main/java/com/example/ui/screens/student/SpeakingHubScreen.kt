@@ -592,22 +592,34 @@ fun PronunciationSection(
                             queryInput = it
                             viewModel.updatePhoneticSearchQuery(it)
                         },
-                        label = { Text("Search word (e.g. comfortable, thorough)...") },
-                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = RoyalBlue) },
+                        placeholder = {
+                            Text(
+                                "Search word (e.g. thorough)...",
+                                fontSize = 13.sp,
+                                color = MutedGray,
+                                maxLines = 1
+                            )
+                        },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(20.dp)) },
                         trailingIcon = {
                             if (queryInput.isNotEmpty()) {
-                                IconButton(onClick = {
-                                    queryInput = ""
-                                    viewModel.clearPhoneticsSearch()
-                                }) {
-                                    Icon(Icons.Filled.Clear, contentDescription = "Clear")
+                                IconButton(
+                                    onClick = {
+                                        queryInput = ""
+                                        viewModel.clearPhoneticsSearch()
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(Icons.Filled.Clear, contentDescription = "Clear", modifier = Modifier.size(16.dp))
                                 }
                             }
                         },
                         shape = RoundedCornerShape(14.dp),
                         singleLine = true,
+                        maxLines = 1,
                         modifier = Modifier
                             .weight(1f)
+                            .height(52.dp)
                             .testTag("phonetic_search_text_field")
                     )
 
@@ -619,8 +631,10 @@ fun PronunciationSection(
                         },
                         enabled = queryInput.isNotBlank() && !isSearching,
                         shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
-                        modifier = Modifier.testTag("phonetic_search_button")
+                        contentPadding = PaddingValues(horizontal = 14.dp),
+                        modifier = Modifier
+                            .height(52.dp)
+                            .testTag("phonetic_search_button")
                     ) {
                         if (isSearching) {
                             CircularProgressIndicator(

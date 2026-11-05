@@ -441,18 +441,21 @@ fun PromptsManagementList(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                label = { Text("Search speaking prompts & categories...") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                placeholder = { Text("Search speaking prompts...", fontSize = 13.sp, color = MutedGray, maxLines = 1) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(20.dp)) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Clear")
+                        IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Filled.Clear, contentDescription = "Clear", modifier = Modifier.size(16.dp))
                         }
                     }
                 },
                 shape = RoundedCornerShape(14.dp),
+                singleLine = true,
+                maxLines = 1,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(50.dp)
                     .testTag("prompt_search_input")
             )
         }
@@ -694,18 +697,21 @@ fun DrillsManagementList(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    label = { Text("Filter drills by word, IPA, or sound focus...") },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    placeholder = { Text("Filter drills by word, sound...", fontSize = 13.sp, color = MutedGray, maxLines = 1) },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(20.dp)) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Filled.Clear, contentDescription = "Clear")
+                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Filled.Clear, contentDescription = "Clear", modifier = Modifier.size(16.dp))
                             }
                         }
                     },
                     shape = RoundedCornerShape(14.dp),
+                    singleLine = true,
+                    maxLines = 1,
                     modifier = Modifier
                         .fillMaxWidth()
+                        .height(50.dp)
                         .testTag("drill_search_input")
                 )
 
