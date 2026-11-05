@@ -23,19 +23,21 @@ class SupabaseService {
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
-    // Configurable endpoint & key (defaults to BuildConfig or user input)
+    // Configurable endpoint & key (defaults to user project or BuildConfig)
     var supabaseUrl: String = try {
         val field = BuildConfig::class.java.getField("SUPABASE_URL")
-        (field.get(null) as? String)?.takeIf { it.isNotBlank() && !it.contains("your-project") } ?: ""
-    } catch (_: Exception) { "" }
+        (field.get(null) as? String)?.takeIf { it.isNotBlank() && !it.contains("your-project") }
+            ?: "https://bdodzycvbbwmzstbgllg.supabase.co"
+    } catch (_: Exception) { "https://bdodzycvbbwmzstbgllg.supabase.co" }
 
     var supabaseAnonKey: String = try {
         val field = BuildConfig::class.java.getField("SUPABASE_ANON_KEY")
-        (field.get(null) as? String)?.takeIf { it.isNotBlank() && !it.contains("your-supabase") } ?: ""
-    } catch (_: Exception) { "" }
+        (field.get(null) as? String)?.takeIf { it.isNotBlank() && !it.contains("your-supabase") }
+            ?: "sb_publishable_ugS6TWEzgOAeQJl1yrEEEw_FSbfgxP_"
+    } catch (_: Exception) { "sb_publishable_ugS6TWEzgOAeQJl1yrEEEw_FSbfgxP_" }
 
     fun isConfigured(): Boolean {
-        return supabaseUrl.isNotBlank() && supabaseAnonKey.isNotBlank()
+        return supabaseUrl.isNotBlank() && supabaseAnonKey.isNotBlank() && !supabaseUrl.contains("your-project")
     }
 
     suspend fun testConnection(url: String = supabaseUrl, key: String = supabaseAnonKey): SupabaseConnectionState = withContext(Dispatchers.IO) {
@@ -45,21 +47,51 @@ class SupabaseService {
         }
 
         try {
-            val request = Request.Builder()
-                .url("$cleanUrl/rest/v1/")
-                .addHeader("apikey", key.trim())
-                .addHeader("Authorization", "Bearer ${key.trim()}")
-                .get()
-                .build()
+            var connected = false
+            var statusCode = 0
 
-            client.newCall(request).execute().use { response ->
-                if (response.isSuccessful || response.code == 404 || response.code == 200) {
-                    supabaseUrl = cleanUrl
-                    supabaseAnonKey = key.trim()
-                    SupabaseConnectionState.Connected(cleanUrl, "Connected successfully to Supabase PostgreSQL backend (HTTP ${response.code})")
-                } else {
-                    SupabaseConnectionState.Error("Supabase returned status code ${response.code}: ${response.message}")
+            // 1. Health check endpoint (fast and accessible with anon / publishable keys)
+            try {
+                val healthRequest = Request.Builder()
+                    .url("$cleanUrl/auth/v1/health")
+                    .addHeader("apikey", key.trim())
+                    .addHeader("Authorization", "Bearer ${key.trim()}")
+                    .get()
+                    .build()
+
+                client.newCall(healthRequest).execute().use { response ->
+                    statusCode = response.code
+                    if (response.isSuccessful || response.code == 200) {
+                        connected = true
+                    }
                 }
+            } catch (_: Exception) { }
+
+            // 2. Fallback check: student_progress table query
+            if (!connected) {
+                try {
+                    val restRequest = Request.Builder()
+                        .url("$cleanUrl/rest/v1/student_progress?select=student_id&limit=1")
+                        .addHeader("apikey", key.trim())
+                        .addHeader("Authorization", "Bearer ${key.trim()}")
+                        .get()
+                        .build()
+
+                    client.newCall(restRequest).execute().use { response ->
+                        statusCode = response.code
+                        if (response.isSuccessful || response.code == 200 || response.code == 206) {
+                            connected = true
+                        }
+                    }
+                } catch (_: Exception) { }
+            }
+
+            if (connected) {
+                supabaseUrl = cleanUrl
+                supabaseAnonKey = key.trim()
+                SupabaseConnectionState.Connected(cleanUrl, "Connected successfully to Supabase PostgreSQL backend (HTTP $statusCode)")
+            } else {
+                SupabaseConnectionState.Error("Supabase returned status code $statusCode")
             }
         } catch (e: Exception) {
             SupabaseConnectionState.Error("Network error connecting to Supabase: ${e.localizedMessage}")
