@@ -25,10 +25,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.LearningLevel
+import com.example.data.model.Role
 import com.example.data.model.StudentManagementInfo
 import com.example.data.model.User
+import com.example.ui.AdminSpeakingSection
 import com.example.ui.AdminTab
 import com.example.ui.MainViewModel
+import com.example.ui.screens.common.SpeakingAndPhoneticsManagement
+import com.example.ui.screens.common.SpeakingManageTab
 import com.example.ui.screens.teacher.ActiveEditingChallenge
 import com.example.ui.screens.teacher.CreateGameChallengeDialog
 import com.example.ui.screens.teacher.EditGameChallengeDialog
@@ -158,6 +162,30 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text("Curriculum", fontSize = 11.sp)
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = {
+                                viewModel.selectAdminSpeakingSection(AdminSpeakingSection.SPEAKING_PROMPTS)
+                                viewModel.selectAdminTab(AdminTab.CURRICULUM)
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess)
+                        ) {
+                            Text("🎙️ AI Speaking", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = {
+                                viewModel.selectAdminSpeakingSection(AdminSpeakingSection.PHONETICS_DRILLS)
+                                viewModel.selectAdminTab(AdminTab.CURRICULUM)
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AmberGold)
+                        ) {
+                            Text("🎯 Phonetics", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1038,8 +1066,98 @@ fun AdminTeachersManagement(viewModel: MainViewModel, modifier: Modifier = Modif
 // -------------------------------------------------------------
 // ADMIN CURRICULUM MANAGEMENT
 // -------------------------------------------------------------
+enum class AdminCurriculumSection(val title: String, val emoji: String) {
+    COURSES("CEFR Framework", "📚"),
+    SPEAKING("AI Speaking", "🎙️"),
+    PHONETICS("Phonetics & Drills", "🎯")
+}
+
 @Composable
 fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Modifier) {
+    val adminSpeakingSection by viewModel.adminSpeakingSection.collectAsState()
+    var selectedSection by remember { mutableStateOf(AdminCurriculumSection.COURSES) }
+
+    LaunchedEffect(adminSpeakingSection) {
+        selectedSection = when (adminSpeakingSection) {
+            AdminSpeakingSection.SPEAKING_PROMPTS -> AdminCurriculumSection.SPEAKING
+            AdminSpeakingSection.PHONETICS_DRILLS -> AdminCurriculumSection.PHONETICS
+            AdminSpeakingSection.ROLEPLAY_SCENARIOS -> AdminCurriculumSection.SPEAKING
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // Top Section Selector for Admin
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                AdminCurriculumSection.values().forEach { sec ->
+                    val isSel = selectedSection == sec
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSel) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = if (isSel) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { selectedSection = sec }
+                            .testTag("admin_curriculum_section_${sec.name.lowercase()}")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(sec.emoji, fontSize = 13.sp)
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                sec.title,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        when (selectedSection) {
+            AdminCurriculumSection.COURSES -> {
+                AdminCurriculumFrameworkView(viewModel = viewModel, modifier = Modifier.weight(1f))
+            }
+            AdminCurriculumSection.SPEAKING -> {
+                SpeakingAndPhoneticsManagement(
+                    viewModel = viewModel,
+                    userRole = Role.ADMIN,
+                    modifier = Modifier.weight(1f),
+                    initialTab = SpeakingManageTab.SPEAKING_PROMPTS
+                )
+            }
+            AdminCurriculumSection.PHONETICS -> {
+                SpeakingAndPhoneticsManagement(
+                    viewModel = viewModel,
+                    userRole = Role.ADMIN,
+                    modifier = Modifier.weight(1f),
+                    initialTab = SpeakingManageTab.PHONETICS_DRILLS
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminCurriculumFrameworkView(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val levels = LearningLevel.values()
     var exportToast by remember { mutableStateOf<String?>(null) }
     var notificationsEnabled by remember { mutableStateOf(true) }

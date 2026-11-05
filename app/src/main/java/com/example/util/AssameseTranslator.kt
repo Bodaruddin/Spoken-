@@ -239,4 +239,9 @@ object AssameseTranslator {
         }
         return breakdown
     }
+
+    fun translateWord(word: String): Pair<String, String>? {
+        val clean = word.lowercase().replace(Regex("[^a-z]"), "")
+        return wordMap[clean]
+    }
 }

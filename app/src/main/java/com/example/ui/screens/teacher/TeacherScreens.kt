@@ -27,7 +27,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.*
 import com.example.ui.MainViewModel
+import com.example.ui.TeacherSpeakingSection
 import com.example.ui.TeacherTab
+import com.example.ui.screens.common.SpeakingAndPhoneticsManagement
+import com.example.ui.screens.common.SpeakingManageTab
 import com.example.ui.theme.*
 
 @Composable
@@ -138,6 +141,32 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                     color = PurpleAccent,
                     modifier = Modifier.weight(1f),
                     onClick = { viewModel.selectTeacherTab(TeacherTab.GAMES) }
+                )
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                TeacherQuickActionCard(
+                    title = "AI Speaking",
+                    subtitle = "Speech Prompts & Tasks",
+                    icon = "🎙️",
+                    color = EmeraldSuccess,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        viewModel.selectTeacherSpeakingSection(TeacherSpeakingSection.MANAGE_SPEAKING)
+                        viewModel.selectTeacherTab(TeacherTab.SPEAKING_REVIEW)
+                    }
+                )
+                TeacherQuickActionCard(
+                    title = "Phonetics & Drills",
+                    subtitle = "IPA & Accent Coach",
+                    icon = "🎯",
+                    color = AmberGold,
+                    modifier = Modifier.weight(1f),
+                    onClick = {
+                        viewModel.selectTeacherSpeakingSection(TeacherSpeakingSection.MANAGE_PHONETICS)
+                        viewModel.selectTeacherTab(TeacherTab.SPEAKING_REVIEW)
+                    }
                 )
             }
         }
@@ -1027,6 +1056,81 @@ fun EditGameChallengeDialog(
 // -------------------------------------------------------------
 @Composable
 fun TeacherSpeakingReview(viewModel: MainViewModel, modifier: Modifier = Modifier) {
+    val currentSection by viewModel.teacherSpeakingSection.collectAsState()
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // Top Section Selector for Teacher
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TeacherSpeakingSection.values().forEach { sec ->
+                    val isSel = currentSection == sec
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSel) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = if (isSel) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { viewModel.selectTeacherSpeakingSection(sec) }
+                            .testTag("teacher_section_${sec.name.lowercase()}")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(sec.emoji, fontSize = 13.sp)
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                sec.title,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        when (currentSection) {
+            TeacherSpeakingSection.SUBMISSIONS -> {
+                TeacherSubmissionsGradingView(viewModel = viewModel, modifier = Modifier.weight(1f))
+            }
+            TeacherSpeakingSection.MANAGE_SPEAKING -> {
+                SpeakingAndPhoneticsManagement(
+                    viewModel = viewModel,
+                    userRole = Role.TEACHER,
+                    modifier = Modifier.weight(1f),
+                    initialTab = SpeakingManageTab.SPEAKING_PROMPTS
+                )
+            }
+            TeacherSpeakingSection.MANAGE_PHONETICS -> {
+                SpeakingAndPhoneticsManagement(
+                    viewModel = viewModel,
+                    userRole = Role.TEACHER,
+                    modifier = Modifier.weight(1f),
+                    initialTab = SpeakingManageTab.PHONETICS_DRILLS
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun TeacherSubmissionsGradingView(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val submissions by viewModel.submissions.collectAsState()
     var selectedSubmission by remember { mutableStateOf<StudentSubmission?>(submissions.firstOrNull()) }
     var fluencyScore by remember { mutableFloatStateOf(85f) }

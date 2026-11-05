@@ -791,5 +791,102 @@ class LinguaQuestRepository {
         val newTeacher = User(newId, name, email, Role.TEACHER, "👨‍🏫", department, true)
         _adminTeachers.update { it + newTeacher }
     }
+
+    // -----------------------------------------------------------------
+    // Admin & Teacher: AI Speaking & Phonetics Management
+    // -----------------------------------------------------------------
+
+    fun addSpeakingPrompt(
+        title: String,
+        category: String,
+        question: String,
+        followUpTip: String,
+        recommendedKeywords: List<String>,
+        minSpeakingSeconds: Int = 20
+    ): SpeakingPrompt {
+        val newPrompt = SpeakingPrompt(
+            id = "sp_${System.currentTimeMillis()}",
+            title = title.trim(),
+            category = category.trim().ifBlank { "General Speaking" },
+            question = question.trim(),
+            followUpTip = followUpTip.trim(),
+            recommendedKeywords = recommendedKeywords.map { it.trim() }.filter { it.isNotBlank() },
+            minSpeakingSeconds = minSpeakingSeconds
+        )
+        _speakingPrompts.update { it + newPrompt }
+        return newPrompt
+    }
+
+    fun updateSpeakingPrompt(prompt: SpeakingPrompt) {
+        _speakingPrompts.update { list ->
+            list.map { if (it.id == prompt.id) prompt else it }
+        }
+    }
+
+    fun deleteSpeakingPrompt(promptId: String) {
+        _speakingPrompts.update { list ->
+            list.filterNot { it.id == promptId }
+        }
+    }
+
+    fun addPronunciationDrill(
+        wordOrSentence: String,
+        ipaPhonetic: String,
+        audioFocus: String,
+        difficulty: String,
+        tips: String
+    ): PronunciationDrill {
+        val newDrill = PronunciationDrill(
+            id = "pd_${System.currentTimeMillis()}",
+            wordOrSentence = wordOrSentence.trim(),
+            ipaPhonetic = ipaPhonetic.trim().ifBlank { "/.../" },
+            audioFocus = audioFocus.trim().ifBlank { "Standard Pronunciation" },
+            difficulty = difficulty.trim().ifBlank { "Medium" },
+            tips = tips.trim()
+        )
+        _pronunciationDrills.update { it + newDrill }
+        return newDrill
+    }
+
+    fun updatePronunciationDrill(drill: PronunciationDrill) {
+        _pronunciationDrills.update { list ->
+            list.map { if (it.id == drill.id) drill else it }
+        }
+    }
+
+    fun deletePronunciationDrill(drillId: String) {
+        _pronunciationDrills.update { list ->
+            list.filterNot { it.id == drillId }
+        }
+    }
+
+    fun addRoleplayScenario(
+        title: String,
+        situation: String,
+        partnerRole: String,
+        userRole: String,
+        difficulty: String,
+        emoji: String,
+        turns: List<DialogueTurn>
+    ): RoleplayScenario {
+        val newScenario = RoleplayScenario(
+            id = "rp_${System.currentTimeMillis()}",
+            title = title.trim(),
+            situation = situation.trim(),
+            partnerRole = partnerRole.trim(),
+            userRole = userRole.trim(),
+            difficulty = difficulty.trim().ifBlank { "Intermediate" },
+            emoji = emoji.ifBlank { "🎭" },
+            turns = turns
+        )
+        _roleplays.update { it + newScenario }
+        return newScenario
+    }
+
+    fun deleteRoleplayScenario(scenarioId: String) {
+        _roleplays.update { list ->
+            list.filterNot { it.id == scenarioId }
+        }
+    }
 }
 

@@ -1,6 +1,7 @@
 package com.example.ui.screens.student
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +28,8 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.PronunciationDrill
 import com.example.data.model.RoleplayScenario
 import com.example.data.model.SpeakingPrompt
+import com.example.service.PhoneticsAiEngine
+import com.example.service.PhoneticSearchResult
 import com.example.service.SpeechState
 import com.example.ui.MainViewModel
 import com.example.ui.SpeakingSubTab
@@ -523,8 +527,374 @@ fun PronunciationSection(
     speechState: SpeechState,
     evaluation: com.example.data.model.SpeakingEvaluation?
 ) {
+    var queryInput by remember { mutableStateOf("") }
+    val searchedResult by viewModel.searchedPhoneticResult.collectAsState()
+    val isSearching by viewModel.isSearchingPhonetics.collectAsState()
+    var selectedCategory by remember { mutableStateOf("🔥 Trending") }
+    var actionToast by remember { mutableStateOf<String?>(null) }
+
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Pronunciation Drills & Accent Training", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        // AI Phonetics Word Search Card
+        Card(
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("ai_phonetics_search_card")
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.linearGradient(listOf(PurpleAccent, RoyalBlue))
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🔍", fontSize = 20.sp)
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "AI Phonetics Word Search",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            "Type ANY word to look up IPA, syllables & native speech tips",
+                            fontSize = 11.sp,
+                            color = MutedGray
+                        )
+                    }
+                }
+
+                // Search Input Field
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = queryInput,
+                        onValueChange = {
+                            queryInput = it
+                            viewModel.updatePhoneticSearchQuery(it)
+                        },
+                        label = { Text("Search word (e.g. comfortable, thorough)...") },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = RoyalBlue) },
+                        trailingIcon = {
+                            if (queryInput.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    queryInput = ""
+                                    viewModel.clearPhoneticsSearch()
+                                }) {
+                                    Icon(Icons.Filled.Clear, contentDescription = "Clear")
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        singleLine = true,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("phonetic_search_text_field")
+                    )
+
+                    Button(
+                        onClick = {
+                            if (queryInput.isNotBlank()) {
+                                viewModel.searchPhonetics(queryInput)
+                            }
+                        },
+                        enabled = queryInput.isNotBlank() && !isSearching,
+                        shape = RoundedCornerShape(14.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                        modifier = Modifier.testTag("phonetic_search_button")
+                    ) {
+                        if (isSearching) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("✨ Analyze", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+
+                // Quick Category Selectors
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val categories = listOf("🔥 Trending", "🤫 Silent Letters", "👅 Tricky 'TH'", "💼 Business & Tech", "🌀 Tongue Twisters")
+                    items(categories) { cat ->
+                        val isSel = selectedCategory == cat
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSel) RoyalBlue.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = if (isSel) BorderStroke(1.dp, RoyalBlue) else null,
+                            modifier = Modifier.clickable { selectedCategory = cat }
+                        ) {
+                            Text(
+                                cat,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSel) RoyalBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Category Word Suggestions Chips
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val cleanCat = selectedCategory.replace(Regex("[^a-zA-Z ']+"), "").trim()
+                    val suggestions = PhoneticsAiEngine.getWordsByCategory(cleanCat)
+                    items(suggestions) { word ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.clickable {
+                                queryInput = word
+                                viewModel.searchPhonetics(word)
+                            }
+                        ) {
+                            Text(
+                                word,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = RoyalBlue,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                // AI Word Search Result Card
+                searchedResult?.let { res ->
+                    Card(
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.3f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("searched_phonetic_result_card")
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        res.word,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 24.sp,
+                                        color = RoyalBlue
+                                    )
+                                    Text(
+                                        res.syllables,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = PurpleAccent.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        res.ipa,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = PurpleAccent,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+
+                            // Sound Tags
+                            if (res.soundTags.isNotEmpty()) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    res.soundTags.forEach { tag ->
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = EmeraldSuccess.copy(alpha = 0.15f)
+                                        ) {
+                                            Text(
+                                                tag,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = EmeraldSuccess,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surface
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp)) {
+                                    Text("Focus: ${res.audioFocus} • Level: ${res.difficulty}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+                                    Spacer(Modifier.height(2.dp))
+                                    Text("Speech Coach: ${res.coachingTip}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
+
+                            if (res.assameseMeaning.isNotBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = AmberGold.copy(alpha = 0.12f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("অসমীয়া: ", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmberGold)
+                                        Text("${res.assameseMeaning} (${res.assameseTransliteration})", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
+                            }
+
+                            // Audio & Action Buttons
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    FilledTonalButton(
+                                        onClick = { viewModel.speakAudio(res.word, slow = true) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.Speed, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("0.7x Slow", fontSize = 11.sp)
+                                    }
+
+                                    Button(
+                                        onClick = { viewModel.speakAudio(res.word, slow = false) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.VolumeUp, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Normal", fontSize = 11.sp)
+                                    }
+                                }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            viewModel.addSearchedWordToDrills(res)
+                                            actionToast = "Saved '${res.word}' to practice drills!"
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Add to Drills", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    FilledTonalButton(
+                                        onClick = {
+                                            val drill = PronunciationDrill(
+                                                id = "custom_${res.word}",
+                                                wordOrSentence = res.word,
+                                                ipaPhonetic = res.ipa,
+                                                audioFocus = res.audioFocus,
+                                                difficulty = res.difficulty,
+                                                tips = res.coachingTip
+                                            )
+                                            viewModel.startPronunciationDrill(drill)
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = EmeraldSuccess.copy(alpha = 0.2f)),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Mic, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(14.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Practice", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = EmeraldSuccess)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Toast Feedback
+                AnimatedVisibility(visible = actionToast != null) {
+                    actionToast?.let { msg ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFDCFCE7),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                msg,
+                                color = EmeraldSuccess,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section: Curated Practice Drills
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("📚 Practice Drills & Accent Coach", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Text(
+                    "${drills.size} drills available",
+                    fontSize = 11.sp,
+                    color = MutedGray,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                )
+            }
+        }
 
         // Drills Grid / List
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -535,6 +905,7 @@ fun PronunciationSection(
                     colors = CardDefaults.cardColors(
                         containerColor = if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
                     ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = if (isSel) 4.dp else 1.dp),
                     modifier = Modifier
                         .clickable { viewModel.startPronunciationDrill(drill) }
                         .testTag("drill_card_${drill.id}")
@@ -551,10 +922,12 @@ fun PronunciationSection(
             }
         }
 
+        // Active Drill Interaction
         activeDrill?.let { drill ->
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -562,6 +935,32 @@ fun PronunciationSection(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = RoyalBlue.copy(alpha = 0.1f)
+                        ) {
+                            Text(
+                                "Active Practice",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = RoyalBlue,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.closePronunciationDrill() },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Filled.Close, contentDescription = "Close", tint = MutedGray, modifier = Modifier.size(16.dp))
+                        }
+                    }
+
                     Text(drill.wordOrSentence, fontWeight = FontWeight.ExtraBold, fontSize = 28.sp, color = RoyalBlue)
                     Text(drill.ipaPhonetic, fontSize = 16.sp, color = PurpleAccent, fontWeight = FontWeight.SemiBold)
 

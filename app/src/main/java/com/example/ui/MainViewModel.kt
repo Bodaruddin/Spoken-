@@ -9,6 +9,8 @@ import com.example.service.EvaluationEngine
 import com.example.service.SpeechRecognizerManager
 import com.example.service.SpeechState
 import com.example.service.TtsManager
+import com.example.service.PhoneticsAiEngine
+import com.example.service.PhoneticSearchResult
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -24,7 +26,7 @@ enum class TeacherTab(val label: String, val iconEmoji: String) {
     DASHBOARD("Overview", "📊"),
     STUDENTS("Students", "👥"),
     GAMES("Games Hub", "🎮"),
-    SPEAKING_REVIEW("Review", "🎧"),
+    SPEAKING_REVIEW("Speaking & Review", "🎙️"),
     ASSIGNMENTS("Tasks", "📝")
 }
 
@@ -33,7 +35,19 @@ enum class AdminTab(val label: String, val iconEmoji: String) {
     STUDENTS("Students", "🎓"),
     GAMES("Games Hub", "🎮"),
     TEACHERS("Faculty", "👨‍🏫"),
-    CURRICULUM("Courses", "📚")
+    CURRICULUM("Courses & AI", "📚")
+}
+
+enum class TeacherSpeakingSection(val title: String, val emoji: String) {
+    SUBMISSIONS("Student Recordings", "🎧"),
+    MANAGE_SPEAKING("AI Speaking Prompts", "🎙️"),
+    MANAGE_PHONETICS("Phonetics & Drills", "🎯")
+}
+
+enum class AdminSpeakingSection(val title: String, val emoji: String) {
+    SPEAKING_PROMPTS("AI Speaking Prompts", "🎙️"),
+    PHONETICS_DRILLS("Phonetics & Drills", "🎯"),
+    ROLEPLAY_SCENARIOS("Roleplay Scenarios", "🎭")
 }
 
 enum class SpeakingSubTab {
@@ -402,6 +416,123 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun closePronunciationDrill() {
         _activePronunciationDrill.value = null
         _lastEvaluation.value = null
+    }
+
+    // Teacher & Admin Speaking/Phonetics Sections
+    private val _teacherSpeakingSection = MutableStateFlow(TeacherSpeakingSection.SUBMISSIONS)
+    val teacherSpeakingSection: StateFlow<TeacherSpeakingSection> = _teacherSpeakingSection.asStateFlow()
+
+    fun selectTeacherSpeakingSection(section: TeacherSpeakingSection) {
+        _teacherSpeakingSection.value = section
+    }
+
+    private val _adminSpeakingSection = MutableStateFlow(AdminSpeakingSection.SPEAKING_PROMPTS)
+    val adminSpeakingSection: StateFlow<AdminSpeakingSection> = _adminSpeakingSection.asStateFlow()
+
+    fun selectAdminSpeakingSection(section: AdminSpeakingSection) {
+        _adminSpeakingSection.value = section
+    }
+
+    // AI Phonetics Word Search
+    private val _phoneticSearchQuery = MutableStateFlow("")
+    val phoneticSearchQuery: StateFlow<String> = _phoneticSearchQuery.asStateFlow()
+
+    private val _searchedPhoneticResult = MutableStateFlow<PhoneticSearchResult?>(null)
+    val searchedPhoneticResult: StateFlow<PhoneticSearchResult?> = _searchedPhoneticResult.asStateFlow()
+
+    private val _isSearchingPhonetics = MutableStateFlow(false)
+    val isSearchingPhonetics: StateFlow<Boolean> = _isSearchingPhonetics.asStateFlow()
+
+    fun updatePhoneticSearchQuery(query: String) {
+        _phoneticSearchQuery.value = query
+    }
+
+    fun searchPhonetics(query: String = _phoneticSearchQuery.value) {
+        val q = query.trim()
+        if (q.isBlank()) return
+        _phoneticSearchQuery.value = q
+        _isSearchingPhonetics.value = true
+        viewModelScope.launch {
+            val result = PhoneticsAiEngine.analyzeWord(q)
+            _searchedPhoneticResult.value = result
+            _isSearchingPhonetics.value = false
+        }
+    }
+
+    fun clearPhoneticsSearch() {
+        _phoneticSearchQuery.value = ""
+        _searchedPhoneticResult.value = null
+        _isSearchingPhonetics.value = false
+    }
+
+    fun addSearchedWordToDrills(result: PhoneticSearchResult): PronunciationDrill {
+        val drill = repository.addPronunciationDrill(
+            wordOrSentence = result.word,
+            ipaPhonetic = result.ipa,
+            audioFocus = result.audioFocus,
+            difficulty = result.difficulty,
+            tips = result.coachingTip
+        )
+        return drill
+    }
+
+    // Speaking Prompts CRUD (Teacher & Admin)
+    fun addSpeakingPrompt(
+        title: String,
+        category: String,
+        question: String,
+        followUpTip: String,
+        keywords: List<String>,
+        minSeconds: Int = 20
+    ): SpeakingPrompt {
+        return repository.addSpeakingPrompt(title, category, question, followUpTip, keywords, minSeconds)
+    }
+
+    fun updateSpeakingPrompt(prompt: SpeakingPrompt) {
+        repository.updateSpeakingPrompt(prompt)
+    }
+
+    fun deleteSpeakingPrompt(promptId: String) {
+        repository.deleteSpeakingPrompt(promptId)
+    }
+
+    // Pronunciation Drills CRUD (Teacher & Admin)
+    fun addPronunciationDrill(
+        wordOrSentence: String,
+        ipaPhonetic: String,
+        audioFocus: String,
+        difficulty: String,
+        tips: String
+    ): PronunciationDrill {
+        return repository.addPronunciationDrill(wordOrSentence, ipaPhonetic, audioFocus, difficulty, tips)
+    }
+
+    fun updatePronunciationDrill(drill: PronunciationDrill) {
+        repository.updatePronunciationDrill(drill)
+    }
+
+    fun deletePronunciationDrill(drillId: String) {
+        repository.deletePronunciationDrill(drillId)
+        if (_activePronunciationDrill.value?.id == drillId) {
+            _activePronunciationDrill.value = null
+        }
+    }
+
+    // Roleplay Scenarios CRUD (Teacher & Admin)
+    fun addRoleplayScenario(
+        title: String,
+        situation: String,
+        partnerRole: String,
+        userRole: String,
+        difficulty: String,
+        emoji: String,
+        turns: List<DialogueTurn>
+    ): RoleplayScenario {
+        return repository.addRoleplayScenario(title, situation, partnerRole, userRole, difficulty, emoji, turns)
+    }
+
+    fun deleteRoleplayScenario(id: String) {
+        repository.deleteRoleplayScenario(id)
     }
 
     override fun onCleared() {
