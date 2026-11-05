@@ -1,5 +1,6 @@
 package com.example.ui.screens.student
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,12 +18,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.AchievementBadge
+import com.example.data.remote.SupabaseConnectionState
 import com.example.ui.MainViewModel
 import com.example.ui.theme.*
 
@@ -35,6 +38,7 @@ fun StudentProfileScreen(
     val profile by viewModel.studentProfile.collectAsState()
     val badges by viewModel.badges.collectAsState()
     val vocabulary by viewModel.vocabularyWords.collectAsState()
+    val supabaseStatus by viewModel.supabaseStatus.collectAsState()
     var showVocabNotebook by remember { mutableStateOf(false) }
 
     LazyColumn(
@@ -45,6 +49,224 @@ fun StudentProfileScreen(
             .testTag("student_profile_screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // 0. Shifted Student Portal Header & Quick Actions Bar
+        item {
+            Card(
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth().testTag("shifted_student_header_card")
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // Top Bar: Branding & Executive Actions
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        Brush.linearGradient(listOf(RoyalBlue, PurpleAccent))
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("SP", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                            }
+                            Column {
+                                Text(
+                                    text = "Speakly",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Student Portal",
+                                    fontSize = 11.sp,
+                                    color = RoyalBlue,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        // Action Buttons: Cloud DB + Switch Role + Logout
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            // Cloud DB connection
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (supabaseStatus is SupabaseConnectionState.Connected) Color(0xFFDCFCE7) else Color(0xFFF1F5F9),
+                                border = BorderStroke(1.dp, if (supabaseStatus is SupabaseConnectionState.Connected) EmeraldSuccess else Color(0xFFCBD5E1)),
+                                modifier = Modifier.clickable { viewModel.toggleSupabaseModal(true) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("☁", fontSize = 12.sp)
+                                    Text(
+                                        "DB",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (supabaseStatus is SupabaseConnectionState.Connected) EmeraldSuccess else MutedGray
+                                    )
+                                }
+                            }
+
+                            // Role Switcher
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFEFF6FF),
+                                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
+                                modifier = Modifier.clickable { viewModel.toggleRoleSwitcher(true) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Filled.SwapHoriz, contentDescription = "Switch Role", tint = RoyalBlue, modifier = Modifier.size(15.dp))
+                                    Text("Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+                                }
+                            }
+
+                            // Logout
+                            IconButton(
+                                onClick = { viewModel.logout() },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Filled.Logout, contentDescription = "Logout", tint = CoralAccent, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    // Shifted Real-time Stat Pills (Streak, XP, Coins)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Streak Pill
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFFFF7ED),
+                            border = BorderStroke(1.dp, OrangeVibrant.copy(alpha = 0.3f)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text("🔥", fontSize = 16.sp)
+                                Spacer(Modifier.width(6.dp))
+                                Column {
+                                    Text("${profile.streakDays} Days", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = OrangeVibrant)
+                                    Text("Streak", fontSize = 9.sp, color = MutedGray)
+                                }
+                            }
+                        }
+
+                        // XP Pill
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFEFF6FF),
+                            border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.3f)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text("⚡", fontSize = 16.sp)
+                                Spacer(Modifier.width(6.dp))
+                                Column {
+                                    Text("${profile.xpPoints}", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = RoyalBlue)
+                                    Text("Fluency XP", fontSize = 9.sp, color = MutedGray)
+                                }
+                            }
+                        }
+
+                        // Coins Pill
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFFEFCE8),
+                            border = BorderStroke(1.dp, AmberGold.copy(alpha = 0.3f)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text("🪙", fontSize = 16.sp)
+                                Spacer(Modifier.width(6.dp))
+                                Column {
+                                    Text("${profile.coins}", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = AmberGold)
+                                    Text("Coins", fontSize = 9.sp, color = MutedGray)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Leaderboard Standing Card on Profile
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFFAF5FF)),
+                border = BorderStroke(1.2.dp, Color(0xFFE9D5FF)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFF3E8FF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🏆", fontSize = 22.sp)
+                        }
+                        Column {
+                            Text("Academy Leaderboard Standing", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = DeepNavy)
+                            Text("Rank #3 of 48 in Cohort • Gold League", fontSize = 11.sp, color = MutedGray)
+                        }
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = PurpleAccent
+                    ) {
+                        Text("Rank #3", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                    }
+                }
+            }
+        }
+
         // 1. User Avatar & Identity Card
         item {
             Card(

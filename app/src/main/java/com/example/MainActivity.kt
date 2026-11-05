@@ -79,16 +79,18 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
-                AppTopBar(
-                    role = currentUser.role,
-                    streak = studentProfile.streakDays,
-                    xp = studentProfile.xpPoints,
-                    coins = studentProfile.coins,
-                    onRoleClick = { viewModel.toggleRoleSwitcher(true) },
-                    onCloudClick = { viewModel.toggleSupabaseModal(true) },
-                    isCloudConnected = supabaseStatus is com.example.data.remote.SupabaseConnectionState.Connected,
-                    onLogoutClick = { viewModel.logout() }
-                )
+                if (currentUser.role != Role.STUDENT) {
+                    AppTopBar(
+                        role = currentUser.role,
+                        streak = studentProfile.streakDays,
+                        xp = studentProfile.xpPoints,
+                        coins = studentProfile.coins,
+                        onRoleClick = { viewModel.toggleRoleSwitcher(true) },
+                        onCloudClick = { viewModel.toggleSupabaseModal(true) },
+                        isCloudConnected = supabaseStatus is com.example.data.remote.SupabaseConnectionState.Connected,
+                        onLogoutClick = { viewModel.logout() }
+                    )
+                }
             },
             bottomBar = {
                 when (currentUser.role) {
@@ -117,6 +119,7 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .then(if (currentUser.role == Role.STUDENT) Modifier.statusBarsPadding() else Modifier)
             ) {
                 when (currentUser.role) {
                     Role.STUDENT -> {
