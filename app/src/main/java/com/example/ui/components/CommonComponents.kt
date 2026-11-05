@@ -37,6 +37,7 @@ fun AppTopBar(
     onRoleClick: () -> Unit,
     onCloudClick: () -> Unit,
     isCloudConnected: Boolean,
+    onLogoutClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -178,6 +179,21 @@ fun AppTopBar(
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
+                }
+
+                // Logout Button
+                IconButton(
+                    onClick = onLogoutClick,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .testTag("app_bar_logout_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Logout,
+                        contentDescription = "Log Out",
+                        tint = MutedGray,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
@@ -448,7 +464,8 @@ fun ScoreChip(label: String, score: Int) {
 fun RoleSwitcherDialog(
     currentRole: Role,
     onRoleSelected: (Role) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onLogoutClick: (() -> Unit)? = null
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -490,6 +507,19 @@ fun RoleSwitcherDialog(
                     isSelected = currentRole == Role.ADMIN,
                     onClick = { onRoleSelected(Role.ADMIN) }
                 )
+
+                if (onLogoutClick != null) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    OutlinedButton(
+                        onClick = onLogoutClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Rounded.Logout, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Log Out & Go to Login Screen", fontSize = 12.sp)
+                    }
+                }
             }
         },
         confirmButton = {

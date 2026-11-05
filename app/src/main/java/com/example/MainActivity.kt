@@ -47,6 +47,7 @@ fun LinguaQuestApp(viewModel: MainViewModel = viewModel()) {
     val showRoleSwitcher by viewModel.showRoleSwitcher.collectAsState()
     val showSupabaseModal by viewModel.showSupabaseModal.collectAsState()
     val supabaseStatus by viewModel.supabaseStatus.collectAsState()
+    val isLoggedIn by viewModel.isLoggedIn.collectAsState()
     val celebrationReward by viewModel.celebrationReward.collectAsState()
 
     // Runtime Permission for Microphone Audio Recording
@@ -71,62 +72,68 @@ fun LinguaQuestApp(viewModel: MainViewModel = viewModel()) {
         }
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = {
-            AppTopBar(
-                role = currentUser.role,
-                streak = studentProfile.streakDays,
-                xp = studentProfile.xpPoints,
-                coins = studentProfile.coins,
-                onRoleClick = { viewModel.toggleRoleSwitcher(true) },
-                onCloudClick = { viewModel.toggleSupabaseModal(true) },
-                isCloudConnected = supabaseStatus is com.example.data.remote.SupabaseConnectionState.Connected
-            )
-        },
-        bottomBar = {
-            when (currentUser.role) {
-                Role.STUDENT -> {
-                    StudentBottomBar(
-                        currentTab = currentStudentTab,
-                        onTabSelected = { viewModel.selectStudentTab(it) }
-                    )
-                }
-                Role.TEACHER -> {
-                    TeacherBottomBar(
-                        currentTab = currentTeacherTab,
-                        onTabSelected = { viewModel.selectTeacherTab(it) }
-                    )
-                }
-                Role.ADMIN -> {
-                    AdminBottomBar(
-                        currentTab = currentAdminTab,
-                        onTabSelected = { viewModel.selectAdminTab(it) }
-                    )
-                }
-            }
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            when (currentUser.role) {
-                Role.STUDENT -> {
-                    when (currentStudentTab) {
-                        StudentTab.HOME -> StudentHomeScreen(viewModel = viewModel)
-                        StudentTab.LEARN -> LearningJourneyScreen(viewModel = viewModel)
-                        StudentTab.PRACTICE -> SpeakingHubScreen(viewModel = viewModel)
-                        StudentTab.GAMES -> GamesHubScreen(viewModel = viewModel)
-                        StudentTab.PROFILE -> StudentProfileScreen(viewModel = viewModel)
+    if (!isLoggedIn) {
+        // Dedicated Login Screen with Student, Teacher, and Admin options
+        com.example.ui.screens.auth.LoginScreen(viewModel = viewModel)
+    } else {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            topBar = {
+                AppTopBar(
+                    role = currentUser.role,
+                    streak = studentProfile.streakDays,
+                    xp = studentProfile.xpPoints,
+                    coins = studentProfile.coins,
+                    onRoleClick = { viewModel.toggleRoleSwitcher(true) },
+                    onCloudClick = { viewModel.toggleSupabaseModal(true) },
+                    isCloudConnected = supabaseStatus is com.example.data.remote.SupabaseConnectionState.Connected,
+                    onLogoutClick = { viewModel.logout() }
+                )
+            },
+            bottomBar = {
+                when (currentUser.role) {
+                    Role.STUDENT -> {
+                        StudentBottomBar(
+                            currentTab = currentStudentTab,
+                            onTabSelected = { viewModel.selectStudentTab(it) }
+                        )
+                    }
+                    Role.TEACHER -> {
+                        TeacherBottomBar(
+                            currentTab = currentTeacherTab,
+                            onTabSelected = { viewModel.selectTeacherTab(it) }
+                        )
+                    }
+                    Role.ADMIN -> {
+                        AdminBottomBar(
+                            currentTab = currentAdminTab,
+                            onTabSelected = { viewModel.selectAdminTab(it) }
+                        )
                     }
                 }
-                Role.TEACHER -> {
-                    TeacherMainScreen(viewModel = viewModel)
-                }
-                Role.ADMIN -> {
-                    AdminMainScreen(viewModel = viewModel)
+            }
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                when (currentUser.role) {
+                    Role.STUDENT -> {
+                        when (currentStudentTab) {
+                            StudentTab.HOME -> StudentHomeScreen(viewModel = viewModel)
+                            StudentTab.LEARN -> LearningJourneyScreen(viewModel = viewModel)
+                            StudentTab.PRACTICE -> SpeakingHubScreen(viewModel = viewModel)
+                            StudentTab.GAMES -> GamesHubScreen(viewModel = viewModel)
+                            StudentTab.PROFILE -> StudentProfileScreen(viewModel = viewModel)
+                        }
+                    }
+                    Role.TEACHER -> {
+                        TeacherMainScreen(viewModel = viewModel)
+                    }
+                    Role.ADMIN -> {
+                        AdminMainScreen(viewModel = viewModel)
+                    }
                 }
             }
         }
@@ -145,7 +152,8 @@ fun LinguaQuestApp(viewModel: MainViewModel = viewModel()) {
         RoleSwitcherDialog(
             currentRole = currentUser.role,
             onRoleSelected = { viewModel.switchRole(it) },
-            onDismiss = { viewModel.toggleRoleSwitcher(false) }
+            onDismiss = { viewModel.toggleRoleSwitcher(false) },
+            onLogoutClick = { viewModel.logout() }
         )
     }
 

@@ -145,6 +145,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _celebrationReward = MutableStateFlow<Pair<Int, Int>?>(null) // XP, Coins
     val celebrationReward: StateFlow<Pair<Int, Int>?> = _celebrationReward.asStateFlow()
 
+    // Authentication State
+    private val _isLoggedIn = MutableStateFlow(false)
+    val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
+
     // Role Switcher Dialog
     private val _showRoleSwitcher = MutableStateFlow(false)
     val showRoleSwitcher: StateFlow<Boolean> = _showRoleSwitcher.asStateFlow()
@@ -182,8 +186,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _showRoleSwitcher.value = show
     }
 
+    fun login(role: Role) {
+        repository.switchRole(role)
+        _isLoggedIn.value = true
+        _showRoleSwitcher.value = false
+    }
+
+    fun logout() {
+        _isLoggedIn.value = false
+        _showRoleSwitcher.value = false
+        _activeGame.value = null
+        _activeRoleplay.value = null
+    }
+
     fun switchRole(role: Role) {
         repository.switchRole(role)
+        _isLoggedIn.value = true
         _showRoleSwitcher.value = false
         _activeGame.value = null
         _activeRoleplay.value = null
