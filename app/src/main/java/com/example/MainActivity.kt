@@ -159,6 +159,7 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
         RoleSwitcherDialog(
             currentRole = currentUser.role,
             onRoleSelected = { viewModel.switchRole(it) },
+            onVerifyPin = { role, pin -> viewModel.verifyRolePin(role, pin) },
             onDismiss = { viewModel.toggleRoleSwitcher(false) },
             onLogoutClick = { viewModel.logout() }
         )

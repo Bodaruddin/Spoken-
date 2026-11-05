@@ -466,8 +466,79 @@ fun RoleSwitcherDialog(
     currentRole: Role,
     onRoleSelected: (Role) -> Unit,
     onDismiss: () -> Unit,
+    onVerifyPin: (Role, String) -> Boolean = { _, _ -> true },
     onLogoutClick: (() -> Unit)? = null
 ) {
+    var pendingRole by remember { mutableStateOf<Role?>(null) }
+    var pinInput by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf(false) }
+
+    if (pendingRole != null) {
+        val target = pendingRole!!
+        AlertDialog(
+            onDismissRequest = {
+                pendingRole = null
+                pinInput = ""
+                pinError = false
+            },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (target == Role.ADMIN) "🛡️" else "👩‍🏫", fontSize = 22.sp)
+                    Text("Staff Verification", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Enter the security PIN or password to unlock the ${target.name.lowercase().replaceFirstChar { it.uppercase() }} Portal:",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = pinInput,
+                        onValueChange = {
+                            pinInput = it
+                            pinError = false
+                        },
+                        label = { Text("Security PIN or Password") },
+                        placeholder = { Text(if (target == Role.ADMIN) "PIN: 9842" else "PIN: 7321") },
+                        isError = pinError,
+                        supportingText = if (pinError) {
+                            { Text("Incorrect PIN / Password. Access denied.", color = MaterialTheme.colorScheme.error) }
+                        } else null,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (onVerifyPin(target, pinInput)) {
+                            onRoleSelected(target)
+                            pendingRole = null
+                            pinInput = ""
+                            pinError = false
+                        } else {
+                            pinError = true
+                        }
+                    }
+                ) {
+                    Text("Unlock & Switch")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    pendingRole = null
+                    pinInput = ""
+                    pinError = false
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -494,19 +565,25 @@ fun RoleSwitcherDialog(
                 )
 
                 RoleSelectionItem(
-                    title = "Teacher Portal",
-                    subtitle = "Prof. Eleanor Vance • Batch Alpha & Beta • Review voice drills & create challenges",
+                    title = "Teacher Portal (Protected)",
+                    subtitle = "Prof. Eleanor Vance • Batch Alpha & Beta • Requires PIN 7321",
                     emoji = "👩‍🏫",
                     isSelected = currentRole == Role.TEACHER,
-                    onClick = { onRoleSelected(Role.TEACHER) }
+                    onClick = {
+                        if (currentRole == Role.TEACHER) onDismiss()
+                        else pendingRole = Role.TEACHER
+                    }
                 )
 
                 RoleSelectionItem(
-                    title = "Admin Portal",
-                    subtitle = "Dean Arthur Pendelton • Faculty, Course & Database Management",
+                    title = "Admin Portal (Protected)",
+                    subtitle = "Dean Arthur Pendelton • Institutional Controls • Requires PIN 9842",
                     emoji = "🛡️",
                     isSelected = currentRole == Role.ADMIN,
-                    onClick = { onRoleSelected(Role.ADMIN) }
+                    onClick = {
+                        if (currentRole == Role.ADMIN) onDismiss()
+                        else pendingRole = Role.ADMIN
+                    }
                 )
 
                 if (onLogoutClick != null) {

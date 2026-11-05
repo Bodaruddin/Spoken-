@@ -45,9 +45,12 @@ fun LoginScreen(
     var password by remember { mutableStateOf("student123") }
     var passwordVisible by remember { mutableStateOf(false) }
 
+    var loginError by remember { mutableStateOf<String?>(null) }
+
     // Update default prefilled email & password when switching role
     fun updateRoleCredentials(role: Role) {
         selectedRole = role
+        loginError = null
         when (role) {
             Role.STUDENT -> {
                 email = "alex.morgan@linguaquest.edu"
@@ -55,11 +58,11 @@ fun LoginScreen(
             }
             Role.TEACHER -> {
                 email = "e.vance@linguaquest.edu"
-                password = "teacher123"
+                password = ""
             }
             Role.ADMIN -> {
                 email = "admin@linguaquest.edu"
-                password = "admin123"
+                password = ""
             }
         }
     }
@@ -278,9 +281,41 @@ fun LoginScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
                     )
 
+                    // Error Banner
+                    AnimatedVisibility(visible = loginError != null) {
+                        loginError?.let { err ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFFEE2E2),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CoralAccent),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(Icons.Filled.Lock, contentDescription = null, tint = CoralAccent, modifier = Modifier.size(16.dp))
+                                    Text(err, color = CoralAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+
                     // Primary Login Button
                     Button(
-                        onClick = { viewModel.login(selectedRole) },
+                        onClick = {
+                            val success = viewModel.authenticateAndLogin(selectedRole, password)
+                            if (!success) {
+                                loginError = when (selectedRole) {
+                                    Role.ADMIN -> "Access Denied: Incorrect Admin password or PIN."
+                                    Role.TEACHER -> "Access Denied: Incorrect Teacher password or PIN."
+                                    else -> "Invalid credentials."
+                                }
+                            } else {
+                                loginError = null
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp)
@@ -301,38 +336,57 @@ fun LoginScreen(
                         )
                     }
 
-                    // 1-Click Fast Demo Login
-                    OutlinedButton(
-                        onClick = { viewModel.login(selectedRole) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                            .testTag("one_click_demo_login_button"),
-                        shape = RoundedCornerShape(14.dp),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.5.dp,
-                            when (selectedRole) {
-                                Role.STUDENT -> RoyalBlue
-                                else -> AmberGold
-                            }
-                        )
-                    ) {
-                        Icon(
-                            Icons.Rounded.FlashOn,
-                            contentDescription = null,
-                            tint = when (selectedRole) {
-                                Role.STUDENT -> RoyalBlue
-                                else -> AmberGold
+                    // 1-Click Fast Demo Login (STUDENTS ONLY)
+                    if (selectedRole == Role.STUDENT) {
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.authenticateAndLogin(Role.STUDENT, "student123")
                             },
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "Quick 1-Click Enter as ${selectedRole.name.lowercase().replaceFirstChar { it.uppercase() }}",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .testTag("one_click_demo_login_button"),
+                            shape = RoundedCornerShape(14.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.5.dp, RoyalBlue)
+                        ) {
+                            Icon(
+                                Icons.Rounded.FlashOn,
+                                contentDescription = null,
+                                tint = RoyalBlue,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Quick 1-Click Enter as Student",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    } else {
+                        // Staff Protected Notice
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFFF1F5F9),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Filled.Shield, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
+                                Text(
+                                    text = if (selectedRole == Role.ADMIN)
+                                        "Admin Access Protected: Password or PIN 9842 required."
+                                    else
+                                        "Faculty Access Protected: Password or PIN 7321 required.",
+                                    fontSize = 11.sp,
+                                    color = MutedGray,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -348,20 +402,20 @@ fun LoginScreen(
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = "Demo Accounts Available:",
+                        text = "Access & Security Policy:",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    DemoCredentialRow("Student:", "alex.morgan@linguaquest.edu (Alex Morgan, A2)") {
+                    DemoCredentialRow("Student:", "alex.morgan@linguaquest.edu (Public access for all learners)") {
                         updateRoleCredentials(Role.STUDENT)
                     }
-                    DemoCredentialRow("Teacher:", "e.vance@linguaquest.edu (Prof. Eleanor Vance)") {
-                        updateRoleCredentials(Role.TEACHER)
-                    }
-                    DemoCredentialRow("Admin:", "admin@linguaquest.edu (Dean Arthur Pendelton)") {
-                        updateRoleCredentials(Role.ADMIN)
-                    }
+                    Text(
+                        text = "🔐 Teacher & Admin portals are secured against unauthorized access. Faculty and Administrator credentials or security PINs are strictly required.",
+                        fontSize = 11.sp,
+                        color = MutedGray,
+                        lineHeight = 15.sp
+                    )
                 }
             }
         }

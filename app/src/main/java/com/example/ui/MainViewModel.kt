@@ -293,6 +293,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _showRoleSwitcher.value = show
     }
 
+    // Protected Credentials for Staff Portals
+    var adminPassword = "admin123"
+    var teacherPassword = "teacher123"
+    var adminPin = "9842"
+    var teacherPin = "7321"
+
+    fun authenticateAndLogin(role: Role, passwordInput: String): Boolean {
+        val isValid = when (role) {
+            Role.ADMIN -> passwordInput.trim() == adminPassword || passwordInput.trim() == adminPin
+            Role.TEACHER -> passwordInput.trim() == teacherPassword || passwordInput.trim() == teacherPin || passwordInput.trim() == adminPassword || passwordInput.trim() == adminPin
+            Role.STUDENT -> true
+        }
+        if (isValid) {
+            repository.switchRole(role)
+            _isLoggedIn.value = true
+            _showRoleSwitcher.value = false
+            return true
+        }
+        return false
+    }
+
+    fun verifyRolePin(role: Role, pinInput: String): Boolean {
+        return when (role) {
+            Role.ADMIN -> pinInput.trim() == adminPin || pinInput.trim() == adminPassword
+            Role.TEACHER -> pinInput.trim() == teacherPin || pinInput.trim() == teacherPassword || pinInput.trim() == adminPin || pinInput.trim() == adminPassword
+            Role.STUDENT -> true
+        }
+    }
+
     fun login(role: Role) {
         repository.switchRole(role)
         _isLoggedIn.value = true
