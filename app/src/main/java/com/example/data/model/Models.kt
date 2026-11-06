@@ -141,7 +141,12 @@ data class VocabularyWord(
     val category: String,
     val synonyms: List<String> = emptyList(),
     val isFavorite: Boolean = false,
-    val isMastered: Boolean = false
+    val isMastered: Boolean = false,
+    val assameseMeaning: String = "",
+    val assameseTransliteration: String = "",
+    val syllables: String = "",
+    val coachingTip: String = "",
+    val addedByTeacher: String = ""
 )
 
 data class QuizQuestion(

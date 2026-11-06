@@ -50,6 +50,7 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
     val supabaseStatus by viewModel.supabaseStatus.collectAsState()
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
     val celebrationReward by viewModel.celebrationReward.collectAsState()
+    val showAdminCredentialsModal by viewModel.showAdminCredentialsModal.collectAsState()
 
     // Runtime Permission for Microphone Audio Recording
     var hasAudioPermission by remember {
@@ -90,6 +91,11 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                         xp = studentProfile.xpPoints,
                         coins = studentProfile.coins,
                         onRoleClick = { viewModel.toggleRoleSwitcher(true) },
+                        onAdminCredentialsClick = {
+                            if (currentUser.role == Role.ADMIN) {
+                                viewModel.toggleAdminCredentialsModal(true)
+                            }
+                        },
                         onCloudClick = {
                             if (currentUser.role == Role.ADMIN) {
                                 viewModel.toggleSupabaseModal(true)
@@ -142,12 +148,21 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                             StudentTab.LEARN -> LearningJourneyScreen(viewModel = viewModel)
                             StudentTab.PRACTICE -> SpeakingHubScreen(viewModel = viewModel)
                             StudentTab.GAMES -> GamesHubScreen(viewModel = viewModel)
+                            StudentTab.LEADERBOARD -> StudentLeaderboardScreen(viewModel = viewModel)
                             StudentTab.PROFILE -> StudentProfileScreen(viewModel = viewModel)
                         }
                     }
                 }
             }
         }
+    }
+
+    // Admin Credentials Management Modal (restricted to Admin)
+    if (showAdminCredentialsModal && currentUser.role == Role.ADMIN) {
+        AdminCredentialsDialog(
+            viewModel = viewModel,
+            onDismiss = { viewModel.toggleAdminCredentialsModal(false) }
+        )
     }
 
     // Supabase Cloud Connect Modal (strictly restricted to Admin)

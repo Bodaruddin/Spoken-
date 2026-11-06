@@ -29,6 +29,7 @@ import com.example.data.model.PronunciationDrill
 import com.example.data.model.Role
 import com.example.data.model.RoleplayScenario
 import com.example.data.model.SpeakingPrompt
+import com.example.data.model.VocabularyWord
 import com.example.service.PhoneticsAiEngine
 import com.example.ui.MainViewModel
 import com.example.ui.theme.*
@@ -36,6 +37,7 @@ import com.example.ui.theme.*
 enum class SpeakingManageTab(val title: String, val emoji: String) {
     SPEAKING_PROMPTS("AI Speaking", "🎙️"),
     PHONETICS_DRILLS("Phonetics & Drills", "🎯"),
+    VOCAB_ASSAMESE("Assamese Words", "📖"),
     ROLEPLAY_SCENARIOS("Roleplays", "🎭")
 }
 
@@ -61,9 +63,13 @@ fun SpeakingAndPhoneticsManagement(
     var showCreateRoleplayDialog by remember { mutableStateOf(false) }
     var roleplayToDelete by remember { mutableStateOf<RoleplayScenario?>(null) }
 
+    var showCreateVocabDialog by remember { mutableStateOf(false) }
+    var vocabToDelete by remember { mutableStateOf<VocabularyWord?>(null) }
+
     val prompts by viewModel.speakingPrompts.collectAsState()
     val drills by viewModel.pronunciationDrills.collectAsState()
     val roleplays by viewModel.roleplays.collectAsState()
+    val vocabularyWords by viewModel.vocabularyWords.collectAsState()
 
     Column(
         modifier = modifier
@@ -125,6 +131,7 @@ fun SpeakingAndPhoneticsManagement(
                             when (currentTab) {
                                 SpeakingManageTab.SPEAKING_PROMPTS -> showCreatePromptDialog = true
                                 SpeakingManageTab.PHONETICS_DRILLS -> showCreateDrillDialog = true
+                                SpeakingManageTab.VOCAB_ASSAMESE -> showCreateVocabDialog = true
                                 SpeakingManageTab.ROLEPLAY_SCENARIOS -> showCreateRoleplayDialog = true
                             }
                         },
@@ -138,6 +145,7 @@ fun SpeakingAndPhoneticsManagement(
                             when (currentTab) {
                                 SpeakingManageTab.SPEAKING_PROMPTS -> "New Prompt"
                                 SpeakingManageTab.PHONETICS_DRILLS -> "New Drill"
+                                SpeakingManageTab.VOCAB_ASSAMESE -> "Add Word"
                                 SpeakingManageTab.ROLEPLAY_SCENARIOS -> "New Roleplay"
                             },
                             fontSize = 12.sp,
@@ -160,6 +168,7 @@ fun SpeakingAndPhoneticsManagement(
                         val count = when (tab) {
                             SpeakingManageTab.SPEAKING_PROMPTS -> prompts.size
                             SpeakingManageTab.PHONETICS_DRILLS -> drills.size
+                            SpeakingManageTab.VOCAB_ASSAMESE -> vocabularyWords.size
                             SpeakingManageTab.ROLEPLAY_SCENARIOS -> roleplays.size
                         }
                         Surface(
@@ -255,6 +264,14 @@ fun SpeakingAndPhoneticsManagement(
                     }
                 )
             }
+            SpeakingManageTab.VOCAB_ASSAMESE -> {
+                TeacherVocabularyManagementList(
+                    vocabularyWords = vocabularyWords,
+                    onAddNew = { showCreateVocabDialog = true },
+                    onDelete = { vocabToDelete = it },
+                    onSpeakAudio = { word, slow -> viewModel.speakAudio(word, slow) }
+                )
+            }
             SpeakingManageTab.ROLEPLAY_SCENARIOS -> {
                 RoleplayManagementList(
                     scenarios = roleplays,
@@ -267,6 +284,55 @@ fun SpeakingAndPhoneticsManagement(
     // -------------------------------------------------------------
     // DIALOGS
     // -------------------------------------------------------------
+
+    // Create Teacher Vocabulary Word Dialog (with Assamese Meaning!)
+    if (showCreateVocabDialog) {
+        CreateTeacherVocabularyWordDialog(
+            onDismiss = { showCreateVocabDialog = false },
+            onCreate = { word, assamese, transliteration, ipa, syllables, pos, cat, tip, ex, meaning ->
+                viewModel.addTeacherVocabularyWord(
+                    word = word,
+                    assameseMeaning = assamese,
+                    assameseTransliteration = transliteration,
+                    phonetic = ipa,
+                    syllables = syllables,
+                    partOfSpeech = pos,
+                    category = cat,
+                    coachingTip = tip,
+                    exampleSentence = ex,
+                    meaning = meaning
+                )
+                showCreateVocabDialog = false
+                toastMessage = "Added '$word' ($assamese) to English-Assamese dictionary!"
+            }
+        )
+    }
+
+    // Delete Vocabulary Confirmation
+    vocabToDelete?.let { vocab ->
+        AlertDialog(
+            onDismissRequest = { vocabToDelete = null },
+            title = { Text("Delete Vocabulary Word?", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to remove '${vocab.word}' (${vocab.assameseMeaning}) from the academy dictionary?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteTeacherVocabularyWord(vocab.id)
+                        vocabToDelete = null
+                        toastMessage = "Word deleted from dictionary."
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { vocabToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     // Create Speaking Prompt Dialog
     if (showCreatePromptDialog) {
@@ -1392,6 +1458,546 @@ fun CreateRoleplayScenarioDialog(
                 enabled = title.isNotBlank() && situation.isNotBlank()
             ) {
                 Text("Create")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+// -------------------------------------------------------------
+// TEACHER VOCABULARY & ASSAMESE TRANSLATION MANAGEMENT
+// -------------------------------------------------------------
+@Composable
+fun TeacherVocabularyManagementList(
+    vocabularyWords: List<VocabularyWord>,
+    onAddNew: () -> Unit,
+    onDelete: (VocabularyWord) -> Unit,
+    onSpeakAudio: (String, Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("All") }
+
+    val filteredWords = remember(vocabularyWords, searchQuery, selectedCategory) {
+        vocabularyWords.filter { word ->
+            val matchesCategory = selectedCategory == "All" || word.category.equals(selectedCategory, ignoreCase = true)
+            val matchesSearch = searchQuery.isBlank() ||
+                word.word.contains(searchQuery.trim(), ignoreCase = true) ||
+                word.assameseMeaning.contains(searchQuery.trim(), ignoreCase = true) ||
+                word.assameseTransliteration.contains(searchQuery.trim(), ignoreCase = true) ||
+                word.meaning.contains(searchQuery.trim(), ignoreCase = true)
+            matchesCategory && matchesSearch
+        }
+    }
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .testTag("teacher_vocabulary_management_list"),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Summary & Metric Card
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.2.dp, AmberGold.copy(alpha = 0.5f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(CircleShape)
+                                    .background(AmberGold.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("📖", fontSize = 20.sp)
+                            }
+                            Column {
+                                Text(
+                                    text = "English & Assamese Dictionary",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                val totalWordCount = com.example.util.AssameseTranslator.getTotalWordCount()
+                                Text(
+                                    text = "$totalWordCount+ Active Words with Assamese Meaning",
+                                    fontSize = 11.sp,
+                                    color = AmberGold,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = onAddNew,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AmberGold),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier.testTag("teacher_add_word_btn")
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Add Word", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black)
+                        }
+                    }
+
+                    Text(
+                        text = "Every word you add here is instantly made searchable for students in the Speaking Hub, complete with Assamese script meaning, Romanized phonetics, and speech coaching tips.",
+                        fontSize = 12.sp,
+                        color = MutedGray
+                    )
+                }
+            }
+        }
+
+        // Search Bar
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search English or Assamese words...", fontSize = 13.sp) },
+                leadingIcon = {
+                    Icon(Icons.Filled.Search, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(18.dp))
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                        }
+                    }
+                },
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = RoyalBlue,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                ),
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("vocab_search_input")
+            )
+        }
+
+        // Category Filter Chips
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val categories = listOf("All", "Communication", "Mindset", "Workplace", "Academic", "General")
+                items(categories) { cat ->
+                    val isSel = selectedCategory == cat
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isSel) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = if (isSel) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier.clickable { selectedCategory = cat }
+                    ) {
+                        Text(
+                            text = cat,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Word Count Header
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Vocabulary Entries (${filteredWords.size})",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        // Vocabulary List
+        items(filteredWords) { word ->
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                modifier = Modifier.fillMaxWidth().testTag("vocab_word_${word.id}")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Header Row: Word, phonetic, category, delete
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = word.word,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 18.sp,
+                                color = RoyalBlue
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = PurpleAccent.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = word.phonetic,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PurpleAccent,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Text(
+                                    text = word.partOfSpeech,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { onDelete(word) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                        }
+                    }
+
+                    // Assamese Meaning Box
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF1E1B4B).copy(alpha = 0.7f),
+                        border = BorderStroke(1.dp, AmberGold.copy(alpha = 0.4f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("অসমীয়া অৰ্থ:", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = AmberGold)
+                            val displayAssamese = when {
+                                word.assameseMeaning.isBlank() -> "অসমীয়া অনুবাদ উপলভ্য"
+                                word.assameseTransliteration.isBlank() -> word.assameseMeaning
+                                word.assameseMeaning.contains("(") -> word.assameseMeaning
+                                else -> "${word.assameseMeaning} (${word.assameseTransliteration})"
+                            }
+                            Text(
+                                text = displayAssamese,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    // Meaning and Example Sentence
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(
+                            text = word.meaning,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (word.exampleSentence.isNotBlank()) {
+                            Text(
+                                text = "\"${word.exampleSentence}\"",
+                                fontSize = 11.sp,
+                                color = MutedGray,
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            )
+                        }
+                    }
+
+                    // Audio Playback Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilledTonalButton(
+                            onClick = { onSpeakAudio(word.word, true) },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Rounded.Speed, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("0.7x Slow", fontSize = 11.sp)
+                        }
+
+                        Button(
+                            onClick = { onSpeakAudio(word.word, false) },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Rounded.VolumeUp, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Normal Audio", fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CreateTeacherVocabularyWordDialog(
+    onDismiss: () -> Unit,
+    onCreate: (
+        word: String,
+        assameseMeaning: String,
+        assameseTransliteration: String,
+        phonetic: String,
+        syllables: String,
+        partOfSpeech: String,
+        category: String,
+        coachingTip: String,
+        exampleSentence: String,
+        meaning: String
+    ) -> Unit
+) {
+    var word by remember { mutableStateOf("") }
+    var assameseMeaning by remember { mutableStateOf("") }
+    var assameseTransliteration by remember { mutableStateOf("") }
+    var phonetic by remember { mutableStateOf("") }
+    var syllables by remember { mutableStateOf("") }
+    var partOfSpeech by remember { mutableStateOf("noun") }
+    var category by remember { mutableStateOf("General") }
+    var coachingTip by remember { mutableStateOf("") }
+    var exampleSentence by remember { mutableStateOf("") }
+    var meaning by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("📖", fontSize = 20.sp)
+                Text("Add Word with Assamese Meaning", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // English Word + Auto-detect button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = word,
+                        onValueChange = {
+                            word = it
+                            if (it.isNotBlank()) {
+                                val analysis = com.example.service.PhoneticsAiEngine.analyzeWord(it)
+                                if (phonetic.isBlank()) phonetic = analysis.ipa
+                                if (syllables.isBlank()) syllables = analysis.syllables
+                                if (coachingTip.isBlank()) coachingTip = analysis.coachingTip
+                                if (assameseMeaning.isBlank() && analysis.assameseMeaning.isNotBlank()) {
+                                    assameseMeaning = analysis.assameseMeaning
+                                }
+                                if (assameseTransliteration.isBlank() && analysis.assameseTransliteration.isNotBlank()) {
+                                    assameseTransliteration = analysis.assameseTransliteration
+                                }
+                            }
+                        },
+                        label = { Text("English Word *") },
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f).testTag("teacher_vocab_word_input")
+                    )
+
+                    FilledTonalButton(
+                        onClick = {
+                            if (word.isNotBlank()) {
+                                val analysis = com.example.service.PhoneticsAiEngine.analyzeWord(word)
+                                phonetic = analysis.ipa
+                                syllables = analysis.syllables
+                                coachingTip = analysis.coachingTip
+                                assameseMeaning = analysis.assameseMeaning
+                                assameseTransliteration = analysis.assameseTransliteration
+                                if (meaning.isBlank()) meaning = analysis.meaning
+                                if (exampleSentence.isBlank()) exampleSentence = analysis.exampleSentence
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        Text("✨ Auto", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Assamese Script Meaning
+                OutlinedTextField(
+                    value = assameseMeaning,
+                    onValueChange = { assameseMeaning = it },
+                    label = { Text("অসমীয়া অৰ্থ (Assamese Meaning) *") },
+                    placeholder = { Text("e.g. আৰামদায়ক / ধুনীয়া") },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().testTag("teacher_vocab_assamese_input")
+                )
+
+                // Assamese Transliteration (Romanized)
+                OutlinedTextField(
+                    value = assameseTransliteration,
+                    onValueChange = { assameseTransliteration = it },
+                    label = { Text("Assamese Transliteration (Pronunciation in English)") },
+                    placeholder = { Text("e.g. Aaramdayok / Dhuniya") },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // IPA Phonetic & Syllables
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = phonetic,
+                        onValueChange = { phonetic = it },
+                        label = { Text("IPA Phonetic") },
+                        placeholder = { Text("e.g. /ˈkʌmftəbl/") },
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    OutlinedTextField(
+                        value = syllables,
+                        onValueChange = { syllables = it },
+                        label = { Text("Syllables") },
+                        placeholder = { Text("e.g. com · fort · a · ble") },
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Part of Speech & Category
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = partOfSpeech,
+                        onValueChange = { partOfSpeech = it },
+                        label = { Text("Part of Speech") },
+                        placeholder = { Text("noun, verb, adj") },
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it },
+                        label = { Text("Category") },
+                        placeholder = { Text("Academic, General") },
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Example Sentence
+                OutlinedTextField(
+                    value = exampleSentence,
+                    onValueChange = { exampleSentence = it },
+                    label = { Text("Example Sentence") },
+                    placeholder = { Text("e.g. We use this word in daily conversations.") },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Speech Coaching Tip
+                OutlinedTextField(
+                    value = coachingTip,
+                    onValueChange = { coachingTip = it },
+                    label = { Text("Speech Coach Pronunciation Tip") },
+                    placeholder = { Text("e.g. Stress the first syllable clearly.") },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (word.isNotBlank() && assameseMeaning.isNotBlank()) {
+                        onCreate(
+                            word,
+                            assameseMeaning,
+                            assameseTransliteration,
+                            phonetic,
+                            syllables,
+                            partOfSpeech,
+                            category,
+                            coachingTip,
+                            exampleSentence,
+                            meaning
+                        )
+                    }
+                },
+                enabled = word.isNotBlank() && assameseMeaning.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = AmberGold)
+            ) {
+                Text("Save to Dictionary", fontWeight = FontWeight.Bold, color = Color.Black)
             }
         },
         dismissButton = {

@@ -773,101 +773,116 @@ fun PronunciationSection(
                             }
 
                             Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surface
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF0F172A).copy(alpha = 0.7f),
+                                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.35f))
                             ) {
-                                Column(modifier = Modifier.padding(8.dp)) {
-                                    Text("Focus: ${res.audioFocus} • Level: ${res.difficulty}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
-                                    Spacer(Modifier.height(2.dp))
-                                    Text("Speech Coach: ${res.coachingTip}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text("Focus: ${res.audioFocus} • Level: ${res.difficulty}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
+                                    Spacer(Modifier.height(3.dp))
+                                    Text("Speech Coach: ${res.coachingTip}", fontSize = 12.sp, color = Color(0xFFE2E8F0))
                                 }
                             }
 
                             if (res.assameseMeaning.isNotBlank()) {
                                 Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = AmberGold.copy(alpha = 0.12f)
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF1E1B4B).copy(alpha = 0.8f),
+                                    border = BorderStroke(1.dp, AmberGold.copy(alpha = 0.6f))
                                 ) {
-                                    Row(
+                                    Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
                                     ) {
-                                        Text("অসমীয়া: ", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmberGold)
+                                        Text("অসমীয়া অৰ্থ (Assamese Meaning):", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = AmberGold)
                                         val displayAssamese = when {
                                             res.assameseTransliteration.isBlank() -> res.assameseMeaning
                                             res.assameseMeaning.contains("(") -> res.assameseMeaning
                                             res.assameseMeaning.contains(res.assameseTransliteration, ignoreCase = true) -> res.assameseMeaning
                                             else -> "${res.assameseMeaning} (${res.assameseTransliteration})"
                                         }
-                                        Text(displayAssamese, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                                        Text(
+                                            displayAssamese,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
                                     }
                                 }
                             }
 
-                            // Audio & Action Buttons
+                            // Row 1: Audio Playback Speed Options
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    FilledTonalButton(
-                                        onClick = { viewModel.speakAudio(res.word, slow = true) },
-                                        shape = RoundedCornerShape(10.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Icon(Icons.Rounded.Speed, contentDescription = null, modifier = Modifier.size(14.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("0.7x Slow", fontSize = 11.sp)
-                                    }
-
-                                    Button(
-                                        onClick = { viewModel.speakAudio(res.word, slow = false) },
-                                        shape = RoundedCornerShape(10.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Icon(Icons.Rounded.VolumeUp, contentDescription = null, modifier = Modifier.size(14.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Normal", fontSize = 11.sp)
-                                    }
+                                FilledTonalButton(
+                                    onClick = { viewModel.speakAudio(res.word, slow = true) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Speed, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("0.7x Slow", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                 }
 
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            viewModel.addSearchedWordToDrills(res)
-                                            actionToast = "Saved '${res.word}' to practice drills!"
-                                        },
-                                        shape = RoundedCornerShape(10.dp),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                    ) {
-                                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Add to Drills", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
+                                Button(
+                                    onClick = { viewModel.speakAudio(res.word, slow = false) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Icon(Icons.Rounded.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Normal Speed", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
 
-                                    FilledTonalButton(
-                                        onClick = {
-                                            val drill = PronunciationDrill(
-                                                id = "custom_${res.word}",
-                                                wordOrSentence = res.word,
-                                                ipaPhonetic = res.ipa,
-                                                audioFocus = res.audioFocus,
-                                                difficulty = res.difficulty,
-                                                tips = res.coachingTip
-                                            )
-                                            viewModel.startPronunciationDrill(drill)
-                                        },
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = EmeraldSuccess.copy(alpha = 0.2f)),
-                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                    ) {
-                                        Icon(Icons.Filled.Mic, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(14.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Practice", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = EmeraldSuccess)
-                                    }
+                            // Row 2: Practice & Drill Actions (Spacious and Responsive)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        viewModel.addSearchedWordToDrills(res)
+                                        actionToast = "Saved '${res.word}' to practice drills!"
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.2.dp, RoyalBlue.copy(alpha = 0.85f)),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 9.dp)
+                                ) {
+                                    Icon(Icons.Filled.Add, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(5.dp))
+                                    Text("Add to Drills", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+                                }
+
+                                Button(
+                                    onClick = {
+                                        val drill = PronunciationDrill(
+                                            id = "custom_${res.word}",
+                                            wordOrSentence = res.word,
+                                            ipaPhonetic = res.ipa,
+                                            audioFocus = res.audioFocus,
+                                            difficulty = res.difficulty,
+                                            tips = res.coachingTip
+                                        )
+                                        viewModel.startPronunciationDrill(drill)
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 9.dp)
+                                ) {
+                                    Icon(Icons.Filled.Mic, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(5.dp))
+                                    Text("Practice Now", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                 }
                             }
                         }

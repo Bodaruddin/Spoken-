@@ -63,6 +63,7 @@ fun AppTopBar(
     onCloudClick: () -> Unit,
     isCloudConnected: Boolean,
     onLogoutClick: () -> Unit,
+    onAdminCredentialsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -177,6 +178,35 @@ fun AppTopBar(
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isCloudConnected) Color(0xFF10B981) else Color(0xFF94A3B8)
+                            )
+                        }
+                    }
+
+                    // Admin Credentials Manage Option in Header Section
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFF1E293B),
+                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .testTag("admin_credentials_header_btn")
+                            .clickable { onAdminCredentialsClick() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Key,
+                                contentDescription = "Manage Admin Credentials",
+                                modifier = Modifier.size(13.dp),
+                                tint = Color(0xFF38BDF8)
+                            )
+                            Text(
+                                text = "Credentials",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF38BDF8)
                             )
                         }
                     }

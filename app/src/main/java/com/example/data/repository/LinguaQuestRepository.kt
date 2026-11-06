@@ -601,6 +601,43 @@ class LinguaQuestRepository {
         }
     }
 
+    // Teacher & Faculty vocabulary word addition with Assamese meaning
+    fun addVocabularyWord(word: VocabularyWord) {
+        _vocabularyWords.update { currentList ->
+            val index = currentList.indexOfFirst { it.id == word.id || it.word.equals(word.word, ignoreCase = true) }
+            if (index >= 0) {
+                currentList.toMutableList().apply { set(index, word) }
+            } else {
+                listOf(word) + currentList
+            }
+        }
+        // Register immediately into Phonetics and Assamese translation engines
+        com.example.service.PhoneticsAiEngine.addCustomPhoneticWord(
+            com.example.service.PhoneticSearchResult(
+                word = word.word.trim().replaceFirstChar { it.uppercase() },
+                ipa = word.phonetic.ifBlank { "/${word.word.lowercase()}/" },
+                syllables = word.syllables.ifBlank { word.word },
+                audioFocus = "Vocabulary Word",
+                difficulty = "Medium",
+                phoneticBreakdown = "${word.partOfSpeech.replaceFirstChar { it.uppercase() }} • Added by ${word.addedByTeacher.ifBlank { "Faculty Instructor" }}",
+                coachingTip = word.coachingTip.ifBlank { "Practice clear articulation and use it in your daily English speaking practice." },
+                exampleSentence = word.exampleSentence,
+                meaning = word.meaning,
+                assameseMeaning = word.assameseMeaning,
+                assameseTransliteration = word.assameseTransliteration,
+                soundTags = listOf(word.category, "Teacher Added")
+            )
+        )
+    }
+
+    fun deleteVocabularyWord(wordId: String) {
+        val wordToDelete = _vocabularyWords.value.find { it.id == wordId }
+        _vocabularyWords.update { list -> list.filterNot { it.id == wordId } }
+        wordToDelete?.let {
+            com.example.service.PhoneticsAiEngine.removeCustomPhoneticWord(it.word)
+        }
+    }
+
     // Teacher grades a submission
     fun gradeSubmission(submissionId: String, score: Int, feedback: String) {
         _submissions.update { list ->

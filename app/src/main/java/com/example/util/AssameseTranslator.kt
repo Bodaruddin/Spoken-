@@ -396,8 +396,208 @@ object AssameseTranslator {
         "welcome" to Pair("স্বাগতম", "Xwagotom"),
         "sorry" to Pair("ক্ষমা কৰিব", "Khyoma koribo"),
         "hello" to Pair("নমস্কাৰ", "Nomoxkar"),
-        "congratulations" to Pair("অভিনন্দন", "Obhinondon")
+        "congratulations" to Pair("অভিনন্দন", "Obhinondon"),
+
+        // Body, Health & Wellness
+        "head" to Pair("মূৰ", "Mur"),
+        "eye" to Pair("চকু", "Soku"),
+        "eyes" to Pair("চকুযুৰি", "Sokujuri"),
+        "ear" to Pair("কাণ", "Kaan"),
+        "nose" to Pair("নাক", "Naak"),
+        "mouth" to Pair("মুখ", "Mukh"),
+        "hand" to Pair("হাত", "Haat"),
+        "hands" to Pair("হাত দুখন", "Haat dukhon"),
+        "leg" to Pair("ভৰি", "Bhori"),
+        "heart" to Pair("হৃদয় / অন্তৰ", "Hridoy"),
+        "brain" to Pair("মগজু / মস্তিষ্ক", "Mogoju"),
+        "mind" to Pair("মন", "Mon"),
+        "body" to Pair("শৰীৰ / দেহ", "Xorir"),
+        "doctor" to Pair("চিকিৎসক / ডাক্তৰ", "Dactor"),
+        "hospital" to Pair("চিকিৎসালয়", "Sikitsaloy"),
+        "medicine" to Pair("ঔষধ / দৰৱ", "Ouxodh"),
+
+        // Nature, Earth & Weather
+        "nature" to Pair("প্ৰকৃতি", "Prokriti"),
+        "sun" to Pair("সূৰ্য্য / বেলি", "Xurjo"),
+        "moon" to Pair("জোন / চন্দ্ৰ", "Jon"),
+        "star" to Pair("তৰা / নক্ষত্ৰ", "Tora"),
+        "sky" to Pair("আকাশ", "Aakax"),
+        "river" to Pair("নদী / নৈ", "Nodi"),
+        "sea" to Pair("সাগৰ / সমুদ্ৰ", "Xagor"),
+        "ocean" to Pair("মহাসাগৰ", "Moxagor"),
+        "mountain" to Pair("পাহাৰ / পৰ্বত", "Pahar"),
+        "forest" to Pair("অৰণ্য / হাবনি", "Oronyo"),
+        "tree" to Pair("গছ", "Gos"),
+        "flower" to Pair("ফুল", "Phul"),
+        "rain" to Pair("বৰষুণ", "Boroqun"),
+        "wind" to Pair("বতাহ", "Botah"),
+        "fire" to Pair("জুই / অগ্নি", "Jui"),
+        "air" to Pair("বায়ু / বতাহ", "Bayu"),
+        "earth" to Pair("পৃথিৱী / মাটি", "Prithibi"),
+        "weather" to Pair("বতৰ", "Botor"),
+        "cloud" to Pair("ডাৱৰ / মেঘ", "Dabor"),
+        "summer" to Pair("গ্ৰীষ্মকাল", "Grishmokal"),
+        "winter" to Pair("শীতকাল", "Xitkal"),
+
+        // Animals & Birds
+        "animal" to Pair("পশু / জীৱ-জন্তু", "Poxu"),
+        "bird" to Pair("চৰাই / পক্ষী", "Sorai"),
+        "dog" to Pair("কুকুৰ", "Kukur"),
+        "cat" to Pair("মেকুৰী", "Mekuri"),
+        "cow" to Pair("গৰু", "Goru"),
+        "elephant" to Pair("হাতী / গজ", "Haati"),
+        "horse" to Pair("ঘোঁৰা", "Ghora"),
+        "lion" to Pair("সিংহ", "Xingho"),
+        "tiger" to Pair("বাঘ", "Baagh"),
+        "fish" to Pair("মাছ / মৎস্য", "Maas"),
+
+        // Food, Flavors & Cooking
+        "rice" to Pair("ভাত / চাউল", "Bhaat"),
+        "bread" to Pair("ৰুটী", "Ruti"),
+        "milk" to Pair("গাখীৰ", "Gaakhir"),
+        "fruit" to Pair("ফল / ফলমূল", "Phol"),
+        "apple" to Pair("আপেল", "Aapel"),
+        "banana" to Pair("কল", "Kol"),
+        "vegetable" to Pair("শাক-পাচলি", "Xaak-pasoli"),
+        "salt" to Pair("নিমখ", "Nimokh"),
+        "sugar" to Pair("চেনি", "Seni"),
+        "sweet" to Pair("মিঠা", "Mitha"),
+        "sour" to Pair("টেঙা", "Tenga"),
+        "spicy" to Pair("জ্বাল / মচলাযুক্ত", "Jwal"),
+        "delicious" to Pair("সুস্বাদু / সোৱাদযুক্ত", "Xuxwadu"),
+        "eat" to Pair("খোৱা / আহাৰ গ্ৰহণ", "Khowa"),
+        "drink" to Pair("পান কৰা / খোৱা", "Paan kora"),
+        "cook" to Pair("ৰন্ধা / ৰন্ধন", "Rondha"),
+
+        // Daily Routine & Action Verbs
+        "walk" to Pair("খোজ কঢ়া", "Khoj kodha"),
+        "run" to Pair("দৌৰা", "Doura"),
+        "jump" to Pair("জপিয়াই উঠা", "Jopiyai utha"),
+        "sleep" to Pair("শোৱা / টোপনি", "Xowa"),
+        "wake" to Pair("সাৰ পোৱা", "Xaar powa"),
+        "laugh" to Pair("হঁহা / আনন্দ প্ৰকাশ", "Hoha"),
+        "cry" to Pair("কন্দা", "Konda"),
+        "smile" to Pair("হাঁহি / মৃদু হাঁহি", "Hahi"),
+        "play" to Pair("খেলা / আনন্দ কৰা", "Khela"),
+        "sing" to Pair("গান গোৱা", "Gaan gowa"),
+        "dance" to Pair("নাচা / নৃত্য কৰা", "Naasa"),
+        "drive" to Pair("গাড়ী চলোৱা", "Gaari solowa"),
+        "fly" to Pair("উৰা", "Ura"),
+        "swim" to Pair("সাঁতোৰা", "Xatora"),
+        "ask" to Pair("সোধা / প্ৰশ্ন কৰা", "Xodha"),
+        "tell" to Pair("কোৱা / জনোৱা", "Kowa"),
+        "call" to Pair("মতা / ফোন কৰা", "Mota"),
+        "send" to Pair("পঠোৱা / প্ৰেৰণ কৰা", "Pothowa"),
+        "receive" to Pair("গ্ৰহণ কৰা / পোৱা", "Grohon kora"),
+        "open" to Pair("খোলা / মুকলি কৰা", "Khula"),
+        "close" to Pair("বন্ধ কৰা", "Bondho kora"),
+        "sit" to Pair("বহা", "Boha"),
+        "stand" to Pair("থিয় হোৱা", "Thiyo howa"),
+        "meet" to Pair("লগ পোৱা / সাক্ষাৎ কৰা", "Log powa"),
+        "teach" to Pair("শিকোৱা / শিক্ষা দিয়া", "Xikowa"),
+        "guide" to Pair("পথ প্ৰদৰ্শন কৰা", "Poth prodorxon kora"),
+
+        // Emotions, Personality & Values
+        "hope" to Pair("আশা / প্ৰত্যাশা", "Aaxa"),
+        "dream" to Pair("সপোন", "Xopon"),
+        "wish" to Pair("ইচ্ছা / কামনা", "Iccha"),
+        "trust" to Pair("বিশ্বাস / আস্থা", "Biswaax"),
+        "respect" to Pair("শ্ৰদ্ধা / সন্মান", "Xroddha"),
+        "kindness" to Pair("দয়া / সহৃদয়তা", "Doya"),
+        "joy" to Pair("আনন্দ / উল্লাস", "Aanondo"),
+        "anger" to Pair("খং / ক্ৰোধ", "Khong"),
+        "fear" to Pair("ভয় / শংকা", "Bhoy"),
+        "curiosity" to Pair("কৌতূহল / জানিবলৈ ইচ্ছা", "Koutuhol"),
+        "patience" to Pair("ধৈৰ্য / সহনশীলতা", "Dhoirjo"),
+        "proud" to Pair("গৰ্বিত", "Gorbito"),
+        "pride" to Pair("গৌৰৱ / অহংকাৰ", "Gourov"),
+        "brave" to Pair("সাহসী / নিৰ্ভীক", "Xahoxi"),
+        "honest" to Pair("সৎ / নিষ্ঠাবান", "Xot"),
+
+        // Technology, Career & Academic
+        "computer" to Pair("কম্পিউটাৰ / গণক যন্ত্ৰ", "Computer"),
+        "internet" to Pair("ইণ্টাৰনেট", "Internet"),
+        "software" to Pair("ছফ্টৱেৰ", "Software"),
+        "phone" to Pair("ফোন / দূৰভাষ", "Phone"),
+        "screen" to Pair("পৰ্দা / স্ক্ৰীণ", "Porda"),
+        "data" to Pair("তথ্য / উপাত্ত", "Tothyo"),
+        "network" to Pair("নেটৱৰ্ক / যোগাযোগ জাল", "Network"),
+        "security" to Pair("নিৰাপত্তা / সুৰক্ষা", "Niroppotta"),
+        "system" to Pair("ব্যৱস্থা / পদ্ধতি", "Byowostha"),
+        "science" to Pair("বিজ্ঞান", "Bigyan"),
+        "history" to Pair("ইতিহাস", "Itihax"),
+        "geography" to Pair("ভূগোল", "Bhugol"),
+        "mathematics" to Pair("গণিত", "Gonit"),
+        "culture" to Pair("সংস্কৃতি", "Xongskriti"),
+        "society" to Pair("সমাজ", "Xomaj"),
+        "government" to Pair("চৰকাৰ / প্ৰশাসন", "Xorkar"),
+        "policy" to Pair("নীতি / নিয়মাৱলী", "Niti"),
+        "goal" to Pair("লক্ষ্য / উদ্দেশ্য", "Lokkhyo"),
+        "progress" to Pair("উন্নতি / অগ্ৰগতি", "Unnoti"),
+        "project" to Pair("প্ৰকল্প", "Prokolpo"),
+        "strategy" to Pair("কৌশল / পৰিকল্পনা", "Kouxol"),
+        "decision" to Pair("সিদ্ধান্ত", "Xiddhanto"),
+        "talent" to Pair("প্ৰতিভা / গুণ", "Protibha"),
+        "effort" to Pair("প্ৰচেষ্টা / শ্ৰম", "Prosesta"),
+        "skill" to Pair("দক্ষতা / নিপুণতা", "Dokkhota"),
+        "leader" to Pair("নেতা / দলপতি", "Neta"),
+        "leadership" to Pair("নেতৃত্ব", "Netritwo"),
+        "team" to Pair("দল / গোট", "Dol"),
+        "future" to Pair("ভৱিষ্যত", "Bhobisyot"),
+        "present" to Pair("বৰ্তমান / উপহাৰ", "Bortoman"),
+        "past" to Pair("অতীত", "Otit"),
+
+        // Descriptors & Adverbs
+        "wonderful" to Pair("আশ্চৰ্য্যজনক / সুন্দৰ", "Aasorjojonok"),
+        "awesome" to Pair("অসাধাৰণ / অতি চমৎকার", "Oxadharon"),
+        "perfect" to Pair("নিখুঁত / সম্পূৰ্ণ শুদ্ধ", "Nikhut"),
+        "amazing" to Pair("চমৎকাৰ / বিস্ময়কৰ", "Somotkar"),
+        "bright" to Pair("উজ্জ্বল / দীপ্তিমান", "Ujjwol"),
+        "dark" to Pair("আন্ধাৰ / অন্ধকাৰ", "Aandhar"),
+        "heavy" to Pair("গধূৰ / ভাৰী", "Godhur"),
+        "light" to Pair("পাতল / পোহৰ", "Patol"),
+        "deep" to Pair("গভীৰ", "Gobhir"),
+        "wide" to Pair("বহল / প্ৰশস্ত", "Bohol"),
+        "narrow" to Pair("ঠেক / সংকীৰ্ণ", "Thek"),
+        "high" to Pair("ওখ / উচ্চ", "Okh"),
+        "low" to Pair("চাপৰ / নিম্ন", "Saapor"),
+        "near" to Pair("ওচৰত / কাষত", "Osrot"),
+        "far" to Pair("দূৰত", "Durot"),
+        "early" to Pair("সোণকালে", "Xunkale"),
+        "late" to Pair("পলমকৈ", "Polomkoi"),
+        "quick" to Pair("খৰকৈ / ত্বৰিৎ", "Khorkoi"),
+        "quiet" to Pair("শান্ত / মৌন", "Xaanto"),
+        "loud" to Pair("উচ্চ / জোৰেৰে", "Usso"),
+        "rich" to Pair("ধনী / ঐশ্বৰ্যশালী", "Dhoni"),
+        "poor" to Pair("দুখীয়া / নিচলা", "Dukhiya"),
+        "clean" to Pair("পৰিষ্কাৰ / নিকা", "Poriskar"),
+        "actually" to Pair("প্ৰকৃততে / আচলতে", "Prokritote"),
+        "really" to Pair("সঁচাকৈ / বাস্তৱত", "Xosakoi"),
+        "certainly" to Pair("নিশ্চয় / নিশ্চিতভাৱে", "Nischoy"),
+        "probably" to Pair("সম্ভৱতঃ", "Xombhoboto"),
+        "together" to Pair("একত্ৰিতভাৱে / একেলগে", "Ekeloge"),
+        "alone" to Pair("অকলশৰীয়া", "Okolxoriya"),
+        "everyone" to Pair("সকলোৱে / প্ৰতিজন ব্যক্তি", "Xokolowe"),
+        "everything" to Pair("সকলোবোৰ / সৰ্বস্ব", "Xokolobor")
     )
+
+    // Dynamic Teacher-managed custom words storage
+    private val teacherCustomWords = java.util.concurrent.ConcurrentHashMap<String, Pair<String, String>>()
+
+    fun addCustomWord(word: String, assameseMeaning: String, transliteration: String) {
+        val clean = word.trim().lowercase()
+        if (clean.isNotBlank()) {
+            teacherCustomWords[clean] = Pair(assameseMeaning.trim(), transliteration.trim())
+        }
+    }
+
+    fun removeCustomWord(word: String) {
+        teacherCustomWords.remove(word.trim().lowercase())
+    }
+
+    fun getAllCustomWords(): Map<String, Pair<String, String>> = teacherCustomWords.toMap()
+
+    fun getTotalWordCount(): Int = wordMap.size + teacherCustomWords.size
 
     /**
      * Translates the given English sentence to Assamese.
@@ -480,6 +680,9 @@ object AssameseTranslator {
     fun translateWord(word: String): Pair<String, String>? {
         val clean = word.lowercase().trim().replace(Regex("[^a-z]"), "")
         if (clean.isEmpty()) return null
+
+        // 0. Check teacher-added custom words first
+        teacherCustomWords[clean]?.let { return it }
 
         // 1. Direct dictionary lookup
         wordMap[clean]?.let { return it }

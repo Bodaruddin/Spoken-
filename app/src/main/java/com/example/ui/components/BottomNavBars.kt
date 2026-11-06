@@ -46,14 +46,16 @@ fun StudentBottomBar(
                     icon = {
                         Text(
                             tab.iconEmoji,
-                            fontSize = if (isSelected) 22.sp else 18.sp
+                            fontSize = if (isSelected) 20.sp else 16.sp
                         )
                     },
                     label = {
                         Text(
                             tab.label,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
+                            fontSize = 10.sp,
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(

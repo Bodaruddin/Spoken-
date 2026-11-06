@@ -44,16 +44,6 @@ fun StudentProfileScreen(
     val supabaseStatus by viewModel.supabaseStatus.collectAsState()
 
     var showVocabNotebook by remember { mutableStateOf(false) }
-    var selectedLeaderboardFilter by remember { mutableStateOf("Batch Alpha") }
-    var showAllRankings by remember { mutableStateOf(false) }
-
-    val filteredLeaderboard = remember(leaderboard, selectedLeaderboardFilter) {
-        when (selectedLeaderboardFilter) {
-            "Batch Alpha" -> leaderboard.filter { it.rank in listOf(1, 3, 4) }
-            "Batch Beta" -> leaderboard.filter { it.rank in listOf(2, 5, 7) }
-            else -> leaderboard
-        }
-    }
 
     LazyColumn(
         modifier = modifier
@@ -353,367 +343,67 @@ fun StudentProfileScreen(
             }
         }
 
-        // 3. Shifted & Redesigned Premier Academy Leaderboard
+        // 3. Shifted to Dedicated Leaderboard Screen Shortcut Card
         item {
             Card(
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                border = BorderStroke(1.dp, Color(0xFFFACC15).copy(alpha = 0.4f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("student_profile_leaderboard_hub")
+                    .testTag("leaderboard_shifted_card")
             ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Header with Championship trophy & cohort filters
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Row(
+                        Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .padding(end = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                .size(46.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(Color(0xFFFEF08A), Color(0xFFF59E0B), Color(0xFFD97706))
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        Brush.linearGradient(
-                                            listOf(Color(0xFFFEF08A), Color(0xFFF59E0B), Color(0xFFD97706))
-                                        )
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("🏆", fontSize = 22.sp)
-                            }
-
-                            Column(modifier = Modifier.weight(1f, fill = false)) {
-                                Text(
-                                    text = "Academy Fluency Leaderboard",
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "Weekly Cohort Speaking Championship",
-                                    fontSize = 11.sp,
-                                    color = MutedGray,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
+                            Text("🏆", fontSize = 24.sp)
                         }
 
-                        // Toggle View All / Podium
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.clickable { showAllRankings = !showAllRankings }
-                        ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                text = if (showAllRankings) "Podium 👑" else "Full List ➔",
+                                text = "Academy Fluency Leaderboard",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Rankings shifted to dedicated Leaderboard page! View podium, cohorts & standing.",
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                            )
-                        }
-                    }
-
-                    // Cohort Filter Tabs
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf("Batch Alpha", "All Academy", "Batch Beta").forEach { cohort ->
-                            val isSelected = selectedLeaderboardFilter == cohort
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                                border = if (isSelected) null else BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                modifier = Modifier
-                                    .clickable { selectedLeaderboardFilter = cohort }
-                                    .weight(1f)
-                            ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                ) {
-                                    Text(
-                                        text = cohort,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Top 3 Podium (Always visible or primary showcase)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        // 2nd Place: Silver (David Chen)
-                        PremiumPodiumPillar(
-                            rank = 2,
-                            name = "David Chen",
-                            emoji = "🐯",
-                            xp = "2,420 XP",
-                            streak = "14d",
-                            medal = "🥈",
-                            league = "Diamond",
-                            badgeColor = Color(0xFFE2E8F0),
-                            containerColor = Color(0xFFF8FAFC),
-                            borderColor = Color(0xFFCBD5E1),
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        // 1st Place: Gold (Elena Rostova - Elevated)
-                        PremiumPodiumPillar(
-                            rank = 1,
-                            name = "Elena Rostova",
-                            emoji = "🦄",
-                            xp = "2,850 XP",
-                            streak = "19d",
-                            medal = "👑",
-                            league = "Diamond",
-                            badgeColor = Color(0xFFFDE047),
-                            containerColor = Color(0xFFFEFCE8),
-                            borderColor = Color(0xFFFACC15),
-                            isFirst = true,
-                            modifier = Modifier.weight(1.15f)
-                        )
-
-                        // 3rd Place: Bronze (Current User - Alex Morgan)
-                        PremiumPodiumPillar(
-                            rank = 3,
-                            name = "Alex Morgan",
-                            emoji = "🦉",
-                            xp = "${profile.xpPoints} XP",
-                            streak = "${profile.streakDays}d",
-                            medal = "🥉",
-                            league = "Gold",
-                            badgeColor = Color(0xFFFED7AA),
-                            containerColor = Color(0xFFFFF7ED),
-                            borderColor = Color(0xFFFB923C),
-                            isCurrentUser = true,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    // User Personal Standing & Challenge Alert Banner
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color(0xFFEFF6FF),
-                        border = BorderStroke(1.2.dp, Color(0xFFBFDBFE)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(end = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text("⭐", fontSize = 18.sp)
-                                    Column(modifier = Modifier.weight(1f, fill = false)) {
-                                        Text(
-                                            text = "Your Standing: Rank #3 in $selectedLeaderboardFilter",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
-                                            color = DeepNavy,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = "970 XP needed to overtake #2 David Chen",
-                                            fontSize = 11.sp,
-                                            color = RoyalBlue,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = RoyalBlue
-                                ) {
-                                    Text(
-                                        text = "Top 5%",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                    )
-                                }
-                            }
-
-                            // Progress Track toward Rank 2
-                            LinearProgressIndicator(
-                                progress = { 0.60f },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp)),
-                                color = RoyalBlue,
-                                trackColor = Color(0xFFDBEAFE)
-                            )
-                        }
-                    }
-
-                    // Full Roster Breakdown (Shown when toggled or expanded)
-                    AnimatedVisibility(visible = showAllRankings) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "All Academy Ranks ($selectedLeaderboardFilter)",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
                                 color = MutedGray
                             )
-
-                            filteredLeaderboard.forEach { student ->
-                                val isUser = student.name.contains("Alex Morgan") || student.isCurrentUser
-                                Surface(
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = if (isUser) Color(0xFFEFF6FF) else Color(0xFFF8FAFC),
-                                    border = BorderStroke(
-                                        if (isUser) 1.5.dp else 1.dp,
-                                        if (isUser) RoyalBlue else Color(0xFFE2E8F0)
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .padding(end = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            // Rank Icon
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(32.dp)
-                                                    .clip(CircleShape)
-                                                    .background(
-                                                        when (student.rank) {
-                                                            1 -> Color(0xFFFEF08A)
-                                                            2 -> Color(0xFFE2E8F0)
-                                                            3 -> Color(0xFFFFEDD5)
-                                                            else -> Color(0xFFF1F5F9)
-                                                        }
-                                                    ),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = when (student.rank) {
-                                                        1 -> "🥇"
-                                                        2 -> "🥈"
-                                                        3 -> "🥉"
-                                                        else -> "#${student.rank}"
-                                                    },
-                                                    fontSize = if (student.rank <= 3) 15.sp else 12.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = DeepNavy
-                                                )
-                                            }
-
-                                            Text(student.avatarEmoji, fontSize = 22.sp)
-
-                                            Column(modifier = Modifier.weight(1f, fill = false)) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                                ) {
-                                                    Text(
-                                                        text = student.name,
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 13.sp,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        color = if (isUser) RoyalBlue else MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    if (isUser) {
-                                                        Surface(
-                                                            shape = RoundedCornerShape(6.dp),
-                                                            color = RoyalBlue
-                                                        ) {
-                                                            Text(
-                                                                "YOU",
-                                                                fontSize = 9.sp,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = Color.White,
-                                                                maxLines = 1,
-                                                                softWrap = false,
-                                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                }
-
-                                                Text(
-                                                    text = "${student.league} • 🔥 ${student.streak}d streak",
-                                                    fontSize = 11.sp,
-                                                    color = MutedGray,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
-                                        }
-
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = if (isUser) RoyalBlue else Color.White,
-                                            border = if (isUser) null else BorderStroke(1.dp, Color(0xFFE2E8F0))
-                                        ) {
-                                            Text(
-                                                text = "${student.xp} XP",
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 12.sp,
-                                                color = if (isUser) Color.White else DeepNavy,
-                                                maxLines = 1,
-                                                softWrap = false,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
                         }
+                    }
+
+                    Button(
+                        onClick = { viewModel.selectStudentTab(com.example.ui.StudentTab.LEADERBOARD) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text("View Ranks", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

@@ -19,6 +19,7 @@ enum class StudentTab(val label: String, val iconEmoji: String) {
     LEARN("Journey", "🗺️"),
     PRACTICE("Speaking", "🎙️"),
     GAMES("Games", "🎮"),
+    LEADERBOARD("Leaderboard", "🏆"),
     PROFILE("Profile", "👤")
 }
 
@@ -318,6 +319,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var teacherPassword = "teacher123"
     var adminPin = "9842"
     var teacherPin = "7321"
+
+    private val _showAdminCredentialsModal = MutableStateFlow(false)
+    val showAdminCredentialsModal: StateFlow<Boolean> = _showAdminCredentialsModal.asStateFlow()
+
+    fun toggleAdminCredentialsModal(show: Boolean) {
+        if (show && currentUser.value.role != Role.ADMIN) {
+            _showAdminCredentialsModal.value = false
+            return
+        }
+        _showAdminCredentialsModal.value = show
+    }
+
+    fun updateAdminCredentials(
+        name: String,
+        email: String,
+        newPassword: String,
+        newPin: String
+    ): Boolean {
+        if (currentUser.value.role != Role.ADMIN) return false
+        val current = currentUser.value
+        val updated = current.copy(
+            name = name.ifBlank { current.name }.trim(),
+            email = email.ifBlank { current.email }.trim(),
+            securityPin = newPin.ifBlank { adminPin }.trim()
+        )
+        repository.setCurrentUser(updated)
+        if (newPassword.isNotBlank()) adminPassword = newPassword.trim()
+        if (newPin.isNotBlank()) adminPin = newPin.trim()
+        return true
+    }
 
     sealed class UnifiedLoginResult {
         data class Success(val role: Role, val user: User) : UnifiedLoginResult()
@@ -830,6 +861,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteRoleplayScenario(id: String) {
         repository.deleteRoleplayScenario(id)
+    }
+
+    // Vocabulary & Assamese Translation Management (Teacher & Admin)
+    fun addTeacherVocabularyWord(
+        word: String,
+        assameseMeaning: String,
+        assameseTransliteration: String,
+        phonetic: String = "",
+        syllables: String = "",
+        partOfSpeech: String = "noun",
+        category: String = "General",
+        coachingTip: String = "",
+        exampleSentence: String = "",
+        meaning: String = ""
+    ) {
+        val cleanWord = word.trim().replaceFirstChar { it.uppercase() }
+        val newWord = VocabularyWord(
+            id = "vocab_${System.currentTimeMillis()}",
+            word = cleanWord,
+            phonetic = phonetic.trim().ifBlank { "/${word.trim().lowercase()}/" },
+            partOfSpeech = partOfSpeech.trim().ifBlank { "noun" },
+            meaning = meaning.trim().ifBlank { "English vocabulary term with Assamese translation." },
+            exampleSentence = exampleSentence.trim().ifBlank { "We use '$cleanWord' in daily spoken English." },
+            category = category.trim().ifBlank { "General" },
+            assameseMeaning = assameseMeaning.trim(),
+            assameseTransliteration = assameseTransliteration.trim(),
+            syllables = syllables.trim().ifBlank { cleanWord },
+            coachingTip = coachingTip.trim().ifBlank { "Focus on clear pronunciation and natural spoken stress." },
+            addedByTeacher = currentUser.value.name.ifBlank { "Faculty Instructor" }
+        )
+        repository.addVocabularyWord(newWord)
+    }
+
+    fun deleteTeacherVocabularyWord(wordId: String) {
+        repository.deleteVocabularyWord(wordId)
+    }
+
+    fun toggleWordFavorite(wordId: String) {
+        repository.toggleWordFavorite(wordId)
     }
 
     override fun onCleared() {

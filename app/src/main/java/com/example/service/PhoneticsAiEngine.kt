@@ -461,9 +461,26 @@ object PhoneticsAiEngine {
         )
     )
 
+    // Teacher & Faculty dynamic custom vocabulary repository
+    private val teacherPhoneticLexicon = java.util.concurrent.ConcurrentHashMap<String, PhoneticSearchResult>()
+
+    fun addCustomPhoneticWord(result: PhoneticSearchResult) {
+        val clean = result.word.trim().lowercase()
+        teacherPhoneticLexicon[clean] = result
+        AssameseTranslator.addCustomWord(result.word, result.assameseMeaning, result.assameseTransliteration)
+    }
+
+    fun removeCustomPhoneticWord(word: String) {
+        val clean = word.trim().lowercase()
+        teacherPhoneticLexicon.remove(clean)
+        AssameseTranslator.removeCustomWord(word)
+    }
+
+    fun getCustomPhoneticWords(): List<PhoneticSearchResult> = teacherPhoneticLexicon.values.toList()
+
     /**
      * Performs AI-driven phonetic search.
-     * Looks up curated entries first; if not found, synthesizes accurate IPA,
+     * Looks up teacher additions first, curated entries second; if not found, synthesizes accurate IPA,
      * syllable stress division, sound focus, and coaching tips using linguistic rules.
      */
     fun analyzeWord(input: String): PhoneticSearchResult {
@@ -472,11 +489,21 @@ object PhoneticsAiEngine {
             return phoneticLexicon["comfortable"]!!
         }
 
-        // Exact match in lexicon
+        // 0. Check teacher-added words first
+        teacherPhoneticLexicon[query]?.let { return it }
+
+        // 1. Exact match in curated lexicon
         phoneticLexicon[query]?.let { return it }
 
-        // Match plural or -ing / -ed forms
+        // Match plural or -ing / -ed forms in teacher or curated
         val baseWord = query.removeSuffix("s").removeSuffix("ed").removeSuffix("ing")
+        teacherPhoneticLexicon[baseWord]?.let { baseResult ->
+            return baseResult.copy(
+                word = input.replaceFirstChar { it.uppercase() },
+                exampleSentence = "Let's practice the phonetic rhythm of '${input.trim()}'.",
+                coachingTip = "${baseResult.coachingTip} Keep the root sound steady when adding inflection."
+            )
+        }
         phoneticLexicon[baseWord]?.let { baseResult ->
             return baseResult.copy(
                 word = input.replaceFirstChar { it.uppercase() },

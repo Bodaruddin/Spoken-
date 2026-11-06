@@ -225,6 +225,76 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
             }
         }
 
+        // Quick Access: English & Assamese Vocabulary Words Management
+        item {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.2.dp, AmberGold.copy(alpha = 0.6f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        viewModel.selectTeacherSpeakingSection(TeacherSpeakingSection.MANAGE_SPEAKING)
+                        viewModel.selectTeacherTab(TeacherTab.SPEAKING_REVIEW)
+                    }
+                    .testTag("teacher_assamese_vocab_shortcut_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(AmberGold.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("📖", fontSize = 24.sp)
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = "English & Assamese Vocabulary",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Add words with Assamese meanings, IPA & syllables so students can search and practice them.",
+                                fontSize = 11.sp,
+                                color = MutedGray
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.selectTeacherSpeakingSection(TeacherSpeakingSection.MANAGE_SPEAKING)
+                            viewModel.selectTeacherTab(TeacherTab.SPEAKING_REVIEW)
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AmberGold),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Filled.Add, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Add Word", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black)
+                    }
+                }
+            }
+        }
+
         // Action Quick Access for Speaking Review
         item {
             Card(
