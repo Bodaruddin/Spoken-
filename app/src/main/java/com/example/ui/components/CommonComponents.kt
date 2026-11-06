@@ -568,13 +568,20 @@ fun RoleSwitcherDialog(
                 )
 
                 RoleSelectionItem(
-                    title = "Teacher Portal (Protected)",
-                    subtitle = "Prof. Eleanor Vance • Batch Alpha & Beta • Faculty Verification",
+                    title = if (currentRole == Role.ADMIN) "Teacher Portal (Direct Access)" else "Teacher Portal (Protected)",
+                    subtitle = if (currentRole == Role.ADMIN) "Instant switch to faculty workspace without security PIN" else "Prof. Eleanor Vance • Batch Alpha & Beta • Faculty Verification",
                     emoji = "👩‍🏫",
                     isSelected = currentRole == Role.TEACHER,
                     onClick = {
-                        if (currentRole == Role.TEACHER) onDismiss()
-                        else pendingRole = Role.TEACHER
+                        if (currentRole == Role.TEACHER) {
+                            onDismiss()
+                        } else if (currentRole == Role.ADMIN) {
+                            // Admin can switch to Teacher panel without security PIN
+                            onRoleSelected(Role.TEACHER)
+                            onDismiss()
+                        } else {
+                            pendingRole = Role.TEACHER
+                        }
                     }
                 )
 

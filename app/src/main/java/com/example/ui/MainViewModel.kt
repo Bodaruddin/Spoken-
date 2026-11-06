@@ -464,10 +464,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 name = teacher.name,
                 email = teacher.email,
                 department = department,
-                securityPin = securityPin
+                securityPin = securityPin,
+                isActive = true
             )
         }
         return teacher
+    }
+
+    fun updateTeacher(teacher: User) {
+        repository.updateTeacher(teacher)
+        viewModelScope.launch {
+            supabaseService.saveTeacherAccount(
+                id = teacher.id,
+                name = teacher.name,
+                email = teacher.email,
+                department = teacher.batch,
+                securityPin = teacher.securityPin,
+                isActive = teacher.isActive
+            )
+        }
+    }
+
+    fun deleteTeacher(teacherId: String) {
+        repository.deleteTeacher(teacherId)
+        viewModelScope.launch {
+            supabaseService.deleteTeacherAccount(teacherId)
+        }
+    }
+
+    fun toggleTeacherActive(teacherId: String) {
+        repository.toggleTeacherActive(teacherId)
+        val updated = repository.adminTeachers.value.find { it.id == teacherId }
+        if (updated != null) {
+            viewModelScope.launch {
+                supabaseService.saveTeacherAccount(
+                    id = updated.id,
+                    name = updated.name,
+                    email = updated.email,
+                    department = updated.batch,
+                    securityPin = updated.securityPin,
+                    isActive = updated.isActive
+                )
+            }
+        }
     }
 
     fun authenticateAndLogin(role: Role, passwordInput: String): Boolean {
@@ -493,6 +532,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Strict Security: Students cannot verify staff PINs or switch to staff portals
         if (currentUser.value.role == Role.STUDENT) {
             return false
+        }
+        // Admin can switch to Teacher panel directly without security PIN
+        if (currentUser.value.role == Role.ADMIN && role == Role.TEACHER) {
+            return true
         }
         val input = pinInput.trim()
         return when (role) {

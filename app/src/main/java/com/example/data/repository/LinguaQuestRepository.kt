@@ -546,7 +546,9 @@ class LinguaQuestRepository {
         val current = _currentUser.value
         val updatedUser = when (newRole) {
             Role.STUDENT -> User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", "Batch Alpha", securityPin = "1234")
-            Role.TEACHER -> User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Lead Instructor", securityPin = "7321")
+            Role.TEACHER -> _adminTeachers.value.firstOrNull { it.isActive }
+                ?: _adminTeachers.value.firstOrNull()
+                ?: User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Lead Instructor", securityPin = "7321")
             Role.ADMIN -> User("adm_001", "Dean Arthur Pendelton", "admin@linguaquest.edu", Role.ADMIN, "🛡️", "Head of Academics", securityPin = "9842")
         }
         _currentUser.value = updatedUser
@@ -826,6 +828,37 @@ class LinguaQuestRepository {
         )
         _adminTeachers.update { it + newTeacher }
         return newTeacher
+    }
+
+    // Admin: Update Teacher
+    fun updateTeacher(updated: User) {
+        _adminTeachers.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
+        }
+        if (_currentUser.value.id == updated.id) {
+            _currentUser.value = updated
+        }
+    }
+
+    // Admin: Delete Teacher
+    fun deleteTeacher(teacherId: String) {
+        _adminTeachers.update { list ->
+            list.filterNot { it.id == teacherId }
+        }
+        if (_currentUser.value.id == teacherId) {
+            _currentUser.value = _adminTeachers.value.firstOrNull { it.isActive }
+                ?: User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Batch Alpha & Beta", true, securityPin = "7321")
+        }
+    }
+
+    // Admin: Toggle Teacher Active Status
+    fun toggleTeacherActive(teacherId: String) {
+        _adminTeachers.update { list ->
+            list.map { if (it.id == teacherId) it.copy(isActive = !it.isActive) else it }
+        }
+        if (_currentUser.value.id == teacherId) {
+            _currentUser.value = _currentUser.value.copy(isActive = !_currentUser.value.isActive)
+        }
     }
 
     // Self-registration for Teacher

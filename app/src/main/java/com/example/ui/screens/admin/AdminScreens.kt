@@ -193,6 +193,21 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                             Text("🎯 Phonetics", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+
+                    // Direct switch to Teacher Panel for Admin without Security PIN
+                    OutlinedButton(
+                        onClick = { viewModel.switchRole(Role.TEACHER) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("admin_switch_to_teacher_panel_button"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = PurpleAccent),
+                        border = BorderStroke(1.5.dp, PurpleAccent)
+                    ) {
+                        Icon(Icons.Rounded.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp), tint = PurpleAccent)
+                        Spacer(Modifier.width(6.dp))
+                        Text("👩‍🏫 Switch to Teacher Panel (Direct Access • No PIN)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -992,15 +1007,30 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
 fun AdminTeachersManagement(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val teachers by viewModel.adminTeachers.collectAsState()
     var showAddTeacherDialog by remember { mutableStateOf(false) }
+    var selectedTeacherForEdit by remember { mutableStateOf<User?>(null) }
+    var teacherToDelete by remember { mutableStateOf<User?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
     var statusMsg by remember { mutableStateOf<String?>(null) }
+
+    val filteredTeachers = remember(teachers, searchQuery) {
+        if (searchQuery.isBlank()) teachers
+        else teachers.filter {
+            it.name.contains(searchQuery, ignoreCase = true) ||
+                    it.email.contains(searchQuery, ignoreCase = true) ||
+                    it.batch.contains(searchQuery, ignoreCase = true) ||
+                    it.id.contains(searchQuery, ignoreCase = true)
+        }
+    }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(16.dp),
+            .padding(16.dp)
+            .testTag("admin_teachers_screen"),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Top Header Card with Add and Switch options
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
@@ -1008,96 +1038,249 @@ fun AdminTeachersManagement(viewModel: MainViewModel, modifier: Modifier = Modif
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
+                        Row(
                             modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(RoyalBlue, PurpleAccent)
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
+                                .weight(1f)
+                                .padding(end = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text("👨‍🏫", fontSize = 20.sp)
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(RoyalBlue, PurpleAccent)
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("👨‍🏫", fontSize = 20.sp)
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    "Faculty & Instructors (${teachers.size})",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    "Edit, delete & configure instructor permissions",
+                                    fontSize = 11.sp,
+                                    color = MutedGray,
+                                    maxLines = 1
+                                )
+                            }
                         }
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                "Faculty & Instructors",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1
-                            )
-                            Text(
-                                "Manage teaching staff & course assignments",
-                                fontSize = 11.sp,
-                                color = MutedGray,
-                                maxLines = 1
-                            )
+
+                        Button(
+                            onClick = { showAddTeacherDialog = true },
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier.testTag("add_teacher_button")
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
                     }
 
-                    Button(
-                        onClick = { showAddTeacherDialog = true },
+                    // Direct Quick Switch to Teacher Panel without PIN
+                    OutlinedButton(
+                        onClick = { viewModel.switchRole(Role.TEACHER) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("admin_switch_to_teacher_portal_button"),
                         shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = PurpleAccent),
+                        border = BorderStroke(1.dp, PurpleAccent.copy(alpha = 0.5f))
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Icon(Icons.Rounded.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp), tint = PurpleAccent)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Switch to Teacher Panel (Direct Access • No PIN)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
+        }
+
+        // Search Bar
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search faculty by name, email, or department...", fontSize = 13.sp) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = RoyalBlue) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Filled.Clear, contentDescription = "Clear")
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                singleLine = true
+            )
         }
 
         statusMsg?.let { msg ->
             item {
                 Surface(shape = RoundedCornerShape(10.dp), color = Color(0xFFDCFCE7), modifier = Modifier.fillMaxWidth()) {
-                    Text(msg, color = EmeraldSuccess, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(10.dp))
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(msg, color = EmeraldSuccess, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        IconButton(onClick = { statusMsg = null }, modifier = Modifier.size(18.dp)) {
+                            Icon(Icons.Filled.Clear, contentDescription = null, tint = EmeraldSuccess, modifier = Modifier.size(14.dp))
+                        }
+                    }
                 }
             }
         }
 
-        items(teachers) { t ->
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+        if (filteredTeachers.isEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(t.avatarEmoji, fontSize = 28.sp)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(t.name, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        Text(t.email, fontSize = 12.sp, color = MutedGray)
-                        Text("Assigned Department: ${t.batch}", fontSize = 11.sp, color = RoyalBlue)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("👨‍🏫", fontSize = 36.sp)
+                        Text("No faculty members found", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Try a different search term or add a new teacher above.", fontSize = 12.sp, color = MutedGray)
                     }
-                    Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFDCFCE7)) {
-                        Text("Active Faculty", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = EmeraldSuccess, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                }
+            }
+        }
+
+        items(filteredTeachers, key = { it.id }) { t ->
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("teacher_card_${t.id}")
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(t.avatarEmoji, fontSize = 30.sp)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(t.name, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (t.isActive) Color(0xFFDCFCE7) else Color(0xFFF3F4F6)
+                                ) {
+                                    Text(
+                                        if (t.isActive) "Active Faculty" else "Inactive",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (t.isActive) EmeraldSuccess else MutedGray,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Text(t.email, fontSize = 12.sp, color = MutedGray)
+                            Text("Assigned Department: ${t.batch}", fontSize = 11.sp, color = RoyalBlue)
+                            Text("ID: ${t.id}", fontSize = 10.sp, color = MutedGray)
+                        }
+
+                        // Toggle Active Status
+                        Switch(
+                            checked = t.isActive,
+                            onCheckedChange = { viewModel.toggleTeacherActive(t.id) }
+                        )
+                    }
+
+                    // Security PIN Info Badge
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Rounded.Lock, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(14.dp))
+                                Text(
+                                    "Security PIN: ",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    t.securityPin.ifBlank { "7321" },
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = RoyalBlue
+                                )
+                            }
+                            Text("Used for teacher login", fontSize = 10.sp, color = MutedGray)
+                        }
+                    }
+
+                    // Action Buttons: Edit and Delete
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = { selectedTeacherForEdit = t },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("edit_teacher_button_${t.id}"),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Edit Teacher", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        IconButton(
+                            onClick = { teacherToDelete = t },
+                            modifier = Modifier.testTag("delete_teacher_button_${t.id}")
+                        ) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = "Delete Teacher",
+                                tint = CoralAccent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
+    // Add Teacher Dialog
     if (showAddTeacherDialog) {
         var name by remember { mutableStateOf("") }
         var email by remember { mutableStateOf("") }
@@ -1210,6 +1393,223 @@ fun AdminTeachersManagement(viewModel: MainViewModel, modifier: Modifier = Modif
             },
             dismissButton = {
                 TextButton(onClick = { showAddTeacherDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Edit Teacher Dialog
+    selectedTeacherForEdit?.let { teacher ->
+        var editName by remember { mutableStateOf(teacher.name) }
+        var editEmail by remember { mutableStateOf(teacher.email) }
+        var editDept by remember { mutableStateOf(teacher.batch) }
+        var editPin by remember { mutableStateOf(teacher.securityPin.ifBlank { "7321" }) }
+        var editPinVisible by remember { mutableStateOf(false) }
+        var editActive by remember { mutableStateOf(teacher.isActive) }
+        var editAvatar by remember { mutableStateOf(teacher.avatarEmoji) }
+        var editErrorMsg by remember { mutableStateOf<String?>(null) }
+
+        val emojiOptions = listOf("👩‍🏫", "👨‍🏫", "👩‍💼", "🧑‍🏫", "🎓", "🦉")
+
+        AlertDialog(
+            onDismissRequest = { selectedTeacherForEdit = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(editAvatar, fontSize = 22.sp)
+                    Text("Edit Teacher Details", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Emoji Selector
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        emojiOptions.forEach { emoji ->
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (editAvatar == emoji) RoyalBlue.copy(alpha = 0.2f) else Color.Transparent
+                                    )
+                                    .clickable { editAvatar = emoji },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(emoji, fontSize = 20.sp)
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = {
+                            editName = it
+                            editErrorMsg = null
+                        },
+                        label = { Text("Teacher Full Name") },
+                        leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null, tint = RoyalBlue) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = editEmail,
+                        onValueChange = {
+                            editEmail = it
+                            editErrorMsg = null
+                        },
+                        label = { Text("Institutional Email") },
+                        leadingIcon = { Icon(Icons.Rounded.Email, contentDescription = null, tint = RoyalBlue) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = editDept,
+                        onValueChange = {
+                            editDept = it
+                            editErrorMsg = null
+                        },
+                        label = { Text("Department / Cohort") },
+                        leadingIcon = { Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = editPin,
+                        onValueChange = {
+                            editPin = it
+                            editErrorMsg = null
+                        },
+                        label = { Text("Security PIN") },
+                        leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null, tint = RoyalBlue) },
+                        trailingIcon = {
+                            IconButton(onClick = { editPinVisible = !editPinVisible }) {
+                                Icon(
+                                    imageVector = if (editPinVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                    contentDescription = if (editPinVisible) "Hide PIN" else "Show PIN"
+                                )
+                            }
+                        },
+                        visualTransformation = if (editPinVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        singleLine = true,
+                        supportingText = {
+                            Text("Security PIN used to unlock Teacher panel.", fontSize = 11.sp, color = MutedGray)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Active Faculty Status", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Switch(
+                            checked = editActive,
+                            onCheckedChange = { editActive = it }
+                        )
+                    }
+
+                    if (editErrorMsg != null) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFFEE2E2),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = editErrorMsg ?: "",
+                                color = CoralAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(8.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (editName.isBlank() || editEmail.isBlank()) {
+                            editErrorMsg = "Please enter both teacher name and email."
+                        } else if (editPin.trim().length < 4) {
+                            editErrorMsg = "Security PIN must be at least 4 digits."
+                        } else {
+                            val updated = teacher.copy(
+                                name = editName.trim(),
+                                email = editEmail.trim(),
+                                batch = editDept.trim().ifBlank { "Spoken English Dept" },
+                                securityPin = editPin.trim(),
+                                avatarEmoji = editAvatar,
+                                isActive = editActive
+                            )
+                            viewModel.updateTeacher(updated)
+                            statusMsg = "Updated ${updated.name} successfully!"
+                            selectedTeacherForEdit = null
+                        }
+                    },
+                    modifier = Modifier.testTag("save_teacher_edits_button")
+                ) {
+                    Text("Save Changes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedTeacherForEdit = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Delete Teacher Confirmation Dialog
+    teacherToDelete?.let { teacher ->
+        AlertDialog(
+            onDismissRequest = { teacherToDelete = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, tint = CoralAccent)
+                    Text("Delete Faculty Teacher", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Are you sure you want to remove ${teacher.name} (${teacher.email}) from faculty?",
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        "This will revoke their access to the Teacher Panel and assignments. This action cannot be undone.",
+                        fontSize = 12.sp,
+                        color = MutedGray
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteTeacher(teacher.id)
+                        statusMsg = "Removed ${teacher.name} from faculty."
+                        teacherToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CoralAccent),
+                    modifier = Modifier.testTag("confirm_delete_teacher_button")
+                ) {
+                    Text("Delete Teacher", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { teacherToDelete = null }) {
+                    Text("Cancel")
+                }
             }
         )
     }

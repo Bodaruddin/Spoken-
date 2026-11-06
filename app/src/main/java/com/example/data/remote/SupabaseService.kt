@@ -194,7 +194,8 @@ class SupabaseService {
         name: String,
         email: String,
         department: String,
-        securityPin: String
+        securityPin: String,
+        isActive: Boolean = true
     ): Boolean = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext false
 
@@ -211,7 +212,7 @@ class SupabaseService {
                     "department": "$escapedDept",
                     "security_pin": "$securityPin",
                     "role": "TEACHER",
-                    "is_active": true,
+                    "is_active": $isActive,
                     "created_at": "now()"
                 }
             """.trimIndent()
@@ -222,6 +223,22 @@ class SupabaseService {
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
                 .addHeader("Prefer", "resolution=merge-duplicates")
                 .post(teacherPayload.toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(request).execute().use { it.isSuccessful }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun deleteTeacherAccount(id: String): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        try {
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/teachers?id=eq.$id")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .delete()
                 .build()
 
             client.newCall(request).execute().use { it.isSuccessful }
