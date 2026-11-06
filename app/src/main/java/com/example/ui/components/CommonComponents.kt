@@ -625,7 +625,7 @@ fun RoleSwitcherDialog(
 
                 RoleSelectionItem(
                     title = if (currentRole == Role.ADMIN) "Teacher Portal (Direct Access)" else "Teacher Portal (Protected)",
-                    subtitle = if (currentRole == Role.ADMIN) "Instant switch to faculty workspace without security PIN" else "Prof. Eleanor Vance • Batch Alpha & Beta • Faculty Verification",
+                    subtitle = if (currentRole == Role.ADMIN) "Instant switch to faculty workspace without security PIN" else "Prof. Eleanor Vance • Classes 9 & 10 • Faculty Verification",
                     emoji = "👩‍🏫",
                     isSelected = currentRole == Role.TEACHER,
                     onClick = {

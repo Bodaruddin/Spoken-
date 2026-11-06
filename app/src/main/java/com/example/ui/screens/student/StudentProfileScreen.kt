@@ -229,6 +229,22 @@ fun StudentProfileScreen(
 
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFF10B981).copy(alpha = 0.2f),
+                                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                                ) {
+                                    Text(
+                                        text = "🏫 ${user.studentClass}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF86EFAC),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
                                     color = Color(0xFFF59E0B).copy(alpha = 0.2f),
                                     border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.4f))
                                 ) {

@@ -1,6 +1,6 @@
 {
   "name": "Speakly",
-  "description": "Interactive English speaking and phonetics learning platform for students, teachers, and admins.",
+  "description": "Interactive English spoken learning app featuring role-based portals for students, teachers, and admins, class-specific task assignments, interactive speaking practice, phonetics, and gamification.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -213,7 +213,7 @@ class AppPreferences(context: Context) {
             email = obj.optString("email", ""),
             role = role,
             avatarEmoji = obj.optString("avatarEmoji", "🦉"),
-            batch = obj.optString("batch", "Batch Alpha"),
+            batch = obj.optString("batch", AcademicClasses.DEFAULT_CLASS),
             isActive = obj.optBoolean("isActive", true),
             joinedDate = obj.optString("joinedDate", "Nov 2026"),
             securityPin = obj.optString("securityPin", "")
@@ -251,7 +251,7 @@ class AppPreferences(context: Context) {
             name = obj.optString("name", ""),
             email = obj.optString("email", ""),
             avatarEmoji = obj.optString("avatarEmoji", "🎓"),
-            batch = obj.optString("batch", "Batch Alpha"),
+            batch = obj.optString("batch", AcademicClasses.DEFAULT_CLASS),
             level = level,
             isActive = obj.optBoolean("isActive", true),
             speakingScore = obj.optInt("speakingScore", 75),

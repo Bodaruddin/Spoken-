@@ -41,6 +41,7 @@ fun StudentHomeScreen(
     val user by viewModel.currentUser.collectAsState()
     val profile by viewModel.studentProfile.collectAsState()
     val announcements by viewModel.announcements.collectAsState()
+    val assignments by viewModel.assignments.collectAsState()
 
     LazyColumn(
         modifier = modifier
@@ -120,7 +121,7 @@ fun StudentHomeScreen(
                                             .background(Color(0xFF10B981))
                                     )
                                     Text(
-                                        text = "Daily English Adventure",
+                                        text = "Daily English Adventure • ${user.studentClass}",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF86EFAC)
@@ -207,6 +208,151 @@ fun StudentHomeScreen(
                             tint = RoyalBlue,
                             modifier = Modifier.size(32.dp)
                         )
+                    }
+                }
+            }
+        }
+
+        // 3. Class Tasks & Assignments for This Particular Class
+        item {
+            val studentClass = user.studentClass
+            val classTasks = remember(assignments, studentClass) {
+                assignments.filter {
+                    it.batch.equals(studentClass, ignoreCase = true) ||
+                    it.batch.equals("All Classes", ignoreCase = true) ||
+                    it.batch.contains(studentClass, ignoreCase = true)
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("📝", fontSize = 16.sp)
+                        Text(
+                            "Tasks from Teachers",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = RoyalBlue.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.3f))
+                    ) {
+                        Text(
+                            text = "Assigned to $studentClass",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = RoyalBlue,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+
+                if (classTasks.isEmpty()) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text("🎉", fontSize = 24.sp)
+                            Column {
+                                Text("No pending tasks for $studentClass", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("You are all caught up with your classroom speaking assignments!", fontSize = 11.sp, color = MutedGray)
+                            }
+                        }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        classTasks.forEach { task ->
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = RoyalBlue.copy(alpha = 0.1f)
+                                        ) {
+                                            Text(
+                                                task.topicType,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = RoyalBlue,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Text(
+                                            "Due: ${task.dueDate}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = OrangeVibrant
+                                        )
+                                    }
+
+                                    Text(
+                                        text = task.title,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+
+                                    Text(
+                                        text = task.instructions,
+                                        fontSize = 12.sp,
+                                        color = MutedGray,
+                                        maxLines = 2
+                                    )
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "Assigned by ${task.teacherName}",
+                                            fontSize = 11.sp,
+                                            color = DeepNavy,
+                                            fontWeight = FontWeight.Medium
+                                        )
+
+                                        Button(
+                                            onClick = {
+                                                viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
+                                                viewModel.selectStudentTab(StudentTab.PRACTICE)
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Practice Task", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

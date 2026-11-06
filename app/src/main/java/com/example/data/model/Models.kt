@@ -15,17 +15,33 @@ enum class LearningLevel(val displayName: String, val cefr: String) {
     ADVANCED("Advanced", "C2")
 }
 
+object AcademicClasses {
+    val ALL_CLASSES = listOf(
+        "Class 6",
+        "Class 7",
+        "Class 8",
+        "Class 9",
+        "Class 10",
+        "Class 11",
+        "Class 12"
+    )
+    val ASSIGNMENT_TARGETS = listOf("All Classes") + ALL_CLASSES
+    const val DEFAULT_CLASS = "Class 10"
+}
+
 data class User(
     val id: String,
     val name: String,
     val email: String,
     val role: Role,
     val avatarEmoji: String = "🦉",
-    val batch: String = "Morning A",
+    val batch: String = AcademicClasses.DEFAULT_CLASS,
     val isActive: Boolean = true,
     val joinedDate: String = "Nov 2026",
     val securityPin: String = ""
-)
+) {
+    val studentClass: String get() = batch
+}
 
 data class StudentProfile(
     val userId: String,
@@ -172,14 +188,16 @@ data class Assignment(
     val id: String,
     val title: String,
     val teacherName: String,
-    val batch: String,
+    val batch: String = AcademicClasses.DEFAULT_CLASS,
     val dueDate: String,
     val instructions: String,
     val topicType: String,
     val maxPoints: Int = 100,
     val submissionsCount: Int = 18,
     val totalAssigned: Int = 24
-)
+) {
+    val targetClass: String get() = batch
+}
 
 data class StudentSubmission(
     val id: String,
@@ -239,7 +257,7 @@ data class StudentManagementInfo(
     val name: String,
     val email: String,
     val avatarEmoji: String = "🎓",
-    val batch: String = "Batch Alpha",
+    val batch: String = AcademicClasses.DEFAULT_CLASS,
     val level: LearningLevel = LearningLevel.ELEMENTARY,
     val isActive: Boolean = true,
     val speakingScore: Int = 82,
@@ -253,7 +271,9 @@ data class StudentManagementInfo(
     val joinedDate: String = "Nov 2026",
     val teacherNotes: String = "Dedicated learner. Shows high enthusiasm in live speaking roleplays.",
     val securityPin: String = "1234"
-)
+) {
+    val studentClass: String get() = batch
+}
 
 // Dynamic Game Content Models
 data class WordMatchChallenge(

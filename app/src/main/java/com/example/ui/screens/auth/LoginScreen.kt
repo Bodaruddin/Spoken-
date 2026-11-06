@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -40,6 +41,7 @@ enum class AuthMode {
     CREATE_ACCOUNT
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LoginScreen(
     viewModel: MainViewModel,
@@ -56,7 +58,7 @@ fun LoginScreen(
     // Student Registration States
     var regName by remember { mutableStateOf("") }
     var regEmail by remember { mutableStateOf("") }
-    var regCohort by remember { mutableStateOf("Batch Alpha") }
+    var regClass by remember { mutableStateOf(com.example.data.model.AcademicClasses.DEFAULT_CLASS) }
     var regPin by remember { mutableStateOf("") }
     var regConfirmPin by remember { mutableStateOf("") }
     var regPinVisible by remember { mutableStateOf(false) }
@@ -275,6 +277,92 @@ fun LoginScreen(
                             }
                         }
 
+                        // Demo Accounts Quick Fill
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "Quick Demo Accounts (Tap to auto-fill):",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MutedGray
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFFEFF6FF),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.3f)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            email = "alex.morgan@linguaquest.edu"
+                                            securityPin = "1234"
+                                            loginError = null
+                                        }
+                                        .testTag("demo_student_btn")
+                                ) {
+                                    Text(
+                                        text = "👨‍🎓 Student",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = RoyalBlue,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFFF0FDF4),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.3f)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            email = "sarah.jenkins@linguaquest.edu"
+                                            securityPin = "7321"
+                                            loginError = null
+                                        }
+                                        .testTag("demo_teacher_btn")
+                                ) {
+                                    Text(
+                                        text = "👩‍🏫 Faculty",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = EmeraldSuccess,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    )
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFFFEF3C7),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, AmberGold.copy(alpha = 0.4f)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            email = "admin@linguaquest.edu"
+                                            securityPin = "9842"
+                                            loginError = null
+                                        }
+                                        .testTag("demo_admin_btn")
+                                ) {
+                                    Text(
+                                        text = "🛡️ Admin",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFB45309),
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+
                         // Single Unified Login Button
                         Button(
                             onClick = {
@@ -447,19 +535,70 @@ fun LoginScreen(
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
                             )
 
-                            // Batch / Cohort Field
-                            OutlinedTextField(
-                                value = regCohort,
-                                onValueChange = {
-                                    regCohort = it
-                                    regError = null
-                                },
-                                label = { Text("Batch / Cohort") },
-                                leadingIcon = { Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue) },
+                            // Select Class Selector
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
-                                singleLine = true
-                            )
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(18.dp))
+                                    Text(
+                                        text = "Select Your Class:",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "($regClass)",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = RoyalBlue
+                                    )
+                                }
+
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    com.example.data.model.AcademicClasses.ALL_CLASSES.forEach { className ->
+                                        val isSelected = regClass == className
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (isSelected) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                            border = BorderStroke(
+                                                1.2.dp,
+                                                if (isSelected) RoyalBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+                                            ),
+                                            modifier = Modifier
+                                                .clickable {
+                                                    regClass = className
+                                                    regError = null
+                                                }
+                                                .testTag("select_class_${className.lowercase().replace(" ", "_")}")
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                if (isSelected) {
+                                                    Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                                }
+                                                Text(
+                                                    text = className,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
 
                             // Set Security PIN Field
                             OutlinedTextField(
@@ -533,7 +672,7 @@ fun LoginScreen(
                                     } else if (regPin.trim() != regConfirmPin.trim()) {
                                         regError = "Security PINs do not match. Please re-enter."
                                     } else {
-                                        val result = viewModel.registerStudent(regName, regEmail, regCohort, regPin)
+                                        val result = viewModel.registerStudent(regName, regEmail, regClass, regPin)
                                         if (result is MainViewModel.UnifiedLoginResult.Error) {
                                             regError = result.message
                                         } else {

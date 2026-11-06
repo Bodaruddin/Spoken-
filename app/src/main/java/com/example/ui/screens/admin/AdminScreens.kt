@@ -393,7 +393,7 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                     AdminActivityRow("Alex Morgan scored 92% in Cafe Dialogue Roleplay", "5 mins ago", "🎙️")
                     AdminActivityRow("Prof. Eleanor Vance graded 3 audio submissions", "18 mins ago", "✍️")
                     AdminActivityRow("New Word Match challenges added to Arcade Hub", "1 hour ago", "🎮")
-                    AdminActivityRow("Weekly speaking tournament started for Batch Alpha", "2 hours ago", "🏆")
+                    AdminActivityRow("Weekly speaking tournament started for Class 10", "2 hours ago", "🏆")
                 }
             }
         }
@@ -403,6 +403,7 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
 // -------------------------------------------------------------
 // ADMIN STUDENTS MANAGEMENT (FULL CRUD & DIAGNOSTICS)
 // -------------------------------------------------------------
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val students by viewModel.adminStudents.collectAsState()
@@ -419,12 +420,9 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
                     s.batch.contains(searchQuery, ignoreCase = true)
             val matchesBatch = when (selectedBatchFilter) {
                 "All" -> true
-                "Batch Alpha" -> s.batch.contains("Alpha")
-                "Batch Beta" -> s.batch.contains("Beta")
-                "Batch Gamma" -> s.batch.contains("Gamma")
                 "Active" -> s.isActive
                 "Needs Attention" -> s.speakingScore < 80
-                else -> true
+                else -> s.batch.equals(selectedBatchFilter, ignoreCase = true)
             }
             matchesQuery && matchesBatch
         }
@@ -521,7 +519,7 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Filter by student name, email, or batch...", fontSize = 13.sp) },
+                placeholder = { Text("Filter by student name, email, or class...", fontSize = 13.sp) },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = RoyalBlue) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
@@ -539,7 +537,7 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
         // Filter Pills
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val filters = listOf("All", "Batch Alpha", "Batch Beta", "Batch Gamma", "Active", "Needs Attention")
+                val filters = listOf("All") + com.example.data.model.AcademicClasses.ALL_CLASSES + listOf("Active", "Needs Attention")
                 items(filters) { f ->
                     val isSel = selectedBatchFilter == f
                     FilterChip(
@@ -584,7 +582,7 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
                                     Text(s.level.cefr, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                                 }
                             }
-                            Text("${s.email} • ${s.batch}", fontSize = 11.sp, color = MutedGray)
+                            Text("${s.email} • Class: ${s.studentClass}", fontSize = 11.sp, color = MutedGray)
                             Text("ID: ${s.id} • Joined: ${s.joinedDate}", fontSize = 10.sp, color = RoyalBlue)
                         }
 
@@ -624,7 +622,7 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
     if (showAddDialog) {
         var newStudentName by remember { mutableStateOf("") }
         var newStudentEmail by remember { mutableStateOf("") }
-        var newStudentBatch by remember { mutableStateOf("Batch Alpha") }
+        var newStudentClass by remember { mutableStateOf(com.example.data.model.AcademicClasses.DEFAULT_CLASS) }
         var newStudentLevel by remember { mutableStateOf(LearningLevel.BEGINNER) }
 
         AlertDialog(
@@ -644,12 +642,28 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
                         label = { Text("Email Address") },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedTextField(
-                        value = newStudentBatch,
-                        onValueChange = { newStudentBatch = it },
-                        label = { Text("Class / Batch") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+
+                    // Select Class
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
+                            Text("Select Class:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("($newStudentClass)", fontWeight = FontWeight.ExtraBold, fontSize = 11.sp, color = RoyalBlue)
+                        }
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            com.example.data.model.AcademicClasses.ALL_CLASSES.forEach { cls ->
+                                FilterChip(
+                                    selected = newStudentClass == cls,
+                                    onClick = { newStudentClass = cls },
+                                    label = { Text(cls, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                    }
+
                     Text("Starting CEFR Level:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(LearningLevel.values()) { lvl ->
@@ -665,8 +679,8 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
             confirmButton = {
                 Button(onClick = {
                     if (newStudentName.isNotBlank() && newStudentEmail.isNotBlank()) {
-                        viewModel.repository.addStudent(newStudentName, newStudentEmail, newStudentBatch, newStudentLevel)
-                        statusMsg = "Created student account for $newStudentName!"
+                        viewModel.repository.addStudent(newStudentName, newStudentEmail, newStudentClass, newStudentLevel)
+                        statusMsg = "Created student account for $newStudentName in $newStudentClass!"
                         showAddDialog = false
                     }
                 }) {

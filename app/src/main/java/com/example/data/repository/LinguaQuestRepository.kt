@@ -17,7 +17,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             email = "alex.morgan@linguaquest.edu",
             role = Role.STUDENT,
             avatarEmoji = "🦉",
-            batch = "Batch Alpha",
+            batch = AcademicClasses.DEFAULT_CLASS,
             securityPin = "1234"
         )
     )
@@ -281,12 +281,37 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     // Teacher Assignments
     private val _assignments = MutableStateFlow(
         listOf(
-            Assignment("asg_1", "3-Minute Impromptu Speech: Climate Action", "Prof. Eleanor Vance", "Batch Alpha", "Tomorrow, 6 PM", "Record a 2-3 minute audio response explaining two small eco-habits you practice.", "Speaking", 100, 20, 24),
-            Assignment("asg_2", "Business Pitch Presentation Dialogue", "Prof. Eleanor Vance", "Batch Alpha", "Friday, 11:59 PM", "Present your imaginary startup product in clear, persuasive English.", "Presentation", 100, 14, 24),
-            Assignment("asg_3", "Pronunciation Drill: Minimal Pairs (P vs B)", "Dr. Marcus Reed", "Batch Beta", "In 3 Days", "Record 10 sample sentences focusing on explosive /p/ and voiced /b/ sounds.", "Pronunciation", 50, 18, 20)
+            Assignment("asg_1", "3-Minute Impromptu Speech: Climate Action", "Prof. Eleanor Vance", "Class 10", "Tomorrow, 6 PM", "Record a 2-3 minute audio response explaining two small eco-habits you practice.", "Speaking", 100, 20, 24),
+            Assignment("asg_2", "Business Pitch Presentation Dialogue", "Prof. Eleanor Vance", "All Classes", "Friday, 11:59 PM", "Present your imaginary startup product in clear, persuasive English.", "Presentation", 100, 14, 24),
+            Assignment("asg_3", "Pronunciation Drill: Minimal Pairs (P vs B)", "Dr. Marcus Reed", "Class 9", "In 3 Days", "Record 10 sample sentences focusing on explosive /p/ and voiced /b/ sounds.", "Pronunciation", 50, 18, 20),
+            Assignment("asg_4", "Everyday English: Ordering at a Restaurant", "Prof. Eleanor Vance", "Class 8", "In 4 Days", "Practice ordering a three-course dinner and asking for the bill politely.", "Speaking", 60, 12, 22)
         )
     )
     val assignments: StateFlow<List<Assignment>> = _assignments.asStateFlow()
+
+    fun addAssignment(
+        title: String,
+        instructions: String,
+        targetClass: String,
+        dueDate: String,
+        teacherName: String,
+        topicType: String = "Speaking"
+    ): Assignment {
+        val newAsg = Assignment(
+            id = "asg_${System.currentTimeMillis()}",
+            title = title.trim(),
+            teacherName = teacherName.ifBlank { "Faculty Instructor" },
+            batch = targetClass.trim().ifBlank { AcademicClasses.DEFAULT_CLASS },
+            dueDate = dueDate.ifBlank { "In 2 Days" },
+            instructions = instructions.trim(),
+            topicType = topicType,
+            maxPoints = 100,
+            submissionsCount = 0,
+            totalAssigned = 25
+        )
+        _assignments.value = listOf(newAsg) + _assignments.value
+        return newAsg
+    }
 
     // Submissions for Teacher Review
     private val _submissions = MutableStateFlow(
@@ -379,18 +404,18 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     val badges: StateFlow<List<AchievementBadge>> = _badges.asStateFlow()
 
     private val defaultStudents = listOf(
-        StudentManagementInfo("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", "🦉", "Batch Alpha", LearningLevel.ELEMENTARY, true, 82, 85, 79, 88, 86, 90, 7, 1450, "Nov 2026", "Consistently practices speaking. Excellent rhythm and confidence.", "1234"),
-        StudentManagementInfo("std_002", "Elena Rostova", "elena.r@linguaquest.edu", "🦄", "Batch Alpha", LearningLevel.INTERMEDIATE, true, 94, 96, 92, 90, 95, 96, 19, 2850, "Oct 2026", "Top cohort fluency. Demonstrates near-native sentence intonation.", "1234"),
-        StudentManagementInfo("std_003", "David Chen", "david.c@linguaquest.edu", "🐯", "Batch Beta", LearningLevel.INTERMEDIATE, true, 88, 89, 85, 91, 87, 92, 14, 2420, "Oct 2026", "Strong analytical vocabulary. Recommended for advanced debate roleplays.", "1234"),
-        StudentManagementInfo("std_004", "Amira Al-Mansoor", "amira.m@linguaquest.edu", "🦁", "Batch Alpha", LearningLevel.ELEMENTARY, true, 78, 80, 74, 82, 80, 85, 8, 1390, "Nov 2026", "Needs extra practice on past tense irregular verbs and voiced /th/ sounds.", "1234"),
-        StudentManagementInfo("std_005", "Lucas Silva", "lucas.s@linguaquest.edu", "🐺", "Batch Beta", LearningLevel.BEGINNER, true, 71, 72, 68, 75, 74, 80, 5, 1210, "Nov 2026", "Improving quickly. Benefit from daily sentence builder and word match games.", "1234"),
-        StudentManagementInfo("std_006", "Hana Tanaka", "hana.t@linguaquest.edu", "🌸", "Batch Gamma", LearningLevel.BEGINNER, false, 65, 68, 62, 70, 71, 76, 3, 980, "Nov 2026", "Temporarily paused. Needs supportive speaking drills on basic greetings.", "1234")
+        StudentManagementInfo("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", "🦉", "Class 10", LearningLevel.ELEMENTARY, true, 82, 85, 79, 88, 86, 90, 7, 1450, "Nov 2026", "Consistently practices speaking. Excellent rhythm and confidence.", "1234"),
+        StudentManagementInfo("std_002", "Elena Rostova", "elena.r@linguaquest.edu", "🦄", "Class 10", LearningLevel.INTERMEDIATE, true, 94, 96, 92, 90, 95, 96, 19, 2850, "Oct 2026", "Top class fluency. Demonstrates near-native sentence intonation.", "1234"),
+        StudentManagementInfo("std_003", "David Chen", "david.c@linguaquest.edu", "🐯", "Class 9", LearningLevel.INTERMEDIATE, true, 88, 89, 85, 91, 87, 92, 14, 2420, "Oct 2026", "Strong analytical vocabulary. Recommended for advanced debate roleplays.", "1234"),
+        StudentManagementInfo("std_004", "Amira Al-Mansoor", "amira.m@linguaquest.edu", "🦁", "Class 10", LearningLevel.ELEMENTARY, true, 78, 80, 74, 82, 80, 85, 8, 1390, "Nov 2026", "Needs extra practice on past tense irregular verbs and voiced /th/ sounds.", "1234"),
+        StudentManagementInfo("std_005", "Lucas Silva", "lucas.s@linguaquest.edu", "🐺", "Class 8", LearningLevel.BEGINNER, true, 71, 72, 68, 75, 74, 80, 5, 1210, "Nov 2026", "Improving quickly. Benefit from daily sentence builder and word match games.", "1234"),
+        StudentManagementInfo("std_006", "Hana Tanaka", "hana.t@linguaquest.edu", "🌸", "Class 7", LearningLevel.BEGINNER, false, 65, 68, 62, 70, 71, 76, 3, 980, "Nov 2026", "Temporarily paused. Needs supportive speaking drills on basic greetings.", "1234")
     )
 
     private val defaultTeachers = listOf(
-        User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Batch Alpha & Beta", true, securityPin = "7321"),
-        User("tch_002", "Dr. Marcus Reed", "m.reed@linguaquest.edu", Role.TEACHER, "👨‍🏫", "Batch Beta & Gamma", true, securityPin = "7321"),
-        User("tch_003", "Prof. Chloe Bennett", "c.bennett@linguaquest.edu", Role.TEACHER, "👩‍💼", "Advanced Fluency", true, securityPin = "7321")
+        User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Class 10 & 9", true, securityPin = "7321"),
+        User("tch_002", "Dr. Marcus Reed", "m.reed@linguaquest.edu", Role.TEACHER, "👨‍🏫", "Class 8 & 7", true, securityPin = "7321"),
+        User("tch_003", "Prof. Chloe Bennett", "c.bennett@linguaquest.edu", Role.TEACHER, "👩‍💼", "Class 11 & 12", true, securityPin = "7321")
     )
 
     private fun loadInitialStudents(): List<StudentManagementInfo> {
@@ -580,7 +605,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     fun switchRole(newRole: Role) {
         val current = _currentUser.value
         val updatedUser = when (newRole) {
-            Role.STUDENT -> User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", "Batch Alpha", securityPin = "1234")
+            Role.STUDENT -> User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", AcademicClasses.DEFAULT_CLASS, securityPin = "1234")
             Role.TEACHER -> _adminTeachers.value.firstOrNull { it.isActive }
                 ?: _adminTeachers.value.firstOrNull()
                 ?: User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Lead Instructor", securityPin = "7321")
@@ -778,7 +803,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
 
     fun bulkImportStudents(count: Int) {
         val sampleNames = listOf("Liam O'Connor", "Zoe Kravitz", "Carlos Mendez", "Fatima Zahra", "Min-jun Park", "Aisha Diallo")
-        val batches = listOf("Batch Alpha", "Batch Beta", "Batch Gamma")
+        val classes = AcademicClasses.ALL_CLASSES
         val levels = listOf(LearningLevel.BEGINNER, LearningLevel.ELEMENTARY, LearningLevel.PRE_INTERMEDIATE)
         val newStudents = sampleNames.take(count).mapIndexed { i, name ->
             val id = "std_${System.currentTimeMillis() % 1000 + i}"
@@ -787,7 +812,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 name = name,
                 email = "${name.lowercase().replace(" ", ".")}@linguaquest.edu",
                 avatarEmoji = listOf("🦄", "🦁", "🦊", "🐬", "🌸").random(),
-                batch = batches[i % batches.size],
+                batch = classes[i % classes.size],
                 level = levels[i % levels.size],
                 isActive = true,
                 speakingScore = (70..90).random(),
@@ -965,7 +990,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         }
         if (_currentUser.value.id == teacherId) {
             _currentUser.value = _adminTeachers.value.firstOrNull { it.isActive }
-                ?: User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Batch Alpha & Beta", true, securityPin = "7321")
+                ?: User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Classes 9 & 10", true, securityPin = "7321")
         }
         appPreferences?.saveTeachers(_adminTeachers.value)
     }
@@ -1005,7 +1030,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     fun registerStudent(name: String, email: String, batch: String, securityPin: String): User {
         val newId = "std_${System.currentTimeMillis() % 10000}"
         val pin = if (securityPin.isNotBlank()) securityPin.trim() else "1234"
-        val chosenBatch = batch.trim().ifBlank { "Batch Alpha" }
+        val chosenBatch = batch.trim().ifBlank { AcademicClasses.DEFAULT_CLASS }
         val newStudent = StudentManagementInfo(
             id = newId,
             name = name.trim(),

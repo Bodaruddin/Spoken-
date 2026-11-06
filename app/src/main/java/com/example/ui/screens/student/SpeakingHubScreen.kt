@@ -916,7 +916,12 @@ fun PronunciationSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("📚 Practice Drills & Accent Coach", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(
+                "📚 Practice Drills & Accent Coach",
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             Surface(
                 shape = RoundedCornerShape(8.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant

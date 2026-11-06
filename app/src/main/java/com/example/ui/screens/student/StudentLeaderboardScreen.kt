@@ -37,13 +37,14 @@ fun StudentLeaderboardScreen(
 ) {
     val profile by viewModel.studentProfile.collectAsState()
     val leaderboard by viewModel.leaderboard.collectAsState()
-    var selectedCohort by remember { mutableStateOf("Batch Alpha") }
+    var selectedCohort by remember { mutableStateOf("All Classes") }
     var searchQuery by remember { mutableStateOf("") }
 
     val filteredLeaderboard = remember(leaderboard, selectedCohort, searchQuery) {
         val cohortFiltered = when (selectedCohort) {
-            "Batch Alpha" -> leaderboard.filter { it.rank in listOf(1, 3, 4, 6) }
-            "Batch Beta" -> leaderboard.filter { it.rank in listOf(2, 5, 7, 8) }
+            "Class 10" -> leaderboard.filter { it.rank in listOf(1, 3, 4, 6) }
+            "Class 9" -> leaderboard.filter { it.rank in listOf(2, 5, 7, 8) }
+            "Class 8" -> leaderboard.filter { it.rank in listOf(3, 6, 8) }
             else -> leaderboard
         }
         if (searchQuery.isBlank()) cohortFiltered
@@ -142,12 +143,12 @@ fun StudentLeaderboardScreen(
                         )
                     }
 
-                    // Cohort Switcher Tabs
+                    // Class Switcher Tabs
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf("Batch Alpha", "All Academy", "Batch Beta").forEach { cohort ->
+                        listOf("All Classes", "Class 10", "Class 9", "Class 8").forEach { cohort ->
                             val isSelected = selectedCohort == cohort
                             Surface(
                                 shape = RoundedCornerShape(12.dp),

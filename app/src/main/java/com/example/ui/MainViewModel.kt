@@ -166,6 +166,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.deleteStudent(studentId)
     }
 
+    fun createAssignment(
+        title: String,
+        instructions: String,
+        targetClass: String,
+        dueDate: String,
+        topicType: String = "Speaking"
+    ): Assignment {
+        val teacherName = currentUser.value.name.ifBlank { "Faculty Instructor" }
+        return repository.addAssignment(
+            title = title,
+            instructions = instructions,
+            targetClass = targetClass,
+            dueDate = dueDate,
+            teacherName = teacherName,
+            topicType = topicType
+        )
+    }
+
     // Game Management helpers
     fun addWordMatchChallenge(word: String, definition: String, category: String, createdBy: String) {
         repository.addWordMatchChallenge(word, definition, category, createdBy)
@@ -461,7 +479,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         // Fallback check for default student demo email if not found in list
         if (idClean == "alex.morgan@linguaquest.edu" && (secretClean == "1234" || secretClean == "student123")) {
-            val studentUser = User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", "Batch Alpha", securityPin = "1234")
+            val studentUser = User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", AcademicClasses.DEFAULT_CLASS, securityPin = "1234")
             repository.setCurrentUser(studentUser)
             repository.setStudentProfileUserId("std_001", "Alex Morgan")
             appPreferences.saveSession(studentUser)

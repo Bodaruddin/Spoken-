@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -119,7 +120,7 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                                 fontSize = 19.sp,
                                 color = Color.White
                             )
-                            val departmentOrBatch = currentUser.batch.ifBlank { "Batch Alpha & Beta" }
+                            val departmentOrBatch = currentUser.batch.ifBlank { "Classes 9 & 10" }
                             Text(
                                 text = "Faculty Instructor • $departmentOrBatch",
                                 fontSize = 12.sp,
@@ -361,11 +362,9 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                     student.batch.contains(searchQuery, ignoreCase = true)
             val matchesBatch = when (selectedBatchFilter) {
                 "All" -> true
-                "Batch Alpha" -> student.batch.contains("Alpha")
-                "Batch Beta" -> student.batch.contains("Beta")
                 "Needs Help (<80%)" -> student.speakingScore < 80
                 "Top Fluency (≥85%)" -> student.speakingScore >= 85
-                else -> true
+                else -> student.batch.equals(selectedBatchFilter, ignoreCase = true)
             }
             matchesQuery && matchesBatch
         }
@@ -406,7 +405,7 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
-                    val filters = listOf("All", "Batch Alpha", "Batch Beta", "Needs Help (<80%)", "Top Fluency (≥85%)")
+                    val filters = listOf("All") + com.example.data.model.AcademicClasses.ALL_CLASSES + listOf("Needs Help (<80%)", "Top Fluency (≥85%)")
                     items(filters) { f ->
                         val isSel = selectedBatchFilter == f
                         FilterChip(
@@ -502,7 +501,7 @@ fun TeacherStudentCard(
                             Text(student.level.cefr, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                         }
                     }
-                    Text("${student.email} • ${student.batch}", fontSize = 11.sp, color = MutedGray)
+                    Text("${student.email} • Class: ${student.studentClass}", fontSize = 11.sp, color = MutedGray)
                 }
 
                 Surface(
@@ -1454,12 +1453,19 @@ fun TeacherSubmissionsGradingView(viewModel: MainViewModel, modifier: Modifier =
 // -------------------------------------------------------------
 // TEACHER ASSIGNMENTS & LIVE CLASSES
 // -------------------------------------------------------------
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val assignments by viewModel.assignments.collectAsState()
     val liveClasses by viewModel.liveClasses.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
     var toastMsg by remember { mutableStateOf<String?>(null) }
+    var selectedClassFilter by remember { mutableStateOf("All Classes") }
+
+    val filteredAssignments = remember(assignments, selectedClassFilter) {
+        if (selectedClassFilter == "All Classes") assignments
+        else assignments.filter { it.batch == selectedClassFilter || it.batch == "All Classes" }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -1497,7 +1503,38 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
             }
         }
 
-        items(assignments) { asg ->
+        // Filter Assignments by Targeted Class
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 4.dp)
+            ) {
+                items(com.example.data.model.AcademicClasses.ASSIGNMENT_TARGETS) { cls ->
+                    val isSel = selectedClassFilter == cls
+                    FilterChip(
+                        selected = isSel,
+                        onClick = { selectedClassFilter = cls },
+                        label = { Text(cls, fontSize = 12.sp) }
+                    )
+                }
+            }
+        }
+
+        if (filteredAssignments.isEmpty()) {
+            item {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(modifier = Modifier.padding(20.dp), contentAlignment = Alignment.Center) {
+                        Text("No assignments published for $selectedClassFilter yet.", fontSize = 13.sp, color = MutedGray)
+                    }
+                }
+            }
+        }
+
+        items(filteredAssignments) { asg ->
             Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -1509,9 +1546,28 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(asg.topicType, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFEFF6FF),
+                            border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(12.dp))
+                                Text(
+                                    "Target: ${asg.batch}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = RoyalBlue
+                                )
+                            }
+                        }
                         Text("Due: ${asg.dueDate}", fontSize = 11.sp, color = OrangeVibrant, fontWeight = FontWeight.SemiBold)
                     }
                     Text(asg.title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
@@ -1594,44 +1650,105 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
         var newTitle by remember { mutableStateOf("") }
         var newInstructions by remember { mutableStateOf("") }
         var newDueDate by remember { mutableStateOf("Tomorrow, 6 PM") }
-        var newBatch by remember { mutableStateOf("Batch Alpha") }
+        var selectedTargetClass by remember { mutableStateOf(com.example.data.model.AcademicClasses.DEFAULT_CLASS) }
+        var selectedTopicType by remember { mutableStateOf("Speaking") }
 
         AlertDialog(
             onDismissRequest = { showCreateDialog = false },
-            title = { Text("Create Speaking Assignment") },
+            title = { Text("Create & Assign Task") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     OutlinedTextField(
                         value = newTitle,
                         onValueChange = { newTitle = it },
-                        label = { Text("Assignment Title") },
-                        placeholder = { Text("e.g. 2-Minute Speech on Technology") }
+                        label = { Text("Task / Assignment Title") },
+                        placeholder = { Text("e.g. 2-Minute Speech on Technology") },
+                        modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = newInstructions,
                         onValueChange = { newInstructions = it },
-                        label = { Text("Instructions") },
-                        placeholder = { Text("Record audio expressing your opinion...") }
+                        label = { Text("Instructions for Students") },
+                        placeholder = { Text("Record audio expressing your opinion...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2
                     )
                     OutlinedTextField(
                         value = newDueDate,
                         onValueChange = { newDueDate = it },
-                        label = { Text("Due Date") }
+                        label = { Text("Due Date") },
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedTextField(
-                        value = newBatch,
-                        onValueChange = { newBatch = it },
-                        label = { Text("Assigned Batch") }
-                    )
+
+                    // Target Particular Class Selector
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
+                            Text(
+                                text = "Assign to Particular Class:",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                text = "($selectedTargetClass)",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 11.sp,
+                                color = RoyalBlue
+                            )
+                        }
+
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            com.example.data.model.AcademicClasses.ASSIGNMENT_TARGETS.forEach { cls ->
+                                FilterChip(
+                                    selected = selectedTargetClass == cls,
+                                    onClick = { selectedTargetClass = cls },
+                                    label = { Text(cls, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                    }
+
+                    // Topic Type Selector
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Task Category:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf("Speaking", "Pronunciation", "Presentation", "Roleplay", "Grammar").forEach { type ->
+                                FilterChip(
+                                    selected = selectedTopicType == type,
+                                    onClick = { selectedTopicType = type },
+                                    label = { Text(type, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
                 Button(onClick = {
                     if (newTitle.isNotBlank()) {
+                        viewModel.createAssignment(
+                            title = newTitle,
+                            instructions = newInstructions.ifBlank { "Practice and submit your audio response." },
+                            targetClass = selectedTargetClass,
+                            dueDate = newDueDate,
+                            topicType = selectedTopicType
+                        )
                         showCreateDialog = false
-                        toastMsg = "New assignment '$newTitle' published for $newBatch!"
+                        toastMsg = "Published task '$newTitle' for $selectedTargetClass!"
                     }
-                }) { Text("Publish Assignment") }
+                }) { Text("Publish Task") }
             },
             dismissButton = {
                 TextButton(onClick = { showCreateDialog = false }) { Text("Cancel") }
@@ -1643,6 +1760,7 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
 // -------------------------------------------------------------
 // HELPER COMPOSABLES & DIALOGS
 // -------------------------------------------------------------
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StudentDetailDialog(
     student: StudentManagementInfo,
@@ -1720,12 +1838,25 @@ fun StudentDetailDialog(
                 }
 
                 item {
-                    OutlinedTextField(
-                        value = batch,
-                        onValueChange = { batch = it },
-                        label = { Text("Class / Batch") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
+                            Text("Assigned Class:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("($batch)", fontWeight = FontWeight.ExtraBold, fontSize = 11.sp, color = RoyalBlue)
+                        }
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            com.example.data.model.AcademicClasses.ALL_CLASSES.forEach { cls ->
+                                FilterChip(
+                                    selected = batch == cls,
+                                    onClick = { batch = cls },
+                                    label = { Text(cls, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                    }
                 }
 
                 item {
