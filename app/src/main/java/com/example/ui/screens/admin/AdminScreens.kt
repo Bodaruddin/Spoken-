@@ -75,7 +75,6 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
             .testTag("admin_dashboard_screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -85,6 +84,7 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -96,9 +96,7 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                         modifier = Modifier
                             .size(62.dp)
                             .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(listOf(AmberGold, Color(0xFFD97706)))
-                            ),
+                            .background(AmberSunsetGrad),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(currentUser.avatarEmoji.ifBlank { "🛡️" }, fontSize = 32.sp)
@@ -123,16 +121,16 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Institution KPI Overview", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    AdminKpiCard("Total Students", "${students.size}", "🎓", RoyalBlue, Modifier.weight(1f))
-                    AdminKpiCard("Faculty Teachers", "${teachers.size}", "👨‍🏫", PurpleAccent, Modifier.weight(1f))
+                    AdminKpiCard("Total Students", "${students.size}", "🎓", RoyalBlue, Modifier.weight(1f), "Enrolled")
+                    AdminKpiCard("Faculty Teachers", "${teachers.size}", "👨‍🏫", PurpleAccent, Modifier.weight(1f), "Faculty")
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    AdminKpiCard("Daily Active Users", "${students.count { it.isActive }}", "⚡", EmeraldSuccess, Modifier.weight(1f))
-                    AdminKpiCard("Avg Speaking Score", "84.2%", "🎙️", AmberGold, Modifier.weight(1f))
+                    AdminKpiCard("Daily Active Users", "${students.count { it.isActive }}", "⚡", EmeraldSuccess, Modifier.weight(1f), "Live Today")
+                    AdminKpiCard("Avg Speaking Score", "84.2%", "🎙️", AmberGold, Modifier.weight(1f), "+4.1% MoM")
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    AdminKpiCard("Arcade Challenges", "$totalGames", "🎮", CyanAccent, Modifier.weight(1f))
-                    AdminKpiCard("Voice Practice Hours", "3,240h", "⏱️", CoralAccent, Modifier.weight(1f))
+                    AdminKpiCard("Arcade Challenges", "$totalGames", "🎮", CyanAccent, Modifier.weight(1f), "12 Modes")
+                    AdminKpiCard("Voice Practice Hours", "3,240h", "⏱️", CoralAccent, Modifier.weight(1f), "Total Hours")
                 }
             }
         }
@@ -327,7 +325,6 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
             .testTag("admin_students_screen"),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -609,7 +606,6 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
             .testTag("admin_games_screen"),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -1025,7 +1021,6 @@ fun AdminTeachersManagement(viewModel: MainViewModel, modifier: Modifier = Modif
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
             .testTag("admin_teachers_screen"),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1640,7 +1635,6 @@ fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Mod
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
     ) {
         // Top Section Selector for Admin
         Surface(
@@ -1718,7 +1712,6 @@ fun AdminCurriculumFrameworkView(viewModel: MainViewModel, modifier: Modifier = 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -1925,19 +1918,77 @@ fun AdminCurriculumFrameworkView(viewModel: MainViewModel, modifier: Modifier = 
 // REUSABLE DASHBOARD CARDS
 // -------------------------------------------------------------
 @Composable
-fun AdminKpiCard(title: String, value: String, emoji: String, color: Color, modifier: Modifier = Modifier) {
+fun AdminKpiCard(
+    title: String,
+    value: String,
+    emoji: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    tag: String = "Live"
+) {
+    val gradientBrush = when (color) {
+        RoyalBlue -> RoyalSkyGrad
+        PurpleAccent -> PurpleIrisGrad
+        EmeraldSuccess -> EmeraldTealGrad
+        AmberGold -> AmberSunsetGrad
+        CoralAccent -> RoseCoralGrad
+        CyanAccent -> CyanGrad
+        else -> Brush.linearGradient(listOf(color.copy(alpha = 0.85f), color))
+    }
+
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
         modifier = modifier
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(emoji, fontSize = 22.sp)
-            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = color)
-            Text(title, fontSize = 11.sp, color = MutedGray)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(gradientBrush),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(emoji, fontSize = 20.sp)
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = color.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, color.copy(alpha = 0.3f))
+                ) {
+                    Text(
+                        text = tag,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = color,
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                    )
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = value,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = title,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MutedGray
+                )
+            }
         }
     }
 }

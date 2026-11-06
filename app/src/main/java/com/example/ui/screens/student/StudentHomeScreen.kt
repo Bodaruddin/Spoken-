@@ -1,5 +1,6 @@
 package com.example.ui.screens.student
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -8,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -41,7 +43,6 @@ fun StudentHomeScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .testTag("student_home_screen"),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -52,6 +53,7 @@ fun StudentHomeScreen(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("hero_mascot_card")
@@ -63,18 +65,20 @@ fun StudentHomeScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Friendly Mascot Image
+                    // Friendly Mascot Image with warm ring
                     Box(
                         modifier = Modifier
-                            .size(90.dp)
+                            .size(86.dp)
                             .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFFFEF3C7)),
+                            .background(WarmGlowGrad),
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.img_hero_mascot),
                             contentDescription = "Echo the Mascot",
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(20.dp)),
                             contentScale = ContentScale.Crop
                         )
                     }
@@ -88,11 +92,11 @@ fun StudentHomeScreen(
                             color = MaterialTheme.colorScheme.primaryContainer
                         ) {
                             Text(
-                                text = "Daily English Adventure",
+                                text = "✨ Daily English Adventure",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
 
@@ -111,6 +115,43 @@ fun StudentHomeScreen(
                         )
                     }
                 }
+            }
+        }
+
+        // 1.5 Student Fluency & Momentum Stats Row
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                StudentStatTile(
+                    title = "Streak",
+                    value = "${profile.streakDays}d",
+                    emoji = "🔥",
+                    gradient = AmberSunsetGrad,
+                    modifier = Modifier.weight(1f)
+                )
+                StudentStatTile(
+                    title = "XP Earned",
+                    value = "${profile.xpPoints}",
+                    emoji = "⚡",
+                    gradient = PrimaryGrad,
+                    modifier = Modifier.weight(1f)
+                )
+                StudentStatTile(
+                    title = "Speaking",
+                    value = "86%",
+                    emoji = "🎙️",
+                    gradient = EmeraldTealGrad,
+                    modifier = Modifier.weight(1f)
+                )
+                StudentStatTile(
+                    title = "CEFR",
+                    value = profile.currentLevel.cefr,
+                    emoji = "🏆",
+                    gradient = PurpleIrisGrad,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
 
@@ -418,6 +459,55 @@ fun MissionItem(title: String, reward: String, progress: Float, isDone: Boolean)
 }
 
 @Composable
+fun StudentStatTile(
+    title: String,
+    value: String,
+    emoji: String,
+    gradient: Brush,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(gradient),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(emoji, fontSize = 18.sp)
+            }
+            Text(
+                text = value,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
+            Text(
+                text = title,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = MutedGray,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
 fun QuickHubCard(
     title: String,
     subtitle: String,
@@ -428,19 +518,68 @@ fun QuickHubCard(
     onClick: () -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = color),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.25f)),
         modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
             .clickable { onClick() }
             .testTag("quick_hub_${title.lowercase().replace(" ", "_")}")
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(emoji, fontSize = 24.sp)
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepNavy)
-            Text(subtitle, fontSize = 11.sp, color = MutedGray)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(accent.copy(alpha = 0.22f), accent.copy(alpha = 0.08f))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(emoji, fontSize = 22.sp)
+                }
+
+                Surface(
+                    shape = CircleShape,
+                    color = accent.copy(alpha = 0.12f),
+                    modifier = Modifier.size(26.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowForward,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 11.sp,
+                    color = MutedGray,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

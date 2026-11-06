@@ -50,7 +50,6 @@ fun LearningJourneyScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .testTag("learning_journey_screen"),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {

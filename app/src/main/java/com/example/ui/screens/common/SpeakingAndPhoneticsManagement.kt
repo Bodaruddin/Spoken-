@@ -68,7 +68,6 @@ fun SpeakingAndPhoneticsManagement(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .testTag("speaking_phonetics_management_screen")
     ) {
         // Management Header Banner

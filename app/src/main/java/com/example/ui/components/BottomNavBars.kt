@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.AdminTab
 import com.example.ui.StudentTab
 import com.example.ui.TeacherTab
+import com.example.ui.theme.*
 
 @Composable
 fun StudentBottomBar(
@@ -23,7 +24,8 @@ fun StudentBottomBar(
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
             .testTag("student_bottom_bar"),
-        tonalElevation = 8.dp
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp
     ) {
         StudentTab.values().forEach { tab ->
             val isSelected = currentTab == tab
@@ -40,9 +42,16 @@ fun StudentBottomBar(
                     Text(
                         tab.label,
                         fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
                     )
                 },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = RoyalBlue,
+                    selectedTextColor = RoyalBlue,
+                    indicatorColor = RoyalBlue.copy(alpha = 0.14f),
+                    unselectedIconColor = MutedGray,
+                    unselectedTextColor = MutedGray
+                ),
                 modifier = Modifier.testTag("student_tab_${tab.name.lowercase()}")
             )
         }
@@ -60,7 +69,8 @@ fun TeacherBottomBar(
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
             .testTag("teacher_bottom_bar"),
-        tonalElevation = 8.dp
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp
     ) {
         TeacherTab.values().forEach { tab ->
             val isSelected = currentTab == tab
@@ -77,9 +87,16 @@ fun TeacherBottomBar(
                     Text(
                         tab.label,
                         fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
                     )
                 },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = PurpleAccent,
+                    selectedTextColor = PurpleAccent,
+                    indicatorColor = PurpleAccent.copy(alpha = 0.15f),
+                    unselectedIconColor = MutedGray,
+                    unselectedTextColor = MutedGray
+                ),
                 modifier = Modifier.testTag("teacher_tab_${tab.name.lowercase()}")
             )
         }
@@ -97,7 +114,8 @@ fun AdminBottomBar(
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
             .testTag("admin_bottom_bar"),
-        tonalElevation = 8.dp
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp
     ) {
         AdminTab.values().forEach { tab ->
             val isSelected = currentTab == tab
@@ -114,9 +132,16 @@ fun AdminBottomBar(
                     Text(
                         tab.label,
                         fontSize = 10.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
                     )
                 },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = RoyalBlue,
+                    selectedTextColor = RoyalBlue,
+                    indicatorColor = RoyalBlue.copy(alpha = 0.14f),
+                    unselectedIconColor = MutedGray,
+                    unselectedTextColor = MutedGray
+                ),
                 modifier = Modifier.testTag("admin_tab_${tab.name.lowercase()}")
             )
         }

@@ -57,7 +57,6 @@ fun StudentProfileScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
             .testTag("student_profile_screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp)

@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -64,7 +65,6 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
             .testTag("teacher_dashboard_screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -117,16 +117,23 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
             }
         }
 
-        // Metrics Grid
+        // Metrics Grid - 2x2 Spacious Executive Layout
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                TeacherMetricCard("Enrolled Students", "${students.size}", "👥", RoyalBlue, Modifier.weight(1f))
-                TeacherMetricCard("Pending Voice", "${submissions.count { it.status == "PENDING" }}", "🎧", OrangeVibrant, Modifier.weight(1f))
-                TeacherMetricCard("Avg Cohort", "84%", "🎙️", EmeraldSuccess, Modifier.weight(1f))
-                TeacherMetricCard("Games Active", "$totalGames", "🎮", PurpleAccent, Modifier.weight(1f))
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    TeacherMetricCard("Enrolled Students", "${students.size}", "👥", RoyalBlue, Modifier.weight(1f), "Active Cohort")
+                    TeacherMetricCard("Pending Voice", "${submissions.count { it.status == "PENDING" }}", "🎧", OrangeVibrant, Modifier.weight(1f), "Needs Review")
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    TeacherMetricCard("Avg Speaking Fluency", "84.2%", "🎙️", EmeraldSuccess, Modifier.weight(1f), "+3.2% This Wk")
+                    TeacherMetricCard("Active Practice Drills", "$totalGames", "🎮", PurpleAccent, Modifier.weight(1f), "12 Categories")
+                }
             }
         }
 
@@ -257,7 +264,6 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
             .testTag("teacher_students_screen"),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -515,7 +521,6 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
             .testTag("teacher_game_creator_screen"),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -1072,7 +1077,6 @@ fun TeacherSpeakingReview(viewModel: MainViewModel, modifier: Modifier = Modifie
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
     ) {
         // Top Section Selector for Teacher
         Surface(
@@ -1153,7 +1157,6 @@ fun TeacherSubmissionsGradingView(viewModel: MainViewModel, modifier: Modifier =
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
             .testTag("teacher_speaking_review_screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1314,7 +1317,6 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -1772,19 +1774,62 @@ fun CreateGameChallengeDialog(
 }
 
 @Composable
-fun TeacherMetricCard(title: String, value: String, emoji: String, color: Color, modifier: Modifier = Modifier) {
+fun TeacherMetricCard(
+    title: String,
+    value: String,
+    emoji: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    tag: String = "Active"
+) {
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.22f)),
         modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(emoji, fontSize = 20.sp)
-            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = color)
-            Text(title, fontSize = 9.sp, color = MutedGray, maxLines = 1)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(color.copy(alpha = 0.22f), color.copy(alpha = 0.06f))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(emoji, fontSize = 20.sp)
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = color.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = tag,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = color,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = color)
+                Text(title, fontSize = 11.sp, color = MutedGray, maxLines = 1)
+            }
         }
     }
 }
@@ -1799,15 +1844,54 @@ fun TeacherQuickActionCard(
     onClick: () -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.3f)),
-        modifier = modifier.clickable { onClick() }
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.28f)),
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { onClick() }
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(icon, fontSize = 24.sp)
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Text(subtitle, fontSize = 10.sp, color = MutedGray)
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(color.copy(alpha = 0.22f), color.copy(alpha = 0.08f))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(icon, fontSize = 22.sp)
+                }
+
+                Surface(
+                    shape = CircleShape,
+                    color = color.copy(alpha = 0.12f),
+                    modifier = Modifier.size(26.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowForward,
+                            contentDescription = null,
+                            tint = color,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text(subtitle, fontSize = 11.sp, color = MutedGray, maxLines = 1)
+            }
         }
     }
 }

@@ -67,7 +67,7 @@ fun LoginScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .premiumAppBackground()
             .statusBarsPadding()
             .navigationBarsPadding()
             .testTag("login_screen")

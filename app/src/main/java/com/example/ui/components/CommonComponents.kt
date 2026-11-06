@@ -1,6 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -157,29 +158,35 @@ fun AppTopBar(
                 }
 
                 // Switch Role Button
+                val (roleBadgeBg, roleBadgeBorder, roleBadgeText) = when (role) {
+                    Role.ADMIN -> Triple(Color(0xFFFEF3C7), Color(0xFFF59E0B), Color(0xFF92400E))
+                    Role.TEACHER -> Triple(Color(0xFFF3E8FF), PurpleAccent, Color(0xFF6B21A8))
+                    Role.STUDENT -> Triple(Color(0xFFEFF6FF), RoyalBlue, Color(0xFF1E40AF))
+                }
                 Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(14.dp),
+                    color = roleBadgeBg,
+                    border = BorderStroke(1.dp, roleBadgeBorder.copy(alpha = 0.45f)),
                     modifier = Modifier
                         .testTag("role_switch_button")
                         .clickable { onRoleClick() }
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.SwapHoriz,
                             contentDescription = "Switch Role",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            modifier = Modifier.size(15.dp),
+                            tint = roleBadgeText
                         )
                         Text(
                             text = role.name,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            fontWeight = FontWeight.ExtraBold,
+                            color = roleBadgeText
                         )
                     }
                 }
@@ -212,8 +219,9 @@ fun StatPill(
     testTag: String
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         color = bgColor,
+        border = BorderStroke(1.dp, textColor.copy(alpha = 0.25f)),
         modifier = Modifier.testTag(testTag)
     ) {
         Row(
@@ -222,7 +230,7 @@ fun StatPill(
             horizontalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(emoji, fontSize = 12.sp)
-            Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textColor)
+            Text(value, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = textColor)
         }
     }
 }

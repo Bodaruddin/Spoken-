@@ -22,7 +22,8 @@ import com.example.ui.components.*
 import com.example.ui.screens.admin.AdminMainScreen
 import com.example.ui.screens.student.*
 import com.example.ui.screens.teacher.TeacherMainScreen
-import com.example.ui.theme.MyApplicationTheme
+import androidx.compose.ui.graphics.Color
+import com.example.ui.theme.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,7 +78,10 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
         com.example.ui.screens.auth.LoginScreen(viewModel = viewModel)
     } else {
         Scaffold(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .premiumAppBackground(),
+            containerColor = Color.Transparent,
             topBar = {
                 if (currentUser.role != Role.STUDENT) {
                     AppTopBar(

@@ -55,7 +55,6 @@ fun SpeakingHubScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .testTag("speaking_hub_screen")
     ) {
         // Sub-tabs Row
