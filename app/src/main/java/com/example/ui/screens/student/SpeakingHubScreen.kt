@@ -791,11 +791,17 @@ fun PronunciationSection(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                            .padding(horizontal = 8.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text("অসমীয়া: ", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmberGold)
-                                        Text("${res.assameseMeaning} (${res.assameseTransliteration})", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface)
+                                        val displayAssamese = when {
+                                            res.assameseTransliteration.isBlank() -> res.assameseMeaning
+                                            res.assameseMeaning.contains("(") -> res.assameseMeaning
+                                            res.assameseMeaning.contains(res.assameseTransliteration, ignoreCase = true) -> res.assameseMeaning
+                                            else -> "${res.assameseMeaning} (${res.assameseTransliteration})"
+                                        }
+                                        Text(displayAssamese, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                                     }
                                 }
                             }

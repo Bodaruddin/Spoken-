@@ -117,54 +117,286 @@ object AssameseTranslator {
         )
     )
 
-    // English-to-Assamese bilingual dictionary
+    // Comprehensive English-to-Assamese bilingual dictionary
     private val wordMap = mapOf(
+        // Core Pronouns & Articles
         "i" to Pair("মই", "Moi"),
         "we" to Pair("আমি", "Aami"),
         "you" to Pair("আপুনি / তুমি", "Aapuni / Tumi"),
         "he" to Pair("তেওঁ / সি", "Teo / Xi"),
         "she" to Pair("তাই / তেওঁ", "Tai / Teo"),
         "they" to Pair("তেওঁলোকে", "Teoloke"),
+        "it" to Pair("ই / এইটো", "Ei / Eitu"),
+        "this" to Pair("এই / এইটো", "Ei / Eitu"),
+        "that" to Pair("সেই / সেইটো", "Xei / Xeitu"),
+        "my" to Pair("মোৰ", "Moor"),
+        "our" to Pair("আমাৰ", "Aamaar"),
+        "your" to Pair("আপোনাৰ / তোমাৰ", "Aaponar / Tomar"),
+        "his" to Pair("তেওঁৰ / তাৰ", "Teor / Taar"),
+        "her" to Pair("তাইৰ / তেওঁৰ", "Taair / Teor"),
+        "their" to Pair("তেওঁলোকৰ", "Teolokor"),
+
+        // Language, Learning & Speech
+        "interesting" to Pair("আকৰ্ষণীয় / আমোদজনক", "Aakorxoniyo / Aamodjonok"),
+        "interest" to Pair("আগ্ৰহ / ৰুচি", "Aagroh / Rusi"),
+        "interested" to Pair("আগ্ৰহী", "Aagrohi"),
         "speak" to Pair("কোৱা", "Kowa"),
         "speaks" to Pair("কয়", "Koy"),
-        "speaking" to Pair("কোৱা", "Kowa"),
+        "speaking" to Pair("কোৱা / কথিত", "Kowa / Kothito"),
+        "spoken" to Pair("কথিত / কোৱা", "Kothito"),
         "english" to Pair("ইংৰাজী", "Ingraji"),
         "language" to Pair("ভাষা", "Bhaxa"),
-        "words" to Pair("শব্দবোৰ", "Xobdobor"),
         "word" to Pair("শব্দ", "Xobdo"),
+        "words" to Pair("শব্দবোৰ", "Xobdobor"),
         "sentence" to Pair("বাক্য", "Baakyo"),
         "sentences" to Pair("বাক্যবোৰ", "Baakyobor"),
         "practice" to Pair("অনুশীলন", "Anuxilon"),
         "learn" to Pair("শিকা", "Xika"),
-        "learning" to Pair("শিকি থকা", "Xiki thoka"),
+        "learning" to Pair("শিকা / অধ্যয়ন", "Xika"),
         "listen" to Pair("শুনা", "Xuna"),
+        "listening" to Pair("শুনা", "Xuna"),
+        "pronounce" to Pair("উচ্চাৰণ কৰা", "Uccharon kora"),
         "pronunciation" to Pair("উচ্চাৰণ", "Uccharon"),
         "confidence" to Pair("আত্মবিশ্বাস", "Aatmabishwakh"),
+        "confident" to Pair("আত্মবিশ্বাসী", "Aatmabishwaxi"),
         "fluency" to Pair("সাবলীলতা", "Xaabolilota"),
+        "fluent" to Pair("সাবলীল", "Xaabolil"),
         "clarity" to Pair("স্পষ্টতা", "Spastata"),
         "clear" to Pair("স্পষ্ট", "Spasta"),
         "natural" to Pair("স্বাভাৱিক", "Swabhabik"),
+        "vocabulary" to Pair("শব্দভাণ্ডাৰ", "Xobdobhandar"),
+        "grammar" to Pair("ব্যাকৰণ", "Byakoron"),
+        "accent" to Pair("উচ্চাৰণৰ টান", "Uccharonor taan"),
+        "intonation" to Pair("সুৰৰ উঠা-নমা", "Suror utha-noma"),
+        "syllable" to Pair("শব্দাংশ / দল", "Xobdangxo"),
+        "stress" to Pair("জোৰ দিয়া / গুৰুত্ব", "Jor diya"),
+        "dialogue" to Pair("সংলাপ / বাৰ্তালাপ", "Xonglap"),
+        "conversation" to Pair("কথোপকথন", "Kothopokothon"),
+        "talk" to Pair("কথা কোৱা", "Kotha kowa"),
+        "chat" to Pair("কথোপকথন", "Kothopokothon"),
+        "communication" to Pair("যোগাযোগ / ভাব-বিনিময়", "Jogajog"),
+        "communicate" to Pair("যোগাযোগ কৰা", "Jogajog kora"),
+        "meaning" to Pair("অৰ্থ", "Ortho"),
+        "understand" to Pair("বুজা / বুজিব পৰা", "Buja"),
+        "understanding" to Pair("বুজাবুজি / বোধ", "Bujabuji"),
+        "phrase" to Pair("বাক্যাংশ", "Baakyangxo"),
+        "alphabet" to Pair("বৰ্ণমালা", "Bornomala"),
+        "voice" to Pair("মাত / কণ্ঠস্বৰ", "Maat / Konthoswor"),
+        "sound" to Pair("শব্দ / ধ্বনি", "Dhwoni"),
+
+        // Difficult / Phonetic Curated Words
+        "comfortable" to Pair("আৰামদায়ক", "Aaramdayok"),
+        "comfort" to Pair("আৰাম / সান্ত্বনা", "Aaram"),
+        "thorough" to Pair("সম্পূৰ্ণ আৰু পুংখানুপুংখ", "Punkhanupunkho"),
+        "specifically" to Pair("বিশেষভাৱে", "Bixexbhabe"),
+        "specific" to Pair("নিৰ্দিষ্ট / বিশেষ", "Nirdishto"),
+        "phenomenon" to Pair("পৰিঘটনা / বিস্ময়কৰ দৃশ্য", "Porigotona"),
+        "entrepreneur" to Pair("উদ্যোগী / ব্যৱসায়ী", "Udyogi"),
+        "worcestershire" to Pair("এক বিখ্যাত ইংৰাজ চছ", "Ingraj Sauce"),
+        "schedule" to Pair("সময়সূচী", "Xomoysuchi"),
+        "thoughtful" to Pair("চিন্তাশীল / বিবেচনাপূৰ্ণ", "Chintakhil"),
+        "world" to Pair("পৃথিৱী / জগত", "Prithibi"),
+        "hierarchy" to Pair("পদমৰ্যাদাৰ ক্ৰম", "Podomorjyadar Krom"),
+        "colloquial" to Pair("কথিত / কথিত ভাষাৰ", "Kothito"),
+        "resilience" to Pair("সহনশীলতা / স্থৈতিক ক্ষমতা", "Xohonxilota"),
+        "anemone" to Pair("এবিধ ফুল বা সাগৰীয় জীৱ", "Xagoriya Jeeb"),
+        "colonel" to Pair("কৰ্ণেল / উচ্চ সেনা বিষয়া", "Colonel"),
+        "subtle" to Pair("সূক্ষ্ম / মৃদু", "Xukhmo"),
+        "doubt" to Pair("সন্দেহ / দ্বিধা", "Xondeho"),
+        "indict" to Pair("অভিযুক্ত কৰা", "Obhiyukto kora"),
+        "island" to Pair("দ্বীপ", "Dweep"),
+        "yacht" to Pair("বিলাসী নাও / জলযান", "Joljaan"),
+        "recipe" to Pair("ৰন্ধন প্ৰণালী", "Rondhon Pronali"),
+        "breath" to Pair("উশাহ / শ্বাস-প্ৰশ্বাস", "Uxaah"),
+        "breathe" to Pair("উশাহ লোৱা", "Uxaah lowa"),
+        "leather" to Pair("চামৰা", "Saamora"),
+        "rhythm" to Pair("তাল / ছন্দ", "Taal / Sondo"),
+        "collaborate" to Pair("সহযোগিতা কৰা", "Xohojogita kora"),
+        "rural" to Pair("গ্ৰাম্য / গাঁৱলীয়া", "Gramyo"),
+        "opportunity" to Pair("সুযোগ / সুযোগ-সুবিধা", "Xujog"),
+        "important" to Pair("গুৰুত্বপূৰ্ণ / দৰকাৰী", "Gurutwopurno"),
+        "importance" to Pair("গুৰুত্ব", "Gurutwo"),
+        "education" to Pair("শিক্ষা", "Xikkha"),
+        "knowledge" to Pair("জ্ঞান", "Gyaan"),
+        "challenge" to Pair("প্ৰত্যাহ্বান", "Protyahban"),
+        "beautiful" to Pair("ধুনীয়া / সুন্দৰ", "Dhuniya"),
+        "technology" to Pair("প্ৰযুক্তিবিদ্যা / প্ৰযুক্তি", "Projukti"),
+        "environment" to Pair("পৰিবেশ", "Poribex"),
+        "experience" to Pair("অভিজ্ঞতা", "Obhiggota"),
+        "difference" to Pair("পাৰ্থক্য", "Parthokyo"),
+        "different" to Pair("বেলেগ / পৃথক", "Beleg / Prithok"),
+        "difficult" to Pair("কঠিন / টান", "Kothin"),
+        "difficulty" to Pair("অসুবিধা / কাঠিন্য", "Oxubidha"),
+        "easy" to Pair("সহজ / সৰল", "Xohoj"),
         "easily" to Pair("সহজে", "Xohaje"),
-        "daily" to Pair("দৈনন্দিন", "Doinondin"),
-        "every" to Pair("প্ৰতি", "Proti"),
-        "day" to Pair("দিন", "Din"),
-        "good" to Pair("ভাল", "Bhal"),
-        "great" to Pair("অতি ভাল", "Oti bhal"),
-        "with" to Pair("সৈতে / -ৰে", "Soite"),
-        "and" to Pair("আৰু", "Aaru"),
-        "in" to Pair("-ত", "In"),
-        "to" to Pair("-লৈ", "Loi"),
-        "for" to Pair("বাবে", "Babe"),
-        "helps" to Pair("সহায় কৰে", "Xohai kore"),
-        "improves" to Pair("উন্নত কৰে", "Unnoto kore"),
-        "improve" to Pair("উন্নতি কৰা", "Unnoti kora"),
-        "read" to Pair("পঢ়া", "Podha"),
-        "reads" to Pair("পঢ়ে", "Podhe"),
-        "books" to Pair("কিতাপ", "Kitap"),
+
+        // Education & Campus
         "student" to Pair("ছাত্ৰ-ছাত্ৰী", "Shatro-shatri"),
-        "teacher" to Pair("শিক্ষক", "Xikkhok"),
+        "teacher" to Pair("শিক্ষক / শিক্ষয়িত্ৰী", "Xikkhok"),
+        "school" to Pair("বিদ্যালয়", "Bidyaloy"),
+        "college" to Pair("মহাবিদ্যালয়", "Mohabidyaloy"),
+        "university" to Pair("বিশ্ববিদ্যালয়", "Biswabidyaloy"),
+        "classroom" to Pair("শ্ৰেণীকোঠা", "Srenikotha"),
         "class" to Pair("শ্ৰেণী", "Sreni"),
-        "school" to Pair("বিদ্যালয়", "Bidyaloy")
+        "books" to Pair("কিতাপবোৰ", "Kitapbor"),
+        "book" to Pair("কিতাপ / গ্ৰন্থ", "Kitap"),
+        "library" to Pair("পুথিভঁৰাল", "Puthibhoral"),
+        "read" to Pair("পঢ়া", "Podha"),
+        "reading" to Pair("পঢ়া", "Podha"),
+        "write" to Pair("লিখা", "Likha"),
+        "writing" to Pair("লিখা", "Likha"),
+        "study" to Pair("অধ্যয়ন / পঢ়া", "Odhyoyon"),
+        "exam" to Pair("পৰীক্ষা", "Porikkha"),
+        "examination" to Pair("পৰীক্ষা", "Porikkha"),
+        "test" to Pair("পৰীক্ষা / পৰীক্ষণ", "Porikkha"),
+        "result" to Pair("ফলাফল", "Pholafol"),
+        "lesson" to Pair("পাঠ", "Paath"),
+        "homework" to Pair("ঘৰুৱা কাম", "Ghoruwa kaam"),
+        "question" to Pair("প্ৰশ্ন", "Proshno"),
+        "answer" to Pair("উত্তৰ", "Uttor"),
+        "problem" to Pair("সমস্যা", "Xomoxya"),
+        "solution" to Pair("সমাধান", "Xomadhan"),
+
+        // Everyday Nouns & Objects
+        "water" to Pair("পানী / জল", "Paani"),
+        "food" to Pair("খাদ্য / আহাৰ", "Khadya / Aahaar"),
+        "tea" to Pair("চাহ", "Saah"),
+        "coffee" to Pair("কফি", "Coffee"),
+        "time" to Pair("সময়", "Xomoy"),
+        "money" to Pair("টকা-পইচা", "Toka"),
+        "work" to Pair("কাম / কাৰ্য", "Kaam"),
+        "job" to Pair("চাকৰি / কাম", "Saakori"),
+        "business" to Pair("ব্যৱসায়", "Byowoxay"),
+        "home" to Pair("ঘৰ", "Ghor"),
+        "house" to Pair("ঘৰ / গৃহ", "Ghor"),
+        "room" to Pair("কোঠা", "Kotha"),
+        "door" to Pair("দুৱাৰ", "Duwar"),
+        "window" to Pair("খিৰিকী", "Khiriki"),
+        "road" to Pair("ৰাস্তা / পথ", "Raasta / Poth"),
+        "car" to Pair("গাড়ী", "Gaari"),
+        "train" to Pair("ৰে'ল / ৰে'লগাড়ী", "Rail"),
+        "bus" to Pair("বাছ", "Bus"),
+        "airplane" to Pair("বিমান / উৰাজাহাজ", "Bimaan"),
+        "city" to Pair("চহৰ / নগৰ", "Xohor"),
+        "village" to Pair("গাঁও", "Gaon"),
+        "country" to Pair("দেশ / ৰাষ্ট্ৰ", "Dex"),
+        "people" to Pair("মানুহ / লোকসকল", "Manuh"),
+        "person" to Pair("মানুহ / ব্যক্তি", "Byokti"),
+        "man" to Pair("পুৰুষ / মানুহ", "Purux"),
+        "woman" to Pair("মহিলা / তিৰোতা", "Mohila"),
+        "child" to Pair("শিশু / ল'ৰা-ছোৱালী", "Xixu"),
+        "children" to Pair("শিশুসকল", "Xixuxakol"),
+        "friend" to Pair("বন্ধু / সখী", "Bondhu"),
+        "friends" to Pair("বন্ধুসকল", "Bondhuxakol"),
+        "family" to Pair("পৰিয়াল", "Poriyal"),
+        "father" to Pair("পিতা / দেউতা", "Deuta"),
+        "mother" to Pair("মাতৃ / মা", "Maa"),
+        "brother" to Pair("ভাই / ককাই", "Bhai"),
+        "sister" to Pair("ভনী / বাইদেউ", "Bhoni"),
+
+        // Time Expressions
+        "morning" to Pair("ৰাতিপুৱা / প্ৰভাত", "Raatipuwa"),
+        "afternoon" to Pair("আবেলি / দুপৰীয়া", "Aabeli"),
+        "evening" to Pair("গধূলি / সন্ধিয়া", "Godhuli"),
+        "night" to Pair("ৰাতি / নিশা", "Raati"),
+        "today" to Pair("আজি", "Aaji"),
+        "tomorrow" to Pair("কাইলৈ", "Koiloi"),
+        "yesterday" to Pair("কালি", "Kaali"),
+        "daily" to Pair("দৈনন্দিন / প্ৰতিদিনে", "Doinondin"),
+        "everyday" to Pair("প্ৰতিদিনে", "Protidine"),
+        "always" to Pair("সদায়", "Xodai"),
+        "never" to Pair("কেতিয়াও নহয়", "Ketiyao nohoi"),
+        "sometimes" to Pair("কেতিয়াবা", "Ketiyaba"),
+        "often" to Pair("প্ৰায়ে / সঘনাই", "Praaye"),
+        "now" to Pair("এতিয়া", "Etiya"),
+        "then" to Pair("তেতিয়া", "Tetiya"),
+        "hour" to Pair("ঘণ্টা", "Ghonta"),
+        "minute" to Pair("মিনিট", "Minute"),
+        "second" to Pair("চেকেণ্ড / দ্বিতীয়", "Second"),
+        "week" to Pair("সপ্তাহ", "Xoptaah"),
+        "month" to Pair("মাহ", "Maah"),
+        "year" to Pair("বছৰ", "Bosor"),
+
+        // Common Verbs
+        "help" to Pair("সহায়", "Xohai"),
+        "helps" to Pair("সহায় কৰে", "Xohai kore"),
+        "helping" to Pair("সহায় কৰা", "Xohai kora"),
+        "think" to Pair("ভবা / চিন্তা কৰা", "Bhoba"),
+        "know" to Pair("জনা / চিনাকি হোৱা", "Jona"),
+        "remember" to Pair("মনত ৰখা", "Monot rokha"),
+        "forget" to Pair("পাহৰা / পাহৰি যোৱা", "Pahora"),
+        "see" to Pair("দেখা / চোৱা", "Dekha"),
+        "look" to Pair("চোৱা", "Sowa"),
+        "watch" to Pair("নিৰীক্ষণ কৰা / চোৱা", "Sowa"),
+        "hear" to Pair("শুনা", "Xuna"),
+        "go" to Pair("যোৱা", "Jowa"),
+        "come" to Pair("অহা", "Oha"),
+        "make" to Pair("বনোৱা / তৈয়াৰ কৰা", "Bonowa"),
+        "do" to Pair("কৰা", "Kora"),
+        "give" to Pair("দিয়া", "Diya"),
+        "take" to Pair("লোৱা", "Lowa"),
+        "buy" to Pair("কিনা / ক্ৰয় কৰা", "Kina"),
+        "sell" to Pair("বিক্ৰী কৰা", "Bikri kora"),
+        "start" to Pair("আৰম্ভ কৰা", "Aaromvo kora"),
+        "finish" to Pair("শেষ কৰা", "Xex kora"),
+        "stop" to Pair("ৰখা / বন্ধ কৰা", "Rokha"),
+        "wait" to Pair("অপেক্ষা কৰা / ৰোৱা", "Rokha"),
+        "try" to Pair("চেষ্টা কৰা", "Sesta kora"),
+        "improve" to Pair("উন্নতি কৰা", "Unnoti kora"),
+        "improves" to Pair("উন্নত কৰে", "Unnoto kore"),
+        "build" to Pair("গঢ়ি তোলা / নিৰ্মাণ কৰা", "Godhi tula"),
+        "live" to Pair("বাস কৰা / জীয়াই থকা", "Baax kora"),
+        "love" to Pair("ভালপোৱা / মৰম", "Bhalpowa"),
+        "like" to Pair("পছন্দ কৰা", "Poxondo kora"),
+
+        // Common Adjectives & Values
+        "good" to Pair("ভাল", "Bhal"),
+        "great" to Pair("অতি ভাল / মহান", "Oti bhal"),
+        "best" to Pair("সৰ্বশ্ৰেষ্ঠ / আটাইতকৈ ভাল", "Xorbosrestho"),
+        "happy" to Pair("সুখী / আনন্দিত", "Xukhi"),
+        "sad" to Pair("দুখীয়া / মন বেয়া", "Dukhi"),
+        "big" to Pair("ডাঙৰ", "Daangor"),
+        "small" to Pair("সৰু", "Xoru"),
+        "fast" to Pair("দ্ৰুত / খৰকৈ", "Druto"),
+        "slow" to Pair("ধীৰ / লাহে লাহে", "Lahe lahe"),
+        "hot" to Pair("গৰম", "Gorom"),
+        "cold" to Pair("ঠাণ্ডা", "Thanda"),
+        "strong" to Pair("শক্তিশালী / বলৱান", "Xoktixali"),
+        "weak" to Pair("দুৰ্বল", "Durbol"),
+        "right" to Pair("শুদ্ধ / সোঁফাল", "Xuddho"),
+        "wrong" to Pair("ভুল", "Bhul"),
+        "true" to Pair("সঁচা / সত্য", "Xosa"),
+        "false" to Pair("মিছা", "Misa"),
+        "success" to Pair("সাফল্য", "Xafolyo"),
+        "successful" to Pair("সফল", "Xofol"),
+        "failure" to Pair("ব্যৰ্থতা", "Byorthota"),
+        "courage" to Pair("সাহস", "Xahox"),
+        "patience" to Pair("ধৈৰ্য", "Dhoirjo"),
+        "honesty" to Pair("সততা", "Xotota"),
+        "truth" to Pair("সত্য", "Xotyo"),
+        "peace" to Pair("শান্তি", "Xaanti"),
+        "freedom" to Pair("স্বাধীনতা", "Xwadhinota"),
+        "health" to Pair("স্বাস্থ্য", "Xwasthyo"),
+        "healthy" to Pair("সুস্থ / স্বাস্থ্যৱান", "Xustho"),
+        "clean" to Pair("পৰিষ্কাৰ / নিকা", "Poriskar"),
+        "new" to Pair("নতুন", "Notun"),
+        "old" to Pair("পুৰণি / বয়সীয়াল", "Puroni"),
+
+        // Interrogatives & Polite Phrases
+        "who" to Pair("কোন", "Kun"),
+        "what" to Pair("কি", "Ki"),
+        "where" to Pair("ক'ত", "Kot"),
+        "when" to Pair("কেতিয়া", "Ketiya"),
+        "why" to Pair("কিয়", "Kiyo"),
+        "how" to Pair("কেনেকৈ", "Kenekoi"),
+        "which" to Pair("কোনটো", "Kuntu"),
+        "please" to Pair("অনুগ্ৰহ কৰি", "Onugroh kori"),
+        "thank" to Pair("ধন্যবাদ", "Dhonyobaad"),
+        "thanks" to Pair("ধন্যবাদ", "Dhonyobaad"),
+        "welcome" to Pair("স্বাগতম", "Xwagotom"),
+        "sorry" to Pair("ক্ষমা কৰিব", "Khyoma koribo"),
+        "hello" to Pair("নমস্কাৰ", "Nomoxkar"),
+        "congratulations" to Pair("অভিনন্দন", "Obhinondon")
     )
 
     /**
@@ -198,7 +430,7 @@ object AssameseTranslator {
 
         for (token in tokens) {
             val clean = token.lowercase().replace(Regex("[^a-z]"), "")
-            val match = wordMap[clean]
+            val match = translateWord(clean)
             if (match != null) {
                 assameseWords.add(match.first)
                 transliterationWords.add(match.second)
@@ -230,7 +462,7 @@ object AssameseTranslator {
         val breakdown = mutableListOf<Pair<String, String>>()
         for (token in tokens) {
             val clean = token.lowercase().replace(Regex("[^a-z]"), "")
-            val match = wordMap[clean]
+            val match = translateWord(clean)
             if (match != null) {
                 breakdown.add(token to "${match.first} (${match.second})")
             } else {
@@ -240,8 +472,132 @@ object AssameseTranslator {
         return breakdown
     }
 
+    /**
+     * Translates an individual English word to Assamese.
+     * Uses direct dictionary lookup, morphological root stemming,
+     * and fallback phonetic transliteration so ANY queried word returns a meaningful result.
+     */
     fun translateWord(word: String): Pair<String, String>? {
-        val clean = word.lowercase().replace(Regex("[^a-z]"), "")
-        return wordMap[clean]
+        val clean = word.lowercase().trim().replace(Regex("[^a-z]"), "")
+        if (clean.isEmpty()) return null
+
+        // 1. Direct dictionary lookup
+        wordMap[clean]?.let { return it }
+
+        // 2. Morphological root stemming heuristics
+        // -ing
+        if (clean.endsWith("ing") && clean.length > 4) {
+            val stem1 = clean.removeSuffix("ing")
+            wordMap[stem1]?.let { return it }
+            val stem2 = "${stem1}e"
+            wordMap[stem2]?.let { return it }
+            if (stem1.length >= 2 && stem1.last() == stem1[stem1.length - 2]) {
+                wordMap[stem1.dropLast(1)]?.let { return it } // running -> run
+            }
+        }
+
+        // -ed
+        if (clean.endsWith("ed") && clean.length > 3) {
+            val stem1 = clean.removeSuffix("ed")
+            wordMap[stem1]?.let { return it }
+            val stem2 = "${stem1}e"
+            wordMap[stem2]?.let { return it }
+            if (clean.endsWith("ied")) {
+                wordMap["${clean.removeSuffix("ied")}y"]?.let { return it }
+            }
+        }
+
+        // -ly
+        if (clean.endsWith("ly") && clean.length > 3) {
+            val stem1 = clean.removeSuffix("ly")
+            wordMap[stem1]?.let { return it }
+            if (clean.endsWith("ily")) {
+                wordMap["${clean.removeSuffix("ily")}y"]?.let { return it }
+            }
+        }
+
+        // -s / -es
+        if (clean.endsWith("ies") && clean.length > 4) {
+            wordMap["${clean.removeSuffix("ies")}y"]?.let { return it }
+        }
+        if (clean.endsWith("es") && clean.length > 3) {
+            wordMap[clean.removeSuffix("es")]?.let { return it }
+        }
+        if (clean.endsWith("s") && clean.length > 2) {
+            wordMap[clean.removeSuffix("s")]?.let { return it }
+        }
+
+        // -tion / -ment / -able
+        if (clean.endsWith("tion") && clean.length > 5) {
+            wordMap["${clean.removeSuffix("tion")}te"]?.let { return it }
+        }
+        if (clean.endsWith("ment") && clean.length > 5) {
+            wordMap[clean.removeSuffix("ment")]?.let { return it }
+        }
+        if (clean.endsWith("able") && clean.length > 5) {
+            wordMap[clean.removeSuffix("able")]?.let { return it }
+        }
+
+        // 3. Phonetic transliteration into Assamese script so students see the word in Assamese phonetics
+        return transliterateToAssamese(clean)
+    }
+
+    /**
+     * Converts an English word into natural Assamese phonetic script representation.
+     */
+    private fun transliterateToAssamese(word: String): Pair<String, String> {
+        val sb = StringBuilder()
+        var i = 0
+        while (i < word.length) {
+            val remaining = word.substring(i)
+            when {
+                remaining.startsWith("th") -> { sb.append("থ"); i += 2 }
+                remaining.startsWith("ch") -> { sb.append("চ"); i += 2 }
+                remaining.startsWith("sh") -> { sb.append("শ"); i += 2 }
+                remaining.startsWith("ph") -> { sb.append("ফ"); i += 2 }
+                remaining.startsWith("wh") -> { sb.append("উ"); i += 2 }
+                remaining.startsWith("ck") -> { sb.append("ক"); i += 2 }
+                remaining.startsWith("ng") -> { sb.append("ং"); i += 2 }
+                remaining.startsWith("qu") -> { sb.append("কু"); i += 2 }
+                remaining.startsWith("ee") || remaining.startsWith("ea") -> { sb.append("ী"); i += 2 }
+                remaining.startsWith("oo") -> { sb.append("ু"); i += 2 }
+                remaining.startsWith("ai") || remaining.startsWith("ay") -> { sb.append("াই"); i += 2 }
+                remaining.startsWith("ou") || remaining.startsWith("ow") -> { sb.append("াউ"); i += 2 }
+                else -> {
+                    when (word[i]) {
+                        'b' -> sb.append("ব")
+                        'c' -> sb.append(if (i + 1 < word.length && "eiy".contains(word[i + 1])) "চ" else "ক")
+                        'd' -> sb.append("ড")
+                        'f' -> sb.append("ফ")
+                        'g' -> sb.append("গ")
+                        'h' -> sb.append("হ")
+                        'j' -> sb.append("জ")
+                        'k' -> sb.append("ক")
+                        'l' -> sb.append("ল")
+                        'm' -> sb.append("ম")
+                        'n' -> sb.append("ন")
+                        'p' -> sb.append("প")
+                        'r' -> sb.append("ৰ")
+                        's' -> sb.append("ছ")
+                        't' -> sb.append("ট")
+                        'v' -> sb.append("ভ")
+                        'w' -> sb.append("ৱ")
+                        'x' -> sb.append("ক্স")
+                        'y' -> sb.append("য়")
+                        'z' -> sb.append("জ")
+                        'a' -> sb.append(if (i == 0) "আ" else "া")
+                        'e' -> sb.append(if (i == 0) "এ" else "ে")
+                        'i' -> sb.append(if (i == 0) "ই" else "ি")
+                        'o' -> sb.append(if (i == 0) "অ" else "ো")
+                        'u' -> sb.append(if (i == 0) "উ" else "ু")
+                        else -> sb.append(word[i])
+                    }
+                    i++
+                }
+            }
+        }
+        val capitalized = word.replaceFirstChar { it.uppercase() }
+        val assamesePhonetic = sb.toString()
+        return Pair(assamesePhonetic, capitalized)
     }
 }
