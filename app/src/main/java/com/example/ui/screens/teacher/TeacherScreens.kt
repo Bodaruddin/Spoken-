@@ -5,10 +5,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,6 +29,7 @@ import com.example.ui.components.SectionHeader
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.*
@@ -1194,8 +1197,10 @@ fun TeacherSpeakingReview(viewModel: MainViewModel, modifier: Modifier = Modifie
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 TeacherSpeakingSection.values().forEach { sec ->
                     val isSel = currentSection == sec
@@ -1204,22 +1209,23 @@ fun TeacherSpeakingReview(viewModel: MainViewModel, modifier: Modifier = Modifie
                         color = if (isSel) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                         border = if (isSel) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier
-                            .weight(1f)
                             .clickable { viewModel.selectTeacherSpeakingSection(sec) }
                             .testTag("teacher_section_${sec.name.lowercase()}")
                     ) {
                         Row(
-                            modifier = Modifier.padding(vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(sec.emoji, fontSize = 13.sp)
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(6.dp))
                             Text(
-                                sec.title,
-                                fontSize = 11.sp,
+                                text = sec.title,
+                                fontSize = 12.sp,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface
+                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -1269,7 +1275,12 @@ fun TeacherSubmissionsGradingView(viewModel: MainViewModel, modifier: Modifier =
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Text("Student Voice Recordings to Grade", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(
+                text = "Student Voice Recordings to Grade",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
 
         submitToast?.let { msg ->
@@ -1299,16 +1310,18 @@ fun TeacherSubmissionsGradingView(viewModel: MainViewModel, modifier: Modifier =
                         modifier = Modifier.clickable { selectedSubmission = sub }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(sub.studentAvatar, fontSize = 16.sp)
                             Text(
-                                sub.studentName,
+                                text = sub.studentName,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface
+                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                softWrap = false
                             )
                             if (sub.status == "PENDING") {
                                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(OrangeVibrant))
@@ -1335,17 +1348,44 @@ fun TeacherSubmissionsGradingView(viewModel: MainViewModel, modifier: Modifier =
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
-                                Text(sub.studentName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                Text("Recorded: ${sub.submittedDate} • ${sub.audioDurationSeconds}s audio", fontSize = 11.sp, color = MutedGray)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = sub.studentName,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Recorded: ${sub.submittedDate} • ${sub.audioDurationSeconds}s audio",
+                                    fontSize = 11.sp,
+                                    color = MutedGray,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
+                            Spacer(Modifier.width(8.dp))
                             Button(
                                 onClick = { viewModel.speakAudio(sub.studentTranscript) },
-                                shape = RoundedCornerShape(12.dp)
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                                modifier = Modifier.testTag("play_recording_btn")
                             ) {
-                                Icon(Icons.Rounded.PlayArrow, contentDescription = null)
-                                Spacer(Modifier.width(4.dp))
-                                Text("Play Recording")
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Rounded.PlayArrow, contentDescription = "Play", modifier = Modifier.size(18.dp))
+                                    Text(
+                                        text = "Play Recording",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             }
                         }
 
