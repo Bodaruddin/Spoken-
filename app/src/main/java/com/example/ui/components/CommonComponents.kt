@@ -82,7 +82,8 @@ fun AppTopBar(
                     Text(
                         text = when (role) {
                             Role.STUDENT -> "Student Portal"
-                            else -> "Admin Control"
+                            Role.TEACHER -> "Teacher Portal"
+                            Role.ADMIN -> "Admin Control"
                         },
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.primary,

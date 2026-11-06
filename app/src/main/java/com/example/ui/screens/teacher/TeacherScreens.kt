@@ -54,6 +54,7 @@ fun TeacherMainScreen(
 // -------------------------------------------------------------
 @Composable
 fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
+    val currentUser by viewModel.currentUser.collectAsState()
     val submissions by viewModel.submissions.collectAsState()
     val students by viewModel.adminStudents.collectAsState()
     val wordMatches by viewModel.wordMatchChallenges.collectAsState()
@@ -90,11 +91,20 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("👩‍🏫", fontSize = 32.sp)
+                        Text(currentUser.avatarEmoji.ifBlank { "👩‍🏫" }, fontSize = 32.sp)
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Prof. Eleanor Vance", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("Lead Spoken English Instructor • Batch Alpha & Beta", fontSize = 12.sp, color = MutedGray)
+                        Text(
+                            text = currentUser.name.ifBlank { "Faculty Instructor" },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                        val departmentOrBatch = currentUser.batch.ifBlank { "Batch Alpha & Beta" }
+                        Text(
+                            text = "Faculty Instructor • $departmentOrBatch",
+                            fontSize = 12.sp,
+                            color = MutedGray
+                        )
                         Spacer(Modifier.height(4.dp))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
@@ -492,6 +502,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     var showCreateDialog by remember { mutableStateOf(false) }
     var activeEditingChallenge by remember { mutableStateOf<ActiveEditingChallenge?>(null) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
+    val currentUser by viewModel.currentUser.collectAsState()
 
     val wordMatches by viewModel.wordMatchChallenges.collectAsState()
     val missingLetters by viewModel.missingLettersChallenges.collectAsState()
@@ -876,7 +887,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     if (showCreateDialog) {
         CreateGameChallengeDialog(
             category = selectedCategory,
-            authorName = "Prof. Eleanor Vance",
+            authorName = currentUser.name.ifBlank { "Faculty Instructor" },
             onDismiss = { showCreateDialog = false },
             onCreated = {
                 statusMsg = "Successfully published new challenge for ${selectedCategory.title}!"

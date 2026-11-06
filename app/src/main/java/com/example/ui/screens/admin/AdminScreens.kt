@@ -65,6 +65,7 @@ fun AdminMainScreen(
 // -------------------------------------------------------------
 @Composable
 fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
+    val currentUser by viewModel.currentUser.collectAsState()
     val students by viewModel.adminStudents.collectAsState()
     val teachers by viewModel.adminTeachers.collectAsState()
     val wordMatches by viewModel.wordMatchChallenges.collectAsState()
@@ -100,10 +101,10 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("🛡️", fontSize = 32.sp)
+                        Text(currentUser.avatarEmoji.ifBlank { "🛡️" }, fontSize = 32.sp)
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Dean Arthur Pendelton", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(currentUser.name.ifBlank { "Dean Arthur Pendelton" }, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Text("Global Academic Administrator • Speakly University", fontSize = 12.sp, color = MutedGray)
                         Spacer(Modifier.height(4.dp))
                         Surface(
