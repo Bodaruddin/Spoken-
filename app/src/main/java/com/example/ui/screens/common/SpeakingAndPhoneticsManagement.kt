@@ -1543,6 +1543,7 @@ fun TeacherVocabularyManagementList(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
+                            modifier = Modifier.weight(1f),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
@@ -1555,22 +1556,28 @@ fun TeacherVocabularyManagementList(
                             ) {
                                 Text("📖", fontSize = 20.sp)
                             }
-                            Column {
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
                                 Text(
                                     text = "English & Assamese Dictionary",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 val totalWordCount = com.example.util.AssameseTranslator.getTotalWordCount()
                                 Text(
-                                    text = "$totalWordCount+ Active Words with Assamese Meaning",
+                                    text = "$totalWordCount+ Active Words with Meaning",
                                     fontSize = 11.sp,
                                     color = AmberGold,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
+
+                        Spacer(Modifier.width(8.dp))
 
                         Button(
                             onClick = onAddNew,
@@ -1579,9 +1586,20 @@ fun TeacherVocabularyManagementList(
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                             modifier = Modifier.testTag("teacher_add_word_btn")
                         ) {
-                            Icon(Icons.Filled.Add, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Add Word", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Filled.Add, contentDescription = null, tint = Color.Black, modifier = Modifier.size(15.dp))
+                                Text(
+                                    text = "Add Word",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.Black,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
                     }
 
