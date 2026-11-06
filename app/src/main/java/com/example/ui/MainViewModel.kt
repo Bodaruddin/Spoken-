@@ -76,7 +76,8 @@ enum class ActiveGameType(val title: String, val desc: String, val emoji: String
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    val repository = LinguaQuestRepository()
+    val appPreferences = com.example.data.local.AppPreferences(application)
+    val repository = LinguaQuestRepository(appPreferences)
     val ttsManager = TtsManager(application)
     val speechManager = SpeechRecognizerManager(application)
     val supabaseService = com.example.data.remote.SupabaseService()
@@ -269,8 +270,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _celebrationReward = MutableStateFlow<Pair<Int, Int>?>(null) // XP, Coins
     val celebrationReward: StateFlow<Pair<Int, Int>?> = _celebrationReward.asStateFlow()
 
-    // Authentication State
-    private val _isLoggedIn = MutableStateFlow(false)
+    // Authentication State (restores automatically from persistent storage)
+    private val _isLoggedIn = MutableStateFlow(appPreferences.isLoggedIn())
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
 
     // Role Switcher Dialog
@@ -278,7 +279,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val showRoleSwitcher: StateFlow<Boolean> = _showRoleSwitcher.asStateFlow()
 
     init {
-        // Collect speech success and evaluate automatically
+        // 1. Restore customized staff credentials if previously saved
+        appPreferences.getAdminPassword()?.let { adminPassword = it }
+        appPreferences.getAdminPin()?.let { adminPin = it }
+        appPreferences.getTeacherPassword()?.let { teacherPassword = it }
+        appPreferences.getTeacherPin()?.let { teacherPin = it }
+
+        // 2. Seamless Session Restoration: Keep users logged in across app restarts
+        if (appPreferences.isLoggedIn()) {
+            val savedUser = appPreferences.getSavedUser()
+            if (savedUser != null) {
+                repository.setCurrentUser(savedUser)
+                when (savedUser.role) {
+                    Role.STUDENT -> {
+                        repository.setStudentProfileUserId(savedUser.id, savedUser.name)
+                        _currentStudentTab.value = StudentTab.HOME
+                    }
+                    Role.TEACHER -> {
+                        _currentTeacherTab.value = TeacherTab.DASHBOARD
+                    }
+                    Role.ADMIN -> {
+                        _currentAdminTab.value = AdminTab.DASHBOARD
+                    }
+                }
+                _isLoggedIn.value = true
+            }
+        }
+
+        // 3. Collect speech success and evaluate automatically
         viewModelScope.launch {
             speechManager.speechState.collect { state ->
                 if (state is SpeechState.Success) {
@@ -347,6 +375,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.setCurrentUser(updated)
         if (newPassword.isNotBlank()) adminPassword = newPassword.trim()
         if (newPin.isNotBlank()) adminPin = newPin.trim()
+        appPreferences.saveAdminCredentials(adminPassword, adminPin)
+        appPreferences.saveSession(updated)
         return true
     }
 
@@ -364,12 +394,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // 1. Check Administrator Access
-        if ((idClean == "admin@linguaquest.edu" || idClean == "admin" || idClean == "dean.arthur") &&
+        if ((idClean == "admin@linguaquest.edu" || idClean == "admin" || idClean == "dean.arthur" || idClean == repository.currentUser.value.email.trim().lowercase()) &&
             (secretClean == adminPin || secretClean == adminPassword)) {
             val adminUser = User(
                 id = "adm_001",
-                name = "Dean Arthur Pendelton",
-                email = "admin@linguaquest.edu",
+                name = if (repository.currentUser.value.role == Role.ADMIN) repository.currentUser.value.name else "Dean Arthur Pendelton",
+                email = if (repository.currentUser.value.role == Role.ADMIN) repository.currentUser.value.email else "admin@linguaquest.edu",
                 role = Role.ADMIN,
                 avatarEmoji = "🛡️",
                 batch = "Head of Academics",
@@ -377,6 +407,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 securityPin = adminPin
             )
             repository.setCurrentUser(adminUser)
+            appPreferences.saveSession(adminUser)
             _isLoggedIn.value = true
             _showRoleSwitcher.value = false
             return UnifiedLoginResult.Success(Role.ADMIN, adminUser)
@@ -393,6 +424,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return UnifiedLoginResult.Error("This faculty account has been deactivated. Please contact Administration.")
             }
             repository.setCurrentUser(matchedTeacher)
+            appPreferences.saveSession(matchedTeacher)
             _isLoggedIn.value = true
             _showRoleSwitcher.value = false
             return UnifiedLoginResult.Success(Role.TEACHER, matchedTeacher)
@@ -420,6 +452,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
             repository.setCurrentUser(studentUser)
             repository.setStudentProfileUserId(matchedStudent.id, matchedStudent.name)
+            appPreferences.saveSession(studentUser)
+            appPreferences.saveStudentProfile(repository.studentProfile.value)
             _isLoggedIn.value = true
             _showRoleSwitcher.value = false
             return UnifiedLoginResult.Success(Role.STUDENT, studentUser)
@@ -429,6 +463,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (idClean == "alex.morgan@linguaquest.edu" && (secretClean == "1234" || secretClean == "student123")) {
             val studentUser = User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", "Batch Alpha", securityPin = "1234")
             repository.setCurrentUser(studentUser)
+            repository.setStudentProfileUserId("std_001", "Alex Morgan")
+            appPreferences.saveSession(studentUser)
+            appPreferences.saveStudentProfile(repository.studentProfile.value)
             _isLoggedIn.value = true
             _showRoleSwitcher.value = false
             return UnifiedLoginResult.Success(Role.STUDENT, studentUser)
@@ -444,7 +481,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (name.isBlank() || email.isBlank() || pin.isBlank()) {
             return UnifiedLoginResult.Error("All fields and security PIN are required.")
         }
+        val cleanEmail = email.trim().lowercase()
+        val existing = repository.adminStudents.value.find { it.email.trim().lowercase() == cleanEmail }
+        if (existing != null) {
+            return UnifiedLoginResult.Error("An account with this email already exists. Please Sign In.")
+        }
+
         val user = repository.registerStudent(name, email, batch, pin)
+        appPreferences.saveSession(user)
+        appPreferences.saveStudentProfile(repository.studentProfile.value)
         _isLoggedIn.value = true
         _showRoleSwitcher.value = false
 
@@ -469,7 +514,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (name.isBlank() || email.isBlank() || pin.isBlank()) {
             return UnifiedLoginResult.Error("All fields and security PIN are required.")
         }
+        val cleanEmail = email.trim().lowercase()
+        val existing = repository.adminTeachers.value.find { it.email.trim().lowercase() == cleanEmail }
+        if (existing != null) {
+            return UnifiedLoginResult.Error("A faculty account with this email already exists. Please Sign In.")
+        }
+
         val user = repository.registerTeacher(name, email, department, pin)
+        appPreferences.saveSession(user)
         _isLoggedIn.value = true
         _showRoleSwitcher.value = false
 
@@ -552,6 +604,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (isValid) {
             repository.switchRole(role)
+            appPreferences.saveSession(repository.currentUser.value)
             _isLoggedIn.value = true
             _showRoleSwitcher.value = false
             return true
@@ -586,11 +639,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         repository.switchRole(role)
+        appPreferences.saveSession(repository.currentUser.value)
         _isLoggedIn.value = true
         _showRoleSwitcher.value = false
     }
 
     fun logout() {
+        appPreferences.clearSession()
         _isLoggedIn.value = false
         _showRoleSwitcher.value = false
         _activeGame.value = null
@@ -603,6 +658,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         repository.switchRole(role)
+        appPreferences.saveSession(repository.currentUser.value)
         _isLoggedIn.value = true
         _showRoleSwitcher.value = false
         _activeGame.value = null

@@ -1,29 +1,41 @@
 package com.example.data.repository
 
+import com.example.data.local.AppPreferences
 import com.example.data.model.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-class LinguaQuestRepository {
+class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) {
 
-    // Current logged-in user & role
+    // Current logged-in user & role (restores from local preferences if present)
     private val _currentUser = MutableStateFlow(
-        User(
+        appPreferences?.getSavedUser() ?: User(
             id = "std_001",
             name = "Alex Morgan",
             email = "alex.morgan@linguaquest.edu",
             role = Role.STUDENT,
             avatarEmoji = "🦉",
-            batch = "Batch Alpha"
+            batch = "Batch Alpha",
+            securityPin = "1234"
         )
     )
     val currentUser: StateFlow<User> = _currentUser.asStateFlow()
 
     // Student Profile
     private val _studentProfile = MutableStateFlow(
-        StudentProfile(
+        loadInitialProfile()
+    )
+    val studentProfile: StateFlow<StudentProfile> = _studentProfile.asStateFlow()
+
+    private fun loadInitialProfile(): StudentProfile {
+        val savedUser = appPreferences?.getSavedUser()
+        if (savedUser != null && savedUser.role == Role.STUDENT) {
+            val savedProfile = appPreferences.getStudentProfile(savedUser.id)
+            if (savedProfile != null) return savedProfile
+        }
+        return StudentProfile(
             userId = "std_001",
             currentLevel = LearningLevel.ELEMENTARY,
             streakDays = 7,
@@ -41,8 +53,7 @@ class LinguaQuestRepository {
             completedStagesCount = 14,
             speakingPracticeMinutes = 168
         )
-    )
-    val studentProfile: StateFlow<StudentProfile> = _studentProfile.asStateFlow()
+    }
 
     // Learning Worlds
     private val _worlds = MutableStateFlow(
@@ -367,27 +378,51 @@ class LinguaQuestRepository {
     )
     val badges: StateFlow<List<AchievementBadge>> = _badges.asStateFlow()
 
-    // Admin & Teacher Managed Students
-    private val _adminStudents = MutableStateFlow(
-        listOf(
-            StudentManagementInfo("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", "🦉", "Batch Alpha", LearningLevel.ELEMENTARY, true, 82, 85, 79, 88, 86, 90, 7, 1450, "Nov 2026", "Consistently practices speaking. Excellent rhythm and confidence."),
-            StudentManagementInfo("std_002", "Elena Rostova", "elena.r@linguaquest.edu", "🦄", "Batch Alpha", LearningLevel.INTERMEDIATE, true, 94, 96, 92, 90, 95, 96, 19, 2850, "Oct 2026", "Top cohort fluency. Demonstrates near-native sentence intonation."),
-            StudentManagementInfo("std_003", "David Chen", "david.c@linguaquest.edu", "🐯", "Batch Beta", LearningLevel.INTERMEDIATE, true, 88, 89, 85, 91, 87, 92, 14, 2420, "Oct 2026", "Strong analytical vocabulary. Recommended for advanced debate roleplays."),
-            StudentManagementInfo("std_004", "Amira Al-Mansoor", "amira.m@linguaquest.edu", "🦁", "Batch Alpha", LearningLevel.ELEMENTARY, true, 78, 80, 74, 82, 80, 85, 8, 1390, "Nov 2026", "Needs extra practice on past tense irregular verbs and voiced /th/ sounds."),
-            StudentManagementInfo("std_005", "Lucas Silva", "lucas.s@linguaquest.edu", "🐺", "Batch Beta", LearningLevel.BEGINNER, true, 71, 72, 68, 75, 74, 80, 5, 1210, "Nov 2026", "Improving quickly. Benefit from daily sentence builder and word match games."),
-            StudentManagementInfo("std_006", "Hana Tanaka", "hana.t@linguaquest.edu", "🌸", "Batch Gamma", LearningLevel.BEGINNER, false, 65, 68, 62, 70, 71, 76, 3, 980, "Nov 2026", "Temporarily paused. Needs supportive speaking drills on basic greetings.")
-        )
+    private val defaultStudents = listOf(
+        StudentManagementInfo("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", "🦉", "Batch Alpha", LearningLevel.ELEMENTARY, true, 82, 85, 79, 88, 86, 90, 7, 1450, "Nov 2026", "Consistently practices speaking. Excellent rhythm and confidence.", "1234"),
+        StudentManagementInfo("std_002", "Elena Rostova", "elena.r@linguaquest.edu", "🦄", "Batch Alpha", LearningLevel.INTERMEDIATE, true, 94, 96, 92, 90, 95, 96, 19, 2850, "Oct 2026", "Top cohort fluency. Demonstrates near-native sentence intonation.", "1234"),
+        StudentManagementInfo("std_003", "David Chen", "david.c@linguaquest.edu", "🐯", "Batch Beta", LearningLevel.INTERMEDIATE, true, 88, 89, 85, 91, 87, 92, 14, 2420, "Oct 2026", "Strong analytical vocabulary. Recommended for advanced debate roleplays.", "1234"),
+        StudentManagementInfo("std_004", "Amira Al-Mansoor", "amira.m@linguaquest.edu", "🦁", "Batch Alpha", LearningLevel.ELEMENTARY, true, 78, 80, 74, 82, 80, 85, 8, 1390, "Nov 2026", "Needs extra practice on past tense irregular verbs and voiced /th/ sounds.", "1234"),
+        StudentManagementInfo("std_005", "Lucas Silva", "lucas.s@linguaquest.edu", "🐺", "Batch Beta", LearningLevel.BEGINNER, true, 71, 72, 68, 75, 74, 80, 5, 1210, "Nov 2026", "Improving quickly. Benefit from daily sentence builder and word match games.", "1234"),
+        StudentManagementInfo("std_006", "Hana Tanaka", "hana.t@linguaquest.edu", "🌸", "Batch Gamma", LearningLevel.BEGINNER, false, 65, 68, 62, 70, 71, 76, 3, 980, "Nov 2026", "Temporarily paused. Needs supportive speaking drills on basic greetings.", "1234")
     )
+
+    private val defaultTeachers = listOf(
+        User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Batch Alpha & Beta", true, securityPin = "7321"),
+        User("tch_002", "Dr. Marcus Reed", "m.reed@linguaquest.edu", Role.TEACHER, "👨‍🏫", "Batch Beta & Gamma", true, securityPin = "7321"),
+        User("tch_003", "Prof. Chloe Bennett", "c.bennett@linguaquest.edu", Role.TEACHER, "👩‍💼", "Advanced Fluency", true, securityPin = "7321")
+    )
+
+    private fun loadInitialStudents(): List<StudentManagementInfo> {
+        val saved = appPreferences?.getStudents()
+        if (!saved.isNullOrEmpty()) {
+            val existingIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultStudents.filter { it.id !in existingIds }
+            val merged = saved + missingDefaults
+            return merged
+        }
+        appPreferences?.saveStudents(defaultStudents)
+        return defaultStudents
+    }
+
+    private fun loadInitialTeachers(): List<User> {
+        val saved = appPreferences?.getTeachers()
+        if (!saved.isNullOrEmpty()) {
+            val existingIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultTeachers.filter { it.id !in existingIds }
+            val merged = saved + missingDefaults
+            return merged
+        }
+        appPreferences?.saveTeachers(defaultTeachers)
+        return defaultTeachers
+    }
+
+    // Admin & Teacher Managed Students
+    private val _adminStudents = MutableStateFlow(loadInitialStudents())
     val adminStudents: StateFlow<List<StudentManagementInfo>> = _adminStudents.asStateFlow()
 
     // Admin Managed Teachers
-    private val _adminTeachers = MutableStateFlow(
-        listOf(
-            User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Batch Alpha & Beta", true, securityPin = "7321"),
-            User("tch_002", "Dr. Marcus Reed", "m.reed@linguaquest.edu", Role.TEACHER, "👨‍🏫", "Batch Beta & Gamma", true, securityPin = "7321"),
-            User("tch_003", "Prof. Chloe Bennett", "c.bennett@linguaquest.edu", Role.TEACHER, "👩‍💼", "Advanced Fluency", true, securityPin = "7321")
-        )
-    )
+    private val _adminTeachers = MutableStateFlow(loadInitialTeachers())
     val adminTeachers: StateFlow<List<User>> = _adminTeachers.asStateFlow()
 
     // Self-registration permissions (Admin controllable)
@@ -558,9 +593,41 @@ class LinguaQuestRepository {
         _currentUser.value = user
     }
 
+    fun setStudentProfile(profile: StudentProfile) {
+        _studentProfile.value = profile
+        appPreferences?.saveStudentProfile(profile)
+    }
+
     fun setStudentProfileUserId(studentId: String, studentName: String) {
-        _studentProfile.update {
-            it.copy(userId = studentId)
+        val saved = appPreferences?.getStudentProfile(studentId)
+        if (saved != null) {
+            _studentProfile.value = saved
+        } else {
+            val info = _adminStudents.value.find { it.id == studentId }
+            if (info != null) {
+                val prof = StudentProfile(
+                    userId = studentId,
+                    currentLevel = info.level,
+                    streakDays = info.streakDays,
+                    xpPoints = info.xpPoints,
+                    coins = 100,
+                    league = "Bronze League",
+                    overallScore = (info.speakingScore + info.pronunciationScore + info.fluencyScore) / 3,
+                    speakingScore = info.speakingScore,
+                    pronunciationScore = info.pronunciationScore,
+                    fluencyScore = info.fluencyScore,
+                    grammarScore = info.grammarScore,
+                    vocabularyScore = info.vocabularyScore,
+                    listeningScore = info.listeningScore,
+                    readingScore = 80,
+                    completedStagesCount = 0,
+                    speakingPracticeMinutes = 0
+                )
+                _studentProfile.value = prof
+                appPreferences?.saveStudentProfile(prof)
+            } else {
+                _studentProfile.update { it.copy(userId = studentId) }
+            }
         }
     }
 
@@ -572,6 +639,12 @@ class LinguaQuestRepository {
                 coins = it.coins + coins
             )
         }
+        appPreferences?.saveStudentProfile(_studentProfile.value)
+        val curId = _currentUser.value.id
+        _adminStudents.update { list ->
+            list.map { if (it.id == curId) it.copy(xpPoints = _studentProfile.value.xpPoints) else it }
+        }
+        appPreferences?.saveStudents(_adminStudents.value)
     }
 
     // Complete a stage
@@ -590,6 +663,7 @@ class LinguaQuestRepository {
         _studentProfile.update {
             it.copy(completedStagesCount = it.completedStagesCount + 1)
         }
+        appPreferences?.saveStudentProfile(_studentProfile.value)
     }
 
     // Toggle Vocabulary Favorite
@@ -676,18 +750,21 @@ class LinguaQuestRepository {
             teacherNotes = notes.ifBlank { "Newly enrolled student. Initial speaking diagnostic scheduled." }
         )
         _adminStudents.update { it + newStudent }
+        appPreferences?.saveStudents(_adminStudents.value)
     }
 
     fun updateStudent(updated: StudentManagementInfo) {
         _adminStudents.update { list ->
             list.map { if (it.id == updated.id) updated else it }
         }
+        appPreferences?.saveStudents(_adminStudents.value)
     }
 
     fun deleteStudent(studentId: String) {
         _adminStudents.update { list ->
             list.filterNot { it.id == studentId }
         }
+        appPreferences?.saveStudents(_adminStudents.value)
     }
 
     fun toggleStudentActive(studentId: String) {
@@ -696,6 +773,7 @@ class LinguaQuestRepository {
                 if (it.id == studentId) it.copy(isActive = !it.isActive) else it
             }
         }
+        appPreferences?.saveStudents(_adminStudents.value)
     }
 
     fun bulkImportStudents(count: Int) {
@@ -725,6 +803,7 @@ class LinguaQuestRepository {
             )
         }
         _adminStudents.update { it + newStudents }
+        appPreferences?.saveStudents(_adminStudents.value)
     }
 
     // --- GAME ADDITION & MANAGEMENT METHODS ---
@@ -864,6 +943,7 @@ class LinguaQuestRepository {
             securityPin = pin
         )
         _adminTeachers.update { it + newTeacher }
+        appPreferences?.saveTeachers(_adminTeachers.value)
         return newTeacher
     }
 
@@ -875,6 +955,7 @@ class LinguaQuestRepository {
         if (_currentUser.value.id == updated.id) {
             _currentUser.value = updated
         }
+        appPreferences?.saveTeachers(_adminTeachers.value)
     }
 
     // Admin: Delete Teacher
@@ -886,6 +967,7 @@ class LinguaQuestRepository {
             _currentUser.value = _adminTeachers.value.firstOrNull { it.isActive }
                 ?: User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Batch Alpha & Beta", true, securityPin = "7321")
         }
+        appPreferences?.saveTeachers(_adminTeachers.value)
     }
 
     // Admin: Toggle Teacher Active Status
@@ -896,6 +978,7 @@ class LinguaQuestRepository {
         if (_currentUser.value.id == teacherId) {
             _currentUser.value = _currentUser.value.copy(isActive = !_currentUser.value.isActive)
         }
+        appPreferences?.saveTeachers(_adminTeachers.value)
     }
 
     // Self-registration for Teacher
@@ -914,6 +997,7 @@ class LinguaQuestRepository {
         )
         _adminTeachers.update { it + newTeacher }
         _currentUser.value = newTeacher
+        appPreferences?.saveTeachers(_adminTeachers.value)
         return newTeacher
     }
 
@@ -943,6 +1027,7 @@ class LinguaQuestRepository {
             securityPin = pin
         )
         _adminStudents.update { it + newStudent }
+        appPreferences?.saveStudents(_adminStudents.value)
 
         val studentUser = User(
             id = newId,
@@ -956,7 +1041,7 @@ class LinguaQuestRepository {
         )
         _currentUser.value = studentUser
 
-        _studentProfile.value = StudentProfile(
+        val newProfile = StudentProfile(
             userId = newId,
             currentLevel = LearningLevel.BEGINNER,
             streakDays = 1,
@@ -974,6 +1059,9 @@ class LinguaQuestRepository {
             completedStagesCount = 0,
             speakingPracticeMinutes = 0
         )
+        _studentProfile.value = newProfile
+        appPreferences?.saveStudentProfile(newProfile)
+
         return studentUser
     }
 
