@@ -15,9 +15,7 @@
 .cxx
 local.properties
 .env
-.env.*
-!.env.example
 debug.keystore
-debug.keystore*
-.build-outputs
-.aistudio
+debug.keystore.base64
+.build-outputs/
+public/assets/aistudio/Screenshot*

@@ -133,61 +133,28 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                                 color = Color.White.copy(alpha = 0.82f)
                             )
                             Spacer(Modifier.height(6.dp))
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF070B24).copy(alpha = 0.65f),
+                                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.45f))
                                 ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = Color(0xFF070B24).copy(alpha = 0.65f),
-                                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.45f))
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(7.dp)
-                                                    .clip(CircleShape)
-                                                    .background(Color(0xFF10B981))
-                                            )
-                                            Text(
-                                                text = "Institution Online",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF86EFAC)
-                                            )
-                                        }
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = Color(0xFF1E293B).copy(alpha = 0.9f),
-                                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
-                                        modifier = Modifier
-                                            .clickable { viewModel.toggleAdminCredentialsModal(true) }
-                                            .testTag("admin_manage_credentials_header_btn")
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Filled.Key,
-                                                contentDescription = null,
-                                                tint = Color(0xFF38BDF8),
-                                                modifier = Modifier.size(11.dp)
-                                            )
-                                            Text(
-                                                text = "Admin Credentials",
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF38BDF8)
-                                            )
-                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF10B981))
+                                        )
+                                        Text(
+                                            text = "Institution Online",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF86EFAC)
+                                        )
                                     }
                                 }
                         }
@@ -1811,7 +1778,9 @@ fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                                 sec.title,
                                 fontSize = 11.sp,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface
+                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }

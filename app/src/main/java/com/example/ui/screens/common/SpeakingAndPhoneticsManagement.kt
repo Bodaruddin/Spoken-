@@ -4,10 +4,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -22,6 +24,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.DialogueTurn
@@ -95,37 +98,44 @@ fun SpeakingAndPhoneticsManagement(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
+                        modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(42.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
                                     Brush.linearGradient(listOf(RoyalBlue, PurpleAccent))
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("🎙️", fontSize = 22.sp)
+                            Text("🎙️", fontSize = 20.sp)
                         }
-                        Column {
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
                             Text(
                                 "AI Speaking & Phonetics Hub",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                if (userRole == Role.ADMIN) "Global Curriculum & Speech Engine Admin"
+                                if (userRole == Role.ADMIN) "Global Curriculum & Speech Admin"
                                 else "Teacher Speech Course Management",
                                 fontSize = 11.sp,
-                                color = MutedGray
+                                color = MutedGray,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
-                    // Contextual New Button
+                    Spacer(Modifier.width(8.dp))
+
+                    // Contextual New Button (Single line, fully visible)
                     Button(
                         onClick = {
                             when (currentTab) {
@@ -137,31 +147,40 @@ fun SpeakingAndPhoneticsManagement(
                         },
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
                         modifier = Modifier.testTag("create_item_button")
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            when (currentTab) {
-                                SpeakingManageTab.SPEAKING_PROMPTS -> "New Prompt"
-                                SpeakingManageTab.PHONETICS_DRILLS -> "New Drill"
-                                SpeakingManageTab.VOCAB_ASSAMESE -> "Add Word"
-                                SpeakingManageTab.ROLEPLAY_SCENARIOS -> "New Roleplay"
-                            },
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Text(
+                                text = when (currentTab) {
+                                    SpeakingManageTab.SPEAKING_PROMPTS -> "New Prompt"
+                                    SpeakingManageTab.PHONETICS_DRILLS -> "New Drill"
+                                    SpeakingManageTab.VOCAB_ASSAMESE -> "Add Word"
+                                    SpeakingManageTab.ROLEPLAY_SCENARIOS -> "New Roleplay"
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
 
-                // Segmented Tab Selector
+                // Segmented Tab Selector (Single line, horizontally scrollable, no text wrapping)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .horizontalScroll(rememberScrollState())
                         .padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     SpeakingManageTab.values().forEach { tab ->
                         val isSelected = currentTab == tab
@@ -175,35 +194,41 @@ fun SpeakingAndPhoneticsManagement(
                             shape = RoundedCornerShape(10.dp),
                             color = if (isSelected) RoyalBlue else Color.Transparent,
                             modifier = Modifier
-                                .weight(1f)
                                 .clickable { currentTab = tab }
                                 .testTag("manage_tab_${tab.name.lowercase()}")
                         ) {
                             Row(
-                                modifier = Modifier.padding(vertical = 8.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(tab.emoji, fontSize = 13.sp)
-                                Spacer(Modifier.width(4.dp))
+                                Spacer(Modifier.width(5.dp))
                                 Text(
-                                    tab.title,
-                                    fontSize = 11.sp,
+                                    text = tab.title,
+                                    fontSize = 12.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
-                                Spacer(Modifier.width(4.dp))
+                                Spacer(Modifier.width(6.dp))
                                 Box(
                                     modifier = Modifier
                                         .clip(CircleShape)
-                                        .background(if (isSelected) Color.White.copy(alpha = 0.25f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                        .background(
+                                            if (isSelected) Color.White.copy(alpha = 0.25f)
+                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                        )
+                                        .padding(horizontal = 6.dp, vertical = 1.dp)
                                 ) {
                                     Text(
-                                        "$count",
+                                        text = "$count",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }

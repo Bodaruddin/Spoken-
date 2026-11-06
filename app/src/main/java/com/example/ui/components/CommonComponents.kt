@@ -152,61 +152,43 @@ fun AppTopBar(
                     )
                 }
 
-                // Supabase Cloud DB Sync Pill (Matching Screenshot: green pill with cloud)
+                // Supabase Cloud DB Sync Icon Button (Icon only - tap to manage database)
                 if (role == Role.ADMIN) {
                     Surface(
-                        shape = RoundedCornerShape(20.dp),
+                        shape = CircleShape,
                         color = if (isCloudConnected) Color(0xFF062A1F) else Color(0xFF131A38),
                         border = BorderStroke(1.dp, if (isCloudConnected) Color(0xFF10B981) else Color(0xFF2A3660)),
                         modifier = Modifier
+                            .size(34.dp)
                             .testTag("cloud_connect_button")
                             .clickable { onCloudClick() }
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
-                        ) {
+                        Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = if (isCloudConnected) Icons.Filled.CloudDone else Icons.Rounded.CloudQueue,
-                                contentDescription = "Cloud Database",
-                                modifier = Modifier.size(15.dp),
+                                contentDescription = "Cloud Database Sync",
+                                modifier = Modifier.size(17.dp),
                                 tint = if (isCloudConnected) Color(0xFF10B981) else Color(0xFF94A3B8)
-                            )
-                            Text(
-                                text = if (isCloudConnected) "Sync" else "DB",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isCloudConnected) Color(0xFF10B981) else Color(0xFF94A3B8)
                             )
                         }
                     }
 
-                    // Admin Credentials Manage Option in Header Section
+                    // Admin Credentials Icon Button (Icon only - tap to manage credentials)
                     Surface(
-                        shape = RoundedCornerShape(20.dp),
+                        shape = CircleShape,
                         color = Color(0xFF1E293B),
                         border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
                         modifier = Modifier
+                            .size(34.dp)
                             .testTag("admin_credentials_header_btn")
                             .clickable { onAdminCredentialsClick() }
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
+                        Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Filled.Key,
                                 contentDescription = "Manage Admin Credentials",
-                                modifier = Modifier.size(13.dp),
+                                modifier = Modifier.size(16.dp),
                                 tint = Color(0xFF38BDF8)
-                            )
-                            Text(
-                                text = "Credentials",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF38BDF8)
                             )
                         }
                     }
@@ -241,16 +223,18 @@ fun AppTopBar(
                         .clickable { onRoleClick() }
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(roleEmoji, fontSize = 12.sp)
                         Text(
                             text = role.name,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Black,
-                            color = Color.White
+                            color = Color.White,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
