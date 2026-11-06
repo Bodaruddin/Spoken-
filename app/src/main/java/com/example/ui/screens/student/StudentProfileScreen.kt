@@ -494,8 +494,8 @@ fun StudentProfileScreen(
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-                border = BorderStroke(1.2.dp, Color(0xFFBBF7D0)),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
+                border = BorderStroke(1.2.dp, EmeraldSuccess.copy(alpha = 0.5f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { showVocabNotebook = !showVocabNotebook }
@@ -519,7 +519,7 @@ fun StudentProfileScreen(
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFDCFCE7)),
+                                .background(Color(0xFF0F382B)),
                             contentAlignment = Alignment.Center
                         ) {
                             Text("📚", fontSize = 24.sp)
@@ -531,21 +531,21 @@ fun StudentProfileScreen(
                                 fontSize = 15.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                color = DeepNavy
+                                color = Color.White
                             )
                             Text(
                                 text = "${vocabulary.size} words saved • Audio flashcards & Assamese",
                                 fontSize = 11.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                color = MutedGray
+                                color = Color(0xFFCBD5E1)
                             )
                         }
                     }
                     Icon(
                         if (showVocabNotebook) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                         contentDescription = "Expand Vocabulary",
-                        tint = DeepNavy
+                        tint = Color(0xFF60A5FA)
                     )
                 }
             }
@@ -557,8 +557,8 @@ fun StudentProfileScreen(
                     vocabulary.forEach { word ->
                         Card(
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFF263366)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
@@ -573,7 +573,7 @@ fun StudentProfileScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(word.word, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = DeepNavy)
+                                        Text(word.word, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color.White)
                                         Text(word.phonetic, fontSize = 12.sp, color = RoyalBlue, fontWeight = FontWeight.Medium)
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
@@ -754,8 +754,8 @@ fun PremiumStatCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(title, fontSize = 10.sp, color = MutedGray, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
-            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = DeepNavy, maxLines = 1, softWrap = false)
+            Text(title, fontSize = 10.sp, color = Color(0xFFCBD5E1), fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
+            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = Color.White, maxLines = 1, softWrap = false)
             Text(sub, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1, softWrap = false)
         }
     }

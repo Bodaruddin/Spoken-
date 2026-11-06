@@ -114,7 +114,7 @@ fun LoginScreen(
                     text = "Speakly",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = DeepNavy,
+                    color = Color.White,
                     letterSpacing = (-0.5).sp
                 )
 
@@ -122,7 +122,7 @@ fun LoginScreen(
                     text = "Spoken English Learning & Academic Portal",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = MutedGray,
+                    color = Color(0xFFCBD5E1),
                     textAlign = TextAlign.Center
                 )
             }
@@ -398,7 +398,7 @@ fun LoginScreen(
                         if (!allowStudentReg) {
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFFFEF2F2),
+                                color = Color(0xFF2E1318),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, CoralAccent),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -415,7 +415,7 @@ fun LoginScreen(
                                     Text(
                                         text = "Self-registration for students is currently closed by the Institution Administrator. Please contact academic staff to be enrolled.",
                                         fontSize = 12.sp,
-                                        color = DeepNavy
+                                        color = Color(0xFFFCA5A5)
                                     )
                                 }
                             }

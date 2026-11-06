@@ -1258,8 +1258,8 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
-                border = BorderStroke(1.5.dp, Color(0xFFBFDBFE)),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
+                border = BorderStroke(1.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { showCreateDialog = true }
@@ -1292,13 +1292,13 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                                 "+ Add New ${selectedCategory.title} Question",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
-                                color = DeepNavy,
+                                color = Color.White,
                                 maxLines = 1
                             )
                             Text(
                                 "Create a question or drill to publish directly to students",
                                 fontSize = 11.sp,
-                                color = MutedGray,
+                                color = Color(0xFFCBD5E1),
                                 maxLines = 1
                             )
                         }
@@ -1918,32 +1918,34 @@ fun TeacherSubmissionsGradingView(viewModel: MainViewModel, modifier: Modifier =
                         // Speech Transcript
                         Surface(
                             shape = RoundedCornerShape(14.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            color = Color(0xFF0F1E42),
+                            border = BorderStroke(1.dp, Color(0xFF283B70)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Student Audio Transcript:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
-                                Text("\"${sub.studentTranscript}\"", fontSize = 13.sp)
+                                Text("Student Audio Transcript:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
+                                Text("\"${sub.studentTranscript}\"", fontSize = 13.sp, color = Color.White)
                             }
                         }
 
                         // Grading Sliders
-                        Text("Teacher Evaluation Criteria:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Teacher Evaluation Criteria:", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
 
                         GradingSlider("Fluency & Conversational Flow", fluencyScore) { fluencyScore = it }
                         GradingSlider("Pronunciation Accuracy & Accent", pronunciationScore) { pronunciationScore = it }
                         GradingSlider("Grammar & Lexical Resource", grammarScore) { grammarScore = it }
 
                         // Quick Feedback Chips
-                        Text("Suggested Feedback Templates:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MutedGray)
+                        Text("Suggested Feedback Templates:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFCBD5E1))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOf("Terrific rhythm!", "Work on voiced TH", "Natural intonation").forEach { chip ->
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFFEFF6FF),
+                                    color = Color(0xFF131F46),
+                                    border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
                                     modifier = Modifier.clickable { teacherFeedbackInput = "$teacherFeedbackInput $chip" }
                                 ) {
-                                    Text(chip, fontSize = 10.sp, color = RoyalBlue, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                    Text(chip, fontSize = 10.sp, color = Color(0xFF93C5FD), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
                                 }
                             }
                         }
@@ -2007,14 +2009,20 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Course Speaking Assignments", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(
+                    text = "Course Speaking Assignments",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color.White
+                )
                 Button(
                     onClick = { showCreateDialog = true },
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
                 ) {
-                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
                     Spacer(Modifier.width(4.dp))
-                    Text("New")
+                    Text("New", fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
@@ -2023,7 +2031,8 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
             item {
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFDCFCE7),
+                    color = Color(0xFF0F2E22),
+                    border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.5f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(msg, color = EmeraldSuccess, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(10.dp))
@@ -2043,7 +2052,26 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
                     FilterChip(
                         selected = isSel,
                         onClick = { selectedClassFilter = cls },
-                        label = { Text(cls, fontSize = 12.sp) }
+                        label = {
+                            Text(
+                                text = cls,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSel) Color.White else Color(0xFFCBD5E1)
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = Color(0xFF0D173C),
+                            labelColor = Color(0xFFCBD5E1),
+                            selectedContainerColor = RoyalBlue,
+                            selectedLabelColor = Color.White
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSel,
+                            borderColor = Color(0xFF263366),
+                            selectedBorderColor = RoyalBlue
+                        )
                     )
                 }
             }
@@ -2053,11 +2081,12 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
             item {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    color = Color(0xFF0D173C),
+                    border = BorderStroke(1.dp, Color(0xFF1E2B52)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Box(modifier = Modifier.padding(20.dp), contentAlignment = Alignment.Center) {
-                        Text("No assignments published for $selectedClassFilter yet.", fontSize = 13.sp, color = MutedGray)
+                        Text("No assignments published for $selectedClassFilter yet.", fontSize = 13.sp, color = Color(0xFF94A3B8))
                     }
                 }
             }
@@ -2066,8 +2095,8 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
         items(filteredAssignments) { asg ->
             Card(
                 shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
-                border = BorderStroke(1.2.dp, Color(0xFF818CF8).copy(alpha = 0.35f)),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
+                border = BorderStroke(1.2.dp, Color(0xFF818CF8).copy(alpha = 0.45f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -2082,41 +2111,47 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
                     ) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFEFF6FF),
-                            border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.4f))
+                            color = Color(0xFF131F46),
+                            border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(12.dp))
+                                Icon(Icons.Rounded.School, contentDescription = null, tint = Color(0xFF60A5FA), modifier = Modifier.size(12.dp))
                                 Text(
                                     "Target: ${asg.batch}",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = RoyalBlue
+                                    color = Color(0xFF60A5FA)
                                 )
                             }
                         }
                         Text("Due: ${asg.dueDate}", fontSize = 11.sp, color = OrangeVibrant, fontWeight = FontWeight.SemiBold)
                     }
-                    Text(asg.title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text(asg.instructions, fontSize = 12.sp, color = MutedGray)
+                    Text(asg.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                    Text(asg.instructions, fontSize = 12.sp, color = Color(0xFFCBD5E1))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Submissions: ${asg.submissionsCount} / ${asg.totalAssigned}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Submissions: ${asg.submissionsCount} / ${asg.totalAssigned}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF93C5FD)
+                        )
                         LinearProgressIndicator(
                             progress = { asg.submissionsCount.toFloat() / asg.totalAssigned },
                             modifier = Modifier
                                 .width(120.dp)
                                 .height(6.dp)
                                 .clip(RoundedCornerShape(3.dp)),
-                            color = RoyalBlue
+                            color = RoyalBlue,
+                            trackColor = Color(0xFF0F1E42)
                         )
                     }
                 }
@@ -2126,13 +2161,18 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
         // Live Virtual Classes Section
         item {
             Spacer(Modifier.height(8.dp))
-            Text("Live Classroom Sessions", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text(
+                "Live Classroom Sessions",
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = Color.White
+            )
         }
 
         items(liveClasses) { cls ->
             Card(
                 shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
                 border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.35f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -2147,22 +2187,23 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
                     ) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (cls.status == "LIVE") Color(0xFFFEE2E2) else Color(0xFFEFF6FF)
+                            color = if (cls.status == "LIVE") Color(0xFF3B1219) else Color(0xFF131F46),
+                            border = BorderStroke(1.dp, if (cls.status == "LIVE") CoralAccent.copy(alpha = 0.6f) else RoyalBlue.copy(alpha = 0.5f))
                         ) {
                             Text(
                                 cls.status,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (cls.status == "LIVE") CoralAccent else RoyalBlue,
+                                color = if (cls.status == "LIVE") CoralAccent else Color(0xFF60A5FA),
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
-                        Text("${cls.durationMin} mins • ${cls.participantsCount} enrolled", fontSize = 11.sp, color = MutedGray)
+                        Text("${cls.durationMin} mins • ${cls.participantsCount} enrolled", fontSize = 11.sp, color = Color(0xFF94A3B8))
                     }
 
-                    Text(cls.title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text(cls.topicDescription, fontSize = 12.sp, color = MutedGray)
-                    Text("Time: ${cls.scheduledTime}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = DeepNavy)
+                    Text(cls.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                    Text(cls.topicDescription, fontSize = 12.sp, color = Color(0xFFCBD5E1))
+                    Text("Time: ${cls.scheduledTime}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF38BDF8))
 
                     Button(
                         onClick = {
@@ -2170,9 +2211,10 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
                             toastMsg = "Live classroom launched for ${cls.title}!"
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
                     ) {
-                        Text("Host Session Now 🎥")
+                        Text("Host Session Now 🎥", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -2805,7 +2847,7 @@ fun WeakAreaRow(area: String, count: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(area, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+        Text(area, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White, modifier = Modifier.weight(1f))
         Text(count, fontSize = 11.sp, color = CoralAccent, fontWeight = FontWeight.Bold)
     }
 }
@@ -2816,7 +2858,7 @@ fun GradingSlider(label: String, value: Float, onValueChange: (Float) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(label, fontSize = 12.sp)
+            Text(label, fontSize = 12.sp, color = Color.White)
             Text("${value.toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
         }
         Slider(

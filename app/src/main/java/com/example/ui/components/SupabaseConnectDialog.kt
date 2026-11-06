@@ -103,7 +103,7 @@ fun SupabaseConnectDialog(
                                 Text(
                                     text = "Only Administrators can configure credentials and connect the database. Student accounts have read-only status access.",
                                     fontSize = 11.sp,
-                                    color = DeepNavy
+                                    color = Color(0xFFCBD5E1)
                                 )
                             }
                         }
@@ -135,11 +135,20 @@ fun SupabaseConnectDialog(
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = when (supabaseStatus) {
-                        is SupabaseConnectionState.Connected -> Color(0xFFDCFCE7)
-                        is SupabaseConnectionState.Connecting -> Color(0xFFFEF3C7)
-                        is SupabaseConnectionState.Error -> Color(0xFFFEE2E2)
-                        else -> MaterialTheme.colorScheme.surfaceVariant
+                        is SupabaseConnectionState.Connected -> Color(0xFF0F382B)
+                        is SupabaseConnectionState.Connecting -> Color(0xFF38260D)
+                        is SupabaseConnectionState.Error -> Color(0xFF3B1218)
+                        else -> Color(0xFF0F1E42)
                     },
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        when (supabaseStatus) {
+                            is SupabaseConnectionState.Connected -> EmeraldSuccess
+                            is SupabaseConnectionState.Connecting -> AmberGold
+                            is SupabaseConnectionState.Error -> CoralAccent
+                            else -> RoyalBlue.copy(alpha = 0.5f)
+                        }
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -169,7 +178,12 @@ fun SupabaseConnectDialog(
                             },
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = DeepNavy
+                            color = when (supabaseStatus) {
+                                is SupabaseConnectionState.Connected -> Color(0xFF86EFAC)
+                                is SupabaseConnectionState.Connecting -> Color(0xFFFDE68A)
+                                is SupabaseConnectionState.Error -> Color(0xFFFCA5A5)
+                                else -> Color.White
+                            }
                         )
                     }
                 }

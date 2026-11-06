@@ -236,7 +236,7 @@ fun StudentHomeScreen(
                             "Tasks from Teachers",
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = Color.White
                         )
                     }
                     Surface(
@@ -248,7 +248,7 @@ fun StudentHomeScreen(
                             text = "Assigned to $studentClass",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = RoyalBlue,
+                            color = Color(0xFF60A5FA),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
@@ -257,7 +257,8 @@ fun StudentHomeScreen(
                 if (classTasks.isEmpty()) {
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        color = Color(0xFF0D173C),
+                        border = BorderStroke(1.dp, Color(0xFF1E2B52)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -267,8 +268,8 @@ fun StudentHomeScreen(
                         ) {
                             Text("🎉", fontSize = 24.sp)
                             Column {
-                                Text("No pending tasks for $studentClass", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                Text("You are all caught up with your classroom speaking assignments!", fontSize = 11.sp, color = MutedGray)
+                                Text("No pending tasks for $studentClass", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
+                                Text("You are all caught up with your classroom speaking assignments!", fontSize = 11.sp, color = Color(0xFFCBD5E1))
                             }
                         }
                     }
@@ -277,7 +278,7 @@ fun StudentHomeScreen(
                         classTasks.forEach { task ->
                             Card(
                                 shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                                colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
                                 border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.35f)),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                 modifier = Modifier.fillMaxWidth()
@@ -321,7 +322,7 @@ fun StudentHomeScreen(
                                     Text(
                                         text = task.instructions,
                                         fontSize = 12.sp,
-                                        color = MutedGray,
+                                        color = Color(0xFFCBD5E1),
                                         maxLines = 2
                                     )
 
@@ -333,7 +334,7 @@ fun StudentHomeScreen(
                                         Text(
                                             "Assigned by ${task.teacherName}",
                                             fontSize = 11.sp,
-                                            color = DeepNavy,
+                                            color = Color(0xFF93C5FD),
                                             fontWeight = FontWeight.Medium
                                         )
 

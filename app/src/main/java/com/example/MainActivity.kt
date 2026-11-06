@@ -83,6 +83,7 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                 .fillMaxSize()
                 .premiumAppBackground(),
             containerColor = Color.Transparent,
+            contentColor = Color.White,
             topBar = {
                 if (currentUser.role != Role.STUDENT) {
                     AppTopBar(

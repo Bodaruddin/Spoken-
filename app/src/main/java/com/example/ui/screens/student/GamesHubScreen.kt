@@ -486,17 +486,18 @@ fun SentenceBuilderGame(viewModel: MainViewModel) {
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Assemble the sentence in correct syntax:", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text("Challenge ${challengeIndex + 1}/${challenges.size}", fontSize = 11.sp, color = RoyalBlue, fontWeight = FontWeight.Bold)
+                Text("Assemble the sentence in correct syntax:", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                Text("Challenge ${challengeIndex + 1}/${challenges.size}", fontSize = 11.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
             }
 
             // Clue Hint
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = Color(0xFFEFF6FF),
+                color = Color(0xFF0F1E42),
+                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.45f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("💡 Hint: ${current.hint}", fontSize = 12.sp, color = DeepNavy, modifier = Modifier.padding(10.dp))
+                Text("💡 Hint: ${current.hint}", fontSize = 12.sp, color = Color(0xFF93C5FD), modifier = Modifier.padding(10.dp))
             }
 
             // Assembled sentence tray (fixed height expansion issue)
@@ -614,7 +615,7 @@ fun SentenceBuilderGame(viewModel: MainViewModel) {
                         remainingWords.forEach { w ->
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFFEFF6FF),
+                                color = Color(0xFF0F1E42),
                                 border = BorderStroke(1.2.dp, RoyalBlue),
                                 modifier = Modifier.clickable {
                                     selectedWords = selectedWords + w
@@ -624,7 +625,7 @@ fun SentenceBuilderGame(viewModel: MainViewModel) {
                             ) {
                                 Text(
                                     text = w,
-                                    color = DeepNavy,
+                                    color = Color.White,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
                                     maxLines = 1,
@@ -680,8 +681,8 @@ fun SentenceBuilderGame(viewModel: MainViewModel) {
 
                 Card(
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-                    border = BorderStroke(1.5.dp, Color(0xFF86EFAC)),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0C241E), contentColor = Color.White),
+                    border = BorderStroke(1.5.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -703,7 +704,7 @@ fun SentenceBuilderGame(viewModel: MainViewModel) {
                                         "অসমীয়া অনুবাদ (Assamese Meaning)",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
-                                        color = Color(0xFF166534)
+                                        color = Color(0xFF86EFAC)
                                     )
                                     Text("Correct Syntax Translation", fontSize = 10.sp, color = EmeraldSuccess)
                                 }
@@ -726,7 +727,7 @@ fun SentenceBuilderGame(viewModel: MainViewModel) {
                             text = translation.assameseText,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = DeepNavy,
+                            color = Color.White,
                             lineHeight = 26.sp
                         )
 
@@ -736,18 +737,18 @@ fun SentenceBuilderGame(viewModel: MainViewModel) {
                                 text = "🗣️ ${translation.transliteration}",
                                 fontSize = 12.sp,
                                 fontStyle = FontStyle.Italic,
-                                color = Color(0xFF15803D)
+                                color = Color(0xFF4ADE80)
                             )
                         }
 
                         // Bilingual word-by-word bridge
                         if (translation.wordBreakdown.isNotEmpty()) {
-                            HorizontalDivider(color = Color(0xFFDCFCE7), thickness = 1.dp)
+                            HorizontalDivider(color = Color(0xFF1E3A2F), thickness = 1.dp)
                             Text(
                                 "শব্দার্থ (Word Meanings):",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MutedGray
+                                color = Color(0xFFCBD5E1)
                             )
                             FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -757,14 +758,14 @@ fun SentenceBuilderGame(viewModel: MainViewModel) {
                                 translation.wordBreakdown.forEach { (en, asWord) ->
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = Color.White,
-                                        border = BorderStroke(0.8.dp, Color(0xFFBBF7D0))
+                                        color = Color(0xFF0B1B38),
+                                        border = BorderStroke(0.8.dp, Color(0xFF38BDF8).copy(alpha = 0.4f))
                                     ) {
                                         Text(
                                             text = "$en: $asWord",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Medium,
-                                            color = DeepNavy,
+                                            color = Color(0xFF93C5FD),
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                         )
                                     }
@@ -904,14 +905,15 @@ fun PronunciationBattleGame(viewModel: MainViewModel) {
 
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = Color(0xFFEFF6FF),
+                color = Color(0xFF0F1E42),
+                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     "\"${current.challengeSentence}\"",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = DeepNavy,
+                    color = Color.White,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(16.dp)
                 )
@@ -984,13 +986,14 @@ fun FastVocabularyGame(viewModel: MainViewModel) {
 
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = Color(0xFFEFF6FF),
+                color = Color(0xFF0F1E42),
+                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Target Word:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
-                    Text(current.word, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = DeepNavy)
-                    Text(current.prompt, fontSize = 13.sp, color = MutedGray)
+                    Text("Target Word:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
+                    Text(current.word, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    Text(current.prompt, fontSize = 13.sp, color = Color(0xFFCBD5E1))
                 }
             }
 
@@ -1001,10 +1004,18 @@ fun FastVocabularyGame(viewModel: MainViewModel) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = when {
-                        isSel && isCorrect -> Color(0xFFDCFCE7)
-                        isSel && !isCorrect -> Color(0xFFFEE2E2)
-                        else -> MaterialTheme.colorScheme.surfaceVariant
+                        isSel && isCorrect -> Color(0xFF0F382B)
+                        isSel && !isCorrect -> Color(0xFF3B1218)
+                        else -> Color(0xFF131D45)
                     },
+                    border = BorderStroke(
+                        1.dp,
+                        when {
+                            isSel && isCorrect -> EmeraldSuccess
+                            isSel && !isCorrect -> CoralAccent
+                            else -> Color(0xFF263366)
+                        }
+                    ),
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
@@ -1018,7 +1029,17 @@ fun FastVocabularyGame(viewModel: MainViewModel) {
                             }
                         }
                 ) {
-                    Text(opt, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, modifier = Modifier.padding(14.dp))
+                    Text(
+                        opt,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp,
+                        color = when {
+                            isSel && isCorrect -> Color(0xFF86EFAC)
+                            isSel && !isCorrect -> Color(0xFFFCA5A5)
+                            else -> Color.White
+                        },
+                        modifier = Modifier.padding(14.dp)
+                    )
                 }
             }
 

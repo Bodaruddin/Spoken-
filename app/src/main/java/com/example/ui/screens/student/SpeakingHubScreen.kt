@@ -233,14 +233,15 @@ fun AiPartnerSection(
 
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFFEFF6FF),
+                    color = Color(0xFF0F1E42),
+                    border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = "\"$aiQuestion\"",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
-                        color = DeepNavy,
+                        color = Color.White,
                         modifier = Modifier.padding(14.dp)
                     )
                 }
@@ -451,7 +452,8 @@ fun RoleplaySection(
             aiTurn?.let { turn ->
                 Card(
                     shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+                    colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
+                    border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.45f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -461,8 +463,8 @@ fun RoleplaySection(
                     ) {
                         Text("🤖", fontSize = 24.sp)
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(activeRoleplay.partnerRole, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
-                            Text(turn.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text(activeRoleplay.partnerRole, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
+                            Text(turn.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.White)
                         }
                         IconButton(onClick = { viewModel.speakAudio(turn.text) }) {
                             Icon(Icons.Rounded.VolumeUp, contentDescription = "Listen", tint = RoyalBlue)

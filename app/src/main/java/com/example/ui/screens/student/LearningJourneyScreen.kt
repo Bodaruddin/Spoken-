@@ -190,16 +190,18 @@ fun StagePathNode(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
                 containerColor = when {
-                    stage.isCompleted -> Color(0xFFF0FDF4)
-                    stage.isUnlocked -> MaterialTheme.colorScheme.surface
-                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                }
+                    stage.isCompleted -> Color(0xFF0D2520) // Deep cyber emerald navy
+                    stage.isUnlocked -> CyberCardBg // Deep cyber sapphire (0xFF162352)
+                    else -> Color(0xFF0B132B) // Locked deep slate
+                },
+                contentColor = Color.White
             ),
             border = if (stage.isCompleted)
-                androidx.compose.foundation.BorderStroke(2.dp, EmeraldSuccess)
+                androidx.compose.foundation.BorderStroke(1.5.dp, EmeraldSuccess)
             else if (stage.isUnlocked)
-                androidx.compose.foundation.BorderStroke(1.5.dp, RoyalBlue)
-            else null,
+                androidx.compose.foundation.BorderStroke(1.5.dp, Color(0xFF38BDF8))
+            else
+                androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E2B52)),
             elevation = CardDefaults.cardElevation(defaultElevation = if (stage.isUnlocked) 3.dp else 0.dp),
             modifier = Modifier
                 .fillMaxWidth(0.92f)
@@ -222,7 +224,7 @@ fun StagePathNode(
                             when {
                                 stage.isCompleted -> EmeraldSuccess
                                 stage.isUnlocked -> RoyalBlue
-                                else -> MutedGray
+                                else -> Color(0xFF334155)
                             }
                         ),
                     contentAlignment = Alignment.Center
@@ -232,7 +234,7 @@ fun StagePathNode(
                     } else if (stage.isUnlocked) {
                         Text("${stage.stageNumber}", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = Color.White)
                     } else {
-                        Icon(Icons.Filled.Lock, contentDescription = "Locked", tint = Color.White, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Filled.Lock, contentDescription = "Locked", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(22.dp))
                     }
                 }
 
@@ -244,23 +246,33 @@ fun StagePathNode(
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = when (stage.type) {
-                                StageType.SPEAKING -> Color(0xFFEFF6FF)
-                                StageType.VOCABULARY -> Color(0xFFFDF4FF)
-                                StageType.GRAMMAR -> Color(0xFFECFDF5)
-                                StageType.PRONUNCIATION -> Color(0xFFFFFBEB)
-                                else -> Color(0xFFF1F5F9)
-                            }
+                                StageType.SPEAKING -> Color(0xFF172554)
+                                StageType.VOCABULARY -> Color(0xFF3B0764)
+                                StageType.GRAMMAR -> Color(0xFF064E3B)
+                                StageType.PRONUNCIATION -> Color(0xFF451A03)
+                                else -> Color(0xFF1E293B)
+                            },
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                when (stage.type) {
+                                    StageType.SPEAKING -> Color(0xFF3B82F6)
+                                    StageType.VOCABULARY -> Color(0xFFA855F7)
+                                    StageType.GRAMMAR -> EmeraldSuccess
+                                    StageType.PRONUNCIATION -> AmberGold
+                                    else -> Color(0xFF64748B)
+                                }
+                            )
                         ) {
                             Text(
                                 text = stage.type.name,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = when (stage.type) {
-                                    StageType.SPEAKING -> RoyalBlue
-                                    StageType.VOCABULARY -> PurpleDark
-                                    StageType.GRAMMAR -> EmeraldSuccess
-                                    StageType.PRONUNCIATION -> AmberGold
-                                    else -> DeepNavy
+                                    StageType.SPEAKING -> Color(0xFF93C5FD)
+                                    StageType.VOCABULARY -> Color(0xFFE9D5FF)
+                                    StageType.GRAMMAR -> Color(0xFF6EE7B7)
+                                    StageType.PRONUNCIATION -> Color(0xFFFDE68A)
+                                    else -> Color.White
                                 },
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -277,19 +289,19 @@ fun StagePathNode(
                         text = stage.title,
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = Color.White
                     )
                     Text(
                         text = stage.topicDescription,
                         fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Color(0xFFCBD5E1)
                     )
                 }
 
                 // Reward badges
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("+${stage.xpReward} XP", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
-                    Text("+${stage.coinReward} 🪙", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmberGold)
+                    Text("+${stage.xpReward} XP", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                    Text("+${stage.coinReward} 🪙", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
                 }
             }
         }
@@ -301,7 +313,7 @@ fun StagePathNode(
                     .width(4.dp)
                     .height(24.dp)
                     .background(
-                        if (stage.isCompleted) EmeraldSuccess else MaterialTheme.colorScheme.outline
+                        if (stage.isCompleted) EmeraldSuccess else Color(0xFF263366)
                     )
             )
         }

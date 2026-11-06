@@ -835,8 +835,8 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
         item {
             Card(
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
-                border = BorderStroke(1.5.dp, Color(0xFFBFDBFE)),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
+                border = BorderStroke(1.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { showCreateDialog = true }
@@ -869,13 +869,13 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                                 "+ Add New ${selectedCategory.title} Question",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
-                                color = DeepNavy,
+                                color = Color.White,
                                 maxLines = 1
                             )
                             Text(
                                 "Author questions and immediately deploy to student arcade",
                                 fontSize = 11.sp,
-                                color = MutedGray,
+                                color = Color(0xFFCBD5E1),
                                 maxLines = 1
                             )
                         }

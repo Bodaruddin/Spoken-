@@ -467,7 +467,8 @@ fun SpeakingEvaluationCard(
             // Coach suggestion
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = Color(0xFFEFF6FF),
+                color = Color(0xFF0F1E42),
+                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -481,12 +482,12 @@ fun SpeakingEvaluationCard(
                             "Coach Recommendation:",
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
-                            color = RoyalBlueDark
+                            color = Color(0xFF60A5FA)
                         )
                         Text(
                             evaluation.suggestedImprovement,
                             fontSize = 12.sp,
-                            color = DeepNavy
+                            color = Color(0xFFE2E8F0)
                         )
                     }
                 }
