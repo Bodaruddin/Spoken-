@@ -758,6 +758,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         }
     }
 
+    fun addStudentSubmission(submission: StudentSubmission) {
+        _submissions.update { list -> listOf(submission) + list }
+    }
+
     // --- STUDENT MANAGEMENT METHODS ---
     fun addStudent(name: String, email: String, batch: String, level: LearningLevel = LearningLevel.BEGINNER, notes: String = "") {
         val newId = "std_${System.currentTimeMillis() % 10000}"

@@ -46,13 +46,13 @@ fun StudentBottomBar(
                     icon = {
                         Text(
                             tab.iconEmoji,
-                            fontSize = if (isSelected) 20.sp else 16.sp
+                            fontSize = if (isSelected) 18.sp else 15.sp
                         )
                     },
                     label = {
                         Text(
                             tab.label,
-                            fontSize = 10.sp,
+                            fontSize = 9.5.sp,
                             fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
                             maxLines = 1,
                             softWrap = false

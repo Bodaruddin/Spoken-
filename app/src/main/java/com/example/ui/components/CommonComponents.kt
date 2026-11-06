@@ -138,7 +138,7 @@ fun AppTopBar(
                         emoji = "⚡",
                         value = "$xp",
                         bgColor = Color(0xFF0B1736),
-                        textColor = RoyalBlue,
+                        textColor = Color(0xFF60A5FA),
                         testTag = "xp_pill"
                     )
 
@@ -269,16 +269,21 @@ fun StatPill(
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = bgColor,
-        border = BorderStroke(1.dp, textColor.copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, textColor.copy(alpha = 0.5f)),
         modifier = Modifier.testTag(testTag)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(emoji, fontSize = 12.sp)
-            Text(value, fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White)
+            Text(emoji, fontSize = 14.sp)
+            Text(
+                value,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = textColor
+            )
         }
     }
 }
@@ -721,13 +726,16 @@ fun CelebrationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        containerColor = Color(0xFF131D3F),
+        titleContentColor = Color.White,
+        textContentColor = Color(0xFFE2E8F0),
         confirmButton = {
             Button(
                 onClick = onDismiss,
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess)
             ) {
-                Text("Continue Learning!", fontWeight = FontWeight.Bold)
+                Text("Continue Learning!", fontWeight = FontWeight.Bold, color = Color.White)
             }
         },
         title = {
@@ -737,27 +745,27 @@ fun CelebrationDialog(
             ) {
                 Text("🎉", fontSize = 42.sp)
                 Spacer(Modifier.height(6.dp))
-                Text("Challenge Completed!", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, textAlign = TextAlign.Center)
+                Text("Challenge Completed!", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, textAlign = TextAlign.Center, color = Color.White)
             }
         },
         text = {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     "You demonstrated great spoken English fluency and accuracy!",
                     textAlign = TextAlign.Center,
                     fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color(0xFFCBD5E1)
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    StatPill("⚡", "+$xp XP", Color(0xFFEFF6FF), RoyalBlue, "reward_xp")
-                    StatPill("🪙", "+$coins Coins", Color(0xFFFEFCE8), AmberGold, "reward_coins")
+                    StatPill("⚡", "+$xp XP", Color(0xFFE0F2FE), Color(0xFF0369A1), "reward_xp")
+                    StatPill("🪙", "+$coins Coins", Color(0xFFFEF3C7), Color(0xFFB45309), "reward_coins")
                 }
             }
         }

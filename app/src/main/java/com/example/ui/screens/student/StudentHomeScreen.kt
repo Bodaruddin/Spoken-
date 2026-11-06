@@ -24,6 +24,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
@@ -213,7 +214,7 @@ fun StudentHomeScreen(
             }
         }
 
-        // 3. Class Tasks & Assignments for This Particular Class
+        // 3. Tasks from Teachers Hub Banner (Links to dedicated Tasks tab)
         item {
             val studentClass = user.studentClass
             val classTasks = remember(assignments, studentClass) {
@@ -224,134 +225,106 @@ fun StudentHomeScreen(
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.4f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.selectStudentTab(StudentTab.TASKS) }
+                    .testTag("home_tasks_portal_card")
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("📝", fontSize = 16.sp)
-                        Text(
-                            "Tasks from Teachers",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = Color.White
-                        )
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = RoyalBlue.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.3f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Assigned to $studentClass",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF60A5FA),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-                }
-
-                if (classTasks.isEmpty()) {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color(0xFF0D173C),
-                        border = BorderStroke(1.dp, Color(0xFF1E2B52)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Text("🎉", fontSize = 24.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("📝", fontSize = 20.sp)
                             Column {
-                                Text("No pending tasks for $studentClass", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
-                                Text("You are all caught up with your classroom speaking assignments!", fontSize = 11.sp, color = Color(0xFFCBD5E1))
+                                Text(
+                                    "Tasks from Teachers",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "Class ${studentClass} • ${classTasks.size} Assignments",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
                             }
                         }
+
+                        Button(
+                            onClick = { viewModel.selectStudentTab(StudentTab.TASKS) },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text("View All", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.White)
+                        }
                     }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        classTasks.forEach { task ->
-                            Card(
-                                shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
-                                border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.35f)),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                modifier = Modifier.fillMaxWidth()
+
+                    val nextUrgent = classTasks.firstOrNull()
+                    if (nextUrgent != null) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF0F172A),
+                            border = BorderStroke(1.dp, Color(0xFF334155)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = RoyalBlue.copy(alpha = 0.1f)
-                                        ) {
-                                            Text(
-                                                task.topicType,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = RoyalBlue,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
-                                        }
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            "Due: ${task.dueDate}",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = OrangeVibrant
+                                            nextUrgent.topicType,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF60A5FA)
+                                        )
+                                        Text(
+                                            "• Due: ${nextUrgent.dueDate}",
+                                            fontSize = 10.sp,
+                                            color = OrangeVibrant,
+                                            fontWeight = FontWeight.SemiBold
                                         )
                                     }
-
                                     Text(
-                                        text = task.title,
+                                        nextUrgent.title,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        color = MaterialTheme.colorScheme.onSurface
+                                        fontSize = 13.sp,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
+                                }
 
-                                    Text(
-                                        text = task.instructions,
-                                        fontSize = 12.sp,
-                                        color = Color(0xFFCBD5E1),
-                                        maxLines = 2
-                                    )
+                                Spacer(Modifier.width(8.dp))
 
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            "Assigned by ${task.teacherName}",
-                                            fontSize = 11.sp,
-                                            color = Color(0xFF93C5FD),
-                                            fontWeight = FontWeight.Medium
-                                        )
-
-                                        Button(
-                                            onClick = {
-                                                viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
-                                                viewModel.selectStudentTab(StudentTab.PRACTICE)
-                                            },
-                                            shape = RoundedCornerShape(10.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                        ) {
-                                            Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(14.dp))
-                                            Spacer(Modifier.width(4.dp))
-                                            Text("Practice Task", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                        }
-                                    }
+                                OutlinedButton(
+                                    onClick = {
+                                        viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
+                                        viewModel.selectStudentTab(StudentTab.PRACTICE)
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Filled.Mic, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color(0xFF38BDF8))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Practice", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
                                 }
                             }
                         }

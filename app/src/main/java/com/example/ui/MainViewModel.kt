@@ -17,9 +17,10 @@ import kotlinx.coroutines.launch
 enum class StudentTab(val label: String, val iconEmoji: String) {
     HOME("Home", "🏠"),
     LEARN("Journey", "🗺️"),
+    TASKS("Tasks", "📝"),
     PRACTICE("Speaking", "🎙️"),
     GAMES("Games", "🎮"),
-    LEADERBOARD("Leaderboard", "🏆"),
+    LEADERBOARD("Ranks", "🏆"),
     PROFILE("Profile", "👤")
 }
 
@@ -826,6 +827,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissCelebration() {
         _celebrationReward.value = null
+    }
+
+    fun submitAssignment(assignmentId: String, transcript: String, audioDurationSecs: Int = 45) {
+        val user = currentUser.value
+        val newSub = StudentSubmission(
+            id = "sub_${System.currentTimeMillis()}",
+            assignmentId = assignmentId,
+            studentName = user.name,
+            studentAvatar = user.avatarEmoji,
+            audioDurationSeconds = audioDurationSecs,
+            studentTranscript = transcript,
+            submittedDate = "Just now",
+            score = 95,
+            teacherFeedback = "Great speaking effort! Clear pronunciation and natural rhythm.",
+            status = "GRADED"
+        )
+        repository.addStudentSubmission(newSub)
+        rewardGameWin(50, 15)
     }
 
     // Pronunciation Drill
