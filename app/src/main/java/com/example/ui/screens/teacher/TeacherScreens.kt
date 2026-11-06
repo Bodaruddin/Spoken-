@@ -3,6 +3,7 @@ package com.example.ui.screens.teacher
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.example.ui.components.SectionHeader
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -72,74 +75,108 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
         // Teacher Banner Card
         item {
             Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                border = BorderStroke(1.2.dp, Color(0xFFA855F7).copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.padding(18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(HeroBannerGrad)
                 ) {
-                    Box(
+                    Icon(
+                        imageVector = Icons.Rounded.School,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.18f),
                         modifier = Modifier
-                            .size(62.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(listOf(Color(0xFF8B5CF6), RoyalBlue))
-                            ),
-                        contentAlignment = Alignment.Center
+                            .size(120.dp)
+                            .align(Alignment.BottomEnd)
+                            .offset(x = 12.dp, y = 14.dp)
+                    )
+                    Row(
+                        modifier = Modifier.padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        Text(currentUser.avatarEmoji.ifBlank { "👩‍🏫" }, fontSize = 32.sp)
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = currentUser.name.ifBlank { "Faculty Instructor" },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-                        val departmentOrBatch = currentUser.batch.ifBlank { "Batch Alpha & Beta" }
-                        Text(
-                            text = "Faculty Instructor • $departmentOrBatch",
-                            fontSize = 12.sp,
-                            color = MutedGray
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFDCFCE7)
+                        Box(
+                            modifier = Modifier
+                                .size(68.dp)
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9))))
+                                .border(2.dp, Color(0xFFE9D5FF).copy(alpha = 0.85f), CircleShape),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text("● Faculty Active Today", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = EmeraldSuccess, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                            Text(currentUser.avatarEmoji.ifBlank { "👩‍🏫" }, fontSize = 34.sp)
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = currentUser.name.ifBlank { "Faculty Instructor" },
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 19.sp,
+                                color = Color.White
+                            )
+                            val departmentOrBatch = currentUser.batch.ifBlank { "Batch Alpha & Beta" }
+                            Text(
+                                text = "Faculty Instructor • $departmentOrBatch",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.82f)
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF070B24).copy(alpha = 0.65f),
+                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.45f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(7.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF10B981))
+                                    )
+                                    Text(
+                                        text = "Faculty Active Today",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF86EFAC)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
-        // Metrics Grid - 2x2 Spacious Executive Layout
+        // Metrics Grid - 2x2 Spacious Executive Layout (Cyber-Glass)
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SectionHeader("Classroom Overview & Metrics")
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    TeacherMetricCard("Enrolled Students", "${students.size}", "👥", RoyalBlue, Modifier.weight(1f), "Active Cohort")
-                    TeacherMetricCard("Pending Voice", "${submissions.count { it.status == "PENDING" }}", "🎧", OrangeVibrant, Modifier.weight(1f), "Needs Review")
+                    TeacherMetricCard("Enrolled Students", "${students.size}", "👥", RoyalBlue, Modifier.weight(1f), "Active Cohort", Icons.Rounded.People)
+                    TeacherMetricCard("Pending Voice", "${submissions.count { it.status == "PENDING" }}", "🎧", OrangeVibrant, Modifier.weight(1f), "Needs Review", Icons.Rounded.Headphones)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    TeacherMetricCard("Avg Speaking Fluency", "84.2%", "🎙️", EmeraldSuccess, Modifier.weight(1f), "+3.2% This Wk")
-                    TeacherMetricCard("Active Practice Drills", "$totalGames", "🎮", PurpleAccent, Modifier.weight(1f), "12 Categories")
+                    TeacherMetricCard("Avg Speaking Fluency", "84.2%", "🎙️", EmeraldSuccess, Modifier.weight(1f), "+3.2% This Wk", Icons.Rounded.TrendingUp)
+                    TeacherMetricCard("Active Practice Drills", "$totalGames", "🎮", PurpleAccent, Modifier.weight(1f), "12 Categories", Icons.Rounded.SportsEsports)
                 }
             }
         }
 
         // Quick Action Cards
         item {
-            Text("Faculty Quick Operations", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            SectionHeader("Faculty Quick Operations")
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
@@ -1780,55 +1817,102 @@ fun TeacherMetricCard(
     emoji: String,
     color: Color,
     modifier: Modifier = Modifier,
-    tag: String = "Active"
+    tag: String = "Active",
+    watermarkIcon: ImageVector? = null
 ) {
+    val cardBg: Color
+    val cardBorder: Color
+    val iconGrad: Brush
+    val defaultWatermark: ImageVector
+
+    when (color) {
+        RoyalBlue -> {
+            cardBg = NeonBlueCardBg
+            cardBorder = NeonBlueBorder
+            iconGrad = NeonBlueGrad
+            defaultWatermark = Icons.Rounded.People
+        }
+        PurpleAccent -> {
+            cardBg = NeonPurpleCardBg
+            cardBorder = NeonPurpleBorder
+            iconGrad = NeonPurpleGrad
+            defaultWatermark = Icons.Rounded.SportsEsports
+        }
+        EmeraldSuccess -> {
+            cardBg = NeonGreenCardBg
+            cardBorder = NeonGreenBorder
+            iconGrad = NeonGreenGrad
+            defaultWatermark = Icons.Rounded.Mic
+        }
+        OrangeVibrant, AmberGold -> {
+            cardBg = NeonAmberCardBg
+            cardBorder = NeonAmberBorder
+            iconGrad = NeonAmberGrad
+            defaultWatermark = Icons.Rounded.Headphones
+        }
+        else -> {
+            cardBg = Color(0xFF0F1535)
+            cardBorder = color
+            iconGrad = Brush.linearGradient(listOf(color, color))
+            defaultWatermark = Icons.Rounded.Analytics
+        }
+    }
+
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.22f)),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.2.dp, cardBorder.copy(alpha = 0.55f)),
         modifier = modifier
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Icon(
+                imageVector = watermarkIcon ?: defaultWatermark,
+                contentDescription = null,
+                tint = cardBorder.copy(alpha = 0.22f),
+                modifier = Modifier
+                    .size(38.dp)
+                    .align(Alignment.BottomEnd)
+                    .offset(x = (-10).dp, y = (-10).dp)
+            )
+
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(13.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(color.copy(alpha = 0.22f), color.copy(alpha = 0.06f))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(emoji, fontSize = 20.sp)
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(iconGrad),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(emoji, fontSize = 22.sp)
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF070B1F).copy(alpha = 0.70f),
+                        border = BorderStroke(1.dp, cardBorder.copy(alpha = 0.50f))
+                    ) {
+                        Text(
+                            text = tag,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = color.copy(alpha = 0.12f)
-                ) {
-                    Text(
-                        text = tag,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = color,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(value, fontWeight = FontWeight.Black, fontSize = 24.sp, color = Color.White)
+                    Text(title, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF94A3B8), maxLines = 1)
                 }
-            }
-
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = color)
-                Text(title, fontSize = 11.sp, color = MutedGray, maxLines = 1)
             }
         }
     }
@@ -1843,11 +1927,25 @@ fun TeacherQuickActionCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val cardBorder = when (color) {
+        RoyalBlue -> NeonBlueBorder
+        PurpleAccent -> NeonPurpleBorder
+        EmeraldSuccess -> NeonGreenBorder
+        AmberGold -> NeonAmberBorder
+        else -> color
+    }
+    val iconGrad = when (color) {
+        RoyalBlue -> NeonBlueGrad
+        PurpleAccent -> NeonPurpleGrad
+        EmeraldSuccess -> NeonGreenGrad
+        AmberGold -> NeonAmberGrad
+        else -> Brush.linearGradient(listOf(color, color))
+    }
+
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.28f)),
+        colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+        border = BorderStroke(1.2.dp, cardBorder.copy(alpha = 0.45f)),
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
             .clickable { onClick() }
@@ -1862,11 +1960,7 @@ fun TeacherQuickActionCard(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(13.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(color.copy(alpha = 0.22f), color.copy(alpha = 0.08f))
-                            )
-                        ),
+                        .background(iconGrad),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(icon, fontSize = 22.sp)
@@ -1874,23 +1968,24 @@ fun TeacherQuickActionCard(
 
                 Surface(
                     shape = CircleShape,
-                    color = color.copy(alpha = 0.12f),
-                    modifier = Modifier.size(26.dp)
+                    color = Color(0xFF070B1F),
+                    border = BorderStroke(1.dp, cardBorder.copy(alpha = 0.4f)),
+                    modifier = Modifier.size(28.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowForward,
                             contentDescription = null,
-                            tint = color,
-                            modifier = Modifier.size(13.dp)
+                            tint = cardBorder,
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                Text(subtitle, fontSize = 11.sp, color = MutedGray, maxLines = 1)
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                Text(subtitle, fontSize = 11.sp, color = Color(0xFF94A3B8), maxLines = 1)
             }
         }
     }

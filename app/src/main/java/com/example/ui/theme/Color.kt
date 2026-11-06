@@ -8,9 +8,9 @@ import androidx.compose.ui.graphics.Color
 val RoyalBlue = Color(0xFF3B82F6)
 val RoyalBlueDark = Color(0xFF1D4ED8)
 val ElectricIndigo = Color(0xFF4F46E5)
-val DeepNavy = Color(0xFF0F172A)
-val NavySurface = Color(0xFF1E293B)
-val NavyLight = Color(0xFF334155)
+val DeepNavy = Color(0xFF060919)
+val NavySurface = Color(0xFF0F1535)
+val NavyLight = Color(0xFF1E264F)
 
 // Vibrant Accent Colors (Luminous & Harmonious)
 val CoralAccent = Color(0xFFF43F5E)
@@ -32,9 +32,9 @@ val CyanContainer = Color(0xFFE0F2FE)
 // Light & Glass Surfaces
 val SoftCream = Color(0xFFF8FAFC)
 val SoftCreamSurface = Color(0xFFFFFFFF)
-val MutedGray = Color(0xFF64748B)
-val LightBorder = Color(0xFFE2E8F0)
-val DarkBorder = Color(0xFF334155)
+val MutedGray = Color(0xFF94A3B8)
+val LightBorder = Color(0xFF263366)
+val DarkBorder = Color(0xFF263366)
 
 // Gamification Level Colors
 val LeagueBronze = Color(0xFFCD7F32)
@@ -54,3 +54,35 @@ val CyanGrad = Brush.linearGradient(listOf(Color(0xFF06B6D4), Color(0xFF0284C7))
 val SlateCardGrad = Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A)))
 val WarmGlowGrad = Brush.linearGradient(listOf(Color(0xFFFEF3C7), Color(0xFFFDE68A)))
 
+// Cyber-Glass Luxury Dark Tokens (From user's screenshot)
+val CyberMidnightBg = Color(0xFF060919)
+val CyberNavySurface = Color(0xFF0F1535)
+val CyberCardBg = Color(0xFF111738)
+val CyberCardBorder = Color(0xFF263366)
+
+val NeonBlueCardBg = Color(0xFF0B1736)
+val NeonBlueBorder = Color(0xFF0099FF)
+val NeonBlueGrad = Brush.linearGradient(listOf(Color(0xFF00D2FF), Color(0xFF0066FF)))
+
+val NeonPurpleCardBg = Color(0xFF1B1238)
+val NeonPurpleBorder = Color(0xFFA855F7)
+val NeonPurpleGrad = Brush.linearGradient(listOf(Color(0xFFA855F7), Color(0xFF7C3AED)))
+
+val NeonGreenCardBg = Color(0xFF082226)
+val NeonGreenBorder = Color(0xFF10B981)
+val NeonGreenGrad = Brush.linearGradient(listOf(Color(0xFF10B981), Color(0xFF059669)))
+
+val NeonAmberCardBg = Color(0xFF261A0C)
+val NeonAmberBorder = Color(0xFFF59E0B)
+val NeonAmberGrad = Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFEA580C)))
+
+val NeonCyanCardBg = Color(0xFF091C36)
+val NeonCyanBorder = Color(0xFF06B6D4)
+val NeonCyanGrad = Brush.linearGradient(listOf(Color(0xFF06B6D4), Color(0xFF3B82F6)))
+
+val NeonPinkCardBg = Color(0xFF260D22)
+val NeonPinkBorder = Color(0xFFEC4899)
+val NeonPinkGrad = Brush.linearGradient(listOf(Color(0xFFEC4899), Color(0xFFBE185D)))
+
+val HeroBannerGrad = Brush.horizontalGradient(listOf(Color(0xFF0284C7), Color(0xFF4F46E5), Color(0xFF7C3AED)))
+val BottomBarGrad = Brush.verticalGradient(listOf(Color(0xFF10163A), Color(0xFF090D24)))

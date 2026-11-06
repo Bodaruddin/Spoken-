@@ -31,6 +31,29 @@ import com.example.service.SpeechState
 import com.example.ui.theme.*
 
 @Composable
+fun SectionHeader(title: String, modifier: Modifier = Modifier) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.padding(vertical = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .height(18.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFFA855F7), Color(0xFF4F46E5))))
+        )
+        Text(
+            text = title,
+            fontWeight = FontWeight.Bold,
+            fontSize = 17.sp,
+            color = Color.White
+        )
+    }
+}
+
+@Composable
 fun AppTopBar(
     role: Role,
     streak: Int,
@@ -43,8 +66,9 @@ fun AppTopBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 2.dp,
+        color = Color(0xFF070B1E).copy(alpha = 0.92f),
+        tonalElevation = 0.dp,
+        border = BorderStroke(1.dp, Color(0xFF1E2856).copy(alpha = 0.35f)),
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
@@ -52,33 +76,33 @@ fun AppTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             // App Branding
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.testTag("app_branding_header")
             ) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(
-                            Brush.linearGradient(listOf(RoyalBlue, PurpleAccent))
+                            Brush.linearGradient(listOf(Color(0xFF4F46E5), Color(0xFF3B82F6)))
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("SP", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                    Text("SP", color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp)
                 }
                 Column {
                     Text(
                         text = "Speakly",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
-                        color = MaterialTheme.colorScheme.onSurface
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 18.sp,
+                        color = Color.White
                     )
                     Text(
                         text = when (role) {
@@ -87,7 +111,7 @@ fun AppTopBar(
                             Role.ADMIN -> "Admin Control"
                         },
                         fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = Color(0xFF94A3B8),
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -103,8 +127,8 @@ fun AppTopBar(
                     StatPill(
                         emoji = "🔥",
                         value = "$streak",
-                        bgColor = Color(0xFFFFF7ED),
-                        textColor = OrangeVibrant,
+                        bgColor = Color(0xFF261A0C),
+                        textColor = AmberGold,
                         testTag = "streak_pill"
                     )
 
@@ -112,7 +136,7 @@ fun AppTopBar(
                     StatPill(
                         emoji = "⚡",
                         value = "$xp",
-                        bgColor = Color(0xFFEFF6FF),
+                        bgColor = Color(0xFF0B1736),
                         textColor = RoyalBlue,
                         testTag = "xp_pill"
                     )
@@ -121,72 +145,82 @@ fun AppTopBar(
                     StatPill(
                         emoji = "🪙",
                         value = "$coins",
-                        bgColor = Color(0xFFFEFCE8),
+                        bgColor = Color(0xFF261E08),
                         textColor = AmberGold,
                         testTag = "coins_pill"
                     )
                 }
 
-                // Supabase Cloud DB Pill (Exclusive to Administrator Role)
+                // Supabase Cloud DB Sync Pill (Matching Screenshot: green pill with cloud)
                 if (role == Role.ADMIN) {
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = if (isCloudConnected) Color(0xFFDCFCE7) else MaterialTheme.colorScheme.surfaceVariant,
+                        color = if (isCloudConnected) Color(0xFF062A1F) else Color(0xFF131A38),
+                        border = BorderStroke(1.dp, if (isCloudConnected) Color(0xFF10B981) else Color(0xFF2A3660)),
                         modifier = Modifier
                             .testTag("cloud_connect_button")
                             .clickable { onCloudClick() }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             Icon(
                                 imageVector = if (isCloudConnected) Icons.Filled.CloudDone else Icons.Rounded.CloudQueue,
                                 contentDescription = "Cloud Database",
-                                modifier = Modifier.size(16.dp),
-                                tint = if (isCloudConnected) EmeraldSuccess else MutedGray
+                                modifier = Modifier.size(15.dp),
+                                tint = if (isCloudConnected) Color(0xFF10B981) else Color(0xFF94A3B8)
                             )
                             Text(
                                 text = if (isCloudConnected) "Sync" else "DB",
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isCloudConnected) EmeraldSuccess else MutedGray
+                                color = if (isCloudConnected) Color(0xFF10B981) else Color(0xFF94A3B8)
                             )
                         }
                     }
                 }
 
-                // Switch Role Button
-                val (roleBadgeBg, roleBadgeBorder, roleBadgeText) = when (role) {
-                    Role.ADMIN -> Triple(Color(0xFFFEF3C7), Color(0xFFF59E0B), Color(0xFF92400E))
-                    Role.TEACHER -> Triple(Color(0xFFF3E8FF), PurpleAccent, Color(0xFF6B21A8))
-                    Role.STUDENT -> Triple(Color(0xFFEFF6FF), RoyalBlue, Color(0xFF1E40AF))
+                // Switch Role Pill (Matching Screenshot: Crown ADMIN with golden gradient)
+                val (roleGradient, roleBorderColor, roleEmoji) = when (role) {
+                    Role.ADMIN -> Triple(
+                        Brush.horizontalGradient(listOf(Color(0xFFF59E0B), Color(0xFFD97706))),
+                        Color(0xFFFDE68A),
+                        "👑"
+                    )
+                    Role.TEACHER -> Triple(
+                        Brush.horizontalGradient(listOf(Color(0xFFA855F7), Color(0xFF7C3AED))),
+                        Color(0xFFE9D5FF),
+                        "👩‍🏫"
+                    )
+                    Role.STUDENT -> Triple(
+                        Brush.horizontalGradient(listOf(Color(0xFF2563EB), Color(0xFF1D4ED8))),
+                        Color(0xFFBFDBFE),
+                        "🎓"
+                    )
                 }
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = roleBadgeBg,
-                    border = BorderStroke(1.dp, roleBadgeBorder.copy(alpha = 0.45f)),
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.Transparent,
+                    border = BorderStroke(1.dp, roleBorderColor.copy(alpha = 0.5f)),
                     modifier = Modifier
                         .testTag("role_switch_button")
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(roleGradient)
                         .clickable { onRoleClick() }
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.SwapHoriz,
-                            contentDescription = "Switch Role",
-                            modifier = Modifier.size(15.dp),
-                            tint = roleBadgeText
-                        )
+                        Text(roleEmoji, fontSize = 12.sp)
                         Text(
                             text = role.name,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = roleBadgeText
+                            fontWeight = FontWeight.Black,
+                            color = Color.White
                         )
                     }
                 }
@@ -195,14 +229,14 @@ fun AppTopBar(
                 IconButton(
                     onClick = onLogoutClick,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(34.dp)
                         .testTag("app_bar_logout_button")
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Logout,
                         contentDescription = "Log Out",
-                        tint = MutedGray,
-                        modifier = Modifier.size(18.dp)
+                        tint = Color(0xFFCBD5E1),
+                        modifier = Modifier.size(19.dp)
                     )
                 }
             }
@@ -219,18 +253,18 @@ fun StatPill(
     testTag: String
 ) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         color = bgColor,
-        border = BorderStroke(1.dp, textColor.copy(alpha = 0.25f)),
+        border = BorderStroke(1.dp, textColor.copy(alpha = 0.35f)),
         modifier = Modifier.testTag(testTag)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(emoji, fontSize = 12.sp)
-            Text(value, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = textColor)
+            Text(value, fontSize = 12.sp, fontWeight = FontWeight.Black, color = Color.White)
         }
     }
 }
