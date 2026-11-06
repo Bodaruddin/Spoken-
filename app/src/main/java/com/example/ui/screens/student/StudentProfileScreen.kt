@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.AchievementBadge
@@ -118,20 +119,19 @@ fun StudentProfileScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Role Switcher pill
+                            // Student Role Badge
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
                                 color = Color(0xFF1E293B),
-                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
-                                modifier = Modifier.clickable { viewModel.toggleRoleSwitcher(true) }
+                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.3f))
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Icon(Icons.Filled.SwapHoriz, contentDescription = "Switch Role", tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
-                                    Text("Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                                    Text("🦉", fontSize = 12.sp)
+                                    Text("Student", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
                                 }
                             }
 
@@ -231,6 +231,8 @@ fun StudentProfileScreen(
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF7DD3FC),
+                                        maxLines = 1,
+                                        softWrap = false,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                     )
                                 }
@@ -245,6 +247,8 @@ fun StudentProfileScreen(
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFFFCD34D),
+                                        maxLines = 1,
+                                        softWrap = false,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                     )
                                 }
@@ -324,12 +328,15 @@ fun StudentProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(46.dp)
+                                    .size(44.dp)
                                     .clip(CircleShape)
                                     .background(
                                         Brush.linearGradient(
@@ -338,20 +345,24 @@ fun StudentProfileScreen(
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("🏆", fontSize = 24.sp)
+                                Text("🏆", fontSize = 22.sp)
                             }
 
-                            Column {
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
                                 Text(
                                     text = "Academy Fluency Leaderboard",
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 17.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = "Weekly Cohort Speaking Championship",
                                     fontSize = 11.sp,
-                                    color = MutedGray
+                                    color = MutedGray,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -367,6 +378,8 @@ fun StudentProfileScreen(
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                maxLines = 1,
+                                softWrap = false,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                             )
                         }
@@ -473,21 +486,28 @@ fun StudentProfileScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Text("⭐", fontSize = 18.sp)
-                                    Column {
+                                    Column(modifier = Modifier.weight(1f, fill = false)) {
                                         Text(
                                             text = "Your Standing: Rank #3 in $selectedLeaderboardFilter",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
-                                            color = DeepNavy
+                                            color = DeepNavy,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
                                             text = "970 XP needed to overtake #2 David Chen",
                                             fontSize = 11.sp,
-                                            color = RoyalBlue
+                                            color = RoyalBlue,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
@@ -500,6 +520,8 @@ fun StudentProfileScreen(
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White,
+                                        maxLines = 1,
+                                        softWrap = false,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }
@@ -550,6 +572,9 @@ fun StudentProfileScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Row(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(end = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                                         ) {
@@ -583,7 +608,7 @@ fun StudentProfileScreen(
 
                                             Text(student.avatarEmoji, fontSize = 22.sp)
 
-                                            Column {
+                                            Column(modifier = Modifier.weight(1f, fill = false)) {
                                                 Row(
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -592,6 +617,8 @@ fun StudentProfileScreen(
                                                         text = student.name,
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 13.sp,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
                                                         color = if (isUser) RoyalBlue else MaterialTheme.colorScheme.onSurface
                                                     )
                                                     if (isUser) {
@@ -604,6 +631,8 @@ fun StudentProfileScreen(
                                                                 fontSize = 9.sp,
                                                                 fontWeight = FontWeight.Bold,
                                                                 color = Color.White,
+                                                                maxLines = 1,
+                                                                softWrap = false,
                                                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                                             )
                                                         }
@@ -613,7 +642,9 @@ fun StudentProfileScreen(
                                                 Text(
                                                     text = "${student.league} • 🔥 ${student.streak}d streak",
                                                     fontSize = 11.sp,
-                                                    color = MutedGray
+                                                    color = MutedGray,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                         }
@@ -628,6 +659,8 @@ fun StudentProfileScreen(
                                                 fontWeight = FontWeight.ExtraBold,
                                                 fontSize = 12.sp,
                                                 color = if (isUser) Color.White else DeepNavy,
+                                                maxLines = 1,
+                                                softWrap = false,
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                             )
                                         }
@@ -657,17 +690,25 @@ fun StudentProfileScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
                             Text(
                                 text = "CEFR Spoken Proficiency Radar",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "Real-time AI diagnostic scores (Level A2)",
                                 fontSize = 11.sp,
-                                color = MutedGray
+                                color = MutedGray,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
@@ -680,6 +721,8 @@ fun StudentProfileScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                maxLines = 1,
+                                softWrap = false,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }
@@ -714,6 +757,9 @@ fun StudentProfileScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
@@ -726,16 +772,20 @@ fun StudentProfileScreen(
                         ) {
                             Text("📚", fontSize = 24.sp)
                         }
-                        Column {
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
                             Text(
                                 text = "Personal Vocabulary Vault",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 color = DeepNavy
                             )
                             Text(
                                 text = "${vocabulary.size} words saved • Audio flashcards & Assamese",
                                 fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 color = MutedGray
                             )
                         }
@@ -831,11 +881,20 @@ fun StudentProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text("🎖️", fontSize = 20.sp)
-                            Text("Trophy & Honors Cabinet", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(
+                                text = "Trophy & Honors Cabinet",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
 
                         val unlockedCount = badges.count { it.isUnlocked }
@@ -848,6 +907,8 @@ fun StudentProfileScreen(
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = AmberGold,
+                                maxLines = 1,
+                                softWrap = false,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
@@ -937,13 +998,13 @@ fun PremiumStatCard(
         modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(10.dp),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(title, fontSize = 10.sp, color = MutedGray, fontWeight = FontWeight.Medium)
-            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = DeepNavy)
-            Text(sub, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = accent)
+            Text(title, fontSize = 10.sp, color = MutedGray, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
+            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = DeepNavy, maxLines = 1, softWrap = false)
+            Text(sub, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1, softWrap = false)
         }
     }
 }
@@ -972,7 +1033,7 @@ fun PremiumPodiumPillar(
         modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(vertical = if (isFirst) 14.dp else 10.dp, horizontal = 8.dp),
+            modifier = Modifier.padding(vertical = if (isFirst) 14.dp else 10.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -993,6 +1054,7 @@ fun PremiumPodiumPillar(
                 fontWeight = FontWeight.Bold,
                 fontSize = 11.sp,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 color = if (isCurrentUser) RoyalBlue else DeepNavy
             )
 
@@ -1000,6 +1062,8 @@ fun PremiumPodiumPillar(
                 text = xp,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 11.sp,
+                maxLines = 1,
+                softWrap = false,
                 color = if (isFirst) AmberGold else if (isCurrentUser) RoyalBlue else MutedGray
             )
 
@@ -1013,6 +1077,8 @@ fun PremiumPodiumPillar(
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
                     color = OrangeVibrant,
+                    maxLines = 1,
+                    softWrap = false,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                 )
             }

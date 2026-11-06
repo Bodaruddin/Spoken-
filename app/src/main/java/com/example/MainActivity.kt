@@ -146,16 +146,16 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
         }
     }
 
-    // Supabase Cloud Connect Modal
-    if (showSupabaseModal) {
+    // Supabase Cloud Connect Modal (strictly restricted to Admin)
+    if (showSupabaseModal && currentUser.role == Role.ADMIN) {
         SupabaseConnectDialog(
             viewModel = viewModel,
             onDismiss = { viewModel.toggleSupabaseModal(false) }
         )
     }
 
-    // Role Switcher Dialog Modal
-    if (showRoleSwitcher) {
+    // Role Switcher Dialog Modal (strictly restricted to Faculty/Admin staff, students can never switch roles)
+    if (showRoleSwitcher && currentUser.role != Role.STUDENT) {
         RoleSwitcherDialog(
             currentRole = currentUser.role,
             onRoleSelected = { viewModel.switchRole(it) },

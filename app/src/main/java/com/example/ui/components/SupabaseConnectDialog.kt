@@ -236,7 +236,7 @@ fun SupabaseConnectDialog(
                     OutlinedButton(
                         onClick = {
                             onDismiss()
-                            viewModel.toggleRoleSwitcher(true)
+                            viewModel.logout()
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -244,7 +244,7 @@ fun SupabaseConnectDialog(
                     ) {
                         Icon(Icons.Rounded.Shield, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Switch to Admin Account to Connect", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+                        Text("Log In as Admin to Connect", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
                     }
                 }
 

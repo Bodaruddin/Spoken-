@@ -92,6 +92,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val showSupabaseModal: StateFlow<Boolean> = _showSupabaseModal.asStateFlow()
 
     fun toggleSupabaseModal(show: Boolean) {
+        if (show && currentUser.value.role != Role.ADMIN) {
+            _showSupabaseModal.value = false
+            return
+        }
         _showSupabaseModal.value = show
     }
 
@@ -302,6 +306,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleRoleSwitcher(show: Boolean) {
+        if (show && currentUser.value.role == Role.STUDENT) {
+            _showRoleSwitcher.value = false
+            return
+        }
         _showRoleSwitcher.value = show
     }
 
@@ -463,10 +471,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun authenticateAndLogin(role: Role, passwordInput: String): Boolean {
+        // Students cannot elevate role
+        if (currentUser.value.role == Role.STUDENT) {
+            return false
+        }
         val isValid = when (role) {
             Role.ADMIN -> passwordInput.trim() == adminPassword || passwordInput.trim() == adminPin
             Role.TEACHER -> passwordInput.trim() == teacherPassword || passwordInput.trim() == teacherPin || passwordInput.trim() == adminPassword || passwordInput.trim() == adminPin
-            Role.STUDENT -> true
+            Role.STUDENT -> false
         }
         if (isValid) {
             repository.switchRole(role)
@@ -478,6 +490,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun verifyRolePin(role: Role, pinInput: String): Boolean {
+        // Strict Security: Students cannot verify staff PINs or switch to staff portals
+        if (currentUser.value.role == Role.STUDENT) {
+            return false
+        }
         val input = pinInput.trim()
         return when (role) {
             Role.ADMIN -> input == adminPin || input == adminPassword
@@ -492,6 +508,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun login(role: Role) {
+        if (currentUser.value.role == Role.STUDENT && role != Role.STUDENT) {
+            return
+        }
         repository.switchRole(role)
         _isLoggedIn.value = true
         _showRoleSwitcher.value = false
@@ -505,6 +524,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun switchRole(role: Role) {
+        // Strict Security: Logged-in students are strictly forbidden from switching to TEACHER or ADMIN
+        if (currentUser.value.role == Role.STUDENT && role != Role.STUDENT) {
+            return
+        }
         repository.switchRole(role)
         _isLoggedIn.value = true
         _showRoleSwitcher.value = false

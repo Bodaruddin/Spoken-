@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "Speakly",
+  "description": "Interactive English speaking and phonetics learning platform for students, teachers, and admins.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
