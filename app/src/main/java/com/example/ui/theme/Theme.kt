@@ -15,21 +15,22 @@ import androidx.compose.ui.graphics.Color
 private val CyberDarkColorScheme = darkColorScheme(
     primary = RoyalBlue,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFF1E2856),
+    primaryContainer = Color(0xFF1E2E68),
     onPrimaryContainer = Color(0xFFBFDBFE),
     secondary = PurpleAccent,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFF381E68),
+    secondaryContainer = Color(0xFF3E2375),
     onSecondaryContainer = Color(0xFFE9D5FF),
     tertiary = AmberGold,
-    onTertiary = DeepNavy,
+    onTertiary = Color.Black,
     background = CyberMidnightBg,
     onBackground = Color.White,
     surface = CyberNavySurface,
     onSurface = Color.White,
-    surfaceVariant = Color(0xFF161F48),
+    surfaceVariant = Color(0xFF1A285A),
     onSurfaceVariant = Color(0xFFCBD5E1),
-    outline = CyberCardBorder
+    outline = CyberCardBorder,
+    outlineVariant = Color(0xFF233260)
 )
 
 @Composable
@@ -46,53 +47,53 @@ fun MyApplicationTheme(
 }
 
 /**
- * Premium cyber-glass ambient background modifier directly matched to screenshot.
+ * Premium cyber-glass ambient background modifier.
  * Creates deep midnight blue space with luminous wave gradients and subtle ambient highlights.
  */
 fun Modifier.premiumAppBackground(isDark: Boolean = true): Modifier = this.drawBehind {
     val width = size.width
     val height = size.height
 
-    // Deep midnight base gradient (#060919 to #0B112C to #070A1E)
+    // Deep rich midnight sapphire & royal slate vertical gradient
     drawRect(
         brush = Brush.verticalGradient(
             colors = listOf(
-                Color(0xFF060919),
-                Color(0xFF090E26),
-                Color(0xFF0B112C),
-                Color(0xFF070A1E)
+                Color(0xFF090E26), // Top: rich deep atmospheric navy
+                Color(0xFF0D173C), // Upper-mid: deep midnight sapphire
+                Color(0xFF111E4C), // Center: luminous royal slate
+                Color(0xFF0B112D)  // Bottom: grounded deep indigo
             )
         )
     )
-    // Luminous Electric Sapphire glow in upper right
+    // Soft luminous royal sapphire aura in upper right
     drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(Color(0xFF1D4ED8).copy(alpha = 0.45f), Color.Transparent),
+            colors = listOf(Color(0xFF2563EB).copy(alpha = 0.22f), Color.Transparent),
             center = Offset(width * 0.90f, height * 0.05f),
-            radius = width * 0.90f
+            radius = width * 0.95f
         )
     )
-    // Deep Violet/Indigo ambient bloom in top-left
+    // Soft electric purple bloom in top left
     drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(Color(0xFF4F46E5).copy(alpha = 0.35f), Color.Transparent),
-            center = Offset(width * 0.10f, height * 0.18f),
-            radius = width * 0.80f
+            colors = listOf(Color(0xFF6366F1).copy(alpha = 0.16f), Color.Transparent),
+            center = Offset(width * 0.10f, height * 0.20f),
+            radius = width * 0.85f
         )
     )
-    // Cyan soft aura along center-left
+    // Delicate cyan glow along mid-left edge
     drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(Color(0xFF06B6D4).copy(alpha = 0.20f), Color.Transparent),
-            center = Offset(width * 0.05f, height * 0.50f),
-            radius = width * 0.70f
+            colors = listOf(Color(0xFF0EA5E9).copy(alpha = 0.12f), Color.Transparent),
+            center = Offset(width * 0.05f, height * 0.55f),
+            radius = width * 0.75f
         )
     )
-    // Magenta/Rose glow in lower right
+    // Subtle magenta warmth in lower right
     drawCircle(
         brush = Brush.radialGradient(
-            colors = listOf(Color(0xFFEC4899).copy(alpha = 0.18f), Color.Transparent),
-            center = Offset(width * 0.92f, height * 0.72f),
+            colors = listOf(Color(0xFFEC4899).copy(alpha = 0.10f), Color.Transparent),
+            center = Offset(width * 0.92f, height * 0.75f),
             radius = width * 0.70f
         )
     )

@@ -303,8 +303,9 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
         item {
             Card(
                 shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
-                border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.45f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { viewModel.selectTeacherTab(TeacherTab.SPEAKING_REVIEW) }
@@ -315,8 +316,8 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Review Spoken Submissions", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = DeepNavy)
-                        Text("${submissions.count { it.status == "PENDING" }} voice audio recordings waiting for grading", fontSize = 12.sp, color = MutedGray)
+                        Text("Review Spoken Submissions", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                        Text("${submissions.count { it.status == "PENDING" }} voice audio recordings waiting for grading", fontSize = 12.sp, color = Color(0xFFCBD5E1))
                     }
                     Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = RoyalBlue)
                 }
@@ -327,14 +328,16 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
         item {
             Card(
                 shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                border = BorderStroke(1.2.dp, AmberGold.copy(alpha = 0.45f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("⚠️ Cohort Attention & Phoneme Alerts", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("⚠️ Cohort Attention & Phoneme Alerts", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                     WeakAreaRow("Pronunciation: Voiced 'th' sounds (this, weather)", "4 students need drill")
                     WeakAreaRow("Grammar: Irregular past tense agreement", "3 students need review")
                     WeakAreaRow("Fluency: Response hesitation in impromptu talks", "Avg pause: 3.2s")
@@ -391,8 +394,8 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Assigned Students Cohort", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("Manage student levels, class groups, and enrollments", fontSize = 12.sp, color = MutedGray)
+                        Text("Assigned Students Cohort", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.White)
+                        Text("Manage student levels, class groups, and enrollments", fontSize = 12.sp, color = Color(0xFF94A3B8))
                     }
                 }
 
@@ -404,14 +407,19 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                     OutlinedButton(
                         onClick = { showManageClassesDialog = true },
                         shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.2.dp, RoyalBlue.copy(alpha = 0.8f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color(0xFF0F1A3E),
+                            contentColor = Color(0xFF60A5FA)
+                        ),
                         modifier = Modifier
                             .weight(1f)
                             .testTag("teacher_manage_classes_btn"),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
                     ) {
-                        Icon(Icons.Rounded.Class, contentDescription = null, modifier = Modifier.size(16.dp), tint = RoyalBlue)
+                        Icon(Icons.Rounded.Class, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF60A5FA))
                         Spacer(Modifier.width(6.dp))
-                        Text("Manage Classes", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+                        Text("Manage Classes", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
                     }
 
                     Button(
@@ -967,9 +975,10 @@ fun TeacherStudentCard(
     onAssignDrill: () -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+        border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.35f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -984,7 +993,7 @@ fun TeacherStudentCard(
                 Text(student.avatarEmoji, fontSize = 32.sp)
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(student.name, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text(student.name, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
                         Surface(
                             shape = RoundedCornerShape(6.dp),
                             color = RoyalBlue
@@ -992,12 +1001,13 @@ fun TeacherStudentCard(
                             Text(student.level.cefr, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                         }
                     }
-                    Text("${student.email} • Class: ${student.studentClass}", fontSize = 11.sp, color = MutedGray)
+                    Text("${student.email} • Class: ${student.studentClass}", fontSize = 11.sp, color = Color(0xFF94A3B8))
                 }
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = if (student.isActive) Color(0xFFDCFCE7) else Color(0xFFFEE2E2)
+                    color = if (student.isActive) Color(0xFF0F2E22) else Color(0xFF33151D),
+                    border = BorderStroke(1.dp, if (student.isActive) EmeraldSuccess.copy(alpha = 0.5f) else CoralAccent.copy(alpha = 0.5f))
                 ) {
                     Text(
                         if (student.isActive) "Active" else "Paused",
@@ -1015,7 +1025,7 @@ fun TeacherStudentCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Speaking Score", fontSize = 12.sp, color = MutedGray)
+                Text("Speaking Score", fontSize = 12.sp, color = Color(0xFFCBD5E1))
                 Text("${student.speakingScore}%", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = if (student.speakingScore >= 80) EmeraldSuccess else OrangeVibrant)
             }
             LinearProgressIndicator(
@@ -1027,27 +1037,42 @@ fun TeacherStudentCard(
                     .clip(RoundedCornerShape(3.dp))
             )
 
-            // Diagnostic Badges
+            // Diagnostic Badges (Sleek dark glass tiles)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFEFF6FF), modifier = Modifier.weight(1f)) {
-                    Column(modifier = Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Pronunciation", fontSize = 9.sp, color = MutedGray)
-                        Text("${student.pronunciationScore}%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFF0C1638),
+                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.30f)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Pronunciation", fontSize = 9.sp, color = Color(0xFF94A3B8))
+                        Text("${student.pronunciationScore}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
                     }
                 }
-                Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFEFF6FF), modifier = Modifier.weight(1f)) {
-                    Column(modifier = Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Fluency", fontSize = 9.sp, color = MutedGray)
-                        Text("${student.fluencyScore}%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFF0C1638),
+                    border = BorderStroke(1.dp, Color(0xFF60A5FA).copy(alpha = 0.30f)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Fluency", fontSize = 9.sp, color = Color(0xFF94A3B8))
+                        Text("${student.fluencyScore}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
                     }
                 }
-                Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFEFF6FF), modifier = Modifier.weight(1f)) {
-                    Column(modifier = Modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Streak", fontSize = 9.sp, color = MutedGray)
-                        Text("🔥 ${student.streakDays}d", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmberGold)
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFF0C1638),
+                    border = BorderStroke(1.dp, AmberGold.copy(alpha = 0.35f)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Streak", fontSize = 9.sp, color = Color(0xFF94A3B8))
+                        Text("🔥 ${student.streakDays}d", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AmberGold)
                     }
                 }
             }
@@ -1057,20 +1082,26 @@ fun TeacherStudentCard(
                 OutlinedButton(
                     onClick = onAssignDrill,
                     shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.8f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color(0xFF0E1A3C),
+                        contentColor = Color(0xFF60A5FA)
+                    ),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Filled.Bolt, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Filled.Bolt, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFF60A5FA))
                     Spacer(Modifier.width(4.dp))
-                    Text("Assign Drill", fontSize = 11.sp)
+                    Text("Assign Drill", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Button(
                     onClick = onManageClick,
                     shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
                     Spacer(Modifier.width(4.dp))
-                    Text("Diagnostics & Edit", fontSize = 11.sp)
+                    Text("Diagnostics & Edit", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                 }
             }
         }
@@ -1128,7 +1159,8 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.35f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -1522,9 +1554,10 @@ fun GameItemCard(
     onDelete: () -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+        border = BorderStroke(1.2.dp, Color(0xFF818CF8).copy(alpha = 0.35f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -1538,9 +1571,10 @@ fun GameItemCard(
             ) {
                 Surface(
                     shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFFEFF6FF)
+                    color = Color(0xFF131F46),
+                    border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f))
                 ) {
-                    Text(tag, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = RoyalBlue, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                    Text(tag, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     IconButton(onClick = onPlayAudio, modifier = Modifier.size(30.dp)) {
@@ -1555,8 +1589,8 @@ fun GameItemCard(
                 }
             }
 
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Text(subtitle, fontSize = 12.sp, color = MutedGray)
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+            Text(subtitle, fontSize = 12.sp, color = Color(0xFF94A3B8))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1826,7 +1860,9 @@ fun TeacherSubmissionsGradingView(viewModel: MainViewModel, modifier: Modifier =
             item {
                 Card(
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                    border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.35f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -2030,7 +2066,9 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
         items(filteredAssignments) { asg ->
             Card(
                 shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                border = BorderStroke(1.2.dp, Color(0xFF818CF8).copy(alpha = 0.35f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
@@ -2094,7 +2132,9 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
         items(liveClasses) { cls ->
             Card(
                 shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.35f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(

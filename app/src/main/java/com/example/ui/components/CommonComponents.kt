@@ -67,9 +67,9 @@ fun AppTopBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = Color(0xFF070B1E).copy(alpha = 0.92f),
+        color = Color(0xFF0C1434).copy(alpha = 0.95f),
         tonalElevation = 0.dp,
-        border = BorderStroke(1.dp, Color(0xFF1E2856).copy(alpha = 0.35f)),
+        border = BorderStroke(1.dp, Color(0xFF283B70).copy(alpha = 0.5f)),
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()

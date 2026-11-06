@@ -25,9 +25,9 @@ fun StudentBottomBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = Color(0xFF090D24),
+        color = Color(0xFF0F173C),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        border = BorderStroke(1.dp, Color(0xFF1E2856).copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, Color(0xFF283B70).copy(alpha = 0.6f)),
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
@@ -79,9 +79,9 @@ fun TeacherBottomBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = Color(0xFF090D24),
+        color = Color(0xFF0F173C),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        border = BorderStroke(1.dp, Color(0xFF1E2856).copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, Color(0xFF283B70).copy(alpha = 0.6f)),
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
@@ -131,9 +131,9 @@ fun AdminBottomBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = Color(0xFF090D24),
+        color = Color(0xFF0F173C),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        border = BorderStroke(1.dp, Color(0xFF1E2856).copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, Color(0xFF283B70).copy(alpha = 0.6f)),
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)

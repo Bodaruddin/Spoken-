@@ -277,8 +277,9 @@ fun StudentHomeScreen(
                         classTasks.forEach { task ->
                             Card(
                                 shape = RoundedCornerShape(16.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp),
+                                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                                border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.35f)),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(
@@ -430,7 +431,9 @@ fun StudentHomeScreen(
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0C241E)),
+                border = BorderStroke(1.2.dp, EmeraldSuccess.copy(alpha = 0.45f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -444,7 +447,7 @@ fun StudentHomeScreen(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFDCFCE7)),
+                            .background(Color(0xFF0A3D2E)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text("💡", fontSize = 22.sp)
@@ -455,13 +458,13 @@ fun StudentHomeScreen(
                             text = "Daily Fluency Pro Tip",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
-                            color = DeepNavy
+                            color = Color.White
                         )
                         Text(
                             text = "\"Focus on syllable stress rather than speed. Clear intonation makes English sound natural.\"",
                             fontSize = 12.sp,
                             lineHeight = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Color(0xFFCBD5E1)
                         )
                     }
 
@@ -485,7 +488,9 @@ fun StudentHomeScreen(
         item {
             Card(
                 shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.35f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
