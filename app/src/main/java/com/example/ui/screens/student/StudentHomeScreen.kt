@@ -147,54 +147,6 @@ fun StudentHomeScreen(
             }
         }
 
-        // 1.5 Student Fluency & Momentum Stats Row
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SectionHeader("Daily Practice Streaks & Metrics")
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    StudentStatTile(
-                        title = "Streak",
-                        value = "${profile.streakDays}d",
-                        emoji = "🔥",
-                        cardBg = NeonAmberCardBg,
-                        borderColor = NeonAmberBorder,
-                        gradient = NeonAmberGrad,
-                        modifier = Modifier.weight(1f)
-                    )
-                    StudentStatTile(
-                        title = "XP Earned",
-                        value = "${profile.xpPoints}",
-                        emoji = "⚡",
-                        cardBg = NeonBlueCardBg,
-                        borderColor = NeonBlueBorder,
-                        gradient = NeonBlueGrad,
-                        modifier = Modifier.weight(1f)
-                    )
-                    StudentStatTile(
-                        title = "Speaking",
-                        value = "86%",
-                        emoji = "🎙️",
-                        cardBg = NeonGreenCardBg,
-                        borderColor = NeonGreenBorder,
-                        gradient = NeonGreenGrad,
-                        modifier = Modifier.weight(1f)
-                    )
-                    StudentStatTile(
-                        title = "CEFR",
-                        value = profile.currentLevel.cefr,
-                        emoji = "🏆",
-                        cardBg = NeonPurpleCardBg,
-                        borderColor = NeonPurpleBorder,
-                        gradient = NeonPurpleGrad,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-
         // 2. Primary "Continue Journey" Action Card
         item {
             Card(
@@ -256,40 +208,6 @@ fun StudentHomeScreen(
                             modifier = Modifier.size(32.dp)
                         )
                     }
-                }
-            }
-        }
-
-        // 3. Today's Daily Missions
-        item {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
-                border = BorderStroke(1.dp, CyberCardBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text("🎯", fontSize = 18.sp)
-                            Text("Today's Missions", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
-                        }
-                        Text("2 / 3 Done", fontSize = 12.sp, color = RoyalBlue, fontWeight = FontWeight.Bold)
-                    }
-
-                    MissionItem("Practice 1 Speaking Roleplay", "50 XP", 1f, true)
-                    MissionItem("Score >80% on Pronunciation Drill", "40 XP", 1f, true)
-                    MissionItem("Win 1 Vocabulary Game Challenge", "60 XP", 0.4f, false)
                 }
             }
         }
@@ -455,94 +373,7 @@ fun StudentHomeScreen(
     }
 }
 
-@Composable
-fun MissionItem(title: String, reward: String, progress: Float, isDone: Boolean) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = if (isDone) Icons.Filled.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                    contentDescription = null,
-                    tint = if (isDone) EmeraldSuccess else MutedGray,
-                    modifier = Modifier.size(18.dp)
-                )
-                Text(
-                    text = title,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            Text(reward, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
-        }
-        LinearProgressIndicator(
-            progress = { progress },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp)),
-            color = if (isDone) EmeraldSuccess else RoyalBlue,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    }
-}
 
-@Composable
-fun StudentStatTile(
-    title: String,
-    value: String,
-    emoji: String,
-    gradient: Brush,
-    modifier: Modifier = Modifier,
-    cardBg: Color = CyberCardBg,
-    borderColor: Color = NeonBlueBorder
-) {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = cardBg),
-        border = BorderStroke(1.2.dp, borderColor.copy(alpha = 0.5f)),
-        modifier = modifier
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp, horizontal = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(gradient),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(emoji, fontSize = 20.sp)
-            }
-            Text(
-                text = value,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Black,
-                color = Color.White,
-                maxLines = 1
-            )
-            Text(
-                text = title,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFF94A3B8),
-                maxLines = 1
-            )
-        }
-    }
-}
 
 @Composable
 fun QuickHubCard(

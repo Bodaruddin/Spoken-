@@ -28,6 +28,7 @@ import com.example.data.model.AchievementBadge
 import com.example.data.model.LeaderboardUser
 import com.example.data.remote.SupabaseConnectionState
 import com.example.ui.MainViewModel
+import com.example.ui.components.SectionHeader
 import com.example.ui.theme.*
 
 @Composable
@@ -258,51 +259,97 @@ fun StudentProfileScreen(
             }
         }
 
-        // 2. Luxury Glassmorphic Performance Metrics Bar
+        // 2. Daily Practice Streaks & Metrics Section (Shifted from Home Screen)
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("student_profile_streaks_metrics"),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                PremiumStatCard(
-                    title = "Streak",
-                    value = "${profile.streakDays} Days",
-                    sub = "🔥 Blazing",
-                    accent = OrangeVibrant,
-                    bg = Color(0xFFFFF7ED),
-                    border = Color(0xFFFFEDD5),
-                    modifier = Modifier.weight(1f)
-                )
+                SectionHeader("Daily Practice Streaks & Metrics")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    StudentStatTile(
+                        title = "Streak",
+                        value = "${profile.streakDays}d",
+                        emoji = "🔥",
+                        cardBg = NeonAmberCardBg,
+                        borderColor = NeonAmberBorder,
+                        gradient = NeonAmberGrad,
+                        modifier = Modifier.weight(1f)
+                    )
+                    StudentStatTile(
+                        title = "XP Earned",
+                        value = "${profile.xpPoints}",
+                        emoji = "⚡",
+                        cardBg = NeonBlueCardBg,
+                        borderColor = NeonBlueBorder,
+                        gradient = NeonBlueGrad,
+                        modifier = Modifier.weight(1f)
+                    )
+                    StudentStatTile(
+                        title = "Speaking",
+                        value = "86%",
+                        emoji = "🎙️",
+                        cardBg = NeonGreenCardBg,
+                        borderColor = NeonGreenBorder,
+                        gradient = NeonGreenGrad,
+                        modifier = Modifier.weight(1f)
+                    )
+                    StudentStatTile(
+                        title = "CEFR",
+                        value = profile.currentLevel.cefr,
+                        emoji = "🏆",
+                        cardBg = NeonPurpleCardBg,
+                        borderColor = NeonPurpleBorder,
+                        gradient = NeonPurpleGrad,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
 
-                PremiumStatCard(
-                    title = "Fluency XP",
-                    value = "${profile.xpPoints}",
-                    sub = "⚡ Gold Rank",
-                    accent = RoyalBlue,
-                    bg = Color(0xFFEFF6FF),
-                    border = Color(0xFFDBEAFE),
-                    modifier = Modifier.weight(1f)
-                )
+        // 3. Today's Daily Missions (Shifted from Home Screen)
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                border = BorderStroke(1.dp, CyberCardBorder),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("student_profile_today_missions")
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("🎯", fontSize = 18.sp)
+                            Text(
+                                "Today's Missions",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Color.White
+                            )
+                        }
+                        Text("2 / 3 Done", fontSize = 12.sp, color = RoyalBlue, fontWeight = FontWeight.Bold)
+                    }
 
-                PremiumStatCard(
-                    title = "Coins",
-                    value = "${profile.coins}",
-                    sub = "🪙 Balance",
-                    accent = AmberGold,
-                    bg = Color(0xFFFEFCE8),
-                    border = Color(0xFFFEF08A),
-                    modifier = Modifier.weight(1f)
-                )
-
-                PremiumStatCard(
-                    title = "Speaking",
-                    value = "${profile.speakingPracticeMinutes}m",
-                    sub = "⏱️ Time",
-                    accent = EmeraldSuccess,
-                    bg = Color(0xFFECFDF5),
-                    border = Color(0xFFA7F3D0),
-                    modifier = Modifier.weight(1f)
-                )
+                    MissionItem("Practice 1 Speaking Roleplay", "50 XP", 1f, true)
+                    MissionItem("Score >80% on Pronunciation Drill", "40 XP", 1f, true)
+                    MissionItem("Win 1 Vocabulary Game Challenge", "60 XP", 0.4f, false)
+                }
             }
         }
 
@@ -1104,5 +1151,94 @@ fun SkillBar(label: String, score: Int, color: Color) {
             color = color,
             trackColor = MaterialTheme.colorScheme.surfaceVariant
         )
+    }
+}
+
+@Composable
+fun MissionItem(title: String, reward: String, progress: Float, isDone: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = if (isDone) Icons.Filled.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                    contentDescription = null,
+                    tint = if (isDone) EmeraldSuccess else MutedGray,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = title,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Text(reward, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+        }
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp)),
+            color = if (isDone) EmeraldSuccess else RoyalBlue,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    }
+}
+
+@Composable
+fun StudentStatTile(
+    title: String,
+    value: String,
+    emoji: String,
+    gradient: Brush,
+    modifier: Modifier = Modifier,
+    cardBg: Color = CyberCardBg,
+    borderColor: Color = NeonBlueBorder
+) {
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.2.dp, borderColor.copy(alpha = 0.5f)),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(gradient),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(emoji, fontSize = 20.sp)
+            }
+            Text(
+                text = value,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Black,
+                color = Color.White,
+                maxLines = 1
+            )
+            Text(
+                text = title,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF94A3B8),
+                maxLines = 1
+            )
+        }
     }
 }
