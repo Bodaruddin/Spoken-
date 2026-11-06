@@ -21,6 +21,7 @@ class AppPreferences(context: Context) {
         // Account Collections Keys
         private const val KEY_STUDENTS_LIST = "key_students_list"
         private const val KEY_TEACHERS_LIST = "key_teachers_list"
+        private const val KEY_ACADEMIC_CLASSES = "key_academic_classes"
 
         // Staff Credentials Keys
         private const val KEY_ADMIN_PASSWORD = "key_admin_password"
@@ -147,6 +148,35 @@ class AppPreferences(context: Context) {
                 list.add(jsonToUser(obj))
             }
             list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // =========================================================================
+    // ACADEMIC CLASSES PERSISTENCE
+    // =========================================================================
+
+    fun saveClasses(classes: List<String>) {
+        try {
+            val jsonArray = JSONArray()
+            for (cls in classes) {
+                jsonArray.put(cls)
+            }
+            prefs.edit().putString(KEY_ACADEMIC_CLASSES, jsonArray.toString()).apply()
+        } catch (_: Exception) {
+        }
+    }
+
+    fun getClasses(): List<String>? {
+        val raw = prefs.getString(KEY_ACADEMIC_CLASSES, null) ?: return null
+        return try {
+            val jsonArray = JSONArray(raw)
+            val list = mutableListOf<String>()
+            for (i in 0 until jsonArray.length()) {
+                list.add(jsonArray.getString(i))
+            }
+            if (list.isNotEmpty()) list else null
         } catch (_: Exception) {
             null
         }

@@ -407,6 +407,7 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
 @Composable
 fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val students by viewModel.adminStudents.collectAsState()
+    val academicClasses by viewModel.academicClasses.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedStudentForEdit by remember { mutableStateOf<StudentManagementInfo?>(null) }
     var searchQuery by remember { mutableStateOf("") }
@@ -537,7 +538,7 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
         // Filter Pills
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val filters = listOf("All") + com.example.data.model.AcademicClasses.ALL_CLASSES + listOf("Active", "Needs Attention")
+                val filters = listOf("All") + academicClasses + listOf("Active", "Needs Attention")
                 items(filters) { f ->
                     val isSel = selectedBatchFilter == f
                     FilterChip(
@@ -654,7 +655,7 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            com.example.data.model.AcademicClasses.ALL_CLASSES.forEach { cls ->
+                            academicClasses.forEach { cls ->
                                 FilterChip(
                                     selected = newStudentClass == cls,
                                     onClick = { newStudentClass = cls },
@@ -697,6 +698,7 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
     selectedStudentForEdit?.let { s ->
         com.example.ui.screens.teacher.StudentDetailDialog(
             student = s,
+            classes = academicClasses,
             onDismiss = { selectedStudentForEdit = null },
             onSave = { updated ->
                 viewModel.updateStudent(updated)

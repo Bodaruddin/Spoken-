@@ -347,13 +347,19 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
 // -------------------------------------------------------------
 // TEACHER STUDENTS MANAGEMENT (COMPREHENSIVE)
 // -------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val students by viewModel.adminStudents.collectAsState()
+    val academicClasses by viewModel.academicClasses.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     var selectedBatchFilter by remember { mutableStateOf("All") }
     var selectedStudentForDetail by remember { mutableStateOf<StudentManagementInfo?>(null) }
     var actionToast by remember { mutableStateOf<String?>(null) }
+
+    // Dialog State Controllers
+    var showManageClassesDialog by remember { mutableStateOf(false) }
+    var showCreateStudentDialog by remember { mutableStateOf(false) }
 
     val filteredStudents = remember(students, searchQuery, selectedBatchFilter) {
         students.filter { student ->
@@ -378,15 +384,56 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Assigned Students Cohort", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("Manage student levels, view speaking diagnostics, and assign target drills", fontSize = 12.sp, color = MutedGray)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Assigned Students Cohort", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("Manage student levels, class groups, and enrollments", fontSize = 12.sp, color = MutedGray)
+                    }
+                }
+
+                // Action Controls: Manage Classes (Add/Delete) & Create New Student Account
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { showManageClassesDialog = true },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("teacher_manage_classes_btn"),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
+                    ) {
+                        Icon(Icons.Rounded.Class, contentDescription = null, modifier = Modifier.size(16.dp), tint = RoyalBlue)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Manage Classes", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+                    }
+
+                    Button(
+                        onClick = { showCreateStudentDialog = true },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("teacher_create_student_btn"),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
+                    ) {
+                        Icon(Icons.Filled.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Create Account", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
 
                 // Search Bar
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search by name, email, or batch...", fontSize = 13.sp) },
+                    placeholder = { Text("Search by name, email, or class...", fontSize = 13.sp) },
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = RoyalBlue) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
@@ -400,12 +447,12 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                     singleLine = true
                 )
 
-                // Filter Pills
+                // Dynamic Filter Pills (using dynamic academicClasses)
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(vertical = 4.dp)
                 ) {
-                    val filters = listOf("All") + com.example.data.model.AcademicClasses.ALL_CLASSES + listOf("Needs Help (<80%)", "Top Fluency (≥85%)")
+                    val filters = listOf("All") + academicClasses + listOf("Needs Help (<80%)", "Top Fluency (≥85%)")
                     items(filters) { f ->
                         val isSel = selectedBatchFilter == f
                         FilterChip(
@@ -455,10 +502,56 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
         }
     }
 
+    // Dialog 1: Manage Academic Classes (Add Class & Delete Class)
+    if (showManageClassesDialog) {
+        ManageClassesDialog(
+            classes = academicClasses,
+            students = students,
+            onAddClass = { newClass ->
+                val success = viewModel.addClass(newClass)
+                if (success) {
+                    actionToast = "Added new class: $newClass"
+                } else {
+                    actionToast = "Class '$newClass' already exists or is empty."
+                }
+            },
+            onDeleteClass = { classToDelete ->
+                val success = viewModel.deleteClass(classToDelete)
+                if (success) {
+                    actionToast = "Deleted class '$classToDelete'"
+                    if (selectedBatchFilter == classToDelete) {
+                        selectedBatchFilter = "All"
+                    }
+                }
+            },
+            onDismiss = { showManageClassesDialog = false }
+        )
+    }
+
+    // Dialog 2: Create Student Account with Drop-down Class Option
+    if (showCreateStudentDialog) {
+        TeacherCreateStudentAccountDialog(
+            classes = academicClasses,
+            onDismiss = { showCreateStudentDialog = false },
+            onCreate = { name, email, selectedClass, level, pin, notes ->
+                viewModel.addStudent(
+                    name = name,
+                    email = email,
+                    batch = selectedClass,
+                    level = level,
+                    notes = notes
+                )
+                actionToast = "Created student account for $name in $selectedClass!"
+                showCreateStudentDialog = false
+            }
+        )
+    }
+
     // Comprehensive Student Detail & Management Dialog
     selectedStudentForDetail?.let { student ->
         StudentDetailDialog(
             student = student,
+            classes = academicClasses,
             onDismiss = { selectedStudentForDetail = null },
             onSave = { updated ->
                 viewModel.updateStudent(updated)
@@ -467,6 +560,404 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
             }
         )
     }
+}
+
+// -------------------------------------------------------------
+// MANAGE CLASSES DIALOG (ADD & DELETE CLASS)
+// -------------------------------------------------------------
+@Composable
+fun ManageClassesDialog(
+    classes: List<String>,
+    students: List<StudentManagementInfo>,
+    onAddClass: (String) -> Unit,
+    onDeleteClass: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var newClassName by remember { mutableStateOf("") }
+    var classToDeleteConfirmation by remember { mutableStateOf<String?>(null) }
+    var addError by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Rounded.Class, contentDescription = null, tint = RoyalBlue)
+                Text("Manage Academic Classes", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    "Add new classes or remove existing cohorts. Changes will instantly reflect across student registration, assignment targets, and class filters.",
+                    fontSize = 12.sp,
+                    color = MutedGray,
+                    lineHeight = 16.sp
+                )
+
+                // Add Class Input Card
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Filled.AddCircle, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
+                            Text("Add New Class", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = newClassName,
+                                onValueChange = {
+                                    newClassName = it
+                                    addError = null
+                                },
+                                placeholder = { Text("e.g. Class 5 or Spoken Batch A", fontSize = 12.sp) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("add_class_input"),
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp)
+                            )
+
+                            Button(
+                                onClick = {
+                                    val trimmed = newClassName.trim()
+                                    if (trimmed.isBlank()) {
+                                        addError = "Please enter a class name"
+                                    } else if (classes.any { it.equals(trimmed, ignoreCase = true) }) {
+                                        addError = "Class '$trimmed' already exists"
+                                    } else {
+                                        onAddClass(trimmed)
+                                        newClassName = ""
+                                        addError = null
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.testTag("submit_add_class_btn"),
+                                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+                            ) {
+                                Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        if (addError != null) {
+                            Text(addError!!, color = CoralAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                // Existing Classes List
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Existing Classes (${classes.size}):", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+
+                    if (classes.isEmpty()) {
+                        Text("No classes created yet. Add your first class above.", fontSize = 12.sp, color = MutedGray)
+                    } else {
+                        classes.forEach { cls ->
+                            val count = students.count { it.batch.equals(cls, ignoreCase = true) }
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(18.dp))
+                                        Text(cls, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFFEFF6FF)
+                                        ) {
+                                            Text(
+                                                "$count students",
+                                                fontSize = 11.sp,
+                                                color = RoyalBlue,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    IconButton(
+                                        onClick = { classToDeleteConfirmation = cls },
+                                        modifier = Modifier.testTag("delete_class_${cls.lowercase().replace(" ", "_")}")
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            contentDescription = "Delete Class $cls",
+                                            tint = CoralAccent,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Done")
+            }
+        }
+    )
+
+    // Delete Confirmation Sub-Dialog
+    classToDeleteConfirmation?.let { cls ->
+        val count = students.count { it.batch.equals(cls, ignoreCase = true) }
+        AlertDialog(
+            onDismissRequest = { classToDeleteConfirmation = null },
+            icon = { Icon(Icons.Filled.Warning, contentDescription = null, tint = CoralAccent) },
+            title = { Text("Delete $cls?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    if (count > 0)
+                        "Are you sure you want to delete '$cls'? There are currently $count students enrolled in this class. They will remain in the system, but this class option will be deleted."
+                    else
+                        "Are you sure you want to delete '$cls'?",
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteClass(cls)
+                        classToDeleteConfirmation = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CoralAccent),
+                    modifier = Modifier.testTag("confirm_delete_class_btn")
+                ) {
+                    Text("Delete Class", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { classToDeleteConfirmation = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+// -------------------------------------------------------------
+// TEACHER CREATE STUDENT ACCOUNT DIALOG (WITH CLASS DROPDOWN)
+// -------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TeacherCreateStudentAccountDialog(
+    classes: List<String>,
+    onDismiss: () -> Unit,
+    onCreate: (name: String, email: String, selectedClass: String, level: LearningLevel, pin: String, notes: String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var selectedClass by remember(classes) {
+        mutableStateOf(classes.firstOrNull() ?: AcademicClasses.DEFAULT_CLASS)
+    }
+    var classDropdownExpanded by remember { mutableStateOf(false) }
+    var selectedLevel by remember { mutableStateOf(LearningLevel.BEGINNER) }
+    var securityPin by remember { mutableStateOf("1234") }
+    var notes by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.PersonAdd, contentDescription = null, tint = RoyalBlue)
+                Text("Create Student Account", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    "Enroll a student into your cohort. Select their academic class from the dropdown menu and set initial CEFR proficiency.",
+                    fontSize = 12.sp,
+                    color = MutedGray,
+                    lineHeight = 16.sp
+                )
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = {
+                        name = it
+                        errorMessage = null
+                    },
+                    label = { Text("Full Name") },
+                    placeholder = { Text("e.g. Maya Sharma") },
+                    leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null, tint = RoyalBlue) },
+                    modifier = Modifier.fillMaxWidth().testTag("teacher_new_student_name"),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = {
+                        email = it
+                        errorMessage = null
+                    },
+                    label = { Text("Email Address") },
+                    placeholder = { Text("e.g. maya.s@linguaquest.edu") },
+                    leadingIcon = { Icon(Icons.Rounded.Email, contentDescription = null, tint = RoyalBlue) },
+                    modifier = Modifier.fillMaxWidth().testTag("teacher_new_student_email"),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                // Dropdown Option to Select Class
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Select Academic Class", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+
+                    ExposedDropdownMenuBox(
+                        expanded = classDropdownExpanded,
+                        onExpandedChange = { classDropdownExpanded = !classDropdownExpanded },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("teacher_class_dropdown_box")
+                    ) {
+                        OutlinedTextField(
+                            value = selectedClass,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Assigned Class") },
+                            leadingIcon = { Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = classDropdownExpanded) },
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth()
+                                .testTag("teacher_class_dropdown_field"),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = classDropdownExpanded,
+                            onDismissRequest = { classDropdownExpanded = false }
+                        ) {
+                            classes.forEach { cls ->
+                                val isSelected = selectedClass == cls
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            cls,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) RoyalBlue else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        if (isSelected) {
+                                            Icon(Icons.Filled.Check, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedClass = cls
+                                        classDropdownExpanded = false
+                                    },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Learning Level Selection
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Starting Learning Level", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(LearningLevel.values()) { lvl ->
+                            FilterChip(
+                                selected = selectedLevel == lvl,
+                                onClick = { selectedLevel = lvl },
+                                label = { Text("${lvl.cefr} ${lvl.displayName}", fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = securityPin,
+                    onValueChange = {
+                        securityPin = it
+                        errorMessage = null
+                    },
+                    label = { Text("Security PIN (4-6 digits)") },
+                    placeholder = { Text("Default 1234") },
+                    leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null, tint = RoyalBlue) },
+                    modifier = Modifier.fillMaxWidth().testTag("teacher_new_student_pin"),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = { Text("Teacher Notes (Optional)") },
+                    placeholder = { Text("e.g. Focus on pronunciation...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    minLines = 2
+                )
+
+                if (errorMessage != null) {
+                    Text(errorMessage!!, color = CoralAccent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isBlank() || email.isBlank()) {
+                        errorMessage = "Student name and email are required."
+                    } else if (securityPin.trim().length < 4) {
+                        errorMessage = "Security PIN must be at least 4 digits."
+                    } else {
+                        onCreate(name.trim(), email.trim(), selectedClass, selectedLevel, securityPin.trim(), notes.trim())
+                    }
+                },
+                modifier = Modifier.testTag("submit_create_student_account_btn"),
+                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+            ) {
+                Text("Create Account")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
@@ -1458,6 +1949,7 @@ fun TeacherSubmissionsGradingView(viewModel: MainViewModel, modifier: Modifier =
 fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val assignments by viewModel.assignments.collectAsState()
     val liveClasses by viewModel.liveClasses.collectAsState()
+    val academicClasses by viewModel.academicClasses.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
     var toastMsg by remember { mutableStateOf<String?>(null) }
     var selectedClassFilter by remember { mutableStateOf("All Classes") }
@@ -1509,7 +2001,8 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
-                items(com.example.data.model.AcademicClasses.ASSIGNMENT_TARGETS) { cls ->
+                val targets = listOf("All Classes") + academicClasses
+                items(targets) { cls ->
                     val isSel = selectedClassFilter == cls
                     FilterChip(
                         selected = isSel,
@@ -1707,7 +2200,7 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            com.example.data.model.AcademicClasses.ASSIGNMENT_TARGETS.forEach { cls ->
+                            (listOf("All Classes") + academicClasses).forEach { cls ->
                                 FilterChip(
                                     selected = selectedTargetClass == cls,
                                     onClick = { selectedTargetClass = cls },
@@ -1760,16 +2253,18 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
 // -------------------------------------------------------------
 // HELPER COMPOSABLES & DIALOGS
 // -------------------------------------------------------------
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun StudentDetailDialog(
     student: StudentManagementInfo,
+    classes: List<String> = AcademicClasses.DEFAULT_CLASSES,
     onDismiss: () -> Unit,
     onSave: (StudentManagementInfo) -> Unit
 ) {
     var name by remember { mutableStateOf(student.name) }
     var email by remember { mutableStateOf(student.email) }
     var batch by remember { mutableStateOf(student.batch) }
+    var classDropdownExpanded by remember { mutableStateOf(false) }
     var selectedLevel by remember { mutableStateOf(student.level) }
     var notes by remember { mutableStateOf(student.teacherNotes) }
     var isActive by remember { mutableStateOf(student.isActive) }
@@ -1839,21 +2334,52 @@ fun StudentDetailDialog(
 
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
-                            Text("Assigned Class:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            Text("($batch)", fontWeight = FontWeight.ExtraBold, fontSize = 11.sp, color = RoyalBlue)
-                        }
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        Text("Assigned Class", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+
+                        val classList = if (classes.isNotEmpty()) classes else AcademicClasses.DEFAULT_CLASSES
+                        ExposedDropdownMenuBox(
+                            expanded = classDropdownExpanded,
+                            onExpandedChange = { classDropdownExpanded = !classDropdownExpanded },
+                            modifier = Modifier.fillMaxWidth().testTag("edit_student_class_dropdown_box")
                         ) {
-                            com.example.data.model.AcademicClasses.ALL_CLASSES.forEach { cls ->
-                                FilterChip(
-                                    selected = batch == cls,
-                                    onClick = { batch = cls },
-                                    label = { Text(cls, fontSize = 11.sp) }
-                                )
+                            OutlinedTextField(
+                                value = batch,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Class") },
+                                leadingIcon = { Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue) },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = classDropdownExpanded) },
+                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = classDropdownExpanded,
+                                onDismissRequest = { classDropdownExpanded = false }
+                            ) {
+                                classList.forEach { cls ->
+                                    val isSelected = batch == cls
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                cls,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isSelected) RoyalBlue else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            if (isSelected) {
+                                                Icon(Icons.Filled.Check, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
+                                            }
+                                        },
+                                        onClick = {
+                                            batch = cls
+                                            classDropdownExpanded = false
+                                        },
+                                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                    )
+                                }
                             }
                         }
                     }

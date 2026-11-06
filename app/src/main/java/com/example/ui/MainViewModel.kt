@@ -135,6 +135,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val badges = repository.badges
     val adminStudents = repository.adminStudents
     val adminTeachers = repository.adminTeachers
+    val academicClasses = repository.academicClasses
 
     // Registration Permissions
     val allowStudentRegistration = repository.allowStudentRegistration
@@ -148,6 +149,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.setAllowTeacherRegistration(allow)
     }
 
+    // Academic Class Management
+    fun addClass(className: String): Boolean {
+        return repository.addClass(className)
+    }
+
+    fun deleteClass(className: String): Boolean {
+        return repository.deleteClass(className)
+    }
+
     // Dynamic Game Content Flows
     val wordMatchChallenges = repository.wordMatchChallenges
     val missingLettersChallenges = repository.missingLettersChallenges
@@ -158,6 +168,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val grammarChallenges = repository.grammarChallenges
 
     // Student Management helpers
+    fun addStudent(
+        name: String,
+        email: String,
+        batch: String,
+        level: LearningLevel = LearningLevel.BEGINNER,
+        notes: String = ""
+    ) {
+        repository.addStudent(name, email, batch, level, notes)
+    }
+
     fun updateStudent(student: StudentManagementInfo) {
         repository.updateStudent(student)
     }

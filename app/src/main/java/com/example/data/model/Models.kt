@@ -16,7 +16,7 @@ enum class LearningLevel(val displayName: String, val cefr: String) {
 }
 
 object AcademicClasses {
-    val ALL_CLASSES = listOf(
+    val DEFAULT_CLASSES = listOf(
         "Class 6",
         "Class 7",
         "Class 8",
@@ -25,7 +25,8 @@ object AcademicClasses {
         "Class 11",
         "Class 12"
     )
-    val ASSIGNMENT_TARGETS = listOf("All Classes") + ALL_CLASSES
+    val ALL_CLASSES: List<String> get() = DEFAULT_CLASSES
+    val ASSIGNMENT_TARGETS: List<String> get() = listOf("All Classes") + DEFAULT_CLASSES
     const val DEFAULT_CLASS = "Class 10"
 }
 

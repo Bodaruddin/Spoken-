@@ -450,6 +450,12 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     private val _adminTeachers = MutableStateFlow(loadInitialTeachers())
     val adminTeachers: StateFlow<List<User>> = _adminTeachers.asStateFlow()
 
+    // Admin & Teacher Managed Classes
+    private val _academicClasses = MutableStateFlow(
+        appPreferences?.getClasses() ?: AcademicClasses.DEFAULT_CLASSES
+    )
+    val academicClasses: StateFlow<List<String>> = _academicClasses.asStateFlow()
+
     // Self-registration permissions (Admin controllable)
     private val _allowStudentRegistration = MutableStateFlow(true)
     val allowStudentRegistration: StateFlow<Boolean> = _allowStudentRegistration.asStateFlow()
@@ -829,6 +835,24 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         }
         _adminStudents.update { it + newStudents }
         appPreferences?.saveStudents(_adminStudents.value)
+    }
+
+    // --- ACADEMIC CLASS MANAGEMENT METHODS ---
+    fun addClass(className: String): Boolean {
+        val clean = className.trim()
+        if (clean.isBlank()) return false
+        if (_academicClasses.value.any { it.equals(clean, ignoreCase = true) }) return false
+        _academicClasses.update { it + clean }
+        appPreferences?.saveClasses(_academicClasses.value)
+        return true
+    }
+
+    fun deleteClass(className: String): Boolean {
+        val clean = className.trim()
+        if (_academicClasses.value.none { it.equals(clean, ignoreCase = true) }) return false
+        _academicClasses.update { list -> list.filterNot { it.equals(clean, ignoreCase = true) } }
+        appPreferences?.saveClasses(_academicClasses.value)
+        return true
     }
 
     // --- GAME ADDITION & MANAGEMENT METHODS ---
