@@ -298,7 +298,7 @@ fun StudentProfileScreen(
                     )
                     StudentStatTile(
                         title = "Speaking",
-                        value = "86%",
+                        value = "${profile.speakingScore}%",
                         emoji = "🎙️",
                         cardBg = NeonGreenCardBg,
                         borderColor = NeonGreenBorder,
@@ -315,11 +315,56 @@ fun StudentProfileScreen(
                         modifier = Modifier.weight(1f)
                     )
                 }
+
+                // Dynamic Practice Metrics Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF0F172A),
+                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("⏱️ Practice Time", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Medium)
+                            Text("${profile.speakingPracticeMinutes} mins", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                        }
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF0F172A),
+                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("🗺️ Lessons Cleared", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Medium)
+                            Text("${profile.completedStagesCount} stages", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = EmeraldSuccess)
+                        }
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF0F172A),
+                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("🏆 Overall CEFR", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Medium)
+                            Text("${profile.currentLevel.cefr} • ${profile.overallScore}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AmberGold)
+                        }
+                    }
+                }
             }
         }
 
-        // 3. Today's Daily Missions (Shifted from Home Screen)
+        // 3. Today's Daily Missions (Dynamic according to student practice)
         item {
+            val isSpokenDone = profile.speakingPracticeMinutes > 0
+            val isPronunciationDone = profile.pronunciationScore >= 80
+            val isGrammarDone = profile.grammarScore >= 80
+            val completedCount = (if (isSpokenDone) 1 else 0) + (if (isPronunciationDone) 1 else 0) + (if (isGrammarDone) 1 else 0)
+
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = CyberCardBg),
@@ -349,12 +394,22 @@ fun StudentProfileScreen(
                                 color = Color.White
                             )
                         }
-                        Text("2 / 3 Done", fontSize = 12.sp, color = RoyalBlue, fontWeight = FontWeight.Bold)
+                        Text("$completedCount / 3 Done", fontSize = 12.sp, color = if (completedCount == 3) EmeraldSuccess else RoyalBlue, fontWeight = FontWeight.Bold)
                     }
 
-                    MissionItem("Practice 1 Speaking Roleplay", "50 XP", 1f, true)
-                    MissionItem("Score >80% on Pronunciation Drill", "40 XP", 1f, true)
-                    MissionItem("Win 1 Vocabulary Game Challenge", "60 XP", 0.4f, false)
+                    MissionItem("Practice 1 Speaking Roleplay / Conversation", "50 XP", if (isSpokenDone) 1f else 0.5f, isSpokenDone)
+                    MissionItem("Score >80% on Pronunciation Drill", "40 XP", (profile.pronunciationScore / 100f).coerceIn(0f, 1f), isPronunciationDone)
+                    MissionItem("Vocabulary & Grammar Precision Challenge", "60 XP", (profile.grammarScore / 100f).coerceIn(0f, 1f), isGrammarDone)
+
+                    Button(
+                        onClick = { viewModel.incrementDailyPracticeStreak() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (completedCount > 0) EmeraldSuccess else Color(0xFF1E293B)),
+                        contentPadding = PaddingValues(vertical = 8.dp)
+                    ) {
+                        Text("🔥 Claim Daily Practice Streak Bonus (+30 XP)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
             }
         }
@@ -429,7 +484,8 @@ fun StudentProfileScreen(
         item {
             Card(
                 shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.4f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -451,14 +507,14 @@ fun StudentProfileScreen(
                                 text = "CEFR Spoken Proficiency Radar",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = Color.White,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "Real-time AI diagnostic scores (Level A2)",
+                                text = "Real-time AI diagnostic scores (Level ${profile.currentLevel.cefr} • ${profile.currentLevel.displayName})",
                                 fontSize = 11.sp,
-                                color = MutedGray,
+                                color = Color(0xFF94A3B8),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -466,17 +522,55 @@ fun StudentProfileScreen(
 
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer
+                            color = Color(0xFF1E293B),
+                            border = BorderStroke(1.dp, Color(0xFF38BDF8))
                         ) {
                             Text(
-                                text = "${profile.overallScore}% Overall",
+                                text = "${profile.overallScore}% Overall • Level ${profile.currentLevel.cefr}",
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                fontSize = 12.sp,
+                                color = Color(0xFF38BDF8),
                                 maxLines = 1,
                                 softWrap = false,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                             )
+                        }
+                    }
+
+                    // CEFR Scale Framework Roadmap
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF0F172A))
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        val levels = listOf("A1" to "Beg", "A2" to "Elem", "B1" to "Pre-Int", "B2" to "Int", "C1" to "Upper", "C2" to "Adv")
+                        levels.forEach { (code, desc) ->
+                            val isActive = profile.currentLevel.cefr.equals(code, ignoreCase = true)
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (isActive) Color(0xFF2563EB) else Color.Transparent,
+                                border = if (isActive) BorderStroke(1.dp, Color(0xFF60A5FA)) else null
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        code,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium,
+                                        color = if (isActive) Color.White else Color(0xFF64748B)
+                                    )
+                                    Text(
+                                        desc,
+                                        fontSize = 8.sp,
+                                        color = if (isActive) Color(0xFFBFDBFE) else Color(0xFF475569)
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -840,22 +934,40 @@ fun PremiumPodiumPillar(
 
 @Composable
 fun SkillBar(label: String, score: Int, color: Color) {
+    val cefrBadge = when {
+        score >= 92 -> "C2"
+        score >= 85 -> "C1"
+        score >= 75 -> "B2"
+        score >= 60 -> "B1"
+        score >= 45 -> "A2"
+        else -> "A1"
+    }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-            Text("$score%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = color)
+            Text(label, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = color.copy(alpha = 0.2f),
+                    border = BorderStroke(0.5.dp, color.copy(alpha = 0.5f))
+                ) {
+                    Text(cefrBadge, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = color, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                }
+                Text("$score%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = color)
+            }
         }
         LinearProgressIndicator(
-            progress = { score / 100f },
+            progress = { (score / 100f).coerceIn(0f, 1f) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp)),
             color = color,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant
+            trackColor = Color(0xFF1E293B)
         )
     }
 }

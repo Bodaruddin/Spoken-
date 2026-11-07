@@ -739,13 +739,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         _lastEvaluation.value = eval
 
-        // If score is good, reward XP and coins
-        if (eval.overallScore >= 70) {
-            val xpEarned = (eval.overallScore * 0.4).toInt()
-            val coinsEarned = 10
-            repository.addRewards(xpEarned, coinsEarned)
+        if (eval.overallScore > 0) {
+            // Dynamically update CEFR spoken proficiency, streaks, and practice metrics according to student's speech
+            repository.recordSpeakingPracticeResult(eval, practiceMinutesToAdd = 2)
+
+            // If score is good, reward XP and coins
+            if (eval.overallScore >= 60) {
+                val xpEarned = (eval.overallScore * 0.4).toInt().coerceAtLeast(10)
+                val coinsEarned = 10
+                repository.addRewards(xpEarned, coinsEarned)
+            }
             syncCurrentStudentProgressToSupabase()
         }
+    }
+
+    fun incrementDailyPracticeStreak() {
+        repository.incrementDailyStreak()
+        rewardGameWin(30, 10)
     }
 
     fun syncCurrentStudentProgressToSupabase() {

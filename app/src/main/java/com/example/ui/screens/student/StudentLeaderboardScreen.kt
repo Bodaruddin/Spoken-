@@ -36,6 +36,7 @@ fun StudentLeaderboardScreen(
     modifier: Modifier = Modifier
 ) {
     val profile by viewModel.studentProfile.collectAsState()
+    val currentUser by viewModel.currentUser.collectAsState()
     val leaderboard by viewModel.leaderboard.collectAsState()
     var selectedCohort by remember { mutableStateOf("All Classes") }
     var searchQuery by remember { mutableStateOf("") }
@@ -232,15 +233,15 @@ fun StudentLeaderboardScreen(
                             modifier = Modifier.weight(1.15f)
                         )
 
-                        // 3rd Place: Bronze (Current User)
+                        // 3rd Place: Bronze (Current Active Student)
                         LeaderboardPodiumPillar(
                             rank = 3,
-                            name = "Alex Morgan",
-                            emoji = "🦉",
+                            name = currentUser.name.ifBlank { "Alex Morgan" },
+                            emoji = currentUser.avatarEmoji,
                             xp = "${profile.xpPoints} XP",
                             streak = "${profile.streakDays}d",
                             medal = "🥉",
-                            league = "Gold",
+                            league = profile.league,
                             badgeColor = Color(0xFFFED7AA),
                             containerColor = Color(0xFF0F172A),
                             borderColor = Color(0xFFFB923C),
