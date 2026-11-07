@@ -149,72 +149,7 @@ fun StudentHomeScreen(
             }
         }
 
-        // 2. Primary "Continue Journey" Action Card
-        item {
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(RoyalBlue, PurpleDark)
-                        )
-                    )
-                    .clickable { viewModel.selectStudentTab(StudentTab.LEARN) }
-                    .testTag("continue_learning_button")
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            "CONTINUE JOURNEY",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFFBFDBFE),
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            "World 2: Stage 4",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            "Airport Check-in • Spoken Dialogue Practice",
-                            fontSize = 12.sp,
-                            color = Color(0xFFE2E8F0)
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(CircleShape)
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Filled.PlayArrow,
-                            contentDescription = "Start Lesson",
-                            tint = RoyalBlue,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
-                }
-            }
-        }
-
-        // 3. Tasks from Teachers Hub Banner (Links to dedicated Tasks tab)
+        // 2. Tasks from Teachers Hub Banner (Links to dedicated Tasks tab)
         item {
             val studentClass = user.studentClass
             val classTasks = remember(assignments, studentClass) {

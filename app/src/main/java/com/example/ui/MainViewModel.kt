@@ -16,7 +16,6 @@ import kotlinx.coroutines.launch
 
 enum class StudentTab(val label: String, val iconEmoji: String) {
     HOME("Home", "🏠"),
-    LEARN("Journey", "🗺️"),
     TASKS("Tasks", "📝"),
     PRACTICE("Speaking", "🎙️"),
     GAMES("Games", "🎮"),

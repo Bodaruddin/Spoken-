@@ -1,5 +1,6 @@
 package com.example.ui.screens.student
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -11,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -33,6 +35,7 @@ import com.example.service.PhoneticSearchResult
 import com.example.service.SpeechState
 import com.example.ui.MainViewModel
 import com.example.ui.SpeakingSubTab
+import com.example.ui.StudentTab
 import com.example.ui.components.MicrophoneButton
 import com.example.ui.components.SpeakingEvaluationCard
 import com.example.ui.theme.*
@@ -52,11 +55,43 @@ fun SpeakingHubScreen(
     val activeDrill by viewModel.activePronunciationDrill.collectAsState()
     val speakingPrompts by viewModel.speakingPrompts.collectAsState()
 
+    BackHandler {
+        viewModel.selectStudentTab(StudentTab.HOME)
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .testTag("speaking_hub_screen")
     ) {
+        // Top Navigation Header with Back button
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            IconButton(
+                onClick = { viewModel.selectStudentTab(StudentTab.HOME) },
+                modifier = Modifier
+                    .size(36.dp)
+                    .testTag("speaking_hub_back_btn")
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back to Home",
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Text(
+                text = "Speaking Practice & AI Coach",
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
         // Sub-tabs Row
         LazyRow(
             modifier = Modifier

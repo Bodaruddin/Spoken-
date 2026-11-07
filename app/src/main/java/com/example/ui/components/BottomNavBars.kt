@@ -33,12 +33,20 @@ fun StudentBottomBar(
             .windowInsetsPadding(WindowInsets.navigationBars)
             .testTag("student_bottom_bar")
     ) {
+        val visibleTabs = listOf(
+            StudentTab.HOME,
+            StudentTab.TASKS,
+            StudentTab.GAMES,
+            StudentTab.LEADERBOARD,
+            StudentTab.PROFILE
+        )
+
         NavigationBar(
             containerColor = Color.Transparent,
             tonalElevation = 0.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
-            StudentTab.values().forEach { tab ->
+            visibleTabs.forEach { tab ->
                 val isSelected = currentTab == tab
                 NavigationBarItem(
                     selected = isSelected,
@@ -46,17 +54,16 @@ fun StudentBottomBar(
                     icon = {
                         Text(
                             tab.iconEmoji,
-                            fontSize = if (isSelected) 18.sp else 15.sp
+                            fontSize = if (isSelected) 20.sp else 16.sp
                         )
                     },
                     label = {
                         Text(
                             tab.label,
-                            fontSize = 9.sp,
+                            fontSize = 10.sp,
                             fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
                             maxLines = 1,
-                            softWrap = false,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            softWrap = false
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
