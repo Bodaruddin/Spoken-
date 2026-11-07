@@ -1360,7 +1360,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                     GameItemCard(
                         title = item.fullWord,
                         subtitle = "Clue: ${item.hint}",
-                        tag = "Masked indices: ${item.missingIndices.joinToString(", ")}",
+                        tag = item.category,
                         createdBy = item.createdBy,
                         onPlayAudio = { viewModel.speakAudio(item.fullWord) },
                         onEdit = {
@@ -1369,9 +1369,10 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                                 id = item.id,
                                 field1 = item.fullWord,
                                 field2 = item.hint,
-                                onSave = { f1, f2, _, _, _ ->
-                                    viewModel.updateMissingLettersChallenge(item.copy(fullWord = f1.uppercase(), hint = f2))
-                                    statusMsg = "Updated '${f1.uppercase()}' missing letters challenge!"
+                                field3 = item.category,
+                                onSave = { f1, f2, f3, _, _ ->
+                                    viewModel.updateMissingLettersChallenge(item.copy(fullWord = f1.uppercase(), hint = f2, category = f3.ifBlank { "General" }))
+                                    statusMsg = "Updated '${f1.uppercase()}' in category '${f3.ifBlank { "General" }}'!"
                                 }
                             )
                         },
@@ -1651,6 +1652,7 @@ fun EditGameChallengeDialog(
                     GameCategoryFilter.MISSING_LETTERS -> {
                         OutlinedTextField(value = f1, onValueChange = { f1 = it }, label = { Text("Full Word") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = f2, onValueChange = { f2 = it }, label = { Text("Clue / Hint") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = f3, onValueChange = { f3 = it }, label = { Text("Category (e.g. Animals, Vegetables, Fruits)") }, modifier = Modifier.fillMaxWidth())
                     }
                     GameCategoryFilter.SENTENCE_BUILDER -> {
                         OutlinedTextField(value = f1, onValueChange = { f1 = it }, label = { Text("Target Sentence") }, modifier = Modifier.fillMaxWidth())
@@ -2563,8 +2565,27 @@ fun CreateGameChallengeDialog(
                         OutlinedTextField(value = field3, onValueChange = { field3 = it }, label = { Text("Category (e.g. Communication)") }, modifier = Modifier.fillMaxWidth())
                     }
                     GameCategoryFilter.MISSING_LETTERS -> {
-                        OutlinedTextField(value = field1, onValueChange = { field1 = it }, label = { Text("Full Word (e.g. PRONUNCIATION)") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = field1, onValueChange = { field1 = it }, label = { Text("Full Word (e.g. ELEPHANT, BROCCOLI)") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = field2, onValueChange = { field2 = it }, label = { Text("Meaning / Clue Hint") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = field3, onValueChange = { field3 = it }, label = { Text("Category (e.g. Animals, Vegetables, Fruits)") }, modifier = Modifier.fillMaxWidth())
+                        Text("Suggested categories:", fontSize = 11.sp, color = MutedGray)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Animals", "Vegetables", "Fruits", "General").forEach { cat ->
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (field3.equals(cat, ignoreCase = true)) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier.clickable { field3 = cat }
+                                ) {
+                                    Text(
+                                        text = cat,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (field3.equals(cat, ignoreCase = true)) Color.White else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                     GameCategoryFilter.SENTENCE_BUILDER -> {
                         OutlinedTextField(value = field1, onValueChange = { field1 = it }, label = { Text("Target Sentence (e.g. She speaks English)") }, modifier = Modifier.fillMaxWidth())
@@ -2611,7 +2632,12 @@ fun CreateGameChallengeDialog(
                     }
                     GameCategoryFilter.MISSING_LETTERS -> {
                         if (field1.isNotBlank()) {
-                            viewModel.addMissingLettersChallenge(field1, field2.ifBlank { "English Vocabulary Word" }, authorName)
+                            viewModel.addMissingLettersChallenge(
+                                fullWord = field1,
+                                hint = field2.ifBlank { "English Vocabulary Word" },
+                                category = field3.ifBlank { "General" },
+                                createdBy = authorName
+                            )
                             onCreated()
                         }
                     }

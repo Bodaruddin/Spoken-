@@ -7,6 +7,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -521,269 +522,378 @@ private data class LetterChoice(val id: Int, val char: Char, var isUsed: Boolean
 @Composable
 fun MissingLettersGame(viewModel: MainViewModel) {
     val challenges by viewModel.missingLettersChallenges.collectAsState()
-    var challengeIndex by remember { mutableIntStateOf(0) }
-    val current = challenges.getOrNull(challengeIndex) ?: return
+    var selectedCategory by remember { mutableStateOf("All") }
 
-    val targetWord = remember(current.id) { current.fullWord.trim().uppercase() }
-    val missingIndices = remember(current.id) {
-        current.missingIndices.filter { it in targetWord.indices }.toSet()
+    // Collect all available categories dynamically from existing challenges
+    val allCategories = remember(challenges) {
+        val cats = challenges.map { it.category.trim() }.filter { it.isNotBlank() }
+        (listOf("All", "Animals", "Vegetables", "Fruits", "General") + cats).distinct()
     }
 
-    // Letter choices: missing letters + distractors (normalized uppercase)
-    val choices = remember(current.id) {
-        val missingChars = missingIndices.map { targetWord[it] }
-        val alphabetDistractors = listOf('A', 'E', 'I', 'O', 'U', 'R', 'S', 'T', 'L', 'N', 'D', 'C')
-            .filterNot { missingChars.contains(it) }
-            .shuffled()
-            .take(4)
-        val combined = (missingChars + alphabetDistractors).shuffled()
-        combined.mapIndexed { idx, ch -> LetterChoice(idx, ch, false) }
+    val filteredChallenges = remember(challenges, selectedCategory) {
+        if (selectedCategory == "All") {
+            challenges
+        } else {
+            challenges.filter { it.category.equals(selectedCategory, ignoreCase = true) }
+        }
     }
 
-    // Slots state: maps slotIndex -> LetterChoice? placed into it
-    var placedSlots by remember(current.id) {
-        mutableStateOf(missingIndices.associateWith { null as LetterChoice? })
-    }
-    var choicePool by remember(current.id) { mutableStateOf(choices) }
-    var isVerified by remember(current.id) { mutableStateOf<Boolean?>(null) }
-    var hasAwarded by remember(current.id) { mutableStateOf(false) }
+    var challengeIndex by remember(selectedCategory) { mutableIntStateOf(0) }
+    val current = filteredChallenges.getOrNull(challengeIndex % maxOf(1, filteredChallenges.size))
 
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth()
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        // Category Selector Chips Row
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Select Word Category:", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoyalBlue)
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Complete Word Spelling:", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text(
-                    "Word ${challengeIndex + 1}/${challenges.size}",
-                    fontSize = 12.sp,
-                    color = RoyalBlue,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Clue Card with High-Contrast Text
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = Color(0xFF0F1E42),
-                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text("💡 Clue & Meaning:", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF60A5FA))
-                    Text(
-                        text = current.hint,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White
-                    )
-                }
-            }
-
-            // Word Letter Slots (Adaptive width & wrapping FlowRow so long words never clip)
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                val count = targetWord.length
-                val spacing = if (count > 9) 3.dp else 5.dp
-                val computedSize = ((maxWidth - (spacing * (count - 1))) / count).coerceIn(24.dp, 38.dp)
-                val fontSize = when {
-                    computedSize < 28.dp -> 13.sp
-                    computedSize < 34.dp -> 15.sp
-                    else -> 17.sp
-                }
-
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    targetWord.forEachIndexed { idx, fixedChar ->
-                        val isMissing = missingIndices.contains(idx)
-                        val placedChoice = placedSlots[idx]
-
-                        Surface(
-                            shape = RoundedCornerShape(if (computedSize < 30.dp) 6.dp else 8.dp),
-                            color = when {
-                                !isMissing -> MaterialTheme.colorScheme.surfaceVariant
-                                placedChoice != null -> Color(0xFFDBEAFE)
-                                else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                            },
-                            border = BorderStroke(
-                                1.5.dp,
-                                when {
-                                    isVerified == true -> EmeraldSuccess
-                                    isVerified == false -> CoralAccent
-                                    isMissing -> RoyalBlue
-                                    else -> Color.Transparent
-                                }
-                            ),
-                            modifier = Modifier
-                                .size(computedSize)
-                                .clickable(enabled = isMissing && placedChoice != null) {
-                                    // Remove placed letter and restore into choice pool
-                                    if (placedChoice != null) {
-                                        val updatedSlots = placedSlots.toMutableMap()
-                                        updatedSlots[idx] = null
-                                        placedSlots = updatedSlots
-
-                                        choicePool = choicePool.map {
-                                            if (it.id == placedChoice.id) it.copy(isUsed = false) else it
-                                        }
-                                        isVerified = null
-                                    }
-                                }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                val charText = when {
-                                    !isMissing -> fixedChar.toString()
-                                    placedChoice != null -> placedChoice.char.toString()
-                                    else -> "_"
-                                }
-                                Text(
-                                    text = charText,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = fontSize,
-                                    color = when {
-                                        isVerified == true -> EmeraldSuccess
-                                        isVerified == false && placedChoice != null -> CoralAccent
-                                        isMissing && placedChoice != null -> RoyalBlue
-                                        isMissing -> MutedGray
-                                        else -> MaterialTheme.colorScheme.onSurface
-                                    }
-                                )
-                            }
-                        }
+                allCategories.forEach { cat ->
+                    val isSelected = selectedCategory.equals(cat, ignoreCase = true)
+                    val emoji = when (cat.lowercase()) {
+                        "all" -> "🌟"
+                        "animals" -> "🐾"
+                        "vegetables" -> "🥦"
+                        "fruits" -> "🍎"
+                        "general" -> "📚"
+                        "objects" -> "📦"
+                        "grammar" -> "⚡"
+                        else -> "🏷️"
                     }
-                }
-            }
+                    val count = if (cat == "All") challenges.size else challenges.count { it.category.equals(cat, ignoreCase = true) }
 
-            Text("Tap letters below to fill blanks (tap a placed letter to undo):", fontSize = 11.sp, color = MutedGray)
-
-            // Letter Choice Bank
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                choicePool.forEach { choice ->
-                    val isUsed = choice.isUsed
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (isUsed) MaterialTheme.colorScheme.surfaceVariant else RoyalBlue,
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clickable(enabled = !isUsed) {
-                                // Find first empty missing slot
-                                val firstEmptySlot = missingIndices.sorted().firstOrNull { placedSlots[it] == null }
-                                if (firstEmptySlot != null) {
-                                    val updatedSlots = placedSlots.toMutableMap()
-                                    updatedSlots[firstEmptySlot] = choice
-                                    placedSlots = updatedSlots
-
-                                    choicePool = choicePool.map {
-                                        if (it.id == choice.id) it.copy(isUsed = true) else it
-                                    }
-                                    isVerified = null
-                                }
-                            }
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant,
+                        border = BorderStroke(1.dp, if (isSelected) RoyalBlue else Color.Transparent),
+                        modifier = Modifier.clickable {
+                            selectedCategory = cat
+                        }
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(emoji, fontSize = 14.sp)
                             Text(
-                                text = choice.char.toString(),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = if (isUsed) MutedGray else Color.White
+                                text = "$cat ($count)",
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 12.sp,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
                 }
             }
+        }
 
-            // Action Buttons
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedButton(
-                    onClick = {
-                        // Reset all slots and choice pool
-                        placedSlots = missingIndices.associateWith { null }
-                        choicePool = choicePool.map { it.copy(isUsed = false) }
-                        isVerified = null
-                    },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
+        if (current == null || filteredChallenges.isEmpty()) {
+            // Empty State
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Clear All")
-                }
-
-                Button(
-                    onClick = {
-                        // Check if all slots are filled
-                        val allFilled = missingIndices.all { placedSlots[it] != null }
-                        if (!allFilled) {
-                            isVerified = false
-                            return@Button
-                        }
-                        val assembled = targetWord.mapIndexed { idx, ch ->
-                            if (missingIndices.contains(idx)) {
-                                placedSlots[idx]?.char ?: ' '
-                            } else {
-                                ch
-                            }
-                        }.joinToString("")
-
-                        if (assembled.equals(targetWord, ignoreCase = true)) {
-                            isVerified = true
-                            if (!hasAwarded) {
-                                hasAwarded = true
-                                viewModel.rewardGameWin(40, 15)
-                            }
-                            viewModel.speakAudio(targetWord)
-                        } else {
-                            isVerified = false
-                        }
-                    },
-                    modifier = Modifier.weight(1.3f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
-                ) {
-                    Text("Verify Spelling")
+                    Text("🏷️", fontSize = 36.sp)
+                    Text("No words in category '$selectedCategory' yet", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Teachers can add new words to this category from the Teacher Panel.", fontSize = 12.sp, color = MutedGray, textAlign = TextAlign.Center)
+                    Button(
+                        onClick = { selectedCategory = "All" },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("View All Categories")
+                    }
                 }
             }
-
-            // Verification Feedback
-            isVerified?.let { correct ->
-                Text(
-                    text = if (correct) "🎉 Correct! Perfect spelling." else "❌ Incorrect letter placed. Tap any placed tile to remove and retry!",
-                    color = if (correct) EmeraldSuccess else CoralAccent,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center
-                )
+        } else {
+            val targetWord = remember(current.id) { current.fullWord.trim().uppercase() }
+            val missingIndices = remember(current.id) {
+                current.missingIndices.filter { it in targetWord.indices }.toSet()
             }
 
-            if (isVerified == true) {
-                Button(
-                    onClick = {
-                        challengeIndex = (challengeIndex + 1) % challenges.size
-                        isVerified = null
-                        hasAwarded = false
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
-                    modifier = Modifier.fillMaxWidth()
+            // Letter choices: missing letters + distractors (normalized uppercase)
+            val choices = remember(current.id) {
+                val missingChars = missingIndices.map { targetWord[it] }
+                val alphabetDistractors = listOf('A', 'E', 'I', 'O', 'U', 'R', 'S', 'T', 'L', 'N', 'D', 'C')
+                    .filterNot { missingChars.contains(it) }
+                    .shuffled()
+                    .take(4)
+                val combined = (missingChars + alphabetDistractors).shuffled()
+                combined.mapIndexed { idx, ch -> LetterChoice(idx, ch, false) }
+            }
+
+            // Slots state: maps slotIndex -> LetterChoice? placed into it
+            var placedSlots by remember(current.id) {
+                mutableStateOf(missingIndices.associateWith { null as LetterChoice? })
+            }
+            var choicePool by remember(current.id) { mutableStateOf(choices) }
+            var isVerified by remember(current.id) { mutableStateOf<Boolean?>(null) }
+            var hasAwarded by remember(current.id) { mutableStateOf(false) }
+
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Next Word Challenge ➡️")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Complete Spelling:", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFEFF6FF)
+                            ) {
+                                Text(
+                                    text = current.category,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = RoyalBlue,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            "Word ${(challengeIndex % filteredChallenges.size) + 1}/${filteredChallenges.size}",
+                            fontSize = 12.sp,
+                            color = RoyalBlue,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Clue Card with High-Contrast Text
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF0F1E42),
+                        border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("💡 Clue & Meaning:", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF60A5FA))
+                            Text(
+                                text = current.hint,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    // Word Letter Slots (Adaptive width & wrapping FlowRow so long words never clip)
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        val count = targetWord.length
+                        val spacing = if (count > 9) 3.dp else 5.dp
+                        val computedSize = ((maxWidth - (spacing * (count - 1))) / count).coerceIn(24.dp, 38.dp)
+                        val fontSize = when {
+                            computedSize < 28.dp -> 13.sp
+                            computedSize < 34.dp -> 15.sp
+                            else -> 17.sp
+                        }
+
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            targetWord.forEachIndexed { idx, fixedChar ->
+                                val isMissing = missingIndices.contains(idx)
+                                val placedChoice = placedSlots[idx]
+
+                                Surface(
+                                    shape = RoundedCornerShape(if (computedSize < 30.dp) 6.dp else 8.dp),
+                                    color = when {
+                                        !isMissing -> MaterialTheme.colorScheme.surfaceVariant
+                                        placedChoice != null -> Color(0xFFDBEAFE)
+                                        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                                    },
+                                    border = BorderStroke(
+                                        1.5.dp,
+                                        when {
+                                            isVerified == true -> EmeraldSuccess
+                                            isVerified == false -> CoralAccent
+                                            isMissing -> RoyalBlue
+                                            else -> Color.Transparent
+                                        }
+                                    ),
+                                    modifier = Modifier
+                                        .size(computedSize)
+                                        .clickable(enabled = isMissing && placedChoice != null) {
+                                            // Remove placed letter and restore into choice pool
+                                            if (placedChoice != null) {
+                                                val updatedSlots = placedSlots.toMutableMap()
+                                                updatedSlots[idx] = null
+                                                placedSlots = updatedSlots
+
+                                                choicePool = choicePool.map {
+                                                    if (it.id == placedChoice.id) it.copy(isUsed = false) else it
+                                                }
+                                                isVerified = null
+                                            }
+                                        }
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        val charText = when {
+                                            !isMissing -> fixedChar.toString()
+                                            placedChoice != null -> placedChoice.char.toString()
+                                            else -> "_"
+                                        }
+                                        Text(
+                                            text = charText,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = fontSize,
+                                            color = when {
+                                                isVerified == true -> EmeraldSuccess
+                                                isVerified == false && placedChoice != null -> CoralAccent
+                                                isMissing && placedChoice != null -> RoyalBlue
+                                                isMissing -> MutedGray
+                                                else -> MaterialTheme.colorScheme.onSurface
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text("Tap letters below to fill blanks (tap a placed letter to undo):", fontSize = 11.sp, color = MutedGray)
+
+                    // Letter Choice Bank
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        choicePool.forEach { choice ->
+                            val isUsed = choice.isUsed
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isUsed) MaterialTheme.colorScheme.surfaceVariant else RoyalBlue,
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clickable(enabled = !isUsed) {
+                                        // Find first empty missing slot
+                                        val firstEmptySlot = missingIndices.sorted().firstOrNull { placedSlots[it] == null }
+                                        if (firstEmptySlot != null) {
+                                            val updatedSlots = placedSlots.toMutableMap()
+                                            updatedSlots[firstEmptySlot] = choice
+                                            placedSlots = updatedSlots
+
+                                            choicePool = choicePool.map {
+                                                if (it.id == choice.id) it.copy(isUsed = true) else it
+                                            }
+                                            isVerified = null
+                                        }
+                                    }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = choice.char.toString(),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = if (isUsed) MutedGray else Color.White
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Action Buttons
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = {
+                                // Reset all slots and choice pool
+                                placedSlots = missingIndices.associateWith { null }
+                                choicePool = choicePool.map { it.copy(isUsed = false) }
+                                isVerified = null
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Clear All")
+                        }
+
+                        Button(
+                            onClick = {
+                                // Check if all slots are filled
+                                val allFilled = missingIndices.all { placedSlots[it] != null }
+                                if (!allFilled) {
+                                    isVerified = false
+                                    return@Button
+                                }
+                                val assembled = targetWord.mapIndexed { idx, ch ->
+                                    if (missingIndices.contains(idx)) {
+                                        placedSlots[idx]?.char ?: ' '
+                                    } else {
+                                        ch
+                                    }
+                                }.joinToString("")
+
+                                if (assembled.equals(targetWord, ignoreCase = true)) {
+                                    isVerified = true
+                                    if (!hasAwarded) {
+                                        hasAwarded = true
+                                        viewModel.rewardGameWin(40, 15)
+                                    }
+                                    viewModel.speakAudio(targetWord)
+                                } else {
+                                    isVerified = false
+                                }
+                            },
+                            modifier = Modifier.weight(1.3f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+                        ) {
+                            Text("Verify Spelling")
+                        }
+                    }
+
+                    // Verification Feedback
+                    isVerified?.let { correct ->
+                        Text(
+                            text = if (correct) "🎉 Correct! Perfect spelling." else "❌ Incorrect letter placed. Tap any placed tile to remove and retry!",
+                            color = if (correct) EmeraldSuccess else CoralAccent,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    if (isVerified == true) {
+                        Button(
+                            onClick = {
+                                challengeIndex = (challengeIndex + 1) % filteredChallenges.size
+                                isVerified = null
+                                hasAwarded = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Next Word Challenge ➡️")
+                        }
+                    }
                 }
             }
         }

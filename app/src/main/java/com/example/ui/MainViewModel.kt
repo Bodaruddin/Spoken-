@@ -212,11 +212,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.deleteWordMatchChallenge(id)
     }
 
-    fun addMissingLettersChallenge(fullWord: String, hint: String, createdBy: String) {
-        repository.addMissingLettersChallenge(fullWord, hint, createdBy)
+    fun addMissingLettersChallenge(fullWord: String, hint: String, category: String = "General", createdBy: String) {
+        repository.addMissingLettersChallenge(fullWord, hint, category, createdBy)
     }
     fun deleteMissingLettersChallenge(id: String) {
         repository.deleteMissingLettersChallenge(id)
+    }
+    fun addMissingLettersCategory(category: String): Boolean {
+        return repository.addMissingLettersCategory(category)
     }
 
     fun addSentenceBuilderChallenge(targetSentence: String, hint: String, assameseTranslation: String = "", createdBy: String) {

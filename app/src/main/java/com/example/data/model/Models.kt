@@ -294,6 +294,7 @@ data class MissingLettersChallenge(
     val fullWord: String,
     val hint: String,
     val missingIndices: List<Int>,
+    val category: String = "General",
     val createdBy: String = "System"
 )
 

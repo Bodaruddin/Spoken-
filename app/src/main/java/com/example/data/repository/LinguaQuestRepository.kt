@@ -591,14 +591,45 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
 
     private val _missingLettersChallenges = MutableStateFlow(
         listOf(
-            MissingLettersChallenge("ml_1", "CONVERSATION", "An informal spoken exchange between people", listOf(2, 5, 8), "System"),
-            MissingLettersChallenge("ml_2", "PRONUNCIATION", "The correct way in which a word or language is spoken", listOf(2, 6, 9), "System"),
-            MissingLettersChallenge("ml_3", "FLUENCY", "Ability to speak smoothly, easily, and naturally", listOf(1, 4), "Prof. Eleanor Vance"),
-            MissingLettersChallenge("ml_4", "VOCABULARY", "The body of words used in a particular language", listOf(1, 5, 8), "System"),
-            MissingLettersChallenge("ml_5", "INTELLIGENT", "Having or showing mental alertness and capacity", listOf(3, 7), "Dr. Marcus Reed")
+            // Animals Category
+            MissingLettersChallenge("ml_a1", "ELEPHANT", "The largest living land animal with large ears and a trunk", listOf(1, 4, 6), "Animals", "System"),
+            MissingLettersChallenge("ml_a2", "GIRAFFE", "Tallest living terrestrial animal with an extremely long neck", listOf(2, 4), "Animals", "System"),
+            MissingLettersChallenge("ml_a3", "KANGAROO", "Large Australian marsupial that hops on powerful hind legs", listOf(2, 5), "Animals", "Prof. Eleanor Vance"),
+            MissingLettersChallenge("ml_a4", "DOLPHIN", "Highly intelligent aquatic marine mammal known for playful acrobatics", listOf(1, 4), "Animals", "Dr. Marcus Reed"),
+            MissingLettersChallenge("ml_a5", "LEOPARD", "Graceful solitary big cat with a spotted coat and stealthy hunter", listOf(2, 5), "Animals", "System"),
+
+            // Vegetables Category
+            MissingLettersChallenge("ml_v1", "BROCCOLI", "Edible green plant in the cabbage family with large flowering head", listOf(2, 5), "Vegetables", "System"),
+            MissingLettersChallenge("ml_v2", "CUCUMBER", "Widely cultivated creeping vine plant bearing cylindrical green fruit", listOf(1, 4, 6), "Vegetables", "System"),
+            MissingLettersChallenge("ml_v3", "SPINACH", "Nutritious leafy green flowering plant rich in iron and vitamins", listOf(2, 5), "Vegetables", "Prof. Eleanor Vance"),
+            MissingLettersChallenge("ml_v4", "CABBAGE", "Leafy green or purple biennial plant grown as an annual vegetable", listOf(1, 4), "Vegetables", "Dean Arthur Pendelton"),
+            MissingLettersChallenge("ml_v5", "CARROT", "Crisp root vegetable usually orange in color with sweet earthy taste", listOf(1, 3), "Vegetables", "Dr. Marcus Reed"),
+
+            // Fruits Category
+            MissingLettersChallenge("ml_f1", "PINEAPPLE", "Tropical plant with edible fruit comprising coalesced berries", listOf(2, 6), "Fruits", "System"),
+            MissingLettersChallenge("ml_f2", "STRAWBERRY", "Sweet, soft red fruit with small seeds on its surface", listOf(3, 7), "Fruits", "Prof. Eleanor Vance"),
+            MissingLettersChallenge("ml_f3", "WATERMELON", "Large sweet fruit with smooth green rind and juicy red flesh", listOf(2, 5, 8), "Fruits", "System"),
+
+            // General Vocabulary Category
+            MissingLettersChallenge("ml_1", "CONVERSATION", "An informal spoken exchange between people", listOf(2, 5, 8), "General", "System"),
+            MissingLettersChallenge("ml_2", "PRONUNCIATION", "The correct way in which a word or language is spoken", listOf(2, 6, 9), "General", "System"),
+            MissingLettersChallenge("ml_3", "FLUENCY", "Ability to speak smoothly, easily, and naturally", listOf(1, 4), "General", "Prof. Eleanor Vance"),
+            MissingLettersChallenge("ml_4", "VOCABULARY", "The body of words used in a particular language", listOf(1, 5, 8), "General", "System"),
+            MissingLettersChallenge("ml_5", "INTELLIGENT", "Having or showing mental alertness and capacity", listOf(3, 7), "General", "Dr. Marcus Reed")
         )
     )
     val missingLettersChallenges: StateFlow<List<MissingLettersChallenge>> = _missingLettersChallenges.asStateFlow()
+
+    private val _missingLettersCustomCategories = MutableStateFlow(listOf("Animals", "Vegetables", "Fruits", "General"))
+    val missingLettersCustomCategories: StateFlow<List<String>> = _missingLettersCustomCategories.asStateFlow()
+
+    fun addMissingLettersCategory(category: String): Boolean {
+        val trimmed = category.trim()
+        if (trimmed.isBlank()) return false
+        if (_missingLettersCustomCategories.value.any { it.equals(trimmed, ignoreCase = true) }) return false
+        _missingLettersCustomCategories.update { it + trimmed }
+        return true
+    }
 
     private val _sentenceBuilderChallenges = MutableStateFlow(
         listOf(
@@ -1210,7 +1241,12 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         }
     }
 
-    fun addMissingLettersChallenge(fullWord: String, hint: String, createdBy: String) {
+    fun addMissingLettersChallenge(
+        fullWord: String,
+        hint: String,
+        category: String = "General",
+        createdBy: String
+    ) {
         val id = "ml_${System.currentTimeMillis()}"
         val cleaned = fullWord.trim().uppercase()
         // Automatically choose 2-3 vowel or interior indices to mask if length permits
@@ -1221,7 +1257,9 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         } else {
             listOf(1)
         }
-        val item = MissingLettersChallenge(id, cleaned, hint.trim(), indices, createdBy)
+        val targetCat = category.trim().ifBlank { "General" }
+        addMissingLettersCategory(targetCat)
+        val item = MissingLettersChallenge(id, cleaned, hint.trim(), indices, targetCat, createdBy)
         _missingLettersChallenges.update { it + item }
     }
 

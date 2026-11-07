@@ -937,7 +937,7 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                     GameItemCard(
                         title = item.fullWord,
                         subtitle = "Clue: ${item.hint}",
-                        tag = "Masked indices: ${item.missingIndices.joinToString(", ")}",
+                        tag = item.category,
                         createdBy = item.createdBy,
                         onPlayAudio = { viewModel.speakAudio(item.fullWord) },
                         onEdit = {
@@ -946,9 +946,10 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                                 id = item.id,
                                 field1 = item.fullWord,
                                 field2 = item.hint,
-                                onSave = { f1, f2, _, _, _ ->
-                                    viewModel.updateMissingLettersChallenge(item.copy(fullWord = f1.uppercase(), hint = f2))
-                                    statusMsg = "Dean Arthur Pendelton updated '${f1.uppercase()}' missing letters challenge!"
+                                field3 = item.category,
+                                onSave = { f1, f2, f3, _, _ ->
+                                    viewModel.updateMissingLettersChallenge(item.copy(fullWord = f1.uppercase(), hint = f2, category = f3.ifBlank { "General" }))
+                                    statusMsg = "Dean Arthur Pendelton updated '${f1.uppercase()}' in category '${f3.ifBlank { "General" }}'!"
                                 }
                             )
                         },
