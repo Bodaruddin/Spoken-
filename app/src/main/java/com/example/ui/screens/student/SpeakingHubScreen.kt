@@ -717,39 +717,46 @@ fun PronunciationSection(
                                 .padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            // Top Row: Word Name and IPA Phonetic Transcription Badge
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
-                                    Text(
-                                        res.word,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 24.sp,
-                                        color = RoyalBlue
-                                    )
-                                    Text(
-                                        res.syllables,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                Text(
+                                    text = res.word,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 24.sp,
+                                    color = RoyalBlue,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+
+                                Spacer(Modifier.width(8.dp))
 
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
-                                    color = PurpleAccent.copy(alpha = 0.15f)
+                                    color = PurpleAccent.copy(alpha = 0.15f),
+                                    border = BorderStroke(1.dp, PurpleAccent.copy(alpha = 0.35f))
                                 ) {
                                     Text(
-                                        res.ipa,
-                                        fontSize = 16.sp,
+                                        text = res.ipa,
+                                        fontSize = 15.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = PurpleAccent,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                                     )
                                 }
                             }
+
+                            // Syllables and pronunciation breakdown on its own line so it never squeezes the IPA badge
+                            Text(
+                                text = res.syllables,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
 
                             // Sound Tags
                             if (res.soundTags.isNotEmpty()) {

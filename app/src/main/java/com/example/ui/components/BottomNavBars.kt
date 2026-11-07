@@ -52,10 +52,11 @@ fun StudentBottomBar(
                     label = {
                         Text(
                             tab.label,
-                            fontSize = 9.5.sp,
+                            fontSize = 9.sp,
                             fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
                             maxLines = 1,
-                            softWrap = false
+                            softWrap = false,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
