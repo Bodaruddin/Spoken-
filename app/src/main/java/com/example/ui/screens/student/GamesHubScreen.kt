@@ -322,12 +322,14 @@ fun MissingLettersGame(viewModel: MainViewModel) {
 
             Surface(
                 shape = RoundedCornerShape(14.dp),
-                color = Color(0xFFEFF6FF),
+                color = Color.White,
+                contentColor = Color(0xFF0F172A),
+                border = BorderStroke(1.5.dp, Color(0xFFBFDBFE)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Clue / Meaning:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
-                    Text(current.hint, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text("Clue / Meaning:", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = RoyalBlue)
+                    Text(current.hint, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                 }
             }
 
@@ -1127,13 +1129,15 @@ fun GrammarChallengeGame(viewModel: MainViewModel) {
 
             selectedIndex?.let {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFEFF6FF),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White,
+                    contentColor = Color(0xFF0F172A),
+                    border = BorderStroke(1.5.dp, Color(0xFFBFDBFE)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("📖 Grammar Explanation:", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = RoyalBlue)
-                        Text(current.explanation, fontSize = 12.sp)
+                        Text("📖 Grammar Explanation:", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = RoyalBlue)
+                        Text(current.explanation, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                     }
                 }
 
@@ -1169,13 +1173,20 @@ fun GenericQuizGame(gameType: ActiveGameType, viewModel: MainViewModel) {
             Text(gameType.desc, fontSize = 13.sp, color = MutedGray)
 
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFFEFF6FF),
+                shape = RoundedCornerShape(14.dp),
+                color = Color.White,
+                contentColor = Color(0xFF0F172A),
+                border = BorderStroke(1.5.dp, Color(0xFFBFDBFE)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Sample Drill Challenge:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
-                    Text("Select the most suitable formal greeting for an international business client:", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("Sample Drill Challenge:", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = RoyalBlue)
+                    Text(
+                        text = "Select the most suitable formal greeting for an international business client:",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
                 }
             }
 
