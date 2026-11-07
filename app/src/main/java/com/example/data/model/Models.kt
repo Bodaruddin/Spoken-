@@ -60,7 +60,8 @@ data class StudentProfile(
     val listeningScore: Int = 90,
     val readingScore: Int = 85,
     val completedStagesCount: Int = 14,
-    val speakingPracticeMinutes: Int = 165
+    val speakingPracticeMinutes: Int = 165,
+    val lastPracticeDate: String = ""
 )
 
 data class World(
@@ -240,7 +241,10 @@ data class LeaderboardUser(
     val xp: Int,
     val streak: Int,
     val league: String,
-    val isCurrentUser: Boolean = false
+    val isCurrentUser: Boolean = false,
+    val studentClass: String = AcademicClasses.DEFAULT_CLASS,
+    val studentId: String = "",
+    val cefrLevel: String = "A2"
 )
 
 data class AchievementBadge(

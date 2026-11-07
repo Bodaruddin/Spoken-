@@ -316,6 +316,7 @@ class AppPreferences(context: Context) {
         obj.put("readingScore", p.readingScore)
         obj.put("completedStagesCount", p.completedStagesCount)
         obj.put("speakingPracticeMinutes", p.speakingPracticeMinutes)
+        obj.put("lastPracticeDate", p.lastPracticeDate)
         return obj
     }
 
@@ -338,7 +339,8 @@ class AppPreferences(context: Context) {
             listeningScore = obj.optInt("listeningScore", 75),
             readingScore = obj.optInt("readingScore", 75),
             completedStagesCount = obj.optInt("completedStagesCount", 0),
-            speakingPracticeMinutes = obj.optInt("speakingPracticeMinutes", 0)
+            speakingPracticeMinutes = obj.optInt("speakingPracticeMinutes", 0),
+            lastPracticeDate = obj.optString("lastPracticeDate", "")
         )
     }
 }

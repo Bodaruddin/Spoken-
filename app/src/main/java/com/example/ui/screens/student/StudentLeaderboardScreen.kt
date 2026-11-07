@@ -38,19 +38,40 @@ fun StudentLeaderboardScreen(
     val profile by viewModel.studentProfile.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
     val leaderboard by viewModel.leaderboard.collectAsState()
+    val academicClasses by viewModel.academicClasses.collectAsState()
     var selectedCohort by remember { mutableStateOf("All Classes") }
     var searchQuery by remember { mutableStateOf("") }
 
-    val filteredLeaderboard = remember(leaderboard, selectedCohort, searchQuery) {
-        val cohortFiltered = when (selectedCohort) {
-            "Class 10" -> leaderboard.filter { it.rank in listOf(1, 3, 4, 6) }
-            "Class 9" -> leaderboard.filter { it.rank in listOf(2, 5, 7, 8) }
-            "Class 8" -> leaderboard.filter { it.rank in listOf(3, 6, 8) }
-            else -> leaderboard
-        }
-        if (searchQuery.isBlank()) cohortFiltered
-        else cohortFiltered.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
+    val cohortTabs = remember(academicClasses) {
+        listOf("All Classes") + academicClasses
     }
+
+    val filteredLeaderboard = remember(leaderboard, selectedCohort, searchQuery) {
+        val cohortFiltered = if (selectedCohort == "All Classes") {
+            leaderboard
+        } else {
+            leaderboard.filter {
+                it.studentClass.equals(selectedCohort, ignoreCase = true) ||
+                it.studentClass.contains(selectedCohort, ignoreCase = true)
+            }
+        }.mapIndexed { idx, user ->
+            user.copy(rank = idx + 1)
+        }
+
+        if (searchQuery.isBlank()) cohortFiltered
+        else cohortFiltered.filter {
+            it.name.contains(searchQuery.trim(), ignoreCase = true) ||
+            it.studentClass.contains(searchQuery.trim(), ignoreCase = true)
+        }
+    }
+
+    val top1 = filteredLeaderboard.getOrNull(0)
+    val top2 = filteredLeaderboard.getOrNull(1)
+    val top3 = filteredLeaderboard.getOrNull(2)
+
+    val myIndex = filteredLeaderboard.indexOfFirst { it.isCurrentUser }
+    val myEntry = if (myIndex >= 0) filteredLeaderboard[myIndex] else null
+    val myRank = if (myIndex >= 0) myIndex + 1 else null
 
     LazyColumn(
         modifier = modifier
@@ -100,7 +121,7 @@ fun StudentLeaderboardScreen(
                             ) {
                                 Text("🏆", fontSize = 14.sp)
                                 Text(
-                                    "WEEKLY CHAMPIONSHIP",
+                                    "ACADEMY FLUENCY LEADERBOARD",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color(0xFFFEF08A),
@@ -121,7 +142,7 @@ fun StudentLeaderboardScreen(
                             ) {
                                 Text("⚡", fontSize = 12.sp)
                                 Text(
-                                    "Resets in 3d 14h",
+                                    "${filteredLeaderboard.size} Scholars",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF38BDF8)
@@ -132,24 +153,24 @@ fun StudentLeaderboardScreen(
 
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "Academy Fluency Leaderboard",
+                            text = "Fluency & Practice Leaderboard",
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 22.sp,
                             color = Color.White
                         )
                         Text(
-                            text = "Compete with fellow scholars, speak fluently, and rise through the diamond leagues.",
+                            text = "Real-time rankings by XP and daily practice streaks across academic classes.",
                             fontSize = 13.sp,
                             color = Color(0xFF94A3B8)
                         )
                     }
 
-                    // Class Switcher Tabs
-                    Row(
+                    // Dynamic Class Switcher Tabs
+                    androidx.compose.foundation.lazy.LazyRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf("All Classes", "Class 10", "Class 9", "Class 8").forEach { cohort ->
+                        items(cohortTabs) { cohort ->
                             val isSelected = selectedCohort == cohort
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
@@ -157,12 +178,11 @@ fun StudentLeaderboardScreen(
                                 border = if (isSelected) null else BorderStroke(1.dp, Color(0xFF334155)),
                                 modifier = Modifier
                                     .clickable { selectedCohort = cohort }
-                                    .weight(1f)
                                     .testTag("cohort_tab_${cohort.lowercase().replace(" ", "_")}")
                             ) {
                                 Box(
                                     contentAlignment = Alignment.Center,
-                                    modifier = Modifier.padding(vertical = 10.dp)
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                                 ) {
                                     Text(
                                         text = cohort,
@@ -178,82 +198,96 @@ fun StudentLeaderboardScreen(
             }
         }
 
-        // 2. Top 3 Podium Showcase
-        item {
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+        // 2. Top 3 Champions Podium
+        if (filteredLeaderboard.isNotEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "👑 Champions Podium ($selectedCohort)",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 15.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.Bottom
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        // 2nd Place: Silver
-                        LeaderboardPodiumPillar(
-                            rank = 2,
-                            name = "David Chen",
-                            emoji = "🐯",
-                            xp = "2,420 XP",
-                            streak = "14d",
-                            medal = "🥈",
-                            league = "Diamond",
-                            badgeColor = Color(0xFFE2E8F0),
-                            containerColor = Color(0xFF0F172A),
-                            borderColor = Color(0xFF94A3B8),
-                            modifier = Modifier.weight(1f)
+                        Text(
+                            text = "👑 Champions Podium ($selectedCohort)",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
 
-                        // 1st Place: Gold (Elevated)
-                        LeaderboardPodiumPillar(
-                            rank = 1,
-                            name = "Elena Rostova",
-                            emoji = "🦄",
-                            xp = "2,850 XP",
-                            streak = "19d",
-                            medal = "👑",
-                            league = "Diamond",
-                            badgeColor = Color(0xFFFDE047),
-                            containerColor = Color(0xFF1E1B4B),
-                            borderColor = Color(0xFFFACC15),
-                            isFirst = true,
-                            modifier = Modifier.weight(1.15f)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            // 2nd Place: Silver
+                            if (top2 != null) {
+                                LeaderboardPodiumPillar(
+                                    rank = 2,
+                                    name = top2.name,
+                                    emoji = top2.avatarEmoji,
+                                    xp = "${top2.xp} XP",
+                                    streak = "${top2.streak}d",
+                                    medal = "🥈",
+                                    league = top2.league,
+                                    badgeColor = Color(0xFFE2E8F0),
+                                    containerColor = Color(0xFF0F172A),
+                                    borderColor = Color(0xFF94A3B8),
+                                    isCurrentUser = top2.isCurrentUser,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            } else {
+                                Spacer(Modifier.weight(1f))
+                            }
 
-                        // 3rd Place: Bronze (Current Active Student)
-                        LeaderboardPodiumPillar(
-                            rank = 3,
-                            name = currentUser.name.ifBlank { "Alex Morgan" },
-                            emoji = currentUser.avatarEmoji,
-                            xp = "${profile.xpPoints} XP",
-                            streak = "${profile.streakDays}d",
-                            medal = "🥉",
-                            league = profile.league,
-                            badgeColor = Color(0xFFFED7AA),
-                            containerColor = Color(0xFF0F172A),
-                            borderColor = Color(0xFFFB923C),
-                            isCurrentUser = true,
-                            modifier = Modifier.weight(1f)
-                        )
+                            // 1st Place: Gold (Elevated)
+                            if (top1 != null) {
+                                LeaderboardPodiumPillar(
+                                    rank = 1,
+                                    name = top1.name,
+                                    emoji = top1.avatarEmoji,
+                                    xp = "${top1.xp} XP",
+                                    streak = "${top1.streak}d",
+                                    medal = "👑",
+                                    league = top1.league,
+                                    badgeColor = Color(0xFFFDE047),
+                                    containerColor = Color(0xFF1E1B4B),
+                                    borderColor = Color(0xFFFACC15),
+                                    isFirst = true,
+                                    isCurrentUser = top1.isCurrentUser,
+                                    modifier = Modifier.weight(1.15f)
+                                )
+                            }
+
+                            // 3rd Place: Bronze
+                            if (top3 != null) {
+                                LeaderboardPodiumPillar(
+                                    rank = 3,
+                                    name = top3.name,
+                                    emoji = top3.avatarEmoji,
+                                    xp = "${top3.xp} XP",
+                                    streak = "${top3.streak}d",
+                                    medal = "🥉",
+                                    league = top3.league,
+                                    badgeColor = Color(0xFFFED7AA),
+                                    containerColor = Color(0xFF0F172A),
+                                    borderColor = Color(0xFFFB923C),
+                                    isCurrentUser = top3.isCurrentUser,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            } else {
+                                Spacer(Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // 3. User's Personal Standing Alert Card
+        // 3. User's Personal Standing Alert Card (Dynamic to logged-in student)
         item {
             Surface(
                 shape = RoundedCornerShape(18.dp),
@@ -285,17 +319,41 @@ fun StudentLeaderboardScreen(
                                 Text("⭐", fontSize = 20.sp)
                             }
                             Column {
-                                Text(
-                                    text = "Your Standing: Rank #3 in $selectedCohort",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = "Only 970 XP needed to overtake #2 David Chen",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF93C5FD)
-                                )
+                                if (myRank != null && myEntry != null) {
+                                    Text(
+                                        text = "Your Standing: Rank #$myRank in $selectedCohort",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Color.White
+                                    )
+                                    if (myRank == 1) {
+                                        Text(
+                                            text = "🏆 You are leading this cohort! Keep practicing to stay #1.",
+                                            fontSize = 11.sp,
+                                            color = EmeraldSuccess
+                                        )
+                                    } else {
+                                        val studentAbove = filteredLeaderboard[myIndex - 1]
+                                        val diff = maxOf(10, (studentAbove.xp - myEntry.xp) + 10)
+                                        Text(
+                                            text = "Only $diff XP needed to overtake #${studentAbove.rank} ${studentAbove.name.replace(" (You)", "")}",
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF93C5FD)
+                                        )
+                                    }
+                                } else {
+                                    Text(
+                                        text = "Your Cohort: ${currentUser.studentClass}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "Select '${currentUser.studentClass}' or 'All Classes' to view your standing",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF93C5FD)
+                                    )
+                                }
                             }
                         }
 
@@ -304,7 +362,7 @@ fun StudentLeaderboardScreen(
                             color = RoyalBlue
                         ) {
                             Text(
-                                text = "Top 5%",
+                                text = if (myRank != null) "Rank #$myRank" else profile.league,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White,
@@ -313,17 +371,18 @@ fun StudentLeaderboardScreen(
                         }
                     }
 
-                    // Progress Track toward Rank 2
+                    // Progress Track toward Rank Progress
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Season XP Target: 2,500 XP", fontSize = 11.sp, color = Color(0xFF94A3B8))
-                            Text("60% Complete", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
+                            Text("Current Score: ${profile.xpPoints} XP • 🔥 ${profile.streakDays}d Streak", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                            Text(profile.league, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
                         }
+                        val xpProgress = (profile.xpPoints % 1000) / 1000f
                         LinearProgressIndicator(
-                            progress = { 0.60f },
+                            progress = { xpProgress.coerceIn(0.1f, 1f) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
@@ -341,7 +400,7 @@ fun StudentLeaderboardScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search classmates by name...", fontSize = 13.sp) },
+                placeholder = { Text("Search classmates by name or class...", fontSize = 13.sp) },
                 leadingIcon = {
                     Icon(Icons.Filled.Search, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(18.dp))
                 },
@@ -375,7 +434,7 @@ fun StudentLeaderboardScreen(
         }
 
         items(filteredLeaderboard) { student ->
-            val isUser = student.name.contains("Alex Morgan") || student.isCurrentUser
+            val isUser = student.isCurrentUser
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 color = if (isUser) Color(0xFF1E3A8A).copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface,
@@ -470,7 +529,7 @@ fun StudentLeaderboardScreen(
                                 }
                             }
                             Text(
-                                text = "🔥 ${student.streak}d streak • Rank #${student.rank}",
+                                text = "🔥 ${student.streak}d streak • ${student.studentClass} • CEFR: ${student.cefrLevel}",
                                 fontSize = 11.sp,
                                 color = MutedGray,
                                 maxLines = 1,

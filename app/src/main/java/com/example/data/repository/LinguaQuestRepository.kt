@@ -23,6 +23,27 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     )
     val currentUser: StateFlow<User> = _currentUser.asStateFlow()
 
+    companion object {
+        fun getTodayDateString(): String {
+            return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+        }
+
+        fun getYesterdayDateString(): String {
+            return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date(System.currentTimeMillis() - 86400000L))
+        }
+
+        fun calculateCefrLevel(overallScore: Int): LearningLevel {
+            return when {
+                overallScore >= 90 -> LearningLevel.ADVANCED          // C2
+                overallScore >= 82 -> LearningLevel.UPPER_INTERMEDIATE// C1
+                overallScore >= 72 -> LearningLevel.INTERMEDIATE      // B2
+                overallScore >= 58 -> LearningLevel.PRE_INTERMEDIATE  // B1
+                overallScore >= 45 -> LearningLevel.ELEMENTARY        // A2
+                else -> LearningLevel.BEGINNER                         // A1
+            }
+        }
+    }
+
     // Student Profile
     private val _studentProfile = MutableStateFlow(
         loadInitialProfile()
@@ -37,12 +58,12 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         }
         return StudentProfile(
             userId = "std_001",
-            currentLevel = LearningLevel.ELEMENTARY,
+            currentLevel = LearningLevel.INTERMEDIATE,
             streakDays = 7,
             xpPoints = 1450,
             coins = 420,
             league = "Gold League",
-            overallScore = 84,
+            overallScore = 85,
             speakingScore = 82,
             pronunciationScore = 85,
             fluencyScore = 79,
@@ -51,7 +72,8 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             listeningScore = 90,
             readingScore = 84,
             completedStagesCount = 14,
-            speakingPracticeMinutes = 168
+            speakingPracticeMinutes = 168,
+            lastPracticeDate = getTodayDateString()
         )
     }
 
@@ -376,18 +398,8 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     )
     val announcements: StateFlow<List<AnnouncementItem>> = _announcements.asStateFlow()
 
-    // Leaderboard
-    private val _leaderboard = MutableStateFlow(
-        listOf(
-            LeaderboardUser(1, "Elena Rostova", "🦄", 2850, 19, "Diamond League"),
-            LeaderboardUser(2, "David Chen", "🐯", 2420, 14, "Diamond League"),
-            LeaderboardUser(3, "Alex Morgan (You)", "🦉", 1450, 7, "Gold League", isCurrentUser = true),
-            LeaderboardUser(4, "Amira Al-Mansoor", "🦁", 1390, 8, "Gold League"),
-            LeaderboardUser(5, "Lucas Silva", "🐺", 1210, 5, "Gold League"),
-            LeaderboardUser(6, "Hana Tanaka", "🌸", 1150, 6, "Silver League"),
-            LeaderboardUser(7, "Mateo Gomez", "🚀", 980, 4, "Silver League")
-        )
-    )
+    // Leaderboard state
+    private val _leaderboard = MutableStateFlow<List<LeaderboardUser>>(emptyList())
     val leaderboard: StateFlow<List<LeaderboardUser>> = _leaderboard.asStateFlow()
 
     // Achievement Badges
@@ -404,13 +416,106 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     val badges: StateFlow<List<AchievementBadge>> = _badges.asStateFlow()
 
     private val defaultStudents = listOf(
-        StudentManagementInfo("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", "🦉", "Class 10", LearningLevel.ELEMENTARY, true, 82, 85, 79, 88, 86, 90, 7, 1450, "Nov 2026", "Consistently practices speaking. Excellent rhythm and confidence.", "1234"),
-        StudentManagementInfo("std_002", "Elena Rostova", "elena.r@linguaquest.edu", "🦄", "Class 10", LearningLevel.INTERMEDIATE, true, 94, 96, 92, 90, 95, 96, 19, 2850, "Oct 2026", "Top class fluency. Demonstrates near-native sentence intonation.", "1234"),
-        StudentManagementInfo("std_003", "David Chen", "david.c@linguaquest.edu", "🐯", "Class 9", LearningLevel.INTERMEDIATE, true, 88, 89, 85, 91, 87, 92, 14, 2420, "Oct 2026", "Strong analytical vocabulary. Recommended for advanced debate roleplays.", "1234"),
-        StudentManagementInfo("std_004", "Amira Al-Mansoor", "amira.m@linguaquest.edu", "🦁", "Class 10", LearningLevel.ELEMENTARY, true, 78, 80, 74, 82, 80, 85, 8, 1390, "Nov 2026", "Needs extra practice on past tense irregular verbs and voiced /th/ sounds.", "1234"),
-        StudentManagementInfo("std_005", "Lucas Silva", "lucas.s@linguaquest.edu", "🐺", "Class 8", LearningLevel.BEGINNER, true, 71, 72, 68, 75, 74, 80, 5, 1210, "Nov 2026", "Improving quickly. Benefit from daily sentence builder and word match games.", "1234"),
-        StudentManagementInfo("std_006", "Hana Tanaka", "hana.t@linguaquest.edu", "🌸", "Class 7", LearningLevel.BEGINNER, false, 65, 68, 62, 70, 71, 76, 3, 980, "Nov 2026", "Temporarily paused. Needs supportive speaking drills on basic greetings.", "1234")
+        StudentManagementInfo("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", "🦉", "Class 10", LearningLevel.INTERMEDIATE, true, 82, 85, 79, 88, 86, 90, 7, 1450, "Nov 2026", "Consistently practices speaking. Excellent rhythm and confidence.", "1234"),
+        StudentManagementInfo("std_002", "Elena Rostova", "elena.r@linguaquest.edu", "🦄", "Class 10", LearningLevel.ADVANCED, true, 94, 96, 92, 90, 95, 96, 19, 2850, "Oct 2026", "Top class fluency. Demonstrates near-native sentence intonation.", "1234"),
+        StudentManagementInfo("std_003", "David Chen", "david.c@linguaquest.edu", "🐯", "Class 9", LearningLevel.UPPER_INTERMEDIATE, true, 88, 89, 85, 91, 87, 92, 14, 2420, "Oct 2026", "Strong analytical vocabulary. Recommended for advanced debate roleplays.", "1234"),
+        StudentManagementInfo("std_004", "Amira Al-Mansoor", "amira.m@linguaquest.edu", "🦁", "Class 10", LearningLevel.INTERMEDIATE, true, 78, 80, 74, 82, 80, 85, 8, 1390, "Nov 2026", "Needs extra practice on past tense irregular verbs and voiced /th/ sounds.", "1234"),
+        StudentManagementInfo("std_005", "Lucas Silva", "lucas.s@linguaquest.edu", "🐺", "Class 8", LearningLevel.PRE_INTERMEDIATE, true, 71, 72, 68, 75, 74, 80, 5, 1210, "Nov 2026", "Improving quickly. Benefit from daily sentence builder and word match games.", "1234"),
+        StudentManagementInfo("std_006", "Hana Tanaka", "hana.t@linguaquest.edu", "🌸", "Class 7", LearningLevel.PRE_INTERMEDIATE, false, 65, 68, 62, 70, 71, 76, 3, 980, "Nov 2026", "Temporarily paused. Needs supportive speaking drills on basic greetings.", "1234")
     )
+
+    private data class LeaderboardDraft(
+        val id: String,
+        val name: String,
+        val avatarEmoji: String,
+        val xp: Int,
+        val streak: Int,
+        val league: String,
+        val isCurrentUser: Boolean,
+        val studentClass: String,
+        val cefrLevel: String
+    )
+
+    private fun generateLeaderboard(
+        students: List<StudentManagementInfo>,
+        activeProfile: StudentProfile,
+        curUser: User
+    ): List<LeaderboardUser> {
+        val activeStudentId = if (curUser.role == Role.STUDENT) curUser.id else activeProfile.userId
+
+        val activeList = students.filter { it.isActive }
+        val allStudents = if (curUser.role == Role.STUDENT && activeList.none { it.id == curUser.id || it.email.equals(curUser.email, ignoreCase = true) }) {
+            activeList + StudentManagementInfo(
+                id = curUser.id,
+                name = curUser.name,
+                email = curUser.email,
+                avatarEmoji = curUser.avatarEmoji,
+                batch = curUser.batch,
+                level = activeProfile.currentLevel,
+                isActive = true,
+                speakingScore = activeProfile.speakingScore,
+                pronunciationScore = activeProfile.pronunciationScore,
+                fluencyScore = activeProfile.fluencyScore,
+                grammarScore = activeProfile.grammarScore,
+                vocabularyScore = activeProfile.vocabularyScore,
+                listeningScore = activeProfile.listeningScore,
+                streakDays = activeProfile.streakDays,
+                xpPoints = activeProfile.xpPoints,
+                joinedDate = curUser.joinedDate
+            )
+        } else {
+            activeList
+        }
+
+        val drafts = allStudents.map { s ->
+            val isCur = (s.id == activeStudentId || s.email.equals(curUser.email, ignoreCase = true) || (curUser.role == Role.STUDENT && s.id == curUser.id))
+            val xp = if (isCur && curUser.role == Role.STUDENT) activeProfile.xpPoints else s.xpPoints
+            val streak = if (isCur && curUser.role == Role.STUDENT) activeProfile.streakDays else s.streakDays
+            val league = when {
+                xp >= 2500 -> "Diamond League"
+                xp >= 1800 -> "Platinum League"
+                xp >= 1200 -> "Gold League"
+                xp >= 700 -> "Silver League"
+                else -> "Bronze League"
+            }
+            val cefr = if (isCur && curUser.role == Role.STUDENT) activeProfile.currentLevel.cefr else s.level.cefr
+            LeaderboardDraft(
+                id = s.id,
+                name = s.name,
+                avatarEmoji = s.avatarEmoji,
+                xp = xp,
+                streak = streak,
+                league = league,
+                isCurrentUser = isCur,
+                studentClass = s.batch,
+                cefrLevel = cefr
+            )
+        }
+
+        val sorted = drafts.sortedWith(
+            compareByDescending<LeaderboardDraft> { it.xp }
+                .thenByDescending { it.streak }
+        )
+
+        return sorted.mapIndexed { index, draft ->
+            LeaderboardUser(
+                rank = index + 1,
+                name = if (draft.isCurrentUser) "${draft.name} (You)" else draft.name,
+                avatarEmoji = draft.avatarEmoji,
+                xp = draft.xp,
+                streak = draft.streak,
+                league = draft.league,
+                isCurrentUser = draft.isCurrentUser,
+                studentClass = draft.studentClass,
+                studentId = draft.id,
+                cefrLevel = draft.cefrLevel
+            )
+        }
+    }
+
+    fun refreshLeaderboard() {
+        _leaderboard.value = generateLeaderboard(_adminStudents.value, _studentProfile.value, _currentUser.value)
+    }
 
     private val defaultTeachers = listOf(
         User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Class 10 & 9", true, securityPin = "7321"),
@@ -607,6 +712,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     )
     val grammarChallenges: StateFlow<List<GrammarChallengeQuestion>> = _grammarChallenges.asStateFlow()
 
+    init {
+        refreshLeaderboard()
+    }
+
     fun switchRole(newRole: Role) {
         val current = _currentUser.value
         val updatedUser = when (newRole) {
@@ -619,40 +728,57 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         _currentUser.value = updatedUser
         if (newRole == Role.STUDENT) {
             setStudentProfileUserId(updatedUser.id, updatedUser.name)
+        } else {
+            refreshLeaderboard()
         }
     }
 
     fun setCurrentUser(user: User) {
         _currentUser.value = user
+        refreshLeaderboard()
     }
 
     fun setStudentProfile(profile: StudentProfile) {
         _studentProfile.value = profile
         appPreferences?.saveStudentProfile(profile)
+        refreshLeaderboard()
     }
 
     fun setStudentProfileUserId(studentId: String, studentName: String) {
-        val info = _adminStudents.value.find { it.id == studentId || it.name.equals(studentName, ignoreCase = true) }
+        val info = _adminStudents.value.find { it.id == studentId || it.email.equals(studentId, ignoreCase = true) || it.name.equals(studentName, ignoreCase = true) }
         val saved = appPreferences?.getStudentProfile(studentId)
-        if (saved != null) {
-            val synced = if (info != null) {
+        val initialOrSaved = if (saved != null) {
+            if (info != null) {
+                val overall = (info.speakingScore + info.pronunciationScore + info.fluencyScore + info.grammarScore + info.vocabularyScore + info.listeningScore) / 6
                 saved.copy(
                     currentLevel = info.level,
-                    streakDays = maxOf(saved.streakDays, info.streakDays)
+                    streakDays = maxOf(saved.streakDays, info.streakDays),
+                    xpPoints = maxOf(saved.xpPoints, info.xpPoints),
+                    overallScore = if (saved.overallScore > 0) saved.overallScore else overall,
+                    speakingScore = if (saved.speakingScore > 0) saved.speakingScore else info.speakingScore,
+                    pronunciationScore = if (saved.pronunciationScore > 0) saved.pronunciationScore else info.pronunciationScore,
+                    fluencyScore = if (saved.fluencyScore > 0) saved.fluencyScore else info.fluencyScore,
+                    grammarScore = if (saved.grammarScore > 0) saved.grammarScore else info.grammarScore,
+                    vocabularyScore = if (saved.vocabularyScore > 0) saved.vocabularyScore else info.vocabularyScore,
+                    listeningScore = if (saved.listeningScore > 0) saved.listeningScore else info.listeningScore
                 )
             } else saved
-            _studentProfile.value = synced
-            appPreferences?.saveStudentProfile(synced)
         } else {
             if (info != null) {
                 val overall = (info.speakingScore + info.pronunciationScore + info.fluencyScore + info.grammarScore + info.vocabularyScore + info.listeningScore) / 6
-                val prof = StudentProfile(
+                StudentProfile(
                     userId = studentId,
                     currentLevel = info.level,
                     streakDays = maxOf(info.streakDays, 1),
                     xpPoints = info.xpPoints,
-                    coins = 200,
-                    league = if (info.xpPoints > 2000) "Diamond League" else if (info.xpPoints > 1200) "Gold League" else "Bronze League",
+                    coins = (info.xpPoints / 4).coerceAtLeast(100),
+                    league = when {
+                        info.xpPoints >= 2500 -> "Diamond League"
+                        info.xpPoints >= 1800 -> "Platinum League"
+                        info.xpPoints >= 1200 -> "Gold League"
+                        info.xpPoints >= 700 -> "Silver League"
+                        else -> "Bronze League"
+                    },
                     overallScore = overall,
                     speakingScore = info.speakingScore,
                     pronunciationScore = info.pronunciationScore,
@@ -662,14 +788,34 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                     listeningScore = info.listeningScore,
                     readingScore = 80,
                     completedStagesCount = if (info.xpPoints > 1500) 14 else 5,
-                    speakingPracticeMinutes = (info.xpPoints / 10).coerceAtLeast(30)
+                    speakingPracticeMinutes = (info.xpPoints / 10).coerceAtLeast(30),
+                    lastPracticeDate = getTodayDateString()
                 )
-                _studentProfile.value = prof
-                appPreferences?.saveStudentProfile(prof)
             } else {
-                _studentProfile.update { it.copy(userId = studentId) }
+                StudentProfile(
+                    userId = studentId,
+                    currentLevel = LearningLevel.BEGINNER,
+                    streakDays = 1,
+                    xpPoints = 100,
+                    coins = 50,
+                    league = "Bronze League",
+                    overallScore = 75,
+                    speakingScore = 75,
+                    pronunciationScore = 78,
+                    fluencyScore = 72,
+                    grammarScore = 80,
+                    vocabularyScore = 76,
+                    listeningScore = 82,
+                    readingScore = 75,
+                    completedStagesCount = 0,
+                    speakingPracticeMinutes = 0,
+                    lastPracticeDate = getTodayDateString()
+                )
             }
         }
+        _studentProfile.value = initialOrSaved
+        appPreferences?.saveStudentProfile(initialOrSaved)
+        refreshLeaderboard()
     }
 
     // Dynamic Speaking Practice Evaluation Recording & CEFR Progression
@@ -678,6 +824,9 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         practiceMinutesToAdd: Int = 2
     ) {
         if (eval.overallScore <= 0) return
+
+        val today = getTodayDateString()
+        val yesterday = getYesterdayDateString()
 
         _studentProfile.update { current ->
             // Smooth dynamic rolling average based on student's actual performance
@@ -690,16 +839,15 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             val newOverall = (newSpeaking + newPronunciation + newFluency + newGrammar + newVocab + newListening) / 6
 
             // Dynamic CEFR Level calculation according to international CEFR standard
-            val newCefrLevel = when {
-                newOverall >= 92 -> LearningLevel.ADVANCED          // C2
-                newOverall >= 85 -> LearningLevel.UPPER_INTERMEDIATE// C1
-                newOverall >= 75 -> LearningLevel.INTERMEDIATE      // B2
-                newOverall >= 60 -> LearningLevel.PRE_INTERMEDIATE  // B1
-                newOverall >= 45 -> LearningLevel.ELEMENTARY        // A2
-                else -> LearningLevel.BEGINNER                         // A1
+            val newCefrLevel = calculateCefrLevel(newOverall)
+
+            // Daily practice streak logic: increment once per day, or maintain if already practiced today
+            val newStreak = when (current.lastPracticeDate) {
+                today -> current.streakDays
+                yesterday -> current.streakDays + 1
+                else -> if (current.lastPracticeDate.isBlank()) maxOf(current.streakDays, 1) else current.streakDays + 1
             }
 
-            val newStreak = maxOf(current.streakDays, 1) + 1
             val newMinutes = current.speakingPracticeMinutes + practiceMinutesToAdd
 
             current.copy(
@@ -711,7 +859,8 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 overallScore = newOverall,
                 currentLevel = newCefrLevel,
                 streakDays = newStreak,
-                speakingPracticeMinutes = newMinutes
+                speakingPracticeMinutes = newMinutes,
+                lastPracticeDate = today
             )
         }
 
@@ -722,7 +871,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         val curId = _currentUser.value.id
         _adminStudents.update { list ->
             list.map {
-                if (it.id == curId) {
+                if (it.id == curId || it.email.equals(_currentUser.value.email, ignoreCase = true)) {
                     it.copy(
                         speakingScore = updatedProfile.speakingScore,
                         pronunciationScore = updatedProfile.pronunciationScore,
@@ -738,34 +887,106 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             }
         }
         appPreferences?.saveStudents(_adminStudents.value)
+        refreshLeaderboard()
     }
 
     fun incrementDailyStreak() {
+        val today = getTodayDateString()
         _studentProfile.update { current ->
-            current.copy(streakDays = current.streakDays + 1)
+            val updatedStreak = if (current.lastPracticeDate == today) current.streakDays else current.streakDays + 1
+            current.copy(
+                streakDays = updatedStreak,
+                lastPracticeDate = today
+            )
         }
-        appPreferences?.saveStudentProfile(_studentProfile.value)
+        val updatedProf = _studentProfile.value
+        appPreferences?.saveStudentProfile(updatedProf)
         val curId = _currentUser.value.id
         _adminStudents.update { list ->
-            list.map { if (it.id == curId) it.copy(streakDays = _studentProfile.value.streakDays) else it }
+            list.map {
+                if (it.id == curId || it.email.equals(_currentUser.value.email, ignoreCase = true)) {
+                    it.copy(streakDays = updatedProf.streakDays)
+                } else it
+            }
         }
         appPreferences?.saveStudents(_adminStudents.value)
+        refreshLeaderboard()
     }
 
     // Gamification Updates: Add XP and Coins
     fun addRewards(xp: Int, coins: Int) {
         _studentProfile.update {
+            val newXp = it.xpPoints + xp
+            val newLeague = when {
+                newXp >= 2500 -> "Diamond League"
+                newXp >= 1800 -> "Platinum League"
+                newXp >= 1200 -> "Gold League"
+                newXp >= 700 -> "Silver League"
+                else -> "Bronze League"
+            }
             it.copy(
-                xpPoints = it.xpPoints + xp,
-                coins = it.coins + coins
+                xpPoints = newXp,
+                coins = it.coins + coins,
+                league = newLeague
             )
         }
         appPreferences?.saveStudentProfile(_studentProfile.value)
         val curId = _currentUser.value.id
         _adminStudents.update { list ->
-            list.map { if (it.id == curId) it.copy(xpPoints = _studentProfile.value.xpPoints) else it }
+            list.map {
+                if (it.id == curId || it.email.equals(_currentUser.value.email, ignoreCase = true)) {
+                    it.copy(xpPoints = _studentProfile.value.xpPoints)
+                } else it
+            }
         }
         appPreferences?.saveStudents(_adminStudents.value)
+        refreshLeaderboard()
+    }
+
+    // Official CEFR Diagnostic assessment
+    fun runCefrDiagnostic(
+        speaking: Int,
+        pronunciation: Int,
+        fluency: Int,
+        grammar: Int,
+        vocab: Int,
+        listening: Int = _studentProfile.value.listeningScore
+    ): LearningLevel {
+        val overall = (speaking + pronunciation + fluency + grammar + vocab + listening) / 6
+        val newLevel = calculateCefrLevel(overall)
+        _studentProfile.update { current ->
+            current.copy(
+                speakingScore = speaking,
+                pronunciationScore = pronunciation,
+                fluencyScore = fluency,
+                grammarScore = grammar,
+                vocabularyScore = vocab,
+                listeningScore = listening,
+                overallScore = overall,
+                currentLevel = newLevel
+            )
+        }
+        val updated = _studentProfile.value
+        appPreferences?.saveStudentProfile(updated)
+        val curId = _currentUser.value.id
+        _adminStudents.update { list ->
+            list.map {
+                if (it.id == curId || it.email.equals(_currentUser.value.email, ignoreCase = true)) {
+                    it.copy(
+                        speakingScore = speaking,
+                        pronunciationScore = pronunciation,
+                        fluencyScore = fluency,
+                        grammarScore = grammar,
+                        vocabularyScore = vocab,
+                        listeningScore = listening,
+                        level = newLevel
+                    )
+                } else it
+            }
+        }
+        appPreferences?.saveStudents(_adminStudents.value)
+        refreshLeaderboard()
+        return newLevel
     }
 
     // Complete a stage
@@ -879,6 +1100,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         )
         _adminStudents.update { it + newStudent }
         appPreferences?.saveStudents(_adminStudents.value)
+        refreshLeaderboard()
     }
 
     fun updateStudent(updated: StudentManagementInfo) {
@@ -902,6 +1124,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             }
             appPreferences?.saveStudentProfile(_studentProfile.value)
         }
+        refreshLeaderboard()
     }
 
     fun deleteStudent(studentId: String) {
@@ -909,6 +1132,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             list.filterNot { it.id == studentId }
         }
         appPreferences?.saveStudents(_adminStudents.value)
+        refreshLeaderboard()
     }
 
     fun toggleStudentActive(studentId: String) {
@@ -918,6 +1142,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             }
         }
         appPreferences?.saveStudents(_adminStudents.value)
+        refreshLeaderboard()
     }
 
     fun bulkImportStudents(count: Int) {
@@ -1219,10 +1444,12 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             listeningScore = 82,
             readingScore = 75,
             completedStagesCount = 0,
-            speakingPracticeMinutes = 0
+            speakingPracticeMinutes = 0,
+            lastPracticeDate = getTodayDateString()
         )
         _studentProfile.value = newProfile
         appPreferences?.saveStudentProfile(newProfile)
+        refreshLeaderboard()
 
         return studentUser
     }

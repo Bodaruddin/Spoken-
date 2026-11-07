@@ -758,6 +758,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         rewardGameWin(30, 10)
     }
 
+    fun runCefrDiagnostic(speaking: Int, pronunciation: Int, fluency: Int, grammar: Int, vocab: Int): LearningLevel {
+        val level = repository.runCefrDiagnostic(speaking, pronunciation, fluency, grammar, vocab)
+        syncCurrentStudentProgressToSupabase()
+        return level
+    }
+
     fun syncCurrentStudentProgressToSupabase() {
         if (currentUser.value.role == Role.STUDENT) {
             val p = studentProfile.value
