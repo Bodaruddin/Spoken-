@@ -832,6 +832,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeGame() {
         _activeGame.value = null
+        _lastEvaluation.value = null
+    }
+
+    fun clearEvaluation() {
+        _lastEvaluation.value = null
     }
 
     fun rewardGameWin(xp: Int, coins: Int) {

@@ -45,4 +45,22 @@ class ExampleUnitTest {
     assertNotNull(enrolled)
     assertEquals("Spoken English Advanced", enrolled?.batch)
   }
+
+  @Test
+  fun testGameChallengesAndRewards() {
+    val repository = LinguaQuestRepository(appPreferences = null)
+    assertTrue("Word match challenges should be non-empty", repository.wordMatchChallenges.value.isNotEmpty())
+    assertTrue("Missing letters challenges should be non-empty", repository.missingLettersChallenges.value.isNotEmpty())
+    assertTrue("Sentence builder challenges should be non-empty", repository.sentenceBuilderChallenges.value.isNotEmpty())
+    assertTrue("Listen choose challenges should be non-empty", repository.listenChooseChallenges.value.isNotEmpty())
+    assertTrue("Pronunciation battle challenges should be non-empty", repository.pronunciationBattleChallenges.value.isNotEmpty())
+    assertTrue("Fast vocabulary challenges should be non-empty", repository.fastVocabularyChallenges.value.isNotEmpty())
+    assertTrue("Grammar challenges should be non-empty", repository.grammarChallenges.value.isNotEmpty())
+
+    val initialXp = repository.studentProfile.value.xpPoints
+    val initialCoins = repository.studentProfile.value.coins
+    repository.addRewards(50, 15)
+    assertEquals(initialXp + 50, repository.studentProfile.value.xpPoints)
+    assertEquals(initialCoins + 15, repository.studentProfile.value.coins)
+  }
 }
