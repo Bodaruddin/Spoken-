@@ -51,6 +51,7 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
     val celebrationReward by viewModel.celebrationReward.collectAsState()
     val showAdminCredentialsModal by viewModel.showAdminCredentialsModal.collectAsState()
+    val isAdminSession by viewModel.isAdminSession.collectAsState()
 
     // Runtime Permission for Microphone Audio Recording
     var hasAudioPermission by remember {
@@ -103,7 +104,15 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                             }
                         },
                         isCloudConnected = supabaseStatus is com.example.data.remote.SupabaseConnectionState.Connected,
-                        onLogoutClick = { viewModel.logout() }
+                        onLogoutClick = { viewModel.logout() },
+                        isAdminSession = isAdminSession,
+                        onReturnToAdminClick = { viewModel.returnToAdminPanel() }
+                    )
+                } else if (isAdminSession) {
+                    AdminPreviewBanner(
+                        currentRole = currentUser.role,
+                        onBackToAdminClick = { viewModel.returnToAdminPanel() },
+                        onSwitchRoleClick = { viewModel.toggleRoleSwitcher(true) }
                     )
                 }
             },
@@ -122,9 +131,16 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                         )
                     }
                     Role.STUDENT -> {
+                        val assignments by viewModel.assignments.collectAsState()
+                        val submissions by viewModel.submissions.collectAsState()
+                        val pendingCount = remember(assignments, submissions, currentUser) {
+                            val doneIds = submissions.filter { it.studentName.equals(currentUser.name, ignoreCase = true) }.map { it.assignmentId }.toSet()
+                            assignments.count { !doneIds.contains(it.id) }
+                        }
                         StudentBottomBar(
                             currentTab = currentStudentTab,
-                            onTabSelected = { viewModel.selectStudentTab(it) }
+                            onTabSelected = { viewModel.selectStudentTab(it) },
+                            pendingTasksCount = pendingCount
                         )
                     }
                 }
@@ -134,7 +150,7 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .then(if (currentUser.role == Role.STUDENT) Modifier.statusBarsPadding() else Modifier)
+                    .then(if (currentUser.role == Role.STUDENT && !isAdminSession) Modifier.statusBarsPadding() else Modifier)
             ) {
                 when (currentUser.role) {
                     Role.TEACHER -> {
@@ -174,14 +190,15 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
         )
     }
 
-    // Role Switcher Dialog Modal (strictly restricted to Faculty/Admin staff, students can never switch roles)
-    if (showRoleSwitcher && currentUser.role != Role.STUDENT) {
+    // Role Switcher Dialog Modal (accessible to staff or whenever invoked)
+    if (showRoleSwitcher) {
         RoleSwitcherDialog(
             currentRole = currentUser.role,
             onRoleSelected = { viewModel.switchRole(it) },
             onVerifyPin = { role, pin -> viewModel.verifyRolePin(role, pin) },
             onDismiss = { viewModel.toggleRoleSwitcher(false) },
-            onLogoutClick = { viewModel.logout() }
+            onLogoutClick = { viewModel.logout() },
+            isAdminSession = isAdminSession
         )
     }
 

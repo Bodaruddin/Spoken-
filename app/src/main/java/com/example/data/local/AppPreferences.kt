@@ -17,6 +17,7 @@ class AppPreferences(context: Context) {
         private const val KEY_IS_LOGGED_IN = "key_is_logged_in"
         private const val KEY_SESSION_USER = "key_session_user"
         private const val KEY_SESSION_ROLE = "key_session_role"
+        private const val KEY_IS_ADMIN_SESSION = "key_is_admin_session"
 
         // Account Collections Keys
         private const val KEY_STUDENTS_LIST = "key_students_list"
@@ -31,6 +32,29 @@ class AppPreferences(context: Context) {
 
         // Per-user profile prefix
         private const val PREFIX_STUDENT_PROFILE = "key_student_profile_"
+
+        // Missing Letters Categories
+        private const val KEY_MISSING_LETTERS_CATEGORIES = "key_missing_letters_categories"
+    }
+
+    fun saveMissingLettersCategories(categories: List<String>) {
+        val jsonArray = org.json.JSONArray()
+        categories.forEach { jsonArray.put(it) }
+        prefs.edit().putString(KEY_MISSING_LETTERS_CATEGORIES, jsonArray.toString()).apply()
+    }
+
+    fun getMissingLettersCategories(): List<String>? {
+        val raw = prefs.getString(KEY_MISSING_LETTERS_CATEGORIES, null) ?: return null
+        return try {
+            val jsonArray = org.json.JSONArray(raw)
+            val list = mutableListOf<String>()
+            for (i in 0 until jsonArray.length()) {
+                list.add(jsonArray.getString(i))
+            }
+            if (list.isNotEmpty()) list else null
+        } catch (_: Exception) {
+            null
+        }
     }
 
     // =========================================================================
@@ -39,11 +63,22 @@ class AppPreferences(context: Context) {
 
     fun saveSession(user: User) {
         val userJson = userToJson(user).toString()
-        prefs.edit()
+        val editor = prefs.edit()
             .putBoolean(KEY_IS_LOGGED_IN, true)
             .putString(KEY_SESSION_USER, userJson)
             .putString(KEY_SESSION_ROLE, user.role.name)
-            .apply()
+        if (user.role == Role.ADMIN) {
+            editor.putBoolean(KEY_IS_ADMIN_SESSION, true)
+        }
+        editor.apply()
+    }
+
+    fun setAdminSession(isAdmin: Boolean) {
+        prefs.edit().putBoolean(KEY_IS_ADMIN_SESSION, isAdmin).apply()
+    }
+
+    fun isAdminSession(): Boolean {
+        return prefs.getBoolean(KEY_IS_ADMIN_SESSION, false)
     }
 
     fun clearSession() {
@@ -51,6 +86,7 @@ class AppPreferences(context: Context) {
             .putBoolean(KEY_IS_LOGGED_IN, false)
             .remove(KEY_SESSION_USER)
             .remove(KEY_SESSION_ROLE)
+            .remove(KEY_IS_ADMIN_SESSION)
             .apply()
     }
 

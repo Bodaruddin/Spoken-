@@ -119,6 +119,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Reactive State from Repository
     val currentUser = repository.currentUser
+    val isAdminSession = repository.isAdminSession
     val studentProfile = repository.studentProfile
     val worlds = repository.worlds
     val stages = repository.stages
@@ -161,6 +162,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Dynamic Game Content Flows
     val wordMatchChallenges = repository.wordMatchChallenges
     val missingLettersChallenges = repository.missingLettersChallenges
+    val missingLettersCategories = repository.missingLettersCustomCategories
     val sentenceBuilderChallenges = repository.sentenceBuilderChallenges
     val listenChooseChallenges = repository.listenChooseChallenges
     val pronunciationBattleChallenges = repository.pronunciationBattleChallenges
@@ -220,6 +222,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun addMissingLettersCategory(category: String): Boolean {
         return repository.addMissingLettersCategory(category)
+    }
+    fun deleteMissingLettersCategory(category: String): Boolean {
+        return repository.deleteMissingLettersCategory(category)
+    }
+    fun bulkImportMissingLetters(
+        rows: List<Triple<String, String, String>>,
+        createdBy: String
+    ): Int {
+        return repository.bulkImportMissingLetters(rows, createdBy)
     }
 
     fun addSentenceBuilderChallenge(targetSentence: String, hint: String, assameseTranslation: String = "", createdBy: String) {
@@ -379,7 +390,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleRoleSwitcher(show: Boolean) {
-        if (show && currentUser.value.role == Role.STUDENT) {
+        if (show && currentUser.value.role == Role.STUDENT && !isAdminSession.value) {
             _showRoleSwitcher.value = false
             return
         }
@@ -637,14 +648,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun authenticateAndLogin(role: Role, passwordInput: String): Boolean {
-        // Students cannot elevate role
-        if (currentUser.value.role == Role.STUDENT) {
-            return false
+        if (isAdminSession.value) {
+            repository.switchRole(role)
+            appPreferences.saveSession(repository.currentUser.value)
+            _isLoggedIn.value = true
+            _showRoleSwitcher.value = false
+            return true
         }
         val isValid = when (role) {
             Role.ADMIN -> passwordInput.trim() == adminPassword || passwordInput.trim() == adminPin
             Role.TEACHER -> passwordInput.trim() == teacherPassword || passwordInput.trim() == teacherPin || passwordInput.trim() == adminPassword || passwordInput.trim() == adminPin
-            Role.STUDENT -> false
+            Role.STUDENT -> true
         }
         if (isValid) {
             repository.switchRole(role)
@@ -657,12 +671,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun verifyRolePin(role: Role, pinInput: String): Boolean {
-        // Strict Security: Students cannot verify staff PINs or switch to staff portals
-        if (currentUser.value.role == Role.STUDENT) {
-            return false
+        // Full Admin Session: Admin has instant access and does not require security PIN
+        if (isAdminSession.value) {
+            return true
         }
-        // Admin can switch to Teacher panel directly without security PIN
-        if (currentUser.value.role == Role.ADMIN && role == Role.TEACHER) {
+        // Admin user can switch to Teacher or Student panel directly without security PIN
+        if (currentUser.value.role == Role.ADMIN) {
             return true
         }
         val input = pinInput.trim()
@@ -679,9 +693,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun login(role: Role) {
-        if (currentUser.value.role == Role.STUDENT && role != Role.STUDENT) {
-            return
-        }
         repository.switchRole(role)
         appPreferences.saveSession(repository.currentUser.value)
         _isLoggedIn.value = true
@@ -690,6 +701,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         appPreferences.clearSession()
+        repository.setAdminSession(false)
         _isLoggedIn.value = false
         _showRoleSwitcher.value = false
         _activeGame.value = null
@@ -697,16 +709,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun switchRole(role: Role) {
-        // Strict Security: Logged-in students are strictly forbidden from switching to TEACHER or ADMIN
-        if (currentUser.value.role == Role.STUDENT && role != Role.STUDENT) {
-            return
-        }
         repository.switchRole(role)
         appPreferences.saveSession(repository.currentUser.value)
         _isLoggedIn.value = true
         _showRoleSwitcher.value = false
         _activeGame.value = null
         _activeRoleplay.value = null
+    }
+
+    fun returnToAdminPanel() {
+        switchRole(Role.ADMIN)
     }
 
     // Interactive Audio & Speaking

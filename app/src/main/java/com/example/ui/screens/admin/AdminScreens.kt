@@ -525,6 +525,27 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+
+                        // Direct switch to Student Panel for Admin without Security PIN
+                        OutlinedButton(
+                            onClick = { viewModel.switchRole(Role.STUDENT) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("admin_switch_to_student_panel_button"),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF38BDF8)),
+                            border = BorderStroke(1.5.dp, Color(0xFF38BDF8))
+                        ) {
+                            Icon(Icons.Rounded.School, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF38BDF8))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "🎓 Switch to Student Panel (Direct Access • Preview as Student)",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -1438,6 +1459,21 @@ fun AdminTeachersManagement(viewModel: MainViewModel, modifier: Modifier = Modif
                         Icon(Icons.Rounded.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp), tint = PurpleAccent)
                         Spacer(Modifier.width(6.dp))
                         Text("Switch to Teacher Panel (Direct Access • No PIN)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    // Direct Quick Switch to Student Panel without PIN
+                    OutlinedButton(
+                        onClick = { viewModel.switchRole(Role.STUDENT) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("admin_switch_to_student_portal_button"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF38BDF8)),
+                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
+                    ) {
+                        Icon(Icons.Rounded.School, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF38BDF8))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Switch to Student Panel (Direct Access • Preview as Student)", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

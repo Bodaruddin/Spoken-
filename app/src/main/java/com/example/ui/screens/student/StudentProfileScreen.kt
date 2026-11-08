@@ -42,6 +42,7 @@ fun StudentProfileScreen(
     val vocabulary by viewModel.vocabularyWords.collectAsState()
     val leaderboard by viewModel.leaderboard.collectAsState()
     val supabaseStatus by viewModel.supabaseStatus.collectAsState()
+    val isAdminSession by viewModel.isAdminSession.collectAsState()
 
     var showVocabNotebook by remember { mutableStateOf(false) }
 
@@ -122,6 +123,48 @@ fun StudentProfileScreen(
                                 ) {
                                     Text("🦉", fontSize = 12.sp)
                                     Text("Student", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                                }
+                            }
+
+                            // If in Admin Session, direct 1-tap return to Admin Panel without security PIN
+                            if (isAdminSession) {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFFF59E0B),
+                                    border = BorderStroke(1.dp, Color(0xFFFDE68A)),
+                                    modifier = Modifier
+                                        .testTag("student_profile_back_to_admin_button")
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable { viewModel.returnToAdminPanel() }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text("🛡️", fontSize = 12.sp)
+                                        Text("Back to Admin", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                    }
+                                }
+                            } else {
+                                // Staff Portal Access for Faculty/Admin to unlock staff portal
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFF1E293B),
+                                    border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f)),
+                                    modifier = Modifier
+                                        .testTag("student_profile_staff_switch_button")
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .clickable { viewModel.toggleRoleSwitcher(true) }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text("🛡️", fontSize = 12.sp)
+                                        Text("Staff Access", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA855F7))
+                                    }
                                 }
                             }
 

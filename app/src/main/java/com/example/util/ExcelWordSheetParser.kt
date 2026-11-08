@@ -20,6 +20,12 @@ data class ParsedVocabRow(
     val coachingTip: String = ""
 )
 
+data class ParsedMissingLetterRow(
+    val word: String,
+    val hint: String,
+    val category: String
+)
+
 object ExcelWordSheetParser {
 
     /**
@@ -338,6 +344,86 @@ Achievement,কৃতকাৰ্যতা,Kritokaaryata,/əˈtʃiːvmənt/,noun
 Inspiration,অনুপ্ৰেৰণা,Onuprerona,/ˌɪnspɪˈreɪʃn/,noun,General,"Listening to inspiring speeches motivates speaking practice.","Accent the third syllable: in-spuh-RAY-shun."
 Dedication,উৎসৰ্গা,Utxorga,/ˌdedɪˈkeɪʃn/,noun,Academic,"Her dedication to daily speaking practice yielded great results.","Stress 'KAY': ded-ih-KAY-shun."
 Collaboration,সহযোগিতা,Xohayogita,/kəˌlæbəˈreɪʃn/,noun,Workplace,"Classroom collaboration helps students overcome shyness.","Say: kuh-lab-uh-RAY-shun."
+        """.trimIndent()
+    }
+
+    /**
+     * Parses raw text (CSV/TSV/pasted Excel rows) into ParsedMissingLetterRow items.
+     * Expects rows in format: Word, Meaning/Hint, Category
+     */
+    fun parseMissingLettersFromText(rawText: String, defaultCategory: String = "General"): List<ParsedMissingLetterRow> {
+        val lines = rawText.lines().map { it.trim() }.filter { it.isNotBlank() }
+        if (lines.isEmpty()) return emptyList()
+        val result = mutableListOf<ParsedMissingLetterRow>()
+        for (line in lines) {
+            val tokens = splitDelimitedLine(line)
+            if (tokens.isNotEmpty()) {
+                val first = tokens[0].trim()
+                if (first.isNotBlank() && !isHeaderRow(tokens) && !first.equals("word", ignoreCase = true) && !first.equals("full word", ignoreCase = true)) {
+                    val word = first.uppercase()
+                    val hint = tokens.getOrNull(1)?.trim()?.ifBlank { "English Vocabulary Word" } ?: "English Vocabulary Word"
+                    val cat = tokens.getOrNull(2)?.trim()?.ifBlank { defaultCategory } ?: defaultCategory
+                    result.add(ParsedMissingLetterRow(word, hint, cat))
+                }
+            }
+        }
+        return result
+    }
+
+    /**
+     * Parses .xlsx or .csv from an Android content Uri into ParsedMissingLetterRow items.
+     */
+    fun parseMissingLettersFromUri(context: Context, uri: Uri, fileName: String? = null, defaultCategory: String = "General"): List<ParsedMissingLetterRow> {
+        val resolvedName = fileName ?: uri.lastPathSegment ?: "missing_letters.csv"
+        return context.contentResolver.openInputStream(uri)?.use { stream ->
+            if (resolvedName.endsWith(".xlsx", ignoreCase = true)) {
+                val vocabRows = parseXlsxStream(stream)
+                vocabRows.map { row ->
+                    val hint = if (row.assameseMeaning.isNotBlank() && row.assameseMeaning != "অৰ্থ") {
+                        if (row.exampleSentence.isNotBlank()) "${row.assameseMeaning} • ${row.exampleSentence}" else row.assameseMeaning
+                    } else if (row.exampleSentence.isNotBlank()) {
+                        row.exampleSentence
+                    } else if (row.coachingTip.isNotBlank()) {
+                        row.coachingTip
+                    } else {
+                        "English Vocabulary Word"
+                    }
+                    ParsedMissingLetterRow(
+                        word = row.englishWord.uppercase(),
+                        hint = hint,
+                        category = row.category.ifBlank { defaultCategory }
+                    )
+                }
+            } else {
+                val rawText = stream.bufferedReader().use { it.readText() }
+                parseMissingLettersFromText(rawText, defaultCategory)
+            }
+        } ?: emptyList()
+    }
+
+    /**
+     * Sample template specifically designed for Missing Letters Excel import.
+     */
+    fun getSampleMissingLettersCsv(): String {
+        return """
+Word,Meaning / Clue Hint,Category
+ELEPHANT,The largest living land animal with big ears and trunk,Animals
+GIRAFFE,Tallest living terrestrial animal with an extremely long neck,Animals
+KANGAROO,Australian marsupial that hops on powerful hind legs,Animals
+DOLPHIN,Highly intelligent aquatic marine mammal known for acrobatics,Animals
+LEOPARD,Graceful solitary big cat with a spotted coat,Animals
+BROCCOLI,Edible green plant in the cabbage family with flowering head,Vegetables
+SPINACH,Nutritious leafy green flowering plant rich in iron,Vegetables
+CUCUMBER,Crisp creeping vine plant with cylindrical green fruit,Vegetables
+CABBAGE,Leafy biennial vegetable grown as dense green or purple head,Vegetables
+CARROT,Sweet earthy root vegetable rich in vitamin A,Vegetables
+PINEAPPLE,Tropical plant with sweet fruit and a spiky crown,Fruits
+STRAWBERRY,Sweet soft red fruit with small exterior seeds,Fruits
+WATERMELON,Large sweet melon with smooth green rind and red juicy flesh,Fruits
+ASTRONOMY,Scientific study of the universe stars and planets,Science
+CONVERSATION,An informal spoken exchange of thoughts between people,General
+PRONUNCIATION,The correct way in which a word or language is spoken,General
+FLUENCY,The ability to speak smoothly easily and naturally,General
         """.trimIndent()
     }
 }

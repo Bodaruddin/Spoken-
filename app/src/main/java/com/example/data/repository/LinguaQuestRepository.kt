@@ -23,6 +23,17 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     )
     val currentUser: StateFlow<User> = _currentUser.asStateFlow()
 
+    // Persistent Admin Session tracker (true if logged in as Admin or unlocked by Admin PIN)
+    private val _isAdminSession = MutableStateFlow(
+        appPreferences?.isAdminSession() ?: (_currentUser.value.role == Role.ADMIN)
+    )
+    val isAdminSession: StateFlow<Boolean> = _isAdminSession.asStateFlow()
+
+    fun setAdminSession(isAdmin: Boolean) {
+        _isAdminSession.value = isAdmin
+        appPreferences?.setAdminSession(isAdmin)
+    }
+
     companion object {
         fun getTodayDateString(): String {
             return java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
@@ -621,7 +632,9 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     )
     val missingLettersChallenges: StateFlow<List<MissingLettersChallenge>> = _missingLettersChallenges.asStateFlow()
 
-    private val _missingLettersCustomCategories = MutableStateFlow(listOf("Animals", "Vegetables", "Fruits", "General"))
+    private val _missingLettersCustomCategories = MutableStateFlow(
+        appPreferences?.getMissingLettersCategories() ?: listOf("Animals", "Vegetables", "Fruits", "General")
+    )
     val missingLettersCustomCategories: StateFlow<List<String>> = _missingLettersCustomCategories.asStateFlow()
 
     fun addMissingLettersCategory(category: String): Boolean {
@@ -629,6 +642,28 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (trimmed.isBlank()) return false
         if (_missingLettersCustomCategories.value.any { it.equals(trimmed, ignoreCase = true) }) return false
         _missingLettersCustomCategories.update { it + trimmed }
+        appPreferences?.saveMissingLettersCategories(_missingLettersCustomCategories.value)
+        return true
+    }
+
+    fun deleteMissingLettersCategory(category: String): Boolean {
+        val trimmed = category.trim()
+        if (trimmed.isBlank()) return false
+        if (trimmed.equals("General", ignoreCase = true)) return false // Keep General as system default
+        val exists = _missingLettersCustomCategories.value.any { it.equals(trimmed, ignoreCase = true) }
+        if (!exists) return false
+        _missingLettersCustomCategories.update { list ->
+            val updated = list.filterNot { it.equals(trimmed, ignoreCase = true) }
+            if (updated.isEmpty()) listOf("General") else updated
+        }
+        // Reassign challenges belonging to deleted category to "General"
+        _missingLettersChallenges.update { list ->
+            list.map { item ->
+                if (item.category.equals(trimmed, ignoreCase = true)) item.copy(category = "General")
+                else item
+            }
+        }
+        appPreferences?.saveMissingLettersCategories(_missingLettersCustomCategories.value)
         return true
     }
 
@@ -758,6 +793,9 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             Role.ADMIN -> User("adm_001", "Dean Arthur Pendelton", "admin@linguaquest.edu", Role.ADMIN, "🛡️", "Head of Academics", securityPin = "9842")
         }
         _currentUser.value = updatedUser
+        if (newRole == Role.ADMIN) {
+            setAdminSession(true)
+        }
         if (newRole == Role.STUDENT) {
             setStudentProfileUserId(updatedUser.id, updatedUser.name)
         } else {
@@ -767,6 +805,9 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
 
     fun setCurrentUser(user: User) {
         _currentUser.value = user
+        if (user.role == Role.ADMIN) {
+            setAdminSession(true)
+        }
         refreshLeaderboard()
     }
 
@@ -1262,6 +1303,40 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         addMissingLettersCategory(targetCat)
         val item = MissingLettersChallenge(id, cleaned, hint.trim(), indices, targetCat, createdBy)
         _missingLettersChallenges.update { it + item }
+    }
+
+    fun bulkImportMissingLetters(
+        rows: List<Triple<String, String, String>>,
+        createdBy: String
+    ): Int {
+        if (rows.isEmpty()) return 0
+        val timestamp = System.currentTimeMillis()
+        var count = 0
+        val newChallenges = mutableListOf<MissingLettersChallenge>()
+
+        rows.forEachIndexed { index, (word, hint, cat) ->
+            val cleaned = word.trim().uppercase()
+            if (cleaned.isNotBlank()) {
+                val indices = if (cleaned.length >= 6) {
+                    listOf(1, cleaned.length / 2, cleaned.length - 2)
+                } else if (cleaned.length >= 4) {
+                    listOf(1, cleaned.length - 2)
+                } else {
+                    listOf(1)
+                }
+                val targetCat = cat.trim().ifBlank { "General" }
+                addMissingLettersCategory(targetCat)
+                val finalHint = hint.trim().ifBlank { "English Vocabulary Word" }
+                val id = "ml_${timestamp}_$index"
+                newChallenges.add(MissingLettersChallenge(id, cleaned, finalHint, indices, targetCat, createdBy))
+                count++
+            }
+        }
+
+        if (newChallenges.isNotEmpty()) {
+            _missingLettersChallenges.update { it + newChallenges }
+        }
+        return count
     }
 
     fun deleteMissingLettersChallenge(id: String) {

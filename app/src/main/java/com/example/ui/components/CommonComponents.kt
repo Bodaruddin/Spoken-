@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
@@ -64,6 +65,8 @@ fun AppTopBar(
     isCloudConnected: Boolean,
     onLogoutClick: () -> Unit,
     onAdminCredentialsClick: () -> Unit = {},
+    isAdminSession: Boolean = false,
+    onReturnToAdminClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val isPillTopBar = role == Role.ADMIN || role == Role.TEACHER
@@ -227,6 +230,38 @@ fun AppTopBar(
                         Color(0xFFBFDBFE),
                         "🎓"
                     )
+                }
+                // Quick return to Admin panel if switched from Admin
+                if (isAdminSession && role != Role.ADMIN) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFFF59E0B),
+                        border = BorderStroke(1.dp, Color(0xFFFDE68A)),
+                        modifier = Modifier
+                            .testTag("topbar_back_to_admin_button")
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable { onReturnToAdminClick?.invoke() }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Return to Admin Panel",
+                                modifier = Modifier.size(13.dp),
+                                tint = Color(0xFF0F172A)
+                            )
+                            Text(
+                                text = "Admin",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF0F172A),
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
                 Surface(
                     shape = RoundedCornerShape(20.dp),
@@ -542,12 +577,112 @@ fun ScoreChip(label: String, score: Int) {
 }
 
 @Composable
+fun AdminPreviewBanner(
+    currentRole: Role,
+    onBackToAdminClick: () -> Unit,
+    onSwitchRoleClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color(0xFF0F172A).copy(alpha = 0.96f),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.2.dp, Color(0xFFF59E0B)),
+        modifier = modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .testTag("admin_preview_banner")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFD97706)))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("👑", fontSize = 16.sp)
+                }
+                Column {
+                    Text(
+                        text = "Admin Session",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color(0xFFFDE68A)
+                    )
+                    Text(
+                        text = "Viewing as ${currentRole.name.lowercase().replaceFirstChar { it.uppercase() }}",
+                        fontSize = 11.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Switch role
+                IconButton(
+                    onClick = onSwitchRoleClick,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.SwapHoriz,
+                        contentDescription = "Switch Role",
+                        tint = Color(0xFFA5B4FC),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                // Return to Admin Panel
+                Button(
+                    onClick = onBackToAdminClick,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFF59E0B),
+                        contentColor = Color(0xFF0F172A)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.testTag("banner_back_to_admin_button")
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = Color(0xFF0F172A)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "Back to Admin",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun RoleSwitcherDialog(
     currentRole: Role,
     onRoleSelected: (Role) -> Unit,
     onDismiss: () -> Unit,
     onVerifyPin: (Role, String) -> Boolean = { _, _ -> true },
-    onLogoutClick: (() -> Unit)? = null
+    onLogoutClick: (() -> Unit)? = null,
+    isAdminSession: Boolean = false
 ) {
     var pendingRole by remember { mutableStateOf<Role?>(null) }
     var pinInput by remember { mutableStateOf("") }
@@ -646,14 +781,14 @@ fun RoleSwitcherDialog(
                 )
 
                 RoleSelectionItem(
-                    title = if (currentRole == Role.ADMIN) "Teacher Portal (Direct Access)" else "Teacher Portal (Protected)",
-                    subtitle = if (currentRole == Role.ADMIN) "Instant switch to faculty workspace without security PIN" else "Prof. Eleanor Vance • Classes 9 & 10 • Faculty Verification",
+                    title = if (currentRole == Role.ADMIN || isAdminSession) "Teacher Portal (Direct Access • No PIN)" else "Teacher Portal (Protected)",
+                    subtitle = if (currentRole == Role.ADMIN || isAdminSession) "Instant switch to faculty workspace without security PIN" else "Prof. Eleanor Vance • Classes 9 & 10 • Faculty Verification",
                     emoji = "👩‍🏫",
                     isSelected = currentRole == Role.TEACHER,
                     onClick = {
                         if (currentRole == Role.TEACHER) {
                             onDismiss()
-                        } else if (currentRole == Role.ADMIN) {
+                        } else if (currentRole == Role.ADMIN || isAdminSession) {
                             // Admin can switch to Teacher panel without security PIN
                             onRoleSelected(Role.TEACHER)
                             onDismiss()
@@ -664,13 +799,20 @@ fun RoleSwitcherDialog(
                 )
 
                 RoleSelectionItem(
-                    title = "Admin Portal (Protected)",
-                    subtitle = "Dean Arthur Pendelton • Institutional Controls • Admin Verification",
+                    title = if (isAdminSession) "Admin Portal (Direct Access • No PIN)" else "Admin Portal (Protected)",
+                    subtitle = if (isAdminSession) "Dean Arthur Pendelton • Instant return to institutional controls" else "Dean Arthur Pendelton • Institutional Controls • Admin Verification",
                     emoji = "🛡️",
                     isSelected = currentRole == Role.ADMIN,
                     onClick = {
-                        if (currentRole == Role.ADMIN) onDismiss()
-                        else pendingRole = Role.ADMIN
+                        if (currentRole == Role.ADMIN) {
+                            onDismiss()
+                        } else if (isAdminSession) {
+                            // Admin returning to Admin panel without security PIN!
+                            onRoleSelected(Role.ADMIN)
+                            onDismiss()
+                        } else {
+                            pendingRole = Role.ADMIN
+                        }
                     }
                 )
 

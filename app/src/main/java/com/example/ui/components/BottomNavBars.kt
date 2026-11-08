@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -30,62 +32,164 @@ import com.example.ui.theme.*
 fun StudentBottomBar(
     currentTab: StudentTab,
     onTabSelected: (StudentTab) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    pendingTasksCount: Int = 0
 ) {
     Surface(
-        color = Color(0xFF0F123C).copy(alpha = 0.95f),
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        border = BorderStroke(1.2.dp, Color(0xFF4C3FA8).copy(alpha = 0.65f)),
+        color = Color(0xFF090D26).copy(alpha = 0.97f),
+        shape = RoundedCornerShape(32.dp),
+        border = BorderStroke(
+            1.2.dp,
+            Brush.horizontalGradient(
+                listOf(
+                    Color(0xFF00D2FF).copy(alpha = 0.60f),
+                    Color(0xFF8B5CF6).copy(alpha = 0.85f),
+                    Color(0xFFEC4899).copy(alpha = 0.60f)
+                )
+            )
+        ),
+        shadowElevation = 12.dp,
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
             .testTag("student_bottom_bar")
     ) {
-        val visibleTabs = listOf(
+        val studentTabs = listOf(
             StudentTabItem(StudentTab.HOME, "Home", Icons.Rounded.Home),
-            StudentTabItem(StudentTab.TASKS, "Tasks", Icons.Rounded.Task),
-            StudentTabItem(StudentTab.GAMES, "Games", Icons.Rounded.Gamepad),
+            StudentTabItem(StudentTab.TASKS, "Tasks", Icons.Rounded.Assignment),
+            StudentTabItem(StudentTab.PRACTICE, "Speak", Icons.Rounded.Mic),
+            StudentTabItem(StudentTab.GAMES, "Games", Icons.Rounded.SportsEsports),
             StudentTabItem(StudentTab.LEADERBOARD, "Ranks", Icons.Rounded.EmojiEvents),
             StudentTabItem(StudentTab.PROFILE, "Profile", Icons.Rounded.Person)
         )
 
-        NavigationBar(
-            containerColor = Color.Transparent,
-            tonalElevation = 0.dp,
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp)
+                .padding(horizontal = 4.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            visibleTabs.forEach { tabItem ->
-                val isSelected = currentTab == tabItem.tab
-                NavigationBarItem(
-                    selected = isSelected,
-                    onClick = { onTabSelected(tabItem.tab) },
-                    icon = {
-                        Icon(
-                            imageVector = tabItem.icon,
-                            contentDescription = tabItem.label,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    },
-                    label = {
+            studentTabs.forEach { item ->
+                val isSelected = currentTab == item.tab
+                val isCenterPractice = item.tab == StudentTab.PRACTICE
+
+                if (isCenterPractice) {
+                    // Center Hero Action: Elevated Radiant Mic Button for Speaking Hub
+                    Column(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { onTabSelected(item.tab) }
+                            .padding(horizontal = 2.dp, vertical = 2.dp)
+                            .testTag("student_tab_${item.tab.name.lowercase()}"),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(
+                                            if (isSelected) Color(0xFF00E5FF) else Color(0xFF0072FF),
+                                            if (isSelected) Color(0xFFD946EF) else Color(0xFF8B5CF6)
+                                        )
+                                    )
+                                )
+                                .border(
+                                    1.5.dp,
+                                    if (isSelected) Color(0xFFFDE047) else Color.White.copy(alpha = 0.7f),
+                                    CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label,
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            tabItem.label,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            text = item.label,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isSelected) Color(0xFF38BDF8) else Color(0xFFC084FC),
                             maxLines = 1,
-                            softWrap = false
+                            overflow = TextOverflow.Ellipsis
                         )
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        selectedTextColor = Color.White,
-                        indicatorColor = Color(0xFF7C3AED), // Vibrant Purple active pill from screenshot
-                        unselectedIconColor = Color(0xFF94A3B8),
-                        unselectedTextColor = Color(0xFF94A3B8)
-                    ),
-                    modifier = Modifier.testTag("student_tab_${tabItem.tab.name.lowercase()}")
-                )
+                    }
+                } else {
+                    // Standard Tab Item with dynamic active capsule pill and notification badge
+                    Column(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable { onTabSelected(item.tab) }
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                            .testTag("student_tab_${item.tab.name.lowercase()}"),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier.size(width = 44.dp, height = 30.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(15.dp))
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(
+                                                    Color(0xFF8B5CF6).copy(alpha = 0.45f),
+                                                    Color(0xFF6366F1).copy(alpha = 0.60f)
+                                                )
+                                            )
+                                        )
+                                        .border(
+                                            1.dp,
+                                            Color(0xFFA855F7).copy(alpha = 0.6f),
+                                            RoundedCornerShape(15.dp)
+                                        )
+                                )
+                            }
+
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label,
+                                tint = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                modifier = Modifier.size(20.dp)
+                            )
+
+                            // Pending tasks notification badge dot
+                            if (item.tab == StudentTab.TASKS && pendingTasksCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = (-4).dp, y = 2.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFEF4444))
+                                        .border(1.dp, Color.White, CircleShape)
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = item.label,
+                            fontSize = 9.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
     }

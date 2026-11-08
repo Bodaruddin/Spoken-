@@ -19,6 +19,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.example.util.ExcelWordSheetParser
+import com.example.util.ParsedMissingLetterRow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -74,6 +81,7 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val wordMatches by viewModel.wordMatchChallenges.collectAsState()
     val sentences by viewModel.sentenceBuilderChallenges.collectAsState()
     val totalGames = wordMatches.size + sentences.size + 15
+    val isAdminSession by viewModel.isAdminSession.collectAsState()
 
     LazyColumn(
         modifier = modifier
@@ -82,6 +90,63 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
             .testTag("teacher_dashboard_screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Admin Session Banner if viewing as Teacher
+        if (isAdminSession) {
+            item {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF0F172A),
+                    border = BorderStroke(1.2.dp, Color(0xFFF59E0B)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("teacher_admin_preview_banner")
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("👑", fontSize = 18.sp)
+                            Column {
+                                Text(
+                                    "Admin Session Active",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFDE68A)
+                                )
+                                Text(
+                                    "You are viewing Teacher Portal • Direct return without PIN",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = { viewModel.returnToAdminPanel() },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFF59E0B),
+                                contentColor = Color(0xFF0F172A)
+                            ),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.testTag("teacher_dashboard_back_to_admin_button")
+                        ) {
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, modifier = Modifier.size(13.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Back to Admin", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
         // Teacher Banner Card (Exact match to screenshot)
         item {
             Card(
@@ -1245,6 +1310,8 @@ data class ActiveEditingChallenge(
 fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     var selectedCategory by remember { mutableStateOf(GameCategoryFilter.WORD_MATCH) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showBulkImportMissingLettersDialog by remember { mutableStateOf(false) }
+    var showManageCategoriesDialog by remember { mutableStateOf(false) }
     var activeEditingChallenge by remember { mutableStateOf<ActiveEditingChallenge?>(null) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
     var isSearchVisible by remember { mutableStateOf(false) }
@@ -1253,6 +1320,8 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
 
     val wordMatches by viewModel.wordMatchChallenges.collectAsState()
     val missingLetters by viewModel.missingLettersChallenges.collectAsState()
+    val missingLettersCategories by viewModel.missingLettersCategories.collectAsState()
+    var selectedMissingLettersCategory by remember { mutableStateOf("All") }
     val sentenceBuilders by viewModel.sentenceBuilderChallenges.collectAsState()
     val listenChooses by viewModel.listenChooseChallenges.collectAsState()
     val pronunciationBattles by viewModel.pronunciationBattleChallenges.collectAsState()
@@ -1263,9 +1332,16 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         if (searchQuery.isBlank()) wordMatches
         else wordMatches.filter { it.word.contains(searchQuery.trim(), ignoreCase = true) || it.definition.contains(searchQuery.trim(), ignoreCase = true) || it.category.contains(searchQuery.trim(), ignoreCase = true) }
     }
-    val filteredMissingLetters = remember(missingLetters, searchQuery) {
-        if (searchQuery.isBlank()) missingLetters
-        else missingLetters.filter { it.fullWord.contains(searchQuery.trim(), ignoreCase = true) || it.hint.contains(searchQuery.trim(), ignoreCase = true) || it.category.contains(searchQuery.trim(), ignoreCase = true) }
+    val filteredMissingLetters = remember(missingLetters, searchQuery, selectedMissingLettersCategory) {
+        missingLetters.filter { item ->
+            val matchesCat = selectedMissingLettersCategory == "All" || item.category.equals(selectedMissingLettersCategory, ignoreCase = true)
+            val matchesQuery = searchQuery.isBlank() || (
+                item.fullWord.contains(searchQuery.trim(), ignoreCase = true) ||
+                item.hint.contains(searchQuery.trim(), ignoreCase = true) ||
+                item.category.contains(searchQuery.trim(), ignoreCase = true)
+            )
+            matchesCat && matchesQuery
+        }
     }
     val filteredSentenceBuilders = remember(sentenceBuilders, searchQuery) {
         if (searchQuery.isBlank()) sentenceBuilders
@@ -1646,6 +1722,177 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             }
         }
 
+        if (selectedCategory == GameCategoryFilter.MISSING_LETTERS) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A).copy(alpha = 0.95f)),
+                    border = BorderStroke(1.dp, Color(0xFF00D2FF).copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth().testTag("missing_letters_management_toolbar")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Action buttons row: Bulk Excel Import & Manage Categories
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = { showBulkImportMissingLettersDialog = true },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .testTag("missing_letters_bulk_import_btn"),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF059669)
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text("📊", fontSize = 16.sp)
+                                    Text(
+                                        "Bulk Excel Import",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = Color.White,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = { showManageCategoriesDialog = true },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .testTag("missing_letters_manage_categories_btn"),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color(0xFF67E8F9)
+                                ),
+                                border = BorderStroke(1.2.dp, Color(0xFF06B6D4)),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text("🏷️", fontSize = 16.sp)
+                                    Text(
+                                        "Categories (${missingLettersCategories.size})",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+
+                        // Category filter chips
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Filter by Category:",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF94A3B8)
+                                )
+                                Text(
+                                    "${filteredMissingLetters.size} showing",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF38BDF8)
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // "All" Chip
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = if (selectedMissingLettersCategory == "All") Color(0xFF2563EB) else Color(0xFF1E293B),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (selectedMissingLettersCategory == "All") Color(0xFF60A5FA) else Color(0xFF334155)
+                                    ),
+                                    modifier = Modifier
+                                        .clickable { selectedMissingLettersCategory = "All" }
+                                        .testTag("category_filter_all")
+                                ) {
+                                    Text(
+                                        text = "All (${missingLetters.size})",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (selectedMissingLettersCategory == "All") Color.White else Color(0xFF94A3B8),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+
+                                missingLettersCategories.forEach { cat ->
+                                    val count = missingLetters.count { it.category.equals(cat, ignoreCase = true) }
+                                    val isSelected = selectedMissingLettersCategory.equals(cat, ignoreCase = true)
+                                    Surface(
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = if (isSelected) Color(0xFF8B5CF6) else Color(0xFF1E293B),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            if (isSelected) Color(0xFFC084FC) else Color(0xFF334155)
+                                        ),
+                                        modifier = Modifier
+                                            .clickable { selectedMissingLettersCategory = cat }
+                                            .testTag("category_filter_${cat.lowercase()}")
+                                    ) {
+                                        Text(
+                                            text = "$cat ($count)",
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) Color.White else Color(0xFFCBD5E1),
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+
+                                // Quick Add Category Chip
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color(0xFF0F172A),
+                                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
+                                    modifier = Modifier
+                                        .clickable { showManageCategoriesDialog = true }
+                                        .testTag("add_category_chip_btn")
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Add, contentDescription = "Add Category", tint = Color(0xFF38BDF8), modifier = Modifier.size(14.dp))
+                                        Text("Add Category", fontSize = 11.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         statusMsg?.let { msg ->
             item {
                 Surface(
@@ -1952,6 +2199,28 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 statusMsg = "Successfully published new challenge for ${selectedCategory.title}!"
                 showCreateDialog = false
             },
+            viewModel = viewModel,
+            onOpenBulkImport = {
+                showCreateDialog = false
+                showBulkImportMissingLettersDialog = true
+            }
+        )
+    }
+
+    if (showBulkImportMissingLettersDialog) {
+        BulkImportMissingLettersDialog(
+            onDismiss = { showBulkImportMissingLettersDialog = false },
+            onImported = { count ->
+                statusMsg = "Successfully imported $count challenges from spreadsheet!"
+                showBulkImportMissingLettersDialog = false
+            },
+            viewModel = viewModel
+        )
+    }
+
+    if (showManageCategoriesDialog) {
+        ManageMissingLettersCategoriesDialog(
+            onDismiss = { showManageCategoriesDialog = false },
             viewModel = viewModel
         )
     }
@@ -3220,6 +3489,614 @@ fun ScorePill(label: String, value: String, modifier: Modifier = Modifier) {
 }
 
 // -------------------------------------------------------------
+// MANAGE MISSING LETTERS CATEGORIES DIALOG
+// -------------------------------------------------------------
+@Composable
+fun ManageMissingLettersCategoriesDialog(
+    onDismiss: () -> Unit,
+    viewModel: MainViewModel
+) {
+    val categories by viewModel.missingLettersCategories.collectAsState()
+    val challenges by viewModel.missingLettersChallenges.collectAsState()
+    var newCategoryInput by remember { mutableStateOf("") }
+    var actionMessage by remember { mutableStateOf<String?>(null) }
+    var isError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("🏷️", fontSize = 22.sp)
+                Text("Manage Categories", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    "Organize your Missing Letters challenges by category or topic. Deleting a category automatically moves its challenges to 'General'.",
+                    fontSize = 12.sp,
+                    color = MutedGray
+                )
+
+                // Add Category Input Box
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "Add New Category",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = newCategoryInput,
+                                onValueChange = { newCategoryInput = it },
+                                placeholder = { Text("e.g. Science, Space, Food", fontSize = 12.sp) },
+                                singleLine = true,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("new_category_input"),
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                            Button(
+                                onClick = {
+                                    val trimmed = newCategoryInput.trim()
+                                    if (trimmed.isNotBlank()) {
+                                        val added = viewModel.addMissingLettersCategory(trimmed)
+                                        if (added) {
+                                            actionMessage = "Category '$trimmed' added successfully!"
+                                            isError = false
+                                            newCategoryInput = ""
+                                        } else {
+                                            actionMessage = "Category '$trimmed' already exists."
+                                            isError = true
+                                        }
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                enabled = newCategoryInput.isNotBlank(),
+                                modifier = Modifier.testTag("add_category_confirm_button")
+                            ) {
+                                Text("+ Add", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                actionMessage?.let { msg ->
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isError) Color(0xFFFEE2E2) else Color(0xFFDCFCE7),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = msg,
+                            color = if (isError) Color(0xFFDC2626) else EmeraldSuccess,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
+                }
+
+                // Current Categories List
+                Text("Existing Categories (${categories.size}):", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+
+                categories.forEach { cat ->
+                    val count = challenges.count { it.category.equals(cat, ignoreCase = true) }
+                    val isGeneral = cat.equals("General", ignoreCase = true)
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("category_card_${cat.lowercase()}"),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("🏷️", fontSize = 14.sp)
+                                Column {
+                                    Text(cat, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("$count challenge${if (count != 1) "s" else ""}", fontSize = 11.sp, color = MutedGray)
+                                }
+                            }
+
+                            if (!isGeneral) {
+                                IconButton(
+                                    onClick = {
+                                        val removed = viewModel.deleteMissingLettersCategory(cat)
+                                        if (removed) {
+                                            actionMessage = "Deleted '$cat'. Challenges moved to 'General'."
+                                            isError = false
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("delete_category_${cat.lowercase()}")
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = "Delete $cat",
+                                        tint = CoralAccent,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            } else {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant
+                                ) {
+                                    Text(
+                                        "Default",
+                                        fontSize = 10.sp,
+                                        color = MutedGray,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss, modifier = Modifier.testTag("close_categories_dialog")) {
+                Text("Done")
+            }
+        }
+    )
+}
+
+// -------------------------------------------------------------
+// BULK IMPORT MISSING LETTERS DIALOG
+// -------------------------------------------------------------
+@Composable
+fun BulkImportMissingLettersDialog(
+    onDismiss: () -> Unit,
+    onImported: (count: Int) -> Unit,
+    viewModel: MainViewModel
+) {
+    val context = LocalContext.current
+    val currentUser by viewModel.currentUser.collectAsState()
+    val availableCategories by viewModel.missingLettersCategories.collectAsState()
+
+    var selectedTab by remember { mutableIntStateOf(0) } // 0 = File Upload (.xlsx/.csv), 1 = Paste Sheet Data
+    var selectedDefaultCategory by remember { mutableStateOf(availableCategories.firstOrNull() ?: "General") }
+    var selectedFileName by remember { mutableStateOf<String?>(null) }
+    var rawInputText by remember { mutableStateOf("") }
+    var parsedRows by remember { mutableStateOf<List<ParsedMissingLetterRow>>(emptyList()) }
+    var isProcessing by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var successMessage by remember { mutableStateOf<String?>(null) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isProcessing = true
+            errorMessage = null
+            successMessage = null
+            try {
+                var fileName: String? = null
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex != -1) {
+                            fileName = cursor.getString(nameIndex)
+                        }
+                    }
+                }
+                val resolvedName = fileName ?: uri.lastPathSegment ?: "missing_letters.xlsx"
+                selectedFileName = resolvedName
+
+                val rows = ExcelWordSheetParser.parseMissingLettersFromUri(
+                    context = context,
+                    uri = uri,
+                    fileName = resolvedName,
+                    defaultCategory = selectedDefaultCategory
+                )
+
+                if (rows.isEmpty()) {
+                    errorMessage = "No valid word challenges found in '$resolvedName'. Format required: Word, Meaning/Clue Hint, Category"
+                    parsedRows = emptyList()
+                } else {
+                    parsedRows = rows
+                    errorMessage = null
+                }
+            } catch (e: Exception) {
+                errorMessage = "Failed to parse file: ${e.localizedMessage ?: "Unknown error"}"
+            } finally {
+                isProcessing = false
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("bulk_import_missing_letters_dialog"),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(EmeraldSuccess),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("📊", fontSize = 18.sp)
+                    }
+                    Column {
+                        Text(
+                            text = "Bulk Excel Sheet Import",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            text = "Missing Letters Challenges",
+                            fontSize = 11.sp,
+                            color = EmeraldSuccess,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = MutedGray)
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Tab Selector: Upload File vs Paste Sheet Data
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    contentColor = RoyalBlue
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("📁 Upload .xlsx / .csv", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("📋 Paste / Template", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    )
+                }
+
+                // Default Category Selector
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Target Category (if unspecified in sheet):", fontSize = 11.sp, color = MutedGray)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        availableCategories.forEach { cat ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (selectedDefaultCategory.equals(cat, true)) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.clickable {
+                                    selectedDefaultCategory = cat
+                                    if (parsedRows.isNotEmpty()) {
+                                        parsedRows = parsedRows.map { row ->
+                                            if (row.category.isBlank() || row.category == "General") row.copy(category = cat) else row
+                                        }
+                                    }
+                                }
+                            ) {
+                                Text(
+                                    text = cat,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selectedDefaultCategory.equals(cat, true)) Color.White else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (selectedTab == 0) {
+                    // File Upload Area
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = BorderStroke(1.5.dp, if (selectedFileName != null) EmeraldSuccess else RoyalBlue.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { filePickerLauncher.launch("*/*") }
+                            .testTag("choose_excel_file_card")
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(if (selectedFileName != null) "📄" else "📥", fontSize = 32.sp)
+                            Text(
+                                text = selectedFileName ?: "Tap to Select Excel (.xlsx) or CSV File",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "Columns: Word, Meaning/Clue Hint, Category",
+                                fontSize = 11.sp,
+                                color = MutedGray,
+                                textAlign = TextAlign.Center
+                            )
+                            Button(
+                                onClick = { filePickerLauncher.launch("*/*") },
+                                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Text("Browse Device Files", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                } else {
+                    // Paste Raw Text or Load Sample Template
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Paste CSV / Excel rows:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            TextButton(
+                                onClick = {
+                                    val sample = ExcelWordSheetParser.getSampleMissingLettersCsv()
+                                    rawInputText = sample
+                                    parsedRows = ExcelWordSheetParser.parseMissingLettersFromText(sample, selectedDefaultCategory)
+                                },
+                                modifier = Modifier.testTag("load_sample_template_button")
+                            ) {
+                                Text("💡 Load Sample Template", fontSize = 11.sp, color = RoyalBlue)
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = rawInputText,
+                            onValueChange = {
+                                rawInputText = it
+                                if (it.isNotBlank()) {
+                                    parsedRows = ExcelWordSheetParser.parseMissingLettersFromText(it, selectedDefaultCategory)
+                                }
+                            },
+                            placeholder = {
+                                Text(
+                                    "Word,Meaning / Clue Hint,Category\nELEPHANT,The largest land animal,Animals\nBROCCOLI,Green cabbage vegetable,Vegetables",
+                                    fontSize = 11.sp,
+                                    color = MutedGray
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(140.dp)
+                                .testTag("paste_excel_text_field"),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
+                        )
+                    }
+                }
+
+                if (isProcessing) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Parsing spreadsheet rows...", fontSize = 12.sp, color = MutedGray)
+                    }
+                }
+
+                errorMessage?.let { err ->
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFFEE2E2),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "⚠️ $err",
+                            color = Color(0xFFDC2626),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
+
+                successMessage?.let { msg ->
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFDCFCE7),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "✅ $msg",
+                            color = EmeraldSuccess,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
+
+                // Parsed preview
+                if (parsedRows.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Previewing ${parsedRows.size} Challenges:",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = EmeraldSuccess
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = EmeraldSuccess.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    "${parsedRows.size} ready",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EmeraldSuccess,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 200.dp)
+                        ) {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                itemsIndexed(parsedRows) { idx, row ->
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        "${idx + 1}. ${row.word}",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.sp
+                                                    )
+                                                    Surface(
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        color = RoyalBlue.copy(alpha = 0.12f)
+                                                    ) {
+                                                        Text(
+                                                            row.category,
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = RoyalBlue,
+                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                                Text(
+                                                    row.hint,
+                                                    fontSize = 11.sp,
+                                                    color = MutedGray,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (parsedRows.isNotEmpty()) {
+                        val author = currentUser.name.ifBlank { "Faculty Instructor" }
+                        val rowsToImport = parsedRows.map { Triple(it.word, it.hint, it.category) }
+                        val count = viewModel.bulkImportMissingLetters(rowsToImport, author)
+                        successMessage = "Successfully imported $count challenges!"
+                        onImported(count)
+                    }
+                },
+                enabled = parsedRows.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                modifier = Modifier.testTag("execute_bulk_import_button")
+            ) {
+                Text(
+                    text = if (parsedRows.isNotEmpty()) "Import All (${parsedRows.size}) 🚀" else "Import Challenges",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+// -------------------------------------------------------------
 // UNIVERSAL CREATE CHALLENGE DIALOG
 // -------------------------------------------------------------
 @Composable
@@ -3228,7 +4105,8 @@ fun CreateGameChallengeDialog(
     authorName: String,
     onDismiss: () -> Unit,
     onCreated: () -> Unit,
-    viewModel: MainViewModel
+    viewModel: MainViewModel,
+    onOpenBulkImport: (() -> Unit)? = null
 ) {
     var field1 by remember { mutableStateOf("") }
     var field2 by remember { mutableStateOf("") }
@@ -3257,23 +4135,172 @@ fun CreateGameChallengeDialog(
                         OutlinedTextField(value = field3, onValueChange = { field3 = it }, label = { Text("Category (e.g. Communication)") }, modifier = Modifier.fillMaxWidth())
                     }
                     GameCategoryFilter.MISSING_LETTERS -> {
-                        OutlinedTextField(value = field1, onValueChange = { field1 = it }, label = { Text("Full Word (e.g. ELEPHANT, BROCCOLI)") }, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = field2, onValueChange = { field2 = it }, label = { Text("Meaning / Clue Hint") }, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(value = field3, onValueChange = { field3 = it }, label = { Text("Category (e.g. Animals, Vegetables, Fruits)") }, modifier = Modifier.fillMaxWidth())
-                        Text("Suggested categories:", fontSize = 11.sp, color = MutedGray)
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("Animals", "Vegetables", "Fruits", "General").forEach { cat ->
+                        val missingLettersCategories by viewModel.missingLettersCategories.collectAsState()
+                        var isAddingCategory by remember { mutableStateOf(false) }
+                        var newCatName by remember { mutableStateOf("") }
+
+                        OutlinedTextField(
+                            value = field1,
+                            onValueChange = { field1 = it },
+                            label = { Text("Full Word (e.g. ELEPHANT, BROCCOLI)") },
+                            modifier = Modifier.fillMaxWidth().testTag("missing_letters_word_input")
+                        )
+                        OutlinedTextField(
+                            value = field2,
+                            onValueChange = { field2 = it },
+                            label = { Text("Meaning / Clue Hint") },
+                            modifier = Modifier.fillMaxWidth().testTag("missing_letters_hint_input")
+                        )
+                        OutlinedTextField(
+                            value = field3,
+                            onValueChange = { field3 = it },
+                            label = { Text("Category (e.g. Animals, Vegetables, Fruits)") },
+                            modifier = Modifier.fillMaxWidth().testTag("missing_letters_category_input")
+                        )
+
+                        // Categories management header with Add Category button
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Categories:", fontSize = 11.sp, color = MutedGray, fontWeight = FontWeight.SemiBold)
+                            TextButton(
+                                onClick = { isAddingCategory = !isAddingCategory },
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                modifier = Modifier.testTag("toggle_add_category_btn")
+                            ) {
+                                Text(if (isAddingCategory) "✕ Close" else "+ Add Category", fontSize = 11.sp, color = RoyalBlue)
+                            }
+                        }
+
+                        // Inline add category input
+                        if (isAddingCategory) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                OutlinedTextField(
+                                    value = newCatName,
+                                    onValueChange = { newCatName = it },
+                                    placeholder = { Text("Category name...", fontSize = 11.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f).testTag("inline_category_input"),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                Button(
+                                    onClick = {
+                                        val trimmed = newCatName.trim()
+                                        if (trimmed.isNotBlank()) {
+                                            viewModel.addMissingLettersCategory(trimmed)
+                                            field3 = trimmed
+                                            newCatName = ""
+                                            isAddingCategory = false
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    enabled = newCatName.isNotBlank(),
+                                    modifier = Modifier.testTag("inline_save_category_btn")
+                                ) {
+                                    Text("Add", fontSize = 11.sp)
+                                }
+                            }
+                        }
+
+                        // Categories horizontal chips with active selection and delete icon
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            missingLettersCategories.forEach { cat ->
+                                val isSelected = field3.equals(cat, ignoreCase = true)
+                                val isGeneral = cat.equals("General", ignoreCase = true)
+
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = if (field3.equals(cat, ignoreCase = true)) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant,
-                                    modifier = Modifier.clickable { field3 = cat }
+                                    color = if (isSelected) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier
+                                        .clickable { field3 = cat }
+                                        .testTag("suggested_category_${cat.lowercase()}")
                                 ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(start = 8.dp, end = if (!isGeneral) 4.dp else 8.dp, top = 4.dp, bottom = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = cat,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                                        )
+                                        if (!isGeneral) {
+                                            Icon(
+                                                Icons.Filled.Close,
+                                                contentDescription = "Delete category $cat",
+                                                tint = if (isSelected) Color.White.copy(alpha = 0.8f) else CoralAccent,
+                                                modifier = Modifier
+                                                    .size(14.dp)
+                                                    .clickable {
+                                                        viewModel.deleteMissingLettersCategory(cat)
+                                                        if (field3.equals(cat, ignoreCase = true)) {
+                                                            field3 = "General"
+                                                        }
+                                                    }
+                                                    .testTag("delete_category_chip_${cat.lowercase()}")
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Direct Bulk Excel Sheet Import callout
+                        if (onOpenBulkImport != null) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF059669).copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, Color(0xFF059669).copy(alpha = 0.4f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenBulkImport() }
+                                    .testTag("dialog_open_bulk_import_btn")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text("📊", fontSize = 16.sp)
+                                        Column {
+                                            Text(
+                                                "Bulk Excel Sheet Import",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                color = Color(0xFF059669)
+                                            )
+                                            Text(
+                                                "Upload .xlsx / .csv or paste rows",
+                                                fontSize = 10.sp,
+                                                color = MutedGray
+                                            )
+                                        }
+                                    }
                                     Text(
-                                        text = cat,
+                                        "Open Import →",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (field3.equals(cat, ignoreCase = true)) Color.White else MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        color = Color(0xFF059669)
                                     )
                                 }
                             }

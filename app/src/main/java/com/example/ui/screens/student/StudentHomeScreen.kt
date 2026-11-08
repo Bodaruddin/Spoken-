@@ -28,6 +28,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -657,9 +658,281 @@ fun StudentHomeScreen(
             }
         }
 
+        // 7. Redesigned Student Panel Footer Card: Fluency Affirmation, Stats & Quick Voice Hub
+        item {
+            StudentPanelFooterCard(
+                userName = user.name,
+                streakDays = profile.streakDays,
+                xpPoints = profile.xpPoints,
+                league = profile.league,
+                onQuickPracticeClick = { viewModel.selectStudentTab(StudentTab.PRACTICE) },
+                onViewTasksClick = { viewModel.selectStudentTab(StudentTab.TASKS) }
+            )
+        }
+
         // Bottom space so nothing is occluded by bottom bar
         item {
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(20.dp))
+        }
+    }
+}
+
+/**
+ * Redesigned Student Panel Footer Card placed at the bottom of the Student Home dashboard.
+ * Provides daily fluency affirmation, quick stats pills (Streak, XP, Practice),
+ * shortcuts to Voice Practice & Tasks, and Speakly AI assistant status.
+ */
+@Composable
+fun StudentPanelFooterCard(
+    userName: String,
+    streakDays: Int,
+    xpPoints: Int,
+    league: String,
+    onQuickPracticeClick: () -> Unit,
+    onViewTasksClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0F2B).copy(alpha = 0.95f)),
+        border = BorderStroke(
+            1.2.dp,
+            Brush.horizontalGradient(
+                listOf(
+                    Color(0xFF38BDF8).copy(alpha = 0.4f),
+                    Color(0xFF8B5CF6).copy(alpha = 0.7f),
+                    Color(0xFFEC4899).copy(alpha = 0.4f)
+                )
+            )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("student_panel_footer_card")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Header with owl badge and tagline
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(Color(0xFF8B5CF6), Color(0xFF4F46E5))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🦉", fontSize = 22.sp)
+                    }
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "Speakly Fluency Club",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color.White
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF10B981).copy(alpha = 0.2f),
+                                border = BorderStroke(0.8.dp, Color(0xFF10B981))
+                            ) {
+                                Text(
+                                    "ACTIVE",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF34D399),
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            "Daily English Mastery Portal",
+                            fontSize = 11.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFF1E293B),
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("✨", fontSize = 16.sp)
+                    }
+                }
+            }
+
+            // Motivational daily quote
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0xFF131A3E),
+                border = BorderStroke(1.dp, Color(0xFF263366))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("💬", fontSize = 20.sp)
+                    Text(
+                        "\"The only way to master spoken English is to speak it with courage every single day.\"",
+                        fontSize = 11.5.sp,
+                        lineHeight = 16.sp,
+                        color = Color(0xFFE2E8F0),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            // Quick Stats Badges Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Streak Badge
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFEA580C).copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, Color(0xFFEA580C).copy(alpha = 0.4f)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("🔥", fontSize = 16.sp)
+                        Column {
+                            Text("$streakDays Day Streak", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFFFDBA74))
+                            Text("Consistency", fontSize = 9.sp, color = Color(0xFF94A3B8))
+                        }
+                    }
+                }
+
+                // XP Badge
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF8B5CF6).copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.4f)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("⚡", fontSize = 16.sp)
+                        Column {
+                            Text("$xpPoints XP Earned", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFFD8B4FE))
+                            Text("Total Score", fontSize = 9.sp, color = Color(0xFF94A3B8))
+                        }
+                    }
+                }
+
+                // League Badge
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF00D2FF).copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, Color(0xFF00D2FF).copy(alpha = 0.4f)),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("👑", fontSize = 16.sp)
+                        Column {
+                            Text(league.ifBlank { "Diamond League" }, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF7DD3FC), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("Current Tier", fontSize = 9.sp, color = Color(0xFF94A3B8))
+                        }
+                    }
+                }
+            }
+
+            // Quick Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onQuickPracticeClick,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF4F46E5)
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .testTag("footer_quick_practice_btn")
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(Icons.Rounded.Mic, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Text("Voice Practice", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = onViewTasksClick,
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFF38BDF8)
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .testTag("footer_view_tasks_btn")
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("📝", fontSize = 14.sp)
+                        Text("Pending Tasks", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            }
+
+            // Bottom security & AI tag
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Speakly AI Speech Engine • Assamese-English Bilingual Bridge",
+                    fontSize = 10.sp,
+                    color = Color(0xFF64748B),
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }
