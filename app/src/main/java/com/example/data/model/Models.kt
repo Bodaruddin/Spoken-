@@ -214,6 +214,56 @@ data class StudentSubmission(
     val status: String = "PENDING" // "PENDING" or "GRADED"
 )
 
+// --- MCQ Online Examination & Certificate Models ---
+data class ExamQuestion(
+    val id: String,
+    val question: String,
+    val options: List<String>, // Exactly 4 options: A, B, C, D
+    val correctOptionIndex: Int, // 0 to 3
+    val marks: Int = 5,
+    val explanation: String = ""
+)
+
+data class Exam(
+    val id: String,
+    val title: String,
+    val description: String,
+    val teacherName: String,
+    val targetClass: String = AcademicClasses.DEFAULT_CLASS, // e.g. "Class 10" or "All Classes"
+    val subjectCategory: String = "English Grammar", // "English Grammar", "Phonetics & Pronunciation", "Vocabulary & Idioms", "Spoken English & Fluency"
+    val durationMinutes: Int = 15, // Selected exam time limit in minutes
+    val totalMarks: Int = 50,
+    val passingPercentage: Int = 60, // e.g. 60%
+    val questions: List<ExamQuestion> = emptyList(),
+    val createdAt: String = "Nov 2026",
+    val dueDate: String = "Tomorrow, 6 PM",
+    val isPublished: Boolean = true
+) {
+    val questionsCount: Int get() = questions.size
+    val passingMarks: Int get() = (totalMarks * passingPercentage) / 100
+}
+
+data class ExamSubmission(
+    val id: String,
+    val examId: String,
+    val examTitle: String,
+    val studentId: String,
+    val studentName: String,
+    val studentClass: String,
+    val studentAvatar: String = "🎓",
+    val selectedAnswers: Map<String, Int> = emptyMap(), // questionId -> selectedOptionIndex (0..3)
+    val scoreObtained: Int,
+    val totalMarks: Int,
+    val percentage: Int,
+    val isPassed: Boolean,
+    val grade: String, // "O", "A+", "A", "B+", "B", "C"
+    val performanceTitle: String = "Academic Distinction", // "Outstanding Distinction", "Distinction", "Merit", "Satisfactory"
+    val timeTakenSeconds: Int = 0,
+    val completedAt: String = "Today",
+    val certificateId: String = "SPK-EXM-2026-0000"
+)
+
+
 data class LiveClassSession(
     val id: String,
     val title: String,

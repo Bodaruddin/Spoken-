@@ -23,7 +23,9 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
+import com.example.util.CertificatePdfGenerator
 import com.example.util.ExcelWordSheetParser
 import com.example.util.ParsedMissingLetterRow
 import androidx.compose.material3.*
@@ -66,7 +68,7 @@ fun TeacherMainScreen(
         TeacherTab.STUDENTS -> TeacherStudentsManagement(viewModel, modifier)
         TeacherTab.GAMES -> TeacherGameCreator(viewModel, modifier)
         TeacherTab.SPEAKING_REVIEW -> TeacherSpeakingReview(viewModel, modifier)
-        TeacherTab.ASSIGNMENTS -> TeacherAssignmentsList(viewModel, modifier)
+        TeacherTab.EXAMS -> TeacherExamsManagementScreen(viewModel, modifier)
     }
 }
 
@@ -2945,20 +2947,32 @@ fun TeacherSubmissionsGradingView(viewModel: MainViewModel, modifier: Modifier =
 // -------------------------------------------------------------
 // TEACHER ASSIGNMENTS & LIVE CLASSES
 // -------------------------------------------------------------
+// -------------------------------------------------------------
+// TEACHER MCQ EXAMINATIONS & STUDENT CERTIFICATES
+// -------------------------------------------------------------
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifier) {
-    val assignments by viewModel.assignments.collectAsState()
+fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val exams by viewModel.exams.collectAsState()
+    val examSubmissions by viewModel.examSubmissions.collectAsState()
     val liveClasses by viewModel.liveClasses.collectAsState()
     val academicClasses by viewModel.academicClasses.collectAsState()
-    var showCreateDialog by remember { mutableStateOf(false) }
+
+    var showCreateExamDialog by remember { mutableStateOf(false) }
+    var selectedExamForSubmissions by remember { mutableStateOf<Exam?>(null) }
+    var selectedSubmissionForCert by remember { mutableStateOf<ExamSubmission?>(null) }
     var toastMsg by remember { mutableStateOf<String?>(null) }
     var selectedClassFilter by remember { mutableStateOf("All Classes") }
 
-    val filteredAssignments = remember(assignments, selectedClassFilter) {
-        if (selectedClassFilter == "All Classes") assignments
-        else assignments.filter { it.batch == selectedClassFilter || it.batch == "All Classes" }
+    val filteredExams = remember(exams, selectedClassFilter) {
+        if (selectedClassFilter == "All Classes") exams
+        else exams.filter { it.targetClass == selectedClassFilter || it.targetClass == "All Classes" }
     }
+
+    val totalSubmissions = examSubmissions.size
+    val totalPassed = examSubmissions.count { it.isPassed }
+    val avgScore = if (examSubmissions.isNotEmpty()) examSubmissions.map { it.percentage }.average().toInt() else 0
 
     LazyColumn(
         modifier = modifier
@@ -2966,30 +2980,39 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        // --- Top Header ---
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Course Speaking Assignments",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = Color.White
-                )
+                Column {
+                    Text(
+                        text = "MCQ Examination Management",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Create timed tests, assign marks & award certificates",
+                        fontSize = 11.5.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
                 Button(
-                    onClick = { showCreateDialog = true },
+                    onClick = { showCreateExamDialog = true },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
                     Spacer(Modifier.width(4.dp))
-                    Text("New", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Create Exam", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 12.sp)
                 }
             }
         }
 
+        // --- Status Banner if any ---
         toastMsg?.let { msg ->
             item {
                 Surface(
@@ -3003,7 +3026,44 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
             }
         }
 
-        // Filter Assignments by Targeted Class
+        // --- Stats Row ---
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TeacherExamStatBox(
+                    label = "Active Exams",
+                    value = "${exams.size}",
+                    icon = Icons.Rounded.Quiz,
+                    color = Color(0xFF38BDF8),
+                    modifier = Modifier.weight(1f)
+                )
+                TeacherExamStatBox(
+                    label = "Submissions",
+                    value = "$totalSubmissions",
+                    icon = Icons.Rounded.People,
+                    color = Color(0xFFA78BFA),
+                    modifier = Modifier.weight(1f)
+                )
+                TeacherExamStatBox(
+                    label = "Certificates",
+                    value = "$totalPassed",
+                    icon = Icons.Rounded.WorkspacePremium,
+                    color = AmberGold,
+                    modifier = Modifier.weight(1f)
+                )
+                TeacherExamStatBox(
+                    label = "Avg Score",
+                    value = "$avgScore%",
+                    icon = Icons.Rounded.Speed,
+                    color = EmeraldSuccess,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        // --- Class Filter Chips ---
         item {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -3040,22 +3100,31 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
             }
         }
 
-        if (filteredAssignments.isEmpty()) {
+        if (filteredExams.isEmpty()) {
             item {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     color = Color(0xFF0D173C),
                     border = BorderStroke(1.dp, Color(0xFF1E2B52)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(modifier = Modifier.padding(20.dp), contentAlignment = Alignment.Center) {
-                        Text("No assignments published for $selectedClassFilter yet.", fontSize = 13.sp, color = Color(0xFF94A3B8))
+                    Box(modifier = Modifier.padding(24.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("📋", fontSize = 28.sp)
+                            Text("No exams scheduled for $selectedClassFilter yet.", fontSize = 13.sp, color = Color(0xFF94A3B8))
+                            TextButton(onClick = { showCreateExamDialog = true }) {
+                                Text("+ Click to Create First MCQ Exam", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             }
         }
 
-        items(filteredAssignments) { asg ->
+        // --- Exam Cards List ---
+        items(filteredExams) { exam ->
+            val submissionsForThisExam = examSubmissions.filter { it.examId == exam.id }
+
             Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
@@ -3065,63 +3134,116 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    // Category & Class Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFF131F46),
-                            border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF131F46),
+                                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f))
                             ) {
-                                Icon(Icons.Rounded.School, contentDescription = null, tint = Color(0xFF60A5FA), modifier = Modifier.size(12.dp))
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Rounded.School, contentDescription = null, tint = Color(0xFF60A5FA), modifier = Modifier.size(12.dp))
+                                    Text(
+                                        "Target: ${exam.targetClass}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF60A5FA)
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF1E1B4B)
+                            ) {
                                 Text(
-                                    "Target: ${asg.batch}",
+                                    text = exam.subjectCategory,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF60A5FA)
+                                    color = Color(0xFFA78BFA),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                 )
                             }
                         }
-                        Text("Due: ${asg.dueDate}", fontSize = 11.sp, color = OrangeVibrant, fontWeight = FontWeight.SemiBold)
-                    }
-                    Text(asg.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                    Text(asg.instructions, fontSize = 12.sp, color = Color(0xFFCBD5E1))
 
+                        // Delete button
+                        IconButton(
+                            onClick = {
+                                viewModel.deleteExam(exam.id)
+                                toastMsg = "Deleted exam: ${exam.title}"
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete Exam", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                        }
+                    }
+
+                    Text(exam.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                    Text(exam.description, fontSize = 12.sp, color = Color(0xFFCBD5E1), maxLines = 2, overflow = TextOverflow.Ellipsis)
+
+                    // Specs Row (Duration, Questions, Total Marks, Pass %)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF090D26), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("⏱️ ${exam.durationMinutes} Mins", fontSize = 11.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                        Text("📝 ${exam.questionsCount} MCQs", fontSize = 11.sp, color = Color(0xFFCBD5E1))
+                        Text("🎯 ${exam.totalMarks} Marks", fontSize = 11.sp, color = AmberGold, fontWeight = FontWeight.Bold)
+                        Text("🏆 Pass: ${exam.passingPercentage}%", fontSize = 11.sp, color = EmeraldSuccess)
+                    }
+
+                    // Submissions bar & Review Action
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            "Submissions: ${asg.submissionsCount} / ${asg.totalAssigned}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF93C5FD)
-                        )
-                        LinearProgressIndicator(
-                            progress = { asg.submissionsCount.toFloat() / asg.totalAssigned },
-                            modifier = Modifier
-                                .width(120.dp)
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
-                            color = RoyalBlue,
-                            trackColor = Color(0xFF0F1E42)
-                        )
+                        Column {
+                            Text(
+                                "Student Submissions: ${submissionsForThisExam.size}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF93C5FD)
+                            )
+                            val passedForExam = submissionsForThisExam.count { it.isPassed }
+                            Text(
+                                "$passedForExam / ${submissionsForThisExam.size} Earned Certificate",
+                                fontSize = 10.5.sp,
+                                color = if (passedForExam > 0) EmeraldSuccess else Color(0xFF94A3B8)
+                            )
+                        }
+
+                        Button(
+                            onClick = { selectedExamForSubmissions = exam },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Rounded.Assessment, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("View Results & Certs", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
                     }
                 }
             }
         }
 
-        // Live Virtual Classes Section
+        // Live Virtual Classes Section (Maintained for Continuity)
         item {
             Spacer(Modifier.height(8.dp))
             Text(
@@ -3184,116 +3306,634 @@ fun TeacherAssignmentsList(viewModel: MainViewModel, modifier: Modifier = Modifi
         }
     }
 
-    if (showCreateDialog) {
-        var newTitle by remember { mutableStateOf("") }
-        var newInstructions by remember { mutableStateOf("") }
-        var newDueDate by remember { mutableStateOf("Tomorrow, 6 PM") }
-        var selectedTargetClass by remember { mutableStateOf(com.example.data.model.AcademicClasses.DEFAULT_CLASS) }
-        var selectedTopicType by remember { mutableStateOf("Speaking") }
+    // --- Create MCQ Exam Dialog ---
+    if (showCreateExamDialog) {
+        TeacherCreateExamDialog(
+            academicClasses = academicClasses,
+            onDismiss = { showCreateExamDialog = false },
+            onExamCreated = { newExam ->
+                showCreateExamDialog = false
+                toastMsg = "Published exam '${newExam.title}' (${newExam.questionsCount} MCQs, ${newExam.durationMinutes} mins)!"
+            },
+            viewModel = viewModel
+        )
+    }
+
+    // --- Submissions & Results Dialog ---
+    selectedExamForSubmissions?.let { exam ->
+        val submissionsForExam = examSubmissions.filter { it.examId == exam.id }
 
         AlertDialog(
-            onDismissRequest = { showCreateDialog = false },
-            title = { Text("Create & Assign Task") },
+            onDismissRequest = { selectedExamForSubmissions = null },
+            title = {
+                Column {
+                    Text(exam.title, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text("Submissions & Earned Certificates (${submissionsForExam.size})", fontSize = 11.5.sp, color = Color(0xFF94A3B8))
+                }
+            },
             text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedTextField(
-                        value = newTitle,
-                        onValueChange = { newTitle = it },
-                        label = { Text("Task / Assignment Title") },
-                        placeholder = { Text("e.g. 2-Minute Speech on Technology") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = newInstructions,
-                        onValueChange = { newInstructions = it },
-                        label = { Text("Instructions for Students") },
-                        placeholder = { Text("Record audio expressing your opinion...") },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 2
-                    )
-                    OutlinedTextField(
-                        value = newDueDate,
-                        onValueChange = { newDueDate = it },
-                        label = { Text("Due Date") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    // Target Particular Class Selector
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(16.dp))
-                            Text(
-                                text = "Assign to Particular Class:",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            )
-                            Text(
-                                text = "($selectedTargetClass)",
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 11.sp,
-                                color = RoyalBlue
-                            )
-                        }
-
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            (listOf("All Classes") + academicClasses).forEach { cls ->
-                                FilterChip(
-                                    selected = selectedTargetClass == cls,
-                                    onClick = { selectedTargetClass = cls },
-                                    label = { Text(cls, fontSize = 11.sp) }
-                                )
-                            }
-                        }
+                if (submissionsForExam.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                        Text("No students have submitted this exam yet.", fontSize = 13.sp, color = Color(0xFF94A3B8))
                     }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(submissionsForExam) { sub ->
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF0F172A),
+                                border = BorderStroke(1.dp, if (sub.isPassed) EmeraldSuccess.copy(alpha = 0.5f) else Color(0xFF334155)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(sub.studentAvatar, fontSize = 20.sp)
+                                        Column {
+                                            Text(sub.studentName, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
+                                            Text(
+                                                "Class ${sub.studentClass} • Score: ${sub.scoreObtained}/${sub.totalMarks} (${sub.percentage}%) • Grade ${sub.grade}",
+                                                fontSize = 10.5.sp,
+                                                color = Color(0xFF94A3B8)
+                                            )
+                                        }
+                                    }
 
-                    // Topic Type Selector
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Task Category:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            listOf("Speaking", "Pronunciation", "Presentation", "Roleplay", "Grammar").forEach { type ->
-                                FilterChip(
-                                    selected = selectedTopicType == type,
-                                    onClick = { selectedTopicType = type },
-                                    label = { Text(type, fontSize = 11.sp) }
-                                )
+                                    if (sub.isPassed) {
+                                        Button(
+                                            onClick = { selectedSubmissionForCert = sub },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = AmberGold),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Icon(Icons.Rounded.WorkspacePremium, contentDescription = null, tint = Color(0xFF78350F), modifier = Modifier.size(13.dp))
+                                            Spacer(Modifier.width(3.dp))
+                                            Text("Certificate", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF78350F))
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    if (newTitle.isNotBlank()) {
-                        viewModel.createAssignment(
-                            title = newTitle,
-                            instructions = newInstructions.ifBlank { "Practice and submit your audio response." },
-                            targetClass = selectedTargetClass,
-                            dueDate = newDueDate,
-                            topicType = selectedTopicType
-                        )
-                        showCreateDialog = false
-                        toastMsg = "Published task '$newTitle' for $selectedTargetClass!"
+                TextButton(onClick = { selectedExamForSubmissions = null }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
+    // --- Teacher Certificate Preview Dialog with PDF Download ---
+    selectedSubmissionForCert?.let { sub ->
+        AlertDialog(
+            onDismissRequest = { selectedSubmissionForCert = null },
+            title = {
+                Text("Certificate: ${sub.studentName}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Mini Certificate Card
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFFFCFBF7),
+                        border = BorderStroke(3.dp, Color(0xFFB8860B)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("SPEAKLY ACADEMY OF ENGLISH", fontWeight = FontWeight.ExtraBold, fontSize = 10.sp, color = Color(0xFF090D26))
+                            Text("CERTIFICATE OF EXCELLENCE", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF091030))
+                            Text("Awarded to", fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, fontSize = 10.sp, color = Color(0xFF475569))
+                            Text(sub.studentName, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Color(0xFF090D26))
+                            Text("Class ${sub.studentClass} • \"${sub.examTitle}\"", fontSize = 10.sp, color = Color(0xFF334155), textAlign = TextAlign.Center)
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth().background(Color(0xFFF1F5F9), RoundedCornerShape(8.dp)).padding(6.dp),
+                                horizontalArrangement = Arrangement.SpaceAround
+                            ) {
+                                Text("Score: ${sub.scoreObtained}/${sub.totalMarks}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF090D26))
+                                Text("Percent: ${sub.percentage}%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF090D26))
+                                Text("Grade: ${sub.grade}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D))
+                            }
+                            Text("ID: ${sub.certificateId} • Verified", fontSize = 8.sp, color = Color(0xFF64748B))
+                        }
                     }
-                }) { Text("Publish Task") }
+
+                    Text("Generate the official high-resolution landscape A4 PDF with royal gold filigree and faculty signatures.", fontSize = 11.5.sp, color = Color(0xFF94A3B8))
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        CertificatePdfGenerator.generateCertificatePdf(
+                            context = context,
+                            submission = sub,
+                            onSuccess = { file ->
+                                Toast.makeText(context, "Certificate PDF downloaded to Downloads!", Toast.LENGTH_LONG).show()
+                                CertificatePdfGenerator.openOrSharePdf(context, file)
+                            },
+                            onError = { err ->
+                                Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                ) {
+                    Icon(Icons.Rounded.Download, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Download PDF", color = Color.White, fontWeight = FontWeight.Bold)
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { selectedSubmissionForCert = null }) {
+                    Text("Close")
+                }
             }
         )
     }
 }
+
+// -------------------------------------------------------------
+// TEACHER CREATE EXAM DIALOG WITH TIME, MARKS & MCQ BUILDER
+// -------------------------------------------------------------
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TeacherCreateExamDialog(
+    academicClasses: List<String>,
+    onDismiss: () -> Unit,
+    onExamCreated: (Exam) -> Unit,
+    viewModel: MainViewModel
+) {
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var selectedClass by remember { mutableStateOf(AcademicClasses.DEFAULT_CLASS) }
+    var selectedCategory by remember { mutableStateOf("English Grammar") }
+    var selectedDurationMinutes by remember { mutableIntStateOf(15) }
+    var passingPercentage by remember { mutableIntStateOf(60) }
+
+    // Dynamic list of questions being composed
+    val questionsList = remember { mutableStateListOf<ExamQuestion>() }
+
+    // Form inputs for adding a single question
+    var currentQuestionText by remember { mutableStateOf("") }
+    var optA by remember { mutableStateOf("") }
+    var optB by remember { mutableStateOf("") }
+    var optC by remember { mutableStateOf("") }
+    var optD by remember { mutableStateOf("") }
+    var correctOptIndex by remember { mutableIntStateOf(0) }
+    var marksForQuestion by remember { mutableIntStateOf(5) }
+    var questionExplanation by remember { mutableStateOf("") }
+
+    val totalCalculatedMarks = questionsList.sumOf { it.marks }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("📝", fontSize = 20.sp)
+                Column {
+                    Text("Create MCQ Examination", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("Define duration, marks & add questions", fontSize = 11.5.sp, color = Color(0xFF94A3B8))
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Exam Title
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Exam Title") },
+                    placeholder = { Text("e.g. Class 10 Mid-Term Grammar & Phonetics") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Description
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Instructions / Description") },
+                    placeholder = { Text("e.g. Answer all multiple choice questions before time runs out.") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2
+                )
+
+                // Target Class Selector
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Target Student Class:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        (listOf("All Classes") + academicClasses).forEach { cls ->
+                            FilterChip(
+                                selected = selectedClass == cls,
+                                onClick = { selectedClass = cls },
+                                label = { Text(cls, fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                }
+
+                // Subject Category
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Subject / Category:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(
+                            "English Grammar",
+                            "Phonetics & Pronunciation",
+                            "Vocabulary & Idioms",
+                            "Spoken English & Fluency"
+                        ).forEach { cat ->
+                            FilterChip(
+                                selected = selectedCategory == cat,
+                                onClick = { selectedCategory = cat },
+                                label = { Text(cat, fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                }
+
+                // Time Duration Selector (Exam Timer)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Selected Exam Time (Timer):", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(
+                            "$selectedDurationMinutes Minutes",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 12.5.sp,
+                            color = Color(0xFF38BDF8)
+                        )
+                    }
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(5, 10, 15, 20, 30, 45, 60).forEach { mins ->
+                            FilterChip(
+                                selected = selectedDurationMinutes == mins,
+                                onClick = { selectedDurationMinutes = mins },
+                                label = { Text("$mins Mins", fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                }
+
+                // Passing Percentage Selector
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Passing Score to Earn Certificate:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("$passingPercentage%", fontWeight = FontWeight.ExtraBold, color = EmeraldSuccess, fontSize = 12.sp)
+                    }
+                    Slider(
+                        value = passingPercentage.toFloat(),
+                        onValueChange = { passingPercentage = it.toInt() },
+                        valueRange = 40f..90f,
+                        steps = 4,
+                        colors = SliderDefaults.colors(
+                            thumbColor = EmeraldSuccess,
+                            activeTrackColor = EmeraldSuccess
+                        )
+                    )
+                }
+
+                HorizontalDivider(color = Color(0xFF1E293B))
+
+                // --- MCQ Questions Builder Section ---
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            "Questions (${questionsList.size} Added)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            "Total Marks: $totalCalculatedMarks",
+                            fontSize = 11.sp,
+                            color = AmberGold,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Quick Helper to load a question pack
+                    OutlinedButton(
+                        onClick = {
+                            // Populate 5 curated questions according to selected category
+                            val sampleQuestions = when (selectedCategory) {
+                                "Phonetics & Pronunciation" -> listOf(
+                                    ExamQuestion("sq1", "Which sound does the IPA symbol /ʃ/ represent in English?", listOf("The 'ch' sound in 'chair'", "The 'sh' sound in 'shine'", "The 's' sound in 'sun'", "The 'j' sound in 'jump'"), 1, 5, "/ʃ/ is the voiceless postalveolar fricative."),
+                                    ExamQuestion("sq2", "In which word is the letter 'p' silent?", listOf("Pencil", "Psychology", "Purple", "Paper"), 1, 5, "Initial 'p' before 's' in Greek roots is silent."),
+                                    ExamQuestion("sq3", "Which word contains the diphthong /eɪ/?", listOf("Play", "See", "Car", "Door"), 0, 5, "'Play' /pleɪ/ features the closing diphthong /eɪ/."),
+                                    ExamQuestion("sq4", "Where is stress placed in 'IMPOSSIBLE'?", listOf("First syllable (IM-)", "Second syllable (-POS-)", "Third syllable (-si-)", "Fourth syllable (-ble)"), 1, 5, "Stress falls on second syllable /ɪmˈpɒs.ə.bəl/."),
+                                    ExamQuestion("sq5", "Which IPA vowel is the short open front unrounded vowel?", listOf("/æ/ as in 'cat'", "/uː/ as in 'goose'", "/ɑː/ as in 'car'", "/ɔː/ as in 'thought'"), 0, 5, "/æ/ is the short vowel in cat, trap, hat.")
+                                )
+                                "Vocabulary & Idioms" -> listOf(
+                                    ExamQuestion("sq1", "What does 'A piece of cake' signify?", listOf("An expensive meal", "Something very easy to do", "A bakery item", "A sudden surprise"), 1, 5, "Signifies an easy task."),
+                                    ExamQuestion("sq2", "Select the synonym of 'PRAGMATIC':", listOf("Idealistic", "Practical", "Careless", "Hesitant"), 1, 5, "Pragmatic means practical."),
+                                    ExamQuestion("sq3", "Complete the idiom: 'Beat around the ______'", listOf("table", "bush", "corner", "street"), 1, 5, "'Beat around the bush' means avoiding the main topic."),
+                                    ExamQuestion("sq4", "Which word describes someone who speaks many languages?", listOf("Monoglot", "Polyglot", "Diplomat", "Novelist"), 1, 5, "Polyglot speaks multiple languages."),
+                                    ExamQuestion("sq5", "Choose the antonym of 'BENEVOLENT':", listOf("Kind", "Generous", "Malevolent", "Sympathetic"), 2, 5, "Malevolent means wishing evil.")
+                                )
+                                else -> listOf(
+                                    ExamQuestion("sq1", "Choose the correct past participle form of the irregular verb 'SWIM':", listOf("Swam", "Swum", "Swimming", "Swimmed"), 1, 5, "Past participle is 'swum' (swim, swam, swum)."),
+                                    ExamQuestion("sq2", "Select the correct pronoun: 'Neither of the boys brought ______ lunch.'", listOf("their", "his", "they're", "its"), 1, 5, "'Neither' is grammatically singular and takes 'his'."),
+                                    ExamQuestion("sq3", "Identify the passive form: 'She writes insightful essays.'", listOf("Insightful essays are written by her.", "Insightful essays were written by her.", "She has written essays.", "Essays had been written."), 0, 5, "Present simple active becomes 'are written' in passive."),
+                                    ExamQuestion("sq4", "Which conjunction expresses condition?", listOf("Although", "Unless", "Because", "Therefore"), 1, 5, "'Unless' means 'if not'."),
+                                    ExamQuestion("sq5", "Select the correct sentence with proper subject-verb agreement:", listOf("The flock of sheep were grazing peacefully.", "The flock of sheep was grazing peacefully.", "The flock of sheeps is grazing.", "The flock are grazing."), 1, 5, "Collective noun 'flock' is singular.")
+                                )
+                            }
+                            questionsList.clear()
+                            questionsList.addAll(sampleQuestions)
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("⚡ Load Sample MCQs", fontSize = 11.sp, color = RoyalBlue, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // Added Questions List View
+                questionsList.forEachIndexed { qIndex, q ->
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF0F172A),
+                        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Q${qIndex + 1}: ${q.question}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    "Correct: Option ${listOf("A", "B", "C", "D").getOrElse(q.correctOptionIndex) { "" }} • ${q.marks} Marks",
+                                    fontSize = 10.5.sp,
+                                    color = EmeraldSuccess
+                                )
+                            }
+                            IconButton(onClick = { questionsList.removeAt(qIndex) }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Remove", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+
+                // Add New Question Sub-Form
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF090D26),
+                    border = BorderStroke(1.dp, Color(0xFF2563EB).copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Add a Question", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color(0xFF38BDF8))
+
+                        OutlinedTextField(
+                            value = currentQuestionText,
+                            onValueChange = { currentQuestionText = it },
+                            placeholder = { Text("Enter question prompt...", fontSize = 12.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 2
+                        )
+
+                        // 4 Option Inputs
+                        OutlinedTextField(
+                            value = optA,
+                            onValueChange = { optA = it },
+                            label = { Text("Option A") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = optB,
+                            onValueChange = { optB = it },
+                            label = { Text("Option B") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = optC,
+                            onValueChange = { optC = it },
+                            label = { Text("Option C") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = optD,
+                            onValueChange = { optD = it },
+                            label = { Text("Option D") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        // Correct Option Selector
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Which option is correct?", fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf("A", "B", "C", "D").forEachIndexed { idx, label ->
+                                    FilterChip(
+                                        selected = correctOptIndex == idx,
+                                        onClick = { correctOptIndex = idx },
+                                        label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = EmeraldSuccess,
+                                            selectedLabelColor = Color.White
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Marks for this question
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Marks:", fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                listOf(2, 5, 10).forEach { m ->
+                                    FilterChip(
+                                        selected = marksForQuestion == m,
+                                        onClick = { marksForQuestion = m },
+                                        label = { Text("$m pts", fontSize = 10.sp) }
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = questionExplanation,
+                            onValueChange = { questionExplanation = it },
+                            label = { Text("Explanation (Optional)") },
+                            placeholder = { Text("Rationale displayed in review", fontSize = 11.sp) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Button(
+                            onClick = {
+                                if (currentQuestionText.isNotBlank() && optA.isNotBlank() && optB.isNotBlank()) {
+                                    questionsList.add(
+                                        ExamQuestion(
+                                            id = "q_${System.currentTimeMillis()}_${questionsList.size}",
+                                            question = currentQuestionText.trim(),
+                                            options = listOf(
+                                                optA.trim(),
+                                                optB.trim(),
+                                                optC.ifBlank { "None of the above" }.trim(),
+                                                optD.ifBlank { "All of the above" }.trim()
+                                            ),
+                                            correctOptionIndex = correctOptIndex,
+                                            marks = marksForQuestion,
+                                            explanation = questionExplanation.trim()
+                                        )
+                                    )
+                                    // Reset question form
+                                    currentQuestionText = ""
+                                    optA = ""
+                                    optB = ""
+                                    optC = ""
+                                    optD = ""
+                                    questionExplanation = ""
+                                }
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Add Question to Exam", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (title.isNotBlank()) {
+                        val finalQuestions = if (questionsList.isEmpty()) {
+                            // Default to sample set if none added manually
+                            listOf(
+                                ExamQuestion("def_1", "Choose the correct past participle form of 'WRITE':", listOf("Wrote", "Written", "Writing", "Writted"), 1, 5, "Past participle is 'written'."),
+                                ExamQuestion("def_2", "Identify the correct preposition: 'She is interested ______ learning French.'", listOf("on", "in", "with", "about"), 1, 5, "Interested takes 'in'."),
+                                ExamQuestion("def_3", "Which sentence is grammatically correct?", listOf("Neither he nor I are going.", "Neither he nor I am going.", "Neither he nor I is going.", "Neither him nor me is going."), 1, 5, "In 'neither... nor', the verb agrees with the subject closest to it ('I am')."),
+                                ExamQuestion("def_4", "What does 'break the ice' mean?", listOf("To smash frozen water", "To make people feel more comfortable in a social setting", "To stop talking", "To cancel a plan"), 1, 5, "Idiom meaning initiating conversation."),
+                                ExamQuestion("def_5", "Select the silent letter in 'SUBTLE':", listOf("s", "b", "t", "l"), 1, 5, "The letter 'b' is silent in subtle.")
+                            )
+                        } else {
+                            questionsList.toList()
+                        }
+
+                        val created = viewModel.createExam(
+                            title = title,
+                            description = description.ifBlank { "Complete all multiple choice questions within the allotted time." },
+                            targetClass = selectedClass,
+                            subjectCategory = selectedCategory,
+                            durationMinutes = selectedDurationMinutes,
+                            passingPercentage = passingPercentage,
+                            questions = finalQuestions
+                        )
+                        onExamCreated(created)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess)
+            ) {
+                Text("Publish Exam 🚀", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun TeacherExamStatBox(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFF0D173C),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.35f)),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = Color.White)
+            Text(label, fontSize = 9.sp, color = Color(0xFF94A3B8), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
 
 // -------------------------------------------------------------
 // HELPER COMPOSABLES & DIALOGS

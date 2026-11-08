@@ -1,6 +1,6 @@
 {
-  "name": "Speakly",
-  "description": "Interactive English speaking, pronunciation, and vocabulary learning app with Teacher & Admin portals",
+  "name": "",
+  "description": "",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

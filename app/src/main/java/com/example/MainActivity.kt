@@ -162,7 +162,7 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                     Role.STUDENT -> {
                         when (currentStudentTab) {
                             StudentTab.HOME -> StudentHomeScreen(viewModel = viewModel)
-                            StudentTab.TASKS -> StudentTasksScreen(viewModel = viewModel)
+                            StudentTab.EXAMS -> StudentExamsScreen(viewModel = viewModel)
                             StudentTab.PRACTICE -> SpeakingHubScreen(viewModel = viewModel)
                             StudentTab.GAMES -> GamesHubScreen(viewModel = viewModel)
                             StudentTab.LEADERBOARD -> StudentLeaderboardScreen(viewModel = viewModel)

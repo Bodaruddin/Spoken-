@@ -11,9 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,6 +46,7 @@ fun StudentHomeScreen(
     val profile by viewModel.studentProfile.collectAsState()
     val announcements by viewModel.announcements.collectAsState()
     val assignments by viewModel.assignments.collectAsState()
+    val exams by viewModel.exams.collectAsState()
 
     LazyColumn(
         modifier = modifier
@@ -158,14 +157,14 @@ fun StudentHomeScreen(
             }
         }
 
-        // 2. Tasks from Teachers Hub Container (Navy Rounded Card with nested task row)
+        // 2. Online MCQ Exams Portal Container
         item {
             val studentClass = user.studentClass
-            val classTasks = remember(assignments, studentClass) {
-                assignments.filter {
-                    it.batch.equals(studentClass, ignoreCase = true) ||
-                    it.batch.equals("All Classes", ignoreCase = true) ||
-                    it.batch.contains(studentClass, ignoreCase = true)
+            val classExams = remember(exams, studentClass) {
+                exams.filter {
+                    it.targetClass.equals(studentClass, ignoreCase = true) ||
+                    it.targetClass.equals("All Classes", ignoreCase = true) ||
+                    it.targetClass.contains(studentClass, ignoreCase = true)
                 }
             }
 
@@ -175,8 +174,8 @@ fun StudentHomeScreen(
                 border = BorderStroke(1.5.dp, TasksContainerBorder),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { viewModel.selectStudentTab(StudentTab.TASKS) }
-                    .testTag("home_tasks_portal_card")
+                    .clickable { viewModel.selectStudentTab(StudentTab.EXAMS) }
+                    .testTag("home_exams_portal_card")
             ) {
                 Box(
                     modifier = Modifier
@@ -209,13 +208,13 @@ fun StudentHomeScreen(
 
                                 Column {
                                     Text(
-                                        text = "Tasks from Teachers",
+                                        text = "Online MCQ Exams & Certificates",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp,
+                                        fontSize = 15.sp,
                                         color = Color.White
                                     )
                                     Text(
-                                        text = "Class ${studentClass} • ${classTasks.size} Assignments",
+                                        text = "Class ${studentClass} • ${classExams.size} Active Exams",
                                         fontSize = 12.sp,
                                         color = Color(0xFF94A3B8)
                                     )
@@ -223,7 +222,7 @@ fun StudentHomeScreen(
                             }
 
                             Button(
-                                onClick = { viewModel.selectStudentTab(StudentTab.TASKS) },
+                                onClick = { viewModel.selectStudentTab(StudentTab.EXAMS) },
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF2563EB)
@@ -239,8 +238,8 @@ fun StudentHomeScreen(
                             }
                         }
 
-                        // Nested Deep Navy Task Card
-                        val nextUrgent = classTasks.firstOrNull()
+                        // Nested Deep Navy Exam Teaser Card
+                        val nextExam = classExams.firstOrNull()
                         Surface(
                             shape = RoundedCornerShape(16.dp),
                             color = Color(0xFF0B1437).copy(alpha = 0.95f),
@@ -263,13 +262,13 @@ fun StudentHomeScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            nextUrgent?.topicType ?: "Speaking",
+                                            nextExam?.subjectCategory ?: "English Grammar",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFF38BDF8)
                                         )
                                         Text(
-                                            "• Due: ${nextUrgent?.dueDate ?: "Tomorrow, 6 PM"}",
+                                            "• ⏱️ ${nextExam?.durationMinutes ?: 15} Mins • 🎯 ${nextExam?.totalMarks ?: 50} Marks",
                                             fontSize = 11.sp,
                                             color = Color(0xFFF97316),
                                             fontWeight = FontWeight.SemiBold
@@ -277,7 +276,7 @@ fun StudentHomeScreen(
                                     }
 
                                     Text(
-                                        nextUrgent?.title ?: "3-Minute Impromptu Speech: Clim...",
+                                        nextExam?.title ?: "Class 10 Comprehensive English Grammar & Tenses Test",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
                                         color = Color.White,
@@ -290,7 +289,7 @@ fun StudentHomeScreen(
 
                                 OutlinedButton(
                                     onClick = {
-                                        viewModel.selectStudentTab(StudentTab.TASKS)
+                                        viewModel.selectStudentTab(StudentTab.EXAMS)
                                     },
                                     shape = RoundedCornerShape(12.dp),
                                     border = BorderStroke(1.2.dp, Color(0xFF0284C7)),
@@ -300,14 +299,14 @@ fun StudentHomeScreen(
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
                                     Icon(
-                                        Icons.Rounded.Mic,
+                                        Icons.Rounded.Quiz,
                                         contentDescription = null,
                                         modifier = Modifier.size(15.dp),
                                         tint = Color(0xFF38BDF8)
                                     )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
-                                        "Practice",
+                                        "Take Exam",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF38BDF8)
@@ -666,7 +665,7 @@ fun StudentHomeScreen(
                 xpPoints = profile.xpPoints,
                 league = profile.league,
                 onQuickPracticeClick = { viewModel.selectStudentTab(StudentTab.PRACTICE) },
-                onViewTasksClick = { viewModel.selectStudentTab(StudentTab.TASKS) }
+                onViewTasksClick = { viewModel.selectStudentTab(StudentTab.EXAMS) }
             )
         }
 

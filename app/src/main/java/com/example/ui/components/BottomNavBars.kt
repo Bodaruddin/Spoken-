@@ -57,7 +57,7 @@ fun StudentBottomBar(
     ) {
         val studentTabs = listOf(
             StudentTabItem(StudentTab.HOME, "Home", Icons.Rounded.Home),
-            StudentTabItem(StudentTab.TASKS, "Tasks", Icons.Rounded.Assignment),
+            StudentTabItem(StudentTab.EXAMS, "Exams", Icons.Rounded.Quiz),
             StudentTabItem(StudentTab.PRACTICE, "Speak", Icons.Rounded.Mic),
             StudentTabItem(StudentTab.GAMES, "Games", Icons.Rounded.SportsEsports),
             StudentTabItem(StudentTab.LEADERBOARD, "Ranks", Icons.Rounded.EmojiEvents),
@@ -165,8 +165,8 @@ fun StudentBottomBar(
                                 modifier = Modifier.size(20.dp)
                             )
 
-                            // Pending tasks notification badge dot
-                            if (item.tab == StudentTab.TASKS && pendingTasksCount > 0) {
+                            // Pending exams notification badge dot
+                            if (item.tab == StudentTab.EXAMS && pendingTasksCount > 0) {
                                 Box(
                                     modifier = Modifier
                                         .size(8.dp)
@@ -228,7 +228,7 @@ fun TeacherBottomBar(
             TeacherTabItem(TeacherTab.STUDENTS, "Students", Icons.Rounded.People),
             TeacherTabItem(TeacherTab.GAMES, "Games Hub", Icons.Rounded.SportsEsports),
             TeacherTabItem(TeacherTab.SPEAKING_REVIEW, "Speaking &\nReview", Icons.Rounded.Mic),
-            TeacherTabItem(TeacherTab.ASSIGNMENTS, "Tasks", Icons.Rounded.Assignment)
+            TeacherTabItem(TeacherTab.EXAMS, "Exams", Icons.Rounded.Quiz)
         )
 
         Row(

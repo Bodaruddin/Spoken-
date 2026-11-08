@@ -347,6 +347,593 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         return newAsg
     }
 
+    // --- MCQ ONLINE EXAMS & CERTIFICATES ---
+    private val _exams = MutableStateFlow(
+        listOf(
+            Exam(
+                id = "exm_1",
+                title = "Class 10 Comprehensive English Grammar & Tenses Test",
+                description = "Assessment covering Present & Past tenses, active/passive voice, complex clauses, prepositions, and reported speech.",
+                teacherName = "Prof. Eleanor Vance",
+                targetClass = "Class 10",
+                subjectCategory = "English Grammar",
+                durationMinutes = 15,
+                totalMarks = 50,
+                passingPercentage = 60,
+                createdAt = "Nov 2026",
+                dueDate = "Tomorrow, 6 PM",
+                isPublished = true,
+                questions = listOf(
+                    ExamQuestion(
+                        id = "q1_1",
+                        question = "Identify the sentence written in the Present Perfect Continuous Tense:",
+                        options = listOf(
+                            "She is reading a novel since early morning.",
+                            "She has been reading a novel for three hours.",
+                            "She had been reading the novel yesterday.",
+                            "She will have read the novel by tomorrow."
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "Present perfect continuous tense uses 'has/have + been + verb-ing' to denote an action starting in the past and continuing into the present."
+                    ),
+                    ExamQuestion(
+                        id = "q1_2",
+                        question = "Choose the appropriate preposition: 'The principal congratulated Maya ______ winning the public speaking trophy.'",
+                        options = listOf("for", "at", "on", "about"),
+                        correctOptionIndex = 2,
+                        marks = 5,
+                        explanation = "The verb 'congratulate' takes the preposition 'on' (congratulate someone ON an achievement)."
+                    ),
+                    ExamQuestion(
+                        id = "q1_3",
+                        question = "Which of the following sentences is a Complex Sentence?",
+                        options = listOf(
+                            "The bell rang and the students entered the classroom.",
+                            "Although it was pouring rain, the debate team arrived on schedule.",
+                            "He likes reading classic literature, but his brother prefers poetry.",
+                            "The early morning breeze felt refreshing along the riverbank."
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "A complex sentence contains an independent clause and at least one dependent clause introduced by a subordinating conjunction like 'Although'."
+                    ),
+                    ExamQuestion(
+                        id = "q1_4",
+                        question = "Transform to Passive Voice: 'The headmaster delivered an inspiring lecture on integrity.'",
+                        options = listOf(
+                            "An inspiring lecture on integrity was delivered by the headmaster.",
+                            "An inspiring lecture on integrity had been delivered by the headmaster.",
+                            "The headmaster was delivering an inspiring lecture.",
+                            "An inspiring lecture had delivered by the headmaster."
+                        ),
+                        correctOptionIndex = 0,
+                        marks = 5,
+                        explanation = "Past simple active ('delivered') becomes 'was delivered' in passive voice with past participle."
+                    ),
+                    ExamQuestion(
+                        id = "q1_5",
+                        question = "Choose the grammatically sound Type 2 conditional sentence:",
+                        options = listOf(
+                            "If I would have more time, I will travel across Europe.",
+                            "If I had more time, I would travel across Europe.",
+                            "If I have more time, I would have traveled across Europe.",
+                            "If I will have time, I would travel across Europe."
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "Second conditional (hypothetical present) follows the pattern: 'If + past simple, ... would + base verb'."
+                    ),
+                    ExamQuestion(
+                        id = "q1_6",
+                        question = "Select the antonym for the vocabulary word 'METICULOUS':",
+                        options = listOf("Scrupulous", "Careless", "Diligent", "Exacting"),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "Meticulous means showing great attention to detail. Its opposite is 'Careless'."
+                    ),
+                    ExamQuestion(
+                        id = "q1_7",
+                        question = "Select the correct modal: 'You ______ talk while the examination is in progress.'",
+                        options = listOf("might not", "must not", "needn't", "would not"),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "'Must not' expresses explicit institutional prohibition and strict rule obligation."
+                    ),
+                    ExamQuestion(
+                        id = "q1_8",
+                        question = "Identify the correctly punctuated sentence:",
+                        options = listOf(
+                            "Its time to submit you're completed assignment.",
+                            "It's time to submit your completed assignment.",
+                            "Its time to submit your completed assignment.",
+                            "It's time to submit you're completed assignment."
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "'It's' is the contraction for 'It is', and 'your' is the possessive adjective."
+                    ),
+                    ExamQuestion(
+                        id = "q1_9",
+                        question = "Identify the figure of speech: 'The ancient oak tree stood like a silent guardian of the village.'",
+                        options = listOf("Metaphor", "Simile", "Personification", "Hyperbole"),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "A comparison between two different objects using the comparative word 'like' or 'as' is a Simile."
+                    ),
+                    ExamQuestion(
+                        id = "q1_10",
+                        question = "Change to Indirect Speech: He said, 'I have lived in London for five years.'",
+                        options = listOf(
+                            "He said that he has lived in London for five years.",
+                            "He said that he had lived in London for five years.",
+                            "He said that he lived in London for five years.",
+                            "He asked if he had lived in London for five years."
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "Present perfect ('have lived') shifts back to past perfect ('had lived') in indirect speech."
+                    )
+                )
+            ),
+            Exam(
+                id = "exm_2",
+                title = "Phonetics & Pronunciation IPA Symbol Mastery",
+                description = "Interactive test on English phonemes, silent letters, diphthongs, and syllable stress rules.",
+                teacherName = "Dr. Marcus Reed",
+                targetClass = "All Classes",
+                subjectCategory = "Phonetics & Pronunciation",
+                durationMinutes = 10,
+                totalMarks = 40,
+                passingPercentage = 60,
+                createdAt = "Nov 2026",
+                dueDate = "Friday, 11:59 PM",
+                isPublished = true,
+                questions = listOf(
+                    ExamQuestion(
+                        id = "q2_1",
+                        question = "Which sound does the IPA symbol /θ/ represent?",
+                        options = listOf(
+                            "The voiced 'th' in 'this' and 'feather'",
+                            "The voiceless 'th' in 'think' and 'theater'",
+                            "The 'sh' sound in 'ship'",
+                            "The 'ch' sound in 'chair'"
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "/θ/ (theta) is the voiceless dental fricative found in words like 'think', 'bath', and 'theater'."
+                    ),
+                    ExamQuestion(
+                        id = "q2_2",
+                        question = "Which of the following words contains a silent letter 'b'?",
+                        options = listOf("Marble", "Doubt", "Cabbage", "Timber"),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "In 'Doubt' (and 'debt', 'subtle'), the letter 'b' is completely silent."
+                    ),
+                    ExamQuestion(
+                        id = "q2_3",
+                        question = "On which syllable does primary stress fall in the noun 'PHOTOGRAPH'?",
+                        options = listOf("First syllable (PHO-to-graph)", "Second syllable (pho-TO-graph)", "Third syllable (pho-to-GRAPH)", "Equal stress"),
+                        correctOptionIndex = 0,
+                        marks = 5,
+                        explanation = "The noun 'photograph' has primary stress on the first syllable (/ˈfoʊ.tə.ɡræf/)."
+                    ),
+                    ExamQuestion(
+                        id = "q2_4",
+                        question = "Which word contains the diphthong /aɪ/?",
+                        options = listOf("Day", "Sky", "Boy", "Now"),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "'Sky' /skaɪ/ contains the closing diphthong /aɪ/."
+                    ),
+                    ExamQuestion(
+                        id = "q2_5",
+                        question = "What is the schwa sound /ə/ primarily known for in English?",
+                        options = listOf(
+                            "The most common unstressed, neutral vowel in English",
+                            "A sharp explosive consonant",
+                            "A long stressed back vowel",
+                            "A nasal consonant"
+                        ),
+                        correctOptionIndex = 0,
+                        marks = 5,
+                        explanation = "Schwa /ə/ is the most frequently spoken vowel in English, appearing only in unstressed syllables (e.g. 'about', 'banana')."
+                    ),
+                    ExamQuestion(
+                        id = "q2_6",
+                        question = "Which word has a voiced 's' pronounced as /z/?",
+                        options = listOf("Cats", "Music", "Bus", "Pass"),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "In 'Music' (/ˈmjuː.zɪk/), the 's' is voiced as a /z/ sound."
+                    ),
+                    ExamQuestion(
+                        id = "q2_7",
+                        question = "In the word 'KNIGHT', which letters are silent?",
+                        options = listOf("k only", "k and gh", "gh only", "t only"),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "In 'knight' (/naɪt/), the initial 'k' and the digraph 'gh' are both silent."
+                    ),
+                    ExamQuestion(
+                        id = "q2_8",
+                        question = "Which minimal pair contrasts the short /ɪ/ and long /iː/ vowel sounds?",
+                        options = listOf("Ship vs Sheep", "Bat vs Bet", "Cat vs Cut", "Hot vs Hat"),
+                        correctOptionIndex = 0,
+                        marks = 5,
+                        explanation = "'Ship' contains short lax /ɪ/ while 'Sheep' contains long tense /iː/."
+                    )
+                )
+            ),
+            Exam(
+                id = "exm_3",
+                title = "Advanced English Vocabulary, Idioms & Collocations",
+                description = "Test your grasp on high-frequency idioms, academic vocabulary, and natural collocations.",
+                teacherName = "Prof. Eleanor Vance",
+                targetClass = "Class 10",
+                subjectCategory = "Vocabulary & Idioms",
+                durationMinutes = 20,
+                totalMarks = 50,
+                passingPercentage = 60,
+                createdAt = "Nov 2026",
+                dueDate = "In 3 Days",
+                isPublished = true,
+                questions = listOf(
+                    ExamQuestion(
+                        id = "q3_1",
+                        question = "What is the meaning of the idiom 'To bite the bullet'?",
+                        options = listOf(
+                            "To engage in a physical fight",
+                            "To face a difficult or unpleasant situation with courage",
+                            "To make a hasty, impulsive decision",
+                            "To waste valuable time on trivial matters"
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "'To bite the bullet' means to bravely accept an unpleasant or unavoidable grim reality."
+                    ),
+                    ExamQuestion(
+                        id = "q3_2",
+                        question = "Select the natural English collocation: 'The scientist made a ______ discovery.'",
+                        options = listOf("groundbreaking", "earthfalling", "soilbreaking", "landcracking"),
+                        correctOptionIndex = 0,
+                        marks = 5,
+                        explanation = "'Groundbreaking discovery' is the standard idiomatic collocation in academic and professional English."
+                    ),
+                    ExamQuestion(
+                        id = "q3_3",
+                        question = "Choose the word closest in meaning to 'UBIQUITOUS':",
+                        options = listOf("Omnipresent", "Scarce", "Fictional", "Temporary"),
+                        correctOptionIndex = 0,
+                        marks = 5,
+                        explanation = "Ubiquitous means found or existing everywhere at the same time (omnipresent)."
+                    ),
+                    ExamQuestion(
+                        id = "q3_4",
+                        question = "What does the expression 'Once in a blue moon' signify?",
+                        options = listOf("Frequently", "Every month", "Very rarely", "During clear nights"),
+                        correctOptionIndex = 2,
+                        marks = 5,
+                        explanation = "'Once in a blue moon' denotes an event that happens extremely rarely."
+                    ),
+                    ExamQuestion(
+                        id = "q3_5",
+                        question = "Which word correctly completes: 'She gave a very ______ and convincing argument.'",
+                        options = listOf("eloquent", "clumsy", "murky", "hesitant"),
+                        correctOptionIndex = 0,
+                        marks = 5,
+                        explanation = "Eloquent describes fluent, expressive, and persuasive speech or writing."
+                    ),
+                    ExamQuestion(
+                        id = "q3_6",
+                        question = "What is the meaning of the idiom 'Burn the midnight oil'?",
+                        options = listOf("Cause a fire hazard", "Work or study late into the night", "Waste electric energy", "Cook an elaborate meal"),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "'Burn the midnight oil' refers to working or studying late into the night."
+                    ),
+                    ExamQuestion(
+                        id = "q3_7",
+                        question = "Select the appropriate phrasal verb: 'We decided to ______ the meeting until next Tuesday.'",
+                        options = listOf("call out", "put off", "take off", "look up"),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "'Put off' means to postpone or delay an event."
+                    ),
+                    ExamQuestion(
+                        id = "q3_8",
+                        question = "What does the idiom 'See eye to eye' mean?",
+                        options = listOf("To have strong eye contact", "To agree with someone completely", "To watch someone closely", "To challenge a rival"),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "'To see eye to eye' means to have the same viewpoint or agree fully with someone."
+                    ),
+                    ExamQuestion(
+                        id = "q3_9",
+                        question = "Select the correct adjective for someone who recovers quickly from difficulties:",
+                        options = listOf("Vulnerable", "Resilient", "Fragile", "Stagnant"),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "'Resilient' means able to withstand or recover quickly from difficult conditions."
+                    ),
+                    ExamQuestion(
+                        id = "q3_10",
+                        question = "Fill in the correct collocation: 'He paid me a sincere ______ on my presentation.'",
+                        options = listOf("compliment", "complement", "agreement", "reprimand"),
+                        correctOptionIndex = 0,
+                        marks = 5,
+                        explanation = "To 'pay a compliment' is the standard polite English collocation."
+                    )
+                )
+            ),
+            Exam(
+                id = "exm_4",
+                title = "Class 9 Conversational English & Sentence Structure Quiz",
+                description = "Fundamental speaking etiquette, greeting responses, polite requests, and question tags.",
+                teacherName = "Prof. Eleanor Vance",
+                targetClass = "Class 9",
+                subjectCategory = "Spoken English & Fluency",
+                durationMinutes = 12,
+                totalMarks = 30,
+                passingPercentage = 60,
+                createdAt = "Nov 2026",
+                dueDate = "In 4 Days",
+                isPublished = true,
+                questions = listOf(
+                    ExamQuestion(
+                        id = "q4_1",
+                        question = "What is the most polite way to ask for assistance in a formal setting?",
+                        options = listOf(
+                            "Help me now, please.",
+                            "Could you possibly assist me with this document?",
+                            "I want your help immediately.",
+                            "Give me a hand here."
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "'Could you possibly...' is an established polite indirect request formula in English."
+                    ),
+                    ExamQuestion(
+                        id = "q4_2",
+                        question = "Select the correct question tag: 'You haven't seen my notebook, ______?'",
+                        options = listOf("did you", "haven't you", "have you", "do you"),
+                        correctOptionIndex = 2,
+                        marks = 5,
+                        explanation = "A negative main clause takes a positive question tag with the same auxiliary verb ('haven't' -> 'have you?')."
+                    ),
+                    ExamQuestion(
+                        id = "q4_3",
+                        question = "What is the natural reply to: 'How do you do?'",
+                        options = listOf(
+                            "I am doing my homework.",
+                            "How do you do?",
+                            "Yes, I do.",
+                            "I am 16 years old."
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 5,
+                        explanation = "In traditional formal English etiquette, the standard response to 'How do you do?' is 'How do you do?'."
+                    ),
+                    ExamQuestion(
+                        id = "q4_4",
+                        question = "Choose the correct connector: 'She was exhausted; ______, she finished the project.'",
+                        options = listOf("nevertheless", "because", "so", "since"),
+                        correctOptionIndex = 0,
+                        marks = 5,
+                        explanation = "'Nevertheless' signifies contrast with the preceding statement."
+                    ),
+                    ExamQuestion(
+                        id = "q4_5",
+                        question = "Select the appropriate response when someone says 'Thank you so much!':",
+                        options = listOf(
+                            "You're very welcome!",
+                            "Why are you saying that?",
+                            "No problem, you must pay.",
+                            "Yes, I know."
+                        ),
+                        correctOptionIndex = 0,
+                        marks = 5,
+                        explanation = "'You're very welcome!' is the polite standard response to expressions of gratitude."
+                    ),
+                    ExamQuestion(
+                        id = "q4_6",
+                        question = "Choose the correct phrase for agreeing with a negative statement: 'I don't like bitter coffee.' - '______'",
+                        options = listOf("Neither do I.", "So do I.", "Me too neither.", "Nor I am."),
+                        correctOptionIndex = 0,
+                        marks = 5,
+                        explanation = "'Neither do I' is used to agree with a negative statement."
+                    )
+                )
+            )
+        )
+    )
+    val exams: StateFlow<List<Exam>> = _exams.asStateFlow()
+
+    // Submissions and Completed Certificates
+    private val _examSubmissions = MutableStateFlow(
+        listOf(
+            ExamSubmission(
+                id = "sub_exm_1",
+                examId = "exm_1",
+                examTitle = "Class 10 Comprehensive English Grammar & Tenses Test",
+                studentId = "stu_alex_1",
+                studentName = "Alex Morgan",
+                studentClass = "Class 10",
+                studentAvatar = "🦉",
+                selectedAnswers = mapOf(
+                    "q1_1" to 1, "q1_2" to 2, "q1_3" to 1, "q1_4" to 0, "q1_5" to 1,
+                    "q1_6" to 1, "q1_7" to 1, "q1_8" to 1, "q1_9" to 1, "q1_10" to 0 // 9/10 correct = 45 marks
+                ),
+                scoreObtained = 45,
+                totalMarks = 50,
+                percentage = 90,
+                isPassed = true,
+                grade = "O",
+                performanceTitle = "Outstanding Distinction",
+                timeTakenSeconds = 540,
+                completedAt = "Today, 10:15 AM",
+                certificateId = "SPK-EXM-2026-7841"
+            ),
+            ExamSubmission(
+                id = "sub_exm_2",
+                examId = "exm_1",
+                examTitle = "Class 10 Comprehensive English Grammar & Tenses Test",
+                studentId = "stu_sofia_2",
+                studentName = "Sofia Martinez",
+                studentClass = "Class 10",
+                studentAvatar = "🦊",
+                selectedAnswers = mapOf(
+                    "q1_1" to 1, "q1_2" to 2, "q1_3" to 1, "q1_4" to 0, "q1_5" to 1,
+                    "q1_6" to 1, "q1_7" to 1, "q1_8" to 1, "q1_9" to 0, "q1_10" to 1 // 40 marks
+                ),
+                scoreObtained = 40,
+                totalMarks = 50,
+                percentage = 80,
+                isPassed = true,
+                grade = "A+",
+                performanceTitle = "Distinction with Honors",
+                timeTakenSeconds = 612,
+                completedAt = "Yesterday, 3:30 PM",
+                certificateId = "SPK-EXM-2026-6429"
+            ),
+            ExamSubmission(
+                id = "sub_exm_3",
+                examId = "exm_1",
+                examTitle = "Class 10 Comprehensive English Grammar & Tenses Test",
+                studentId = "stu_kenji_3",
+                studentName = "Kenji Sato",
+                studentClass = "Class 10",
+                studentAvatar = "🦁",
+                selectedAnswers = emptyMap(),
+                scoreObtained = 35,
+                totalMarks = 50,
+                percentage = 70,
+                isPassed = true,
+                grade = "A",
+                performanceTitle = "First Class Distinction",
+                timeTakenSeconds = 720,
+                completedAt = "Yesterday, 5:45 PM",
+                certificateId = "SPK-EXM-2026-5120"
+            )
+        )
+    )
+    val examSubmissions: StateFlow<List<ExamSubmission>> = _examSubmissions.asStateFlow()
+
+    fun createExam(
+        title: String,
+        description: String,
+        teacherName: String,
+        targetClass: String,
+        subjectCategory: String,
+        durationMinutes: Int,
+        passingPercentage: Int = 60,
+        questions: List<ExamQuestion>
+    ): Exam {
+        val totalMarks = questions.sumOf { it.marks }.let { if (it > 0) it else 50 }
+        val newExam = Exam(
+            id = "exm_${System.currentTimeMillis()}",
+            title = title.trim(),
+            description = description.trim(),
+            teacherName = teacherName.ifBlank { "Prof. Eleanor Vance" },
+            targetClass = targetClass.trim().ifBlank { AcademicClasses.DEFAULT_CLASS },
+            subjectCategory = subjectCategory.ifBlank { "English Grammar" },
+            durationMinutes = if (durationMinutes > 0) durationMinutes else 15,
+            totalMarks = totalMarks,
+            passingPercentage = passingPercentage,
+            questions = questions,
+            createdAt = "Nov 2026",
+            dueDate = "Next Week",
+            isPublished = true
+        )
+        _exams.value = listOf(newExam) + _exams.value
+        return newExam
+    }
+
+    fun deleteExam(examId: String) {
+        _exams.value = _exams.value.filter { it.id != examId }
+        _examSubmissions.value = _examSubmissions.value.filter { it.examId != examId }
+    }
+
+    fun submitExam(
+        examId: String,
+        studentId: String,
+        studentName: String,
+        studentClass: String,
+        studentAvatar: String,
+        selectedAnswers: Map<String, Int>,
+        timeTakenSeconds: Int
+    ): ExamSubmission {
+        val exam = _exams.value.find { it.id == examId }
+            ?: _exams.value.first()
+
+        var calculatedScore = 0
+        var totalMarksPossible = 0
+
+        exam.questions.forEach { q ->
+            totalMarksPossible += q.marks
+            val selected = selectedAnswers[q.id]
+            if (selected != null && selected == q.correctOptionIndex) {
+                calculatedScore += q.marks
+            }
+        }
+        if (totalMarksPossible <= 0) totalMarksPossible = exam.totalMarks
+
+        val percentage = if (totalMarksPossible > 0) (calculatedScore * 100) / totalMarksPossible else 0
+        val isPassed = percentage >= exam.passingPercentage
+
+        val grade = when {
+            percentage >= 90 -> "O"
+            percentage >= 80 -> "A+"
+            percentage >= 70 -> "A"
+            percentage >= 60 -> "B+"
+            percentage >= 50 -> "B"
+            percentage >= 40 -> "C"
+            else -> "F"
+        }
+
+        val performanceTitle = when {
+            percentage >= 90 -> "Outstanding Distinction"
+            percentage >= 80 -> "Distinction with Honors"
+            percentage >= 70 -> "First Class Distinction"
+            percentage >= 60 -> "Higher Merit"
+            percentage >= 50 -> "Merit Pass"
+            percentage >= 40 -> "Passing Grade"
+            else -> "Course Completion"
+        }
+
+        val randomCertNum = (1000..9999).random()
+        val certificateId = "SPK-EXM-2026-$randomCertNum"
+
+        val submission = ExamSubmission(
+            id = "sub_exm_${System.currentTimeMillis()}",
+            examId = exam.id,
+            examTitle = exam.title,
+            studentId = studentId,
+            studentName = studentName,
+            studentClass = studentClass,
+            studentAvatar = studentAvatar,
+            selectedAnswers = selectedAnswers,
+            scoreObtained = calculatedScore,
+            totalMarks = totalMarksPossible,
+            percentage = percentage,
+            isPassed = isPassed,
+            grade = grade,
+            performanceTitle = performanceTitle,
+            timeTakenSeconds = timeTakenSeconds,
+            completedAt = "Today",
+            certificateId = certificateId
+        )
+
+        // Replace any existing submission for this student on this exam, or prepend
+        _examSubmissions.value = listOf(submission) + _examSubmissions.value.filterNot {
+            it.examId == examId && (it.studentId == studentId || it.studentName.equals(studentName, ignoreCase = true))
+        }
+
+        return submission
+    }
+
+
     // Submissions for Teacher Review
     private val _submissions = MutableStateFlow(
         listOf(

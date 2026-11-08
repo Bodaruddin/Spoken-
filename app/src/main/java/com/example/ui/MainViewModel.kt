@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 
 enum class StudentTab(val label: String, val iconEmoji: String) {
     HOME("Home", "🏠"),
-    TASKS("Tasks", "📝"),
+    EXAMS("Exams", "📝"),
     PRACTICE("Speaking", "🎙️"),
     GAMES("Games", "🎮"),
     LEADERBOARD("Ranks", "🏆"),
@@ -28,7 +28,7 @@ enum class TeacherTab(val label: String, val iconEmoji: String) {
     STUDENTS("Students", "👥"),
     GAMES("Games Hub", "🎮"),
     SPEAKING_REVIEW("Speaking & Review", "🎙️"),
-    ASSIGNMENTS("Tasks", "📝")
+    EXAMS("Exams", "📝")
 }
 
 enum class AdminTab(val label: String, val iconEmoji: String) {
@@ -130,6 +130,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val grammarTopics = repository.grammarTopics
     val assignments = repository.assignments
     val submissions = repository.submissions
+    val exams = repository.exams
+    val examSubmissions = repository.examSubmissions
     val liveClasses = repository.liveClasses
     val announcements = repository.announcements
     val leaderboard = repository.leaderboard
@@ -203,6 +205,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             dueDate = dueDate,
             teacherName = teacherName,
             topicType = topicType
+        )
+    }
+
+    // --- Exam Operations ---
+    fun createExam(
+        title: String,
+        description: String,
+        targetClass: String,
+        subjectCategory: String,
+        durationMinutes: Int,
+        passingPercentage: Int = 60,
+        questions: List<ExamQuestion>
+    ): Exam {
+        val teacherName = currentUser.value.name.ifBlank { "Prof. Eleanor Vance" }
+        return repository.createExam(
+            title = title,
+            description = description,
+            teacherName = teacherName,
+            targetClass = targetClass,
+            subjectCategory = subjectCategory,
+            durationMinutes = durationMinutes,
+            passingPercentage = passingPercentage,
+            questions = questions
+        )
+    }
+
+    fun deleteExam(examId: String) {
+        repository.deleteExam(examId)
+    }
+
+    fun submitStudentExam(
+        examId: String,
+        selectedAnswers: Map<String, Int>,
+        timeTakenSeconds: Int
+    ): ExamSubmission {
+        val student = currentUser.value
+        return repository.submitExam(
+            examId = examId,
+            studentId = student.id,
+            studentName = student.name,
+            studentClass = student.studentClass,
+            studentAvatar = student.avatarEmoji,
+            selectedAnswers = selectedAnswers,
+            timeTakenSeconds = timeTakenSeconds
         )
     }
 
