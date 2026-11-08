@@ -300,7 +300,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val activeRoleplay: StateFlow<RoleplayScenario?> = _activeRoleplay.asStateFlow()
     val roleplayTurnIndex = MutableStateFlow(0)
 
-    private val _activePronunciationDrill = MutableStateFlow<PronunciationDrill?>(null)
+    private val _activePronunciationDrill = MutableStateFlow<PronunciationDrill?>(
+        repository.pronunciationDrills.value.find { it.wordOrSentence.equals("Specifically", ignoreCase = true) }
+            ?: repository.pronunciationDrills.value.firstOrNull()
+    )
     val activePronunciationDrill: StateFlow<PronunciationDrill?> = _activePronunciationDrill.asStateFlow()
 
     // Speech Evaluation Result

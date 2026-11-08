@@ -1,6 +1,11 @@
 package com.example.ui.screens.student
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -9,11 +14,17 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -1843,8 +1854,20 @@ fun PronunciationSection(
             }
         }
 
-        // Active Drill Interactive Practice Card when a drill is selected
-        activeDrill?.let { drill ->
+        val context = LocalContext.current
+        val micPermissionLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+            if (isGranted) {
+                viewModel.startSpeakingPractice()
+            } else {
+                Toast.makeText(context, "Microphone permission is required to capture your voice", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // Active Drill Interactive Practice Card when a drill is selected or default
+        val effectiveDrill = activeDrill ?: drills.find { it.wordOrSentence.equals("Specifically", ignoreCase = true) } ?: drills.firstOrNull()
+        effectiveDrill?.let { drill ->
             ActivePronunciationDrillCard(
                 drill = drill,
                 speechState = speechState,
@@ -1853,11 +1876,23 @@ fun PronunciationSection(
                 onPlayNormal = { viewModel.speakAudio(drill.wordOrSentence, slow = false) },
                 onPlaySlow = { viewModel.speakAudio(drill.wordOrSentence, slow = true) },
                 onToggleMic = {
+                    val hasPerm = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
                     if (speechState is SpeechState.Listening) {
                         viewModel.stopSpeakingPractice()
                     } else {
-                        viewModel.startSpeakingPractice()
+                        if (hasPerm) {
+                            viewModel.startSpeakingPractice()
+                        } else {
+                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
                     }
+                },
+                onTestSampleVoice = {
+                    viewModel.speakAudio(drill.wordOrSentence, slow = false)
+                    viewModel.simulateVoiceInput(drill.wordOrSentence)
                 }
             )
         }
@@ -1981,8 +2016,139 @@ fun PhoneticsDrillScreenshotCard(
 }
 
 /**
+ * Soundwave bars canvas for flanking the target practice word.
+ * Renders multiple animated vertical glowing pills in magenta, purple, and cyan.
+ */
+@Composable
+fun SoundwaveBarsCanvas(
+    isLeft: Boolean,
+    isListening: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "bars")
+    val animFactor by infiniteTransition.animateFloat(
+        initialValue = 0.82f,
+        targetValue = 1.18f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(850, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "animFactor"
+    )
+
+    val baseHeights = if (isLeft) {
+        listOf(8.dp, 14.dp, 22.dp, 36.dp, 24.dp, 16.dp, 8.dp)
+    } else {
+        listOf(8.dp, 16.dp, 24.dp, 36.dp, 22.dp, 14.dp, 8.dp)
+    }
+
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        baseHeights.forEachIndexed { i, h ->
+            val scale = if (isListening) (if (i % 2 == 0) animFactor else (2f - animFactor)) else 1f
+            Box(
+                modifier = Modifier
+                    .width(3.2.dp)
+                    .height(h * scale)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xFF8B5CF6),
+                                Color(0xFFEC4899),
+                                Color(0xFF00D2FF)
+                            )
+                        )
+                    )
+            )
+        }
+    }
+}
+
+/**
+ * 3D Lightbulb squircle with radiant glowing rays and blue gradient container.
+ */
+@Composable
+fun GlowingLightbulbSquircle(modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = Color.Transparent,
+        border = BorderStroke(1.2.dp, Color(0xFF60A5FA)),
+        modifier = modifier
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xFF1E40AF), Color(0xFF3B82F6))
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(modifier = Modifier.size(34.dp)) {
+                val cx = size.width / 2f
+                val cy = size.height / 2f
+
+                // Radiant yellow-gold aura
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        listOf(
+                            Color(0xFFFDE047).copy(alpha = 0.50f),
+                            Color(0xFFF59E0B).copy(alpha = 0.15f),
+                            Color.Transparent
+                        ),
+                        center = center,
+                        radius = size.width * 0.55f
+                    ),
+                    radius = size.width * 0.55f,
+                    center = center
+                )
+
+                // Light rays
+                val rayLength = 4.5.dp.toPx()
+                val rayOffset = 12.dp.toPx()
+                val angles = listOf(0f, 45f, 90f, 135f, 180f, 225f, 270f, 315f)
+                for (angle in angles) {
+                    val rad = Math.toRadians(angle.toDouble())
+                    val x1 = cx + (rayOffset * Math.cos(rad)).toFloat()
+                    val y1 = cy + (rayOffset * Math.sin(rad)).toFloat()
+                    val x2 = cx + ((rayOffset + rayLength) * Math.cos(rad)).toFloat()
+                    val y2 = cy + ((rayOffset + rayLength) * Math.sin(rad)).toFloat()
+                    drawLine(
+                        color = Color(0xFFFDE047),
+                        start = Offset(x1, y1),
+                        end = Offset(x2, y2),
+                        strokeWidth = 2.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+
+            Icon(
+                imageVector = Icons.Rounded.Lightbulb,
+                contentDescription = "Tip",
+                tint = Color(0xFFFACC15),
+                modifier = Modifier.size(26.dp)
+            )
+        }
+    }
+}
+
+/**
  * Interactive Active Pronunciation Drill Practice Card:
- * Shows when user selects any drill to practice pronunciation with microphone & AI feedback.
+ * Redesigned to match reference UI screenshot with:
+ * - Glowing multi-stop neon gradient border (cyan -> purple -> pink -> cyan)
+ * - Active Practice badge and circular close button
+ * - Target word with soundwave bars and verified checkmark badge
+ * - IPA pill with speaker icon
+ * - Slow (0.7x) & Normal audio speed gradient buttons
+ * - Coaching Tip card with 3D lightbulb squircle & cyan divider
+ * - Pulsating concentric radar rings around primary microphone button
+ * - Wide "Test with Sample Voice" button with audio and instant evaluation
  */
 @Composable
 fun ActivePronunciationDrillCard(
@@ -1992,12 +2158,26 @@ fun ActivePronunciationDrillCard(
     onClose: () -> Unit,
     onPlayNormal: () -> Unit,
     onPlaySlow: () -> Unit,
-    onToggleMic: () -> Unit
+    onToggleMic: () -> Unit,
+    onTestSampleVoice: () -> Unit = onPlayNormal
 ) {
+    val isListening = speechState is SpeechState.Listening
+
     Card(
-        shape = RoundedCornerShape(26.dp),
+        shape = RoundedCornerShape(32.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.8.dp, Color(0xFF38BDF8).copy(alpha = 0.9f)),
+        border = BorderStroke(
+            2.dp,
+            Brush.linearGradient(
+                listOf(
+                    Color(0xFF00D2FF), // Electric cyan
+                    Color(0xFF818CF8), // Indigo
+                    Color(0xFFEC4899), // Hot pink
+                    Color(0xFF8B5CF6), // Purple
+                    Color(0xFF00D2FF)  // Electric cyan
+                )
+            )
+        ),
         modifier = Modifier
             .fillMaxWidth()
             .testTag("active_drill_practice_card")
@@ -2008,295 +2188,614 @@ fun ActivePronunciationDrillCard(
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            Color(0xFF0F1E4E).copy(alpha = 0.98f),
-                            Color(0xFF151248).copy(alpha = 0.98f),
-                            Color(0xFF080D2C).copy(alpha = 0.98f)
+                            Color(0xFF090D2E),
+                            Color(0xFF130D3E),
+                            Color(0xFF07051E)
                         )
                     )
                 )
-                .padding(18.dp)
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+            // Smooth wavy fluid curves at the bottom matching reference screenshot
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(130.dp)
+                    .align(Alignment.BottomCenter)
             ) {
-                // Header with badge and close button
+                val w = size.width
+                val h = size.height
+
+                // Violet wave
+                val wave1 = Path().apply {
+                    moveTo(0f, h * 0.70f)
+                    cubicTo(w * 0.35f, h * 0.45f, w * 0.65f, h * 0.95f, w, h * 0.58f)
+                    lineTo(w, h)
+                    lineTo(0f, h)
+                    close()
+                }
+                drawPath(
+                    path = wave1,
+                    brush = Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFF8B5CF6).copy(alpha = 0.28f),
+                            Color(0xFFEC4899).copy(alpha = 0.20f)
+                        )
+                    )
+                )
+
+                // Cyan wave
+                val wave2 = Path().apply {
+                    moveTo(0f, h * 0.88f)
+                    cubicTo(w * 0.40f, h * 0.68f, w * 0.70f, h * 1.05f, w, h * 0.76f)
+                    lineTo(w, h)
+                    lineTo(0f, h)
+                    close()
+                }
+                drawPath(
+                    path = wave2,
+                    brush = Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFF00D2FF).copy(alpha = 0.16f),
+                            Color(0xFF6366F1).copy(alpha = 0.16f)
+                        )
+                    )
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // 1. Top Header Row: Active Practice badge & circular close button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF0284C7).copy(alpha = 0.3f),
-                        border = BorderStroke(1.dp, Color(0xFF38BDF8))
+                        shape = RoundedCornerShape(22.dp),
+                        color = Color(0xFF031C38).copy(alpha = 0.9f),
+                        border = BorderStroke(1.5.dp, Color(0xFF00D2FF)),
+                        modifier = Modifier.testTag("active_practice_badge")
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text("🎯", fontSize = 12.sp)
+                            Icon(
+                                imageVector = Icons.Rounded.Mic,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(17.dp)
+                            )
                             Text(
-                                "Accent Practice In Progress",
-                                fontSize = 11.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF38BDF8),
+                                text = "Active Practice",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
                                 maxLines = 1,
                                 softWrap = false
                             )
                         }
                     }
 
-                    IconButton(
-                        onClick = onClose,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = "Close Drill",
-                            tint = Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                // Word & Phonetics Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = drill.wordOrSentence,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                        Text(
-                            text = drill.ipaPhonetic,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFC084FC),
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
-
                     Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFF312E81).copy(alpha = 0.8f),
-                        border = BorderStroke(1.dp, Color(0xFF818CF8)),
-                        modifier = Modifier.padding(start = 8.dp)
+                        shape = CircleShape,
+                        color = Color(0xFF1B1748).copy(alpha = 0.95f),
+                        border = BorderStroke(1.2.dp, Color(0xFF6366F1).copy(alpha = 0.75f)),
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .clickable { onClose() }
+                            .testTag("active_practice_close_button")
                     ) {
-                        Text(
-                            text = drill.difficulty,
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFC7D2FE),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            maxLines = 1,
-                            softWrap = false
-                        )
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Close Drill",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
 
-                // Coach Tip
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF0C2152).copy(alpha = 0.85f),
-                    border = BorderStroke(1.2.dp, Color(0xFF0284C7).copy(alpha = 0.7f)),
-                    modifier = Modifier.fillMaxWidth()
+                // 2. Word Section: Soundwave bars + Target Word + Checkmark + IPA pill
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("💡", fontSize = 20.sp)
-                        Column {
+                        SoundwaveBarsCanvas(isLeft = true, isListening = isListening)
+
+                        Spacer(Modifier.width(10.dp))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
                             Text(
-                                "Focus: ${drill.audioFocus}",
-                                fontSize = 12.sp,
+                                text = drill.wordOrSentence,
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Surface(
+                                shape = CircleShape,
+                                color = Color(0xFF00B4D8),
+                                modifier = Modifier.size(20.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = "Verified Drill",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.width(10.dp))
+
+                        SoundwaveBarsCanvas(isLeft = false, isListening = isListening)
+                    }
+
+                    // Centered Phonetics Pill
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFF26195E).copy(alpha = 0.92f),
+                        border = BorderStroke(1.2.dp, Color(0xFFA855F7).copy(alpha = 0.8f)),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable { onPlayNormal() }
+                            .testTag("active_drill_ipa_pill")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.VolumeUp,
+                                contentDescription = "Listen Phonetic",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = drill.ipaPhonetic,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF38BDF8),
+                                color = Color.White,
                                 maxLines = 1,
                                 softWrap = false
                             )
-                            if (drill.tips.isNotBlank()) {
+                        }
+                    }
+                }
+
+                // 3. Audio Playback Speed Buttons (Slow 0.7x & Normal)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Slow (0.7x) Button
+                    Surface(
+                        shape = RoundedCornerShape(22.dp),
+                        color = Color.Transparent,
+                        border = BorderStroke(1.2.dp, Color(0xFFC084FC).copy(alpha = 0.85f)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .clickable { onPlaySlow() }
+                            .testTag("active_drill_slow_btn")
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(Color(0xFF6B21A8), Color(0xFF9333EA))
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Speed,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(19.dp)
+                                )
                                 Text(
-                                    drill.tips,
-                                    fontSize = 11.5.sp,
-                                    color = Color(0xFFCBD5E1),
-                                    lineHeight = 15.sp
+                                    text = "Slow (0.7x)",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                    }
+
+                    // Normal Button
+                    Surface(
+                        shape = RoundedCornerShape(22.dp),
+                        color = Color.Transparent,
+                        border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.85f)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .clickable { onPlayNormal() }
+                            .testTag("active_drill_normal_btn")
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(Color(0xFF0284C7), Color(0xFF00B4D8))
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.VolumeUp,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                                Text(
+                                    text = "Normal",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
                     }
                 }
 
-                // Audio listen row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                // 4. Coaching Tip Card
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFF061838).copy(alpha = 0.92f),
+                    border = BorderStroke(1.4.dp, Color(0xFF00D2FF).copy(alpha = 0.85f)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color(0xFF1E293B),
-                        border = BorderStroke(1.dp, Color(0xFF7C3AED)),
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp)
-                            .clickable { onPlaySlow() }
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text("⏱️", fontSize = 13.sp)
-                            Spacer(Modifier.width(5.dp))
-                            Text(
-                                "0.7x Slow",
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-                    }
+                        GlowingLightbulbSquircle(modifier = Modifier.size(54.dp))
 
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color(0xFF1E293B),
-                        border = BorderStroke(1.dp, Color(0xFF0284C7)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(42.dp)
-                            .clickable { onPlayNormal() }
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
+                        Spacer(Modifier.width(12.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .height(44.dp)
+                                .width(2.5.dp)
+                                .clip(RoundedCornerShape(1.dp))
+                                .background(Color(0xFF00D2FF))
+                        )
+
+                        Spacer(Modifier.width(12.dp))
+
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
-                            Icon(Icons.Rounded.VolumeUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
-                            Spacer(Modifier.width(5.dp))
                             Text(
-                                "Normal Audio",
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Bold,
+                                text = "Coaching Tip",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF00E5FF),
+                                maxLines = 1
+                            )
+                            val tipText = drill.tips.ifBlank {
+                                "Start with a crisp pronunciation, stress the key syllables, and end clearly."
+                            }
+                            Text(
+                                text = tipText,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
                                 color = Color.White,
-                                maxLines = 1,
-                                softWrap = false
+                                lineHeight = 16.sp
                             )
                         }
                     }
                 }
 
-                // Recording Microphone Action
-                val isListening = speechState is SpeechState.Listening
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = Color.Transparent,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .clickable { onToggleMic() }
-                        .testTag("active_drill_mic_button")
+                // 5. Voice Capture / Recording Section with Concentric Pulsating Radar Rings
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val infiniteTransition = rememberInfiniteTransition(label = "mic_waves")
+                    val wavePulse by infiniteTransition.animateFloat(
+                        initialValue = 1.0f,
+                        targetValue = 1.15f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1200, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "wavePulse"
+                    )
+                    val waveAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0.45f,
+                        targetValue = 0.85f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(1200, easing = FastOutSlowInEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "waveAlpha"
+                    )
+
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.horizontalGradient(
-                                    if (isListening) listOf(Color(0xFFDC2626), Color(0xFFEF4444))
-                                    else listOf(Color(0xFF059669), Color(0xFF10B981))
-                                )
-                            ),
+                            .size(136.dp)
+                            .testTag("active_drill_mic_radar_container"),
                         contentAlignment = Alignment.Center
                     ) {
+                        // Outer glowing radar circle 1
+                        Box(
+                            modifier = Modifier
+                                .size(136.dp * if (isListening) wavePulse else 1f)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isListening) Color(0xFFEF4444).copy(alpha = 0.12f)
+                                    else Color(0xFF6366F1).copy(alpha = 0.15f)
+                                )
+                                .border(
+                                    BorderStroke(
+                                        1.dp,
+                                        if (isListening) Color(0xFFEF4444).copy(alpha = 0.35f)
+                                        else Color(0xFF6366F1).copy(alpha = 0.25f)
+                                    ),
+                                    CircleShape
+                                )
+                        )
+
+                        // Outer glowing radar circle 2
+                        Box(
+                            modifier = Modifier
+                                .size(110.dp * if (isListening) (wavePulse * 0.95f) else 1f)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isListening) Color(0xFFDC2626).copy(alpha = 0.18f)
+                                    else Color(0xFF4F46E5).copy(alpha = 0.18f)
+                                )
+                                .border(
+                                    BorderStroke(
+                                        1.2.dp,
+                                        if (isListening) Color(0xFFDC2626).copy(alpha = 0.55f)
+                                        else Color(0xFF818CF8).copy(alpha = 0.40f)
+                                    ),
+                                    CircleShape
+                                )
+                        )
+
+                        // Inner glowing halo ring 3
+                        Box(
+                            modifier = Modifier
+                                .size(92.dp)
+                                .clip(CircleShape)
+                                .border(
+                                    BorderStroke(
+                                        1.5.dp,
+                                        if (isListening) Color(0xFFFF416C).copy(alpha = waveAlpha)
+                                        else Color(0xFF00D2FF).copy(alpha = waveAlpha)
+                                    ),
+                                    CircleShape
+                                )
+                        )
+
+                        // Center Primary Microphone Button
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.Transparent,
+                            border = BorderStroke(2.5.dp, Color.White),
+                            modifier = Modifier
+                                .size(74.dp)
+                                .clip(CircleShape)
+                                .clickable { onToggleMic() }
+                                .testTag("active_drill_mic_button")
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.radialGradient(
+                                            if (isListening) listOf(Color(0xFFFF416C), Color(0xFFFF4B2B), Color(0xFF990000))
+                                            else listOf(Color(0xFF00F0FF), Color(0xFF0088FF), Color(0xFF1D4ED8))
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isListening) Icons.Rounded.Stop else Icons.Rounded.Mic,
+                                    contentDescription = "Tap to Speak",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = when (speechState) {
+                            is SpeechState.Listening -> "Listening... Tap to Stop"
+                            is SpeechState.Processing -> "Analyzing Pronunciation..."
+                            is SpeechState.Success -> "Tap to Speak Again"
+                            is SpeechState.Error -> "Tap to Retry Speaking"
+                            else -> "Tap to Speak"
+                        },
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                // 6. Test with Sample Voice Button
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color(0xFF041838).copy(alpha = 0.95f),
+                    border = BorderStroke(1.5.dp, Color(0xFF00D2FF)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .clickable { onTestSampleVoice() }
+                        .testTag("active_drill_sample_voice_btn")
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.VolumeUp,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(19.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "Test with Sample Voice",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+
+                // 7. Error or Guidance Hint if Speech encountered an issue
+                if (speechState is SpeechState.Error) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF450A0A).copy(alpha = 0.9f),
+                        border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                imageVector = if (isListening) Icons.Rounded.Stop else Icons.Rounded.Mic,
+                                imageVector = Icons.Rounded.Info,
                                 contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(20.dp)
+                                tint = Color(0xFFFCA5A5),
+                                modifier = Modifier.size(18.dp)
                             )
                             Text(
-                                text = when (speechState) {
-                                    is SpeechState.Listening -> "Listening... Tap to Stop"
-                                    is SpeechState.Processing -> "Analyzing Pronunciation..."
-                                    else -> "Record & Test Your Pronunciation"
-                                },
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                maxLines = 1,
-                                softWrap = false
+                                text = speechState.message,
+                                fontSize = 12.sp,
+                                color = Color(0xFFFEE2E2),
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
                 }
 
-                // If evaluated
+                // 8. Live Evaluation Results Card
                 evaluation?.let { eval ->
                     Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color(0xFF064E3B).copy(alpha = 0.9f),
-                        border = BorderStroke(1.2.dp, Color(0xFF10B981)),
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color(0xFF063A30).copy(alpha = 0.95f),
+                        border = BorderStroke(1.5.dp, Color(0xFF10B981)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("active_drill_evaluation_card")
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    "Pronunciation Score: ${eval.overallScore}%",
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 14.sp,
-                                    color = Color(0xFF6EE7B7),
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                                Text(
-                                    "Fluency: ${eval.fluencyScore}%",
-                                    fontSize = 12.sp,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text("🎯", fontSize = 16.sp)
+                                    Text(
+                                        "Pronunciation Score: ${eval.overallScore}%",
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 15.sp,
+                                        color = Color(0xFF34D399)
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF047857),
+                                    border = BorderStroke(1.dp, Color(0xFF6EE7B7))
+                                ) {
+                                    Text(
+                                        text = if (eval.overallScore >= 75) "EXCELLENT" else "GOOD EFFORT",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.White,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
                             }
+
                             if (eval.spokenText.isNotBlank()) {
-                                Text(
-                                    "Heard: \"${eval.spokenText}\"",
-                                    fontSize = 12.sp,
-                                    color = Color(0xFFE2E8F0)
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("🎙️ Heard:", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                                    Text(
+                                        "\"${eval.spokenText}\"",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
                             }
+
                             if (eval.feedback.isNotBlank()) {
                                 Text(
-                                    "Coach: ${eval.feedback}",
-                                    fontSize = 11.5.sp,
+                                    text = eval.feedback,
+                                    fontSize = 12.sp,
                                     color = Color(0xFFA7F3D0),
-                                    lineHeight = 15.sp
+                                    lineHeight = 16.sp
                                 )
                             }
                         }
