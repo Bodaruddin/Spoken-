@@ -1263,70 +1263,456 @@ fun PronunciationSection(
             }
         }
 
-        // 5. Searched Result Display (if available)
+        // 5. Searched Result Display (Exact Redesign matching user screenshot)
         searchedResult?.let { res ->
             Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF131D4A)),
-                border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+                shape = RoundedCornerShape(32.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                border = BorderStroke(1.8.dp, Color(0xFF8B5CF6).copy(alpha = 0.85f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("searched_phonetic_result_card")
             ) {
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = res.word,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 24.sp,
-                            color = Color(0xFF38BDF8)
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFF4C1D95).copy(alpha = 0.6f),
-                            border = BorderStroke(1.dp, Color(0xFFA855F7))
-                        ) {
-                            Text(
-                                text = res.ipa,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFE9D5FF),
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF0F1A4E).copy(alpha = 0.96f),
+                                    Color(0xFF141042).copy(alpha = 0.96f),
+                                    Color(0xFF090D2A).copy(alpha = 0.98f)
+                                )
                             )
-                        }
-                    }
-
-                    Text("Syllables: ${res.syllables}", fontSize = 13.sp, color = Color(0xFFCBD5E1))
-                    Text("💡 Speech Coach: ${res.coachingTip}", fontSize = 12.sp, color = Color.White)
-
-                    Row(
+                        )
+                        .padding(20.dp)
+                ) {
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Button(
-                            onClick = { viewModel.speakAudio(res.word, slow = true) },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                            modifier = Modifier.weight(1f)
+                        // Top Section: Square Glowing Mic Badge, Word + Syllables + Tag, IPA Pill
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Text("0.7x Slow", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            // Glowing Square Mic Badge (Blue-Purple Gradient)
+                            Surface(
+                                shape = RoundedCornerShape(22.dp),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.5.dp, Color(0xFFC084FC).copy(alpha = 0.9f)),
+                                modifier = Modifier.size(72.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(Color(0xFF3B82F6), Color(0xFF7C3AED), Color(0xFF9333EA))
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Mic,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                }
+                            }
+
+                            // Middle: Word Title + checkmark + Syllables + Sound Tag
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = res.word,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 28.sp,
+                                        color = Color.White
+                                    )
+                                    // Blue Verified Checkmark Pill
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color(0xFF0284C7),
+                                        modifier = Modifier.size(20.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                "✔",
+                                                color = Color.White,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Text(
+                                    text = res.syllables,
+                                    fontSize = 14.sp,
+                                    color = Color(0xFFCBD5E1),
+                                    fontWeight = FontWeight.Medium
+                                )
+
+                                // Stress Rhythm Pill (Teal-green Capsule)
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF064E3B).copy(alpha = 0.85f),
+                                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.8f)),
+                                    modifier = Modifier.padding(top = 2.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text("•ı|•", fontSize = 10.sp, color = Color(0xFF34D399), fontWeight = FontWeight.ExtraBold)
+                                        Text(
+                                            text = res.soundTags.firstOrNull() ?: "Stress Rhythm",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF6EE7B7)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Right: High-contrast IPA Transcription Capsule
+                            Surface(
+                                shape = RoundedCornerShape(18.dp),
+                                color = Color(0xFF4C1D95).copy(alpha = 0.75f),
+                                border = BorderStroke(1.5.dp, Color(0xFFA855F7)),
+                                modifier = Modifier.padding(start = 2.dp)
+                            ) {
+                                Text(
+                                    text = res.ipa,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFF3E8FF),
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                )
+                            }
                         }
-                        Button(
-                            onClick = { viewModel.speakAudio(res.word, slow = false) },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
-                            modifier = Modifier.weight(1f)
+
+                        // Middle Card 1: Focus & Level header + Speech Coach Card (Cyan border)
+                        Surface(
+                            shape = RoundedCornerShape(22.dp),
+                            color = Color(0xFF0C2152).copy(alpha = 0.85f),
+                            border = BorderStroke(1.5.dp, Color(0xFF0284C7)),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Normal Speed", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                // Focus & Level Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    // Target Icon
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color(0xFF0284C7).copy(alpha = 0.35f),
+                                        modifier = Modifier.size(34.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text("🎯", fontSize = 17.sp)
+                                        }
+                                    }
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Focus: ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text(res.audioFocus, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF38BDF8))
+                                        Text("   |   ", fontSize = 13.5.sp, color = Color.White.copy(alpha = 0.4f))
+                                        Text("Level: ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text(res.difficulty, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF34D399))
+                                    }
+                                }
+
+                                // Speech Coach row with glowing lightbulb badge
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = Color(0xFF0284C7).copy(alpha = 0.3f),
+                                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
+                                        modifier = Modifier.size(42.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text("💡", fontSize = 22.sp)
+                                        }
+                                    }
+
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Text(
+                                            "Speech Coach",
+                                            fontSize = 14.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            res.coachingTip,
+                                            fontSize = 12.5.sp,
+                                            lineHeight = 17.sp,
+                                            color = Color(0xFFE2E8F0)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Middle Card 2: Assamese Translation Card (Orange/Gold Glow)
+                        Surface(
+                            shape = RoundedCornerShape(22.dp),
+                            color = Color(0xFF2E1A0F).copy(alpha = 0.85f),
+                            border = BorderStroke(1.5.dp, Color(0xFFF59E0B)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                // Book Icon badge
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = Color(0xFF78350F).copy(alpha = 0.8f),
+                                    border = BorderStroke(1.dp, Color(0xFFFBBF24).copy(alpha = 0.7f)),
+                                    modifier = Modifier.size(44.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text("📖", fontSize = 22.sp)
+                                    }
+                                }
+
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        "অসমীয়া অৰ্থ (Assamese Meaning):",
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFFBBF24)
+                                    )
+                                    val displayAssamese = when {
+                                        res.assameseTransliteration.isBlank() -> res.assameseMeaning
+                                        res.assameseMeaning.contains("(") -> res.assameseMeaning
+                                        res.assameseMeaning.contains(res.assameseTransliteration, ignoreCase = true) -> res.assameseMeaning
+                                        else -> "${res.assameseMeaning} (${res.assameseTransliteration})"
+                                    }
+                                    Text(
+                                        text = displayAssamese,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+
+                        // Action Buttons: Row 1 -> 0.7x Slow (Purple) & Normal Speed (Blue)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // 0.7x Slow Button
+                            Surface(
+                                shape = RoundedCornerShape(18.dp),
+                                color = Color.Transparent,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .clickable { viewModel.speakAudio(res.word, slow = true) }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color(0xFF7C3AED), Color(0xFF9333EA))
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text("⏱️", fontSize = 16.sp)
+                                        Text(
+                                            "0.7× Slow",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Normal Speed Button
+                            Surface(
+                                shape = RoundedCornerShape(18.dp),
+                                color = Color.Transparent,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .clickable { viewModel.speakAudio(res.word, slow = false) }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color(0xFF0284C7), Color(0xFF2563EB))
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.VolumeUp,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Text(
+                                            "Normal Speed",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Action Buttons: Row 2 -> + Add to Drills (Deep Blue) & 🎙 Practice Now (Neon Green)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // + Add to Drills Button
+                            Surface(
+                                shape = RoundedCornerShape(18.dp),
+                                color = Color(0xFF172554),
+                                border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .clickable {
+                                        viewModel.addSearchedWordToDrills(res)
+                                        actionToast = "Saved '${res.word}' to practice drills!"
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text("+", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        "Add to Drills",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+
+                            // Practice Now Button
+                            Surface(
+                                shape = RoundedCornerShape(18.dp),
+                                color = Color.Transparent,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .clickable {
+                                        val drill = PronunciationDrill(
+                                            id = "custom_${res.word}",
+                                            wordOrSentence = res.word,
+                                            ipaPhonetic = res.ipa,
+                                            audioFocus = res.audioFocus,
+                                            difficulty = res.difficulty,
+                                            tips = res.coachingTip
+                                        )
+                                        viewModel.startPronunciationDrill(drill)
+                                    }
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color(0xFF059669), Color(0xFF10B981))
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Mic,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Text(
+                                            "Practice Now",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Action Toast Message
+                        AnimatedVisibility(visible = actionToast != null) {
+                            actionToast?.let { msg ->
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFF064E3B),
+                                    border = BorderStroke(1.dp, Color(0xFF10B981)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = msg,
+                                        color = Color(0xFF6EE7B7),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
