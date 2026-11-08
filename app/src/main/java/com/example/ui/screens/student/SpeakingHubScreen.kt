@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
@@ -126,7 +127,7 @@ fun SpeakingHubScreen(
                     softWrap = false
                 )
                 Text(
-                    text = "Practice • Get Feedback • Improve Fluency",
+                    text = if (currentSubTab == SpeakingSubTab.PRONUNCIATION_COACH) "Pronounce • Practice • Perfect" else "Practice • Get Feedback • Improve Fluency",
                     fontSize = 10.5.sp,
                     color = Color(0xFFCBD5E1),
                     maxLines = 1,
@@ -933,51 +934,578 @@ fun PronunciationSection(
     speechState: SpeechState,
     evaluation: com.example.data.model.SpeakingEvaluation?
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Pronunciation & Accent Coach", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(drills) { d ->
-                val isSel = activeDrill?.id == d.id
+    var queryInput by remember { mutableStateOf("") }
+    val searchedResult by viewModel.searchedPhoneticResult.collectAsState()
+    val isSearching by viewModel.isSearchingPhonetics.collectAsState()
+    var selectedCategory by remember { mutableStateOf("🔥 Trending") }
+    var actionToast by remember { mutableStateOf<String?>(null) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // 1. AI Phonetics Word Search Hero Card
+        Card(
+            shape = RoundedCornerShape(26.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            border = BorderStroke(1.5.dp, Color(0xFFC084FC).copy(alpha = 0.9f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("ai_phonetics_search_card")
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xFF0F1B4E).copy(alpha = 0.95f),
+                                Color(0xFF161146).copy(alpha = 0.95f),
+                                Color(0xFF0A1032).copy(alpha = 0.98f)
+                            )
+                        )
+                    )
+                    .padding(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // Robot Avatar with glowing cyber ring
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFF1E265C),
+                        border = BorderStroke(2.dp, Color(0xFF38BDF8)),
+                        modifier = Modifier.size(64.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.img_nova_ai_robot),
+                            contentDescription = "Nova AI",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                        )
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // Nova AI Pill
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF4F46E5).copy(alpha = 0.85f),
+                            border = BorderStroke(1.dp, Color(0xFF818CF8))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("✨", fontSize = 11.sp)
+                                Text(
+                                    "Nova AI",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = "AI Phonetics Word Search",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 18.sp,
+                            color = Color.White
+                        )
+
+                        Text(
+                            text = "Type any word to look up IPA, syllables & native speech tips",
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            color = Color(0xFFCBD5E1)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. Search Input & Analyze Button Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Search Input Pill
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = Color(0xFF0C1738).copy(alpha = 0.95f),
+                border = BorderStroke(1.2.dp, Color(0xFF0284C7)),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = null,
+                        tint = Color(0xFF38BDF8),
+                        modifier = Modifier.size(20.dp)
+                    )
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (queryInput.isEmpty()) {
+                            Text(
+                                "Search word (e.g. comfortable, though)...",
+                                fontSize = 12.sp,
+                                color = Color(0xFF64748B),
+                                maxLines = 1
+                            )
+                        }
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = queryInput,
+                            onValueChange = {
+                                queryInput = it
+                                viewModel.updatePhoneticSearchQuery(it)
+                            },
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("phonetic_search_text_field")
+                        )
+                    }
+
+                    if (queryInput.isNotEmpty()) {
+                        IconButton(
+                            onClick = {
+                                queryInput = ""
+                                viewModel.clearPhoneticsSearch()
+                            },
+                            modifier = Modifier.size(20.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.Close,
+                                contentDescription = "Clear",
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Analyze Button Pill with Gradient
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = Color.Transparent,
+                border = BorderStroke(1.dp, Color(0xFFFF77E9)),
+                modifier = Modifier
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .clickable {
+                        if (queryInput.isNotBlank()) {
+                            viewModel.searchPhonetics(queryInput)
+                        }
+                    }
+                    .testTag("phonetic_search_button")
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFF8B1FA9), Color(0xFFD926A9))
+                            )
+                        )
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSearching) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("✨", fontSize = 12.sp)
+                            Text(
+                                "Analyze",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Quick Category Chips
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            val categories = listOf("🔥 Trending", "🤫 Silent Letters", "🌷 Tricky 'TH'", "💼 More")
+            items(categories) { cat ->
+                val isSel = selectedCategory == cat
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (isSel) Color(0xFFEA580C) else Color(0xFF1E293B),
-                    border = BorderStroke(1.dp, if (isSel) Color(0xFFFDE68A) else Color(0xFF334155)),
-                    modifier = Modifier.clickable { viewModel.startPronunciationDrill(d) }
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isSel) Color(0xFF9333EA) else Color(0xFF0F1E44).copy(alpha = 0.85f),
+                    border = BorderStroke(
+                        1.2.dp,
+                        if (isSel) Color(0xFFD8B4FE) else Color(0xFF2563EB).copy(alpha = 0.5f)
+                    ),
+                    modifier = Modifier.clickable { selectedCategory = cat }
                 ) {
                     Text(
-                        d.wordOrSentence,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        cat,
+                        fontSize = 12.sp,
+                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
                     )
                 }
             }
         }
 
-        activeDrill?.let { drill ->
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2E1A0F)),
-                border = BorderStroke(1.2.dp, Color(0xFFF59E0B)),
-                modifier = Modifier.fillMaxWidth()
+        // 4. Trending Words Container Card
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xFF0F1738).copy(alpha = 0.95f),
+                                Color(0xFF090E26).copy(alpha = 0.95f)
+                            )
+                        )
+                    )
+                    .padding(14.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(drill.wordOrSentence, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, color = Color(0xFFFDE68A))
-                            Text(drill.ipaPhonetic, fontSize = 14.sp, color = Color(0xFFFED7AA))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("🔥", fontSize = 16.sp)
+                            Text(
+                                "Trending Words",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 15.sp,
+                                color = Color.White
+                            )
                         }
-                        IconButton(onClick = { viewModel.speakAudio(drill.wordOrSentence) }) {
-                            Icon(Icons.Rounded.VolumeUp, contentDescription = "Play Pronunciation", tint = Color(0xFFF59E0B))
+
+                        Text(
+                            "View All →",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF60A5FA)
+                        )
+                    }
+
+                    // Trending Words Capsules
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val trendingWords = listOf("Comfortable", "Thorough", "Phenomenon", "Entrepreneur")
+                        trendingWords.forEach { word ->
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF4C1D95).copy(alpha = 0.7f),
+                                border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.8f)),
+                                modifier = Modifier
+                                    .clickable {
+                                        queryInput = word
+                                        viewModel.searchPhonetics(word)
+                                    }
+                            ) {
+                                Text(
+                                    word,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
                         }
                     }
-                    Text("💡 Tip: ${drill.tips}", fontSize = 12.sp, color = Color.White)
                 }
+            }
+        }
+
+        // 5. Searched Result Display (if available)
+        searchedResult?.let { res ->
+            Card(
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF131D4A)),
+                border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("searched_phonetic_result_card")
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = res.word,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 24.sp,
+                            color = Color(0xFF38BDF8)
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFF4C1D95).copy(alpha = 0.6f),
+                            border = BorderStroke(1.dp, Color(0xFFA855F7))
+                        ) {
+                            Text(
+                                text = res.ipa,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFE9D5FF),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    Text("Syllables: ${res.syllables}", fontSize = 13.sp, color = Color(0xFFCBD5E1))
+                    Text("💡 Speech Coach: ${res.coachingTip}", fontSize = 12.sp, color = Color.White)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.speakAudio(res.word, slow = true) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("0.7x Slow", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = { viewModel.speakAudio(res.word, slow = false) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Normal Speed", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 6. Section Header: "📚 Practice Drills & Accent Coach" with "🎧 6 drills available" badge
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("📚", fontSize = 18.sp)
+                Text(
+                    "Practice Drills & Accent Coach",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp,
+                    color = Color.White
+                )
+            }
+
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF1E144E).copy(alpha = 0.9f),
+                border = BorderStroke(1.2.dp, Color(0xFF8B5CF6))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text("🎧", fontSize = 12.sp)
+                    Column {
+                        Text(
+                            "${drills.size} drills",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "available",
+                            fontSize = 9.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 7. Practice Drill Cards (3 Colorful Gradient Cards side by side)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Card 1: Comfortable (Vibrant Azure Blue)
+            PhoneticsDrillScreenshotCard(
+                word = "Comfortable",
+                ipa = "/'kʌmftəbl/",
+                focus = "Focus: Silent 'or'",
+                gradient = Brush.verticalGradient(
+                    listOf(Color(0xFF0284C7), Color(0xFF0369A1), Color(0xFF075985))
+                ),
+                borderColor = Color(0xFF38BDF8),
+                modifier = Modifier.weight(1f),
+                onPlay = { viewModel.speakAudio("Comfortable") }
+            )
+
+            // Card 2: Specifically (Radiant Magenta-Purple)
+            PhoneticsDrillScreenshotCard(
+                word = "Specifically",
+                ipa = "/spə'sɪfɪkli/",
+                focus = "Focus: Consonant cluster",
+                gradient = Brush.verticalGradient(
+                    listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9), Color(0xFF581C87))
+                ),
+                borderColor = Color(0xFFC084FC),
+                modifier = Modifier.weight(1f),
+                onPlay = { viewModel.speakAudio("Specifically") }
+            )
+
+            // Card 3: Thought (Vibrant Amber-Orange)
+            PhoneticsDrillScreenshotCard(
+                word = "Thought",
+                ipa = "/θɔːtful/",
+                focus = "Focus: Soft 'th'",
+                gradient = Brush.verticalGradient(
+                    listOf(Color(0xFFF97316), Color(0xFFEA580C), Color(0xFFC2410C))
+                ),
+                borderColor = Color(0xFFFDBA74),
+                modifier = Modifier.weight(1f),
+                onPlay = { viewModel.speakAudio("Thought") }
+            )
+        }
+
+        Spacer(Modifier.height(14.dp))
+    }
+}
+
+/**
+ * Phonetics Drill Card matching screenshot design:
+ * Rounded card with gradient background, circular speaker in top-right,
+ * bold word, IPA pronunciation below, and subtle focus label.
+ */
+@Composable
+fun PhoneticsDrillScreenshotCard(
+    word: String,
+    ipa: String,
+    focus: String,
+    gradient: Brush,
+    borderColor: Color,
+    modifier: Modifier = Modifier,
+    onPlay: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.2.dp, borderColor.copy(alpha = 0.7f)),
+        modifier = modifier
+            .clip(RoundedCornerShape(22.dp))
+            .clickable { onPlay() }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(gradient)
+                .padding(14.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Top row with Speaker button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.25f),
+                        border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.4f)),
+                        modifier = Modifier.size(30.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.VolumeUp,
+                                contentDescription = "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+
+                Text(
+                    text = word,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Text(
+                    text = ipa,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White.copy(alpha = 0.9f)
+                )
+
+                Text(
+                    text = focus,
+                    fontSize = 10.5.sp,
+                    color = Color.White.copy(alpha = 0.8f),
+                    lineHeight = 14.sp
+                )
             }
         }
     }
