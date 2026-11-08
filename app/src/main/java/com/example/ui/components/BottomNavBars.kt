@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -96,6 +97,12 @@ private data class StudentTabItem(
     val icon: ImageVector
 )
 
+data class TeacherTabItem(
+    val tab: TeacherTab,
+    val label: String,
+    val icon: ImageVector
+)
+
 @Composable
 fun TeacherBottomBar(
     currentTab: TeacherTab,
@@ -103,46 +110,86 @@ fun TeacherBottomBar(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        color = Color(0xFF0F173C),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        border = BorderStroke(1.dp, Color(0xFF283B70).copy(alpha = 0.6f)),
+        color = Color(0xFF070A24).copy(alpha = 0.96f),
+        shape = RoundedCornerShape(32.dp),
+        border = BorderStroke(1.2.dp, Color(0xFF6366F1).copy(alpha = 0.60f)),
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
             .testTag("teacher_bottom_bar")
     ) {
-        NavigationBar(
-            containerColor = Color.Transparent,
-            tonalElevation = 0.dp,
-            modifier = Modifier.fillMaxWidth()
+        val teacherTabs = listOf(
+            TeacherTabItem(TeacherTab.DASHBOARD, "Overview", Icons.Rounded.BarChart),
+            TeacherTabItem(TeacherTab.STUDENTS, "Students", Icons.Rounded.People),
+            TeacherTabItem(TeacherTab.GAMES, "Games Hub", Icons.Rounded.SportsEsports),
+            TeacherTabItem(TeacherTab.SPEAKING_REVIEW, "Speaking &\nReview", Icons.Rounded.Mic),
+            TeacherTabItem(TeacherTab.ASSIGNMENTS, "Tasks", Icons.Rounded.Assignment)
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            TeacherTab.values().forEach { tab ->
-                val isSelected = currentTab == tab
-                NavigationBarItem(
-                    selected = isSelected,
-                    onClick = { onTabSelected(tab) },
-                    icon = {
-                        Text(
-                            tab.iconEmoji,
-                            fontSize = if (isSelected) 22.sp else 18.sp
-                        )
-                    },
-                    label = {
-                        Text(
-                            tab.label,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
-                        )
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color.White,
-                        selectedTextColor = Color.White,
-                        indicatorColor = Color(0xFF7C3AED),
-                        unselectedIconColor = Color(0xFF94A3B8),
-                        unselectedTextColor = Color(0xFF94A3B8)
-                    ),
-                    modifier = Modifier.testTag("teacher_tab_${tab.name.lowercase()}")
-                )
+            teacherTabs.forEach { item ->
+                val isSelected = currentTab == item.tab
+                Column(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onTabSelected(item.tab) }
+                        .padding(horizontal = 4.dp, vertical = 4.dp)
+                        .testTag("teacher_tab_${item.tab.name.lowercase()}"),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    if (isSelected) {
+                        Box(
+                            modifier = Modifier
+                                .size(width = 60.dp, height = 34.dp)
+                                .clip(RoundedCornerShape(17.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9))
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(width = 60.dp, height = 34.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label,
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = item.label,
+                        fontSize = if (item.tab == TeacherTab.SPEAKING_REVIEW) 8.5.sp else 9.5.sp,
+                        lineHeight = 10.5.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }

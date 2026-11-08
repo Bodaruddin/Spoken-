@@ -66,19 +66,19 @@ fun AppTopBar(
     onAdminCredentialsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val isRoleAdmin = role == Role.ADMIN
+    val isPillTopBar = role == Role.ADMIN || role == Role.TEACHER
     Surface(
-        color = if (isRoleAdmin) Color(0xFF0B1033).copy(alpha = 0.95f) else Color(0xFF0C1434).copy(alpha = 0.95f),
-        shape = if (isRoleAdmin) RoundedCornerShape(26.dp) else RoundedCornerShape(0.dp),
+        color = if (isPillTopBar) Color(0xFF0B1033).copy(alpha = 0.95f) else Color(0xFF0C1434).copy(alpha = 0.95f),
+        shape = if (isPillTopBar) RoundedCornerShape(26.dp) else RoundedCornerShape(0.dp),
         tonalElevation = 0.dp,
         border = BorderStroke(
             1.2.dp,
-            if (isRoleAdmin) Color(0xFF6366F1).copy(alpha = 0.65f) else Color(0xFF283B70).copy(alpha = 0.5f)
+            if (isPillTopBar) Color(0xFF6366F1).copy(alpha = 0.65f) else Color(0xFF283B70).copy(alpha = 0.5f)
         ),
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .then(if (isRoleAdmin) Modifier.padding(horizontal = 14.dp, vertical = 6.dp) else Modifier)
+            .then(if (isPillTopBar) Modifier.padding(horizontal = 14.dp, vertical = 6.dp) else Modifier)
     ) {
         Row(
             modifier = Modifier
@@ -124,8 +124,8 @@ fun AppTopBar(
                 }
             }
 
-            // Divider for Admin
-            if (isRoleAdmin) {
+            // Divider for Admin & Teacher
+            if (isPillTopBar) {
                 Box(
                     modifier = Modifier
                         .height(28.dp)

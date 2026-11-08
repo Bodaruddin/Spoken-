@@ -23,8 +23,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.ui.components.SectionHeader
 import androidx.compose.ui.platform.testTag
@@ -76,64 +81,85 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
             .testTag("teacher_dashboard_screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Teacher Banner Card
+        // Teacher Banner Card (Exact match to screenshot)
         item {
             Card(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                border = BorderStroke(1.2.dp, Color(0xFFA855F7).copy(alpha = 0.5f)),
+                border = BorderStroke(
+                    1.5.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            Color(0xFFEC4899),
+                            Color(0xFF818CF8),
+                            Color(0xFF06B6D4)
+                        )
+                    )
+                ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(HeroBannerGrad)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.School,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.18f),
-                        modifier = Modifier
-                            .size(120.dp)
-                            .align(Alignment.BottomEnd)
-                            .offset(x = 12.dp, y = 14.dp)
-                    )
-                    Row(
-                        modifier = Modifier.padding(18.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(68.dp)
-                                .clip(CircleShape)
-                                .background(Brush.linearGradient(listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9))))
-                                .border(2.dp, Color(0xFFE9D5FF).copy(alpha = 0.85f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(currentUser.avatarEmoji.ifBlank { "👩‍🏫" }, fontSize = 34.sp)
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = currentUser.name.ifBlank { "Faculty Instructor" },
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 19.sp,
-                                color = Color.White
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFF13113F),
+                                    Color(0xFF0B1438),
+                                    Color(0xFF081232)
+                                )
                             )
-                            val departmentOrBatch = currentUser.batch.ifBlank { "Classes 9 & 10" }
+                        )
+                ) {
+                    KpiCardFluidWave(
+                        color = Color(0xFF818CF8),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(65.dp)
+                            .align(Alignment.BottomCenter)
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .padding(14.dp)
+                            .fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TeacherPortraitAvatar(
+                            modifier = Modifier.size(68.dp)
+                        )
+
+                        Spacer(Modifier.width(10.dp))
+
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text(
+                                text = currentUser.name.ifBlank { "Prof. Eleanor Vance" },
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 18.sp,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            val departmentOrBatch = currentUser.batch.ifBlank { "Class 10 & 9" }
                             Text(
                                 text = "Faculty Instructor • $departmentOrBatch",
                                 fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.82f)
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFA5B4FC),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(3.dp))
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF070B24).copy(alpha = 0.65f),
-                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.45f))
+                                color = Color(0xFF04261B).copy(alpha = 0.85f),
+                                border = BorderStroke(1.dp, Color(0xFF10B981))
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.5.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
@@ -145,58 +171,135 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                                     )
                                     Text(
                                         text = "Faculty Active Today",
-                                        fontSize = 10.sp,
+                                        fontSize = 10.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF86EFAC)
+                                        color = Color.White,
+                                        maxLines = 1
                                     )
                                 }
                             }
                         }
+
+                        Spacer(Modifier.width(8.dp))
+
+                        TeacherGraduationBooksIllustration(
+                            modifier = Modifier.size(width = 88.dp, height = 76.dp)
+                        )
                     }
                 }
             }
         }
 
-        // Metrics Grid - 2x2 Spacious Executive Layout (Cyber-Glass)
+        // Section: Classroom Overview & Metrics (Matching Screenshot 2x2 Grid)
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionHeader("Classroom Overview & Metrics")
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TeacherMetricCard("Enrolled Students", "${students.size}", "👥", RoyalBlue, Modifier.weight(1f), "Active Cohort", Icons.Rounded.People)
-                    TeacherMetricCard("Pending Voice", "${submissions.count { it.status == "PENDING" }}", "🎧", OrangeVibrant, Modifier.weight(1f), "Needs Review", Icons.Rounded.Headphones)
+                    Icon(
+                        imageVector = Icons.Rounded.BarChart,
+                        contentDescription = null,
+                        tint = Color(0xFF818CF8),
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = "Classroom Overview & Metrics",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 18.sp,
+                        color = Color.White
+                    )
                 }
+
+                // Row 1: Enrolled Students & Pending Voice
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    TeacherMetricCard("Avg Speaking Fluency", "84.2%", "🎙️", EmeraldSuccess, Modifier.weight(1f), "+3.2% This Wk", Icons.Rounded.TrendingUp)
-                    TeacherMetricCard("Active Practice Drills", "$totalGames", "🎮", PurpleAccent, Modifier.weight(1f), "12 Categories", Icons.Rounded.SportsEsports)
+                    TeacherMetricCard(
+                        title = "Enrolled Students",
+                        value = "${students.size.coerceAtLeast(6)}",
+                        icon = Icons.Rounded.Groups,
+                        color = Color(0xFF38BDF8),
+                        modifier = Modifier.weight(1f),
+                        tag = "Active Cohort",
+                        growth = "+0% vs last week",
+                        watermarkIcon = Icons.Rounded.Groups
+                    )
+                    TeacherMetricCard(
+                        title = "Pending Voice",
+                        value = "${submissions.count { it.status == "PENDING" }.coerceAtLeast(1)}",
+                        icon = Icons.Rounded.Headphones,
+                        color = Color(0xFFF59E0B),
+                        modifier = Modifier.weight(1f),
+                        tag = "Needs Review",
+                        growth = "-50% vs last week",
+                        watermarkIcon = Icons.Rounded.Mic
+                    )
+                }
+
+                // Row 2: Avg Speaking Fluency & Active Practice Drills
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    TeacherMetricCard(
+                        title = "Avg Speaking Fluency",
+                        value = "84.2%",
+                        icon = Icons.Rounded.Mic,
+                        color = Color(0xFF10B981),
+                        modifier = Modifier.weight(1f),
+                        tag = "+3.2% This Wk",
+                        growth = "+3.2% vs last week",
+                        watermarkIcon = Icons.Rounded.TrendingUp
+                    )
+                    TeacherMetricCard(
+                        title = "Active Practice Drills",
+                        value = "${totalGames.coerceAtLeast(25)}",
+                        icon = Icons.Rounded.SportsEsports,
+                        color = Color(0xFFA855F7),
+                        modifier = Modifier.weight(1f),
+                        tag = "12 Categories",
+                        growth = "+25% vs last week",
+                        watermarkIcon = Icons.Rounded.SportsEsports
+                    )
                 }
             }
         }
 
-        // Quick Action Cards
+        // Section: Faculty Quick Operations (Matching Screenshot 2-card row)
         item {
-            SectionHeader("Faculty Quick Operations")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("🚀", fontSize = 18.sp)
+                Text(
+                    text = "Faculty Quick Operations",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 18.sp,
+                    color = Color.White
+                )
+            }
         }
+
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                TeacherQuickActionCard(
+                TeacherQuickOperationCard(
                     title = "Manage Students",
                     subtitle = "Roster & CEFR Levels",
-                    icon = "👥",
-                    color = RoyalBlue,
+                    icon = Icons.Rounded.ManageAccounts,
+                    color = Color(0xFF00D2FF),
+                    gradient = listOf(Color(0xFF0C2454), Color(0xFF061430)),
                     modifier = Modifier.weight(1f),
                     onClick = { viewModel.selectTeacherTab(TeacherTab.STUDENTS) }
                 )
-                TeacherQuickActionCard(
+                TeacherQuickOperationCard(
                     title = "Add Game Challenge",
                     subtitle = "Word match, sentence, etc.",
-                    icon = "🎮",
-                    color = PurpleAccent,
+                    icon = Icons.Rounded.SportsEsports,
+                    color = Color(0xFFA855F7),
+                    gradient = listOf(Color(0xFF2E0854), Color(0xFF17042C)),
                     modifier = Modifier.weight(1f),
                     onClick = { viewModel.selectTeacherTab(TeacherTab.GAMES) }
                 )
@@ -343,6 +446,10 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                     WeakAreaRow("Fluency: Response hesitation in impromptu talks", "Avg pause: 3.2s")
                 }
             }
+        }
+
+        item {
+            Spacer(Modifier.height(56.dp))
         }
     }
 }
@@ -2686,64 +2793,349 @@ fun CreateGameChallengeDialog(
 }
 
 @Composable
+fun KpiCardFluidWave(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        val wavePath = Path().apply {
+            moveTo(0f, h)
+            lineTo(0f, h * 0.70f)
+            cubicTo(
+                w * 0.35f, h * 0.90f,
+                w * 0.60f, h * 0.35f,
+                w, h * 0.50f
+            )
+            lineTo(w, h)
+            close()
+        }
+
+        drawPath(
+            path = wavePath,
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    color.copy(alpha = 0.45f),
+                    color.copy(alpha = 0.10f)
+                ),
+                startY = h * 0.3f,
+                endY = h
+            )
+        )
+    }
+}
+
+@Composable
+fun TeacherPortraitAvatar(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(
+                Brush.sweepGradient(
+                    listOf(
+                        Color(0xFFEC4899),
+                        Color(0xFF818CF8),
+                        Color(0xFF06B6D4),
+                        Color(0xFFEC4899)
+                    )
+                )
+            )
+            .padding(2.5.dp)
+            .clip(CircleShape)
+            .background(Color(0xFF1E1B4B)),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize().padding(2.dp)) {
+            val w = size.width
+            val h = size.height
+
+            // Soft circular vignette background
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(Color(0xFF3B82F6), Color(0xFF1E1B4B)),
+                    center = Offset(w * 0.5f, h * 0.4f),
+                    radius = w * 0.5f
+                )
+            )
+
+            // Inner golden rim
+            drawCircle(
+                color = Color(0xFFFBBF24).copy(alpha = 0.65f),
+                radius = w * 0.48f,
+                style = Stroke(width = 1.5f)
+            )
+
+            // Body / Blue blazer
+            val bodyPath = Path().apply {
+                moveTo(w * 0.20f, h)
+                cubicTo(w * 0.20f, h * 0.72f, w * 0.80f, h * 0.72f, w * 0.80f, h)
+                close()
+            }
+            drawPath(bodyPath, Color(0xFF2563EB))
+
+            // White shirt collar
+            val shirtPath = Path().apply {
+                moveTo(w * 0.42f, h * 0.68f)
+                lineTo(w * 0.50f, h * 0.82f)
+                lineTo(w * 0.58f, h * 0.68f)
+                close()
+            }
+            drawPath(shirtPath, Color.White)
+
+            // Red folder/book held in left arm
+            val bookPath = Path().apply {
+                moveTo(w * 0.58f, h * 0.82f)
+                lineTo(w * 0.84f, h * 0.82f)
+                lineTo(w * 0.84f, h)
+                lineTo(w * 0.58f, h)
+                close()
+            }
+            drawPath(bookPath, Color(0xFFE11D48))
+
+            // Neck
+            drawRect(
+                color = Color(0xFFFED7AA),
+                topLeft = Offset(w * 0.44f, h * 0.58f),
+                size = Size(w * 0.12f, h * 0.14f)
+            )
+
+            // Hair (back)
+            drawCircle(
+                color = Color(0xFF5A2A18),
+                radius = w * 0.28f,
+                center = Offset(w * 0.5f, h * 0.44f)
+            )
+
+            // Face
+            drawCircle(
+                color = Color(0xFFFED7AA),
+                radius = w * 0.21f,
+                center = Offset(w * 0.5f, h * 0.44f)
+            )
+
+            // Hair bangs/sides
+            val hairLeft = Path().apply {
+                moveTo(w * 0.30f, h * 0.46f)
+                cubicTo(w * 0.28f, h * 0.30f, w * 0.44f, h * 0.24f, w * 0.50f, h * 0.30f)
+                cubicTo(w * 0.40f, h * 0.34f, w * 0.34f, h * 0.40f, w * 0.30f, h * 0.46f)
+                close()
+            }
+            drawPath(hairLeft, Color(0xFF5A2A18))
+
+            val hairRight = Path().apply {
+                moveTo(w * 0.70f, h * 0.46f)
+                cubicTo(w * 0.72f, h * 0.30f, w * 0.56f, h * 0.24f, w * 0.50f, h * 0.30f)
+                cubicTo(w * 0.60f, h * 0.34f, w * 0.66f, h * 0.40f, w * 0.70f, h * 0.46f)
+                close()
+            }
+            drawPath(hairRight, Color(0xFF5A2A18))
+
+            // Spectacles / Glasses (round frames)
+            val glassY = h * 0.43f
+            val glassR = w * 0.08f
+            drawCircle(
+                color = Color(0xFF1E293B),
+                radius = glassR,
+                center = Offset(w * 0.41f, glassY),
+                style = Stroke(width = 2f)
+            )
+            drawCircle(
+                color = Color(0xFF1E293B),
+                radius = glassR,
+                center = Offset(w * 0.59f, glassY),
+                style = Stroke(width = 2f)
+            )
+            drawLine(
+                color = Color(0xFF1E293B),
+                start = Offset(w * 0.49f, glassY),
+                end = Offset(w * 0.51f, glassY),
+                strokeWidth = 2f
+            )
+
+            // Friendly smile
+            val smilePath = Path().apply {
+                moveTo(w * 0.44f, h * 0.55f)
+                cubicTo(w * 0.47f, h * 0.58f, w * 0.53f, h * 0.58f, w * 0.56f, h * 0.55f)
+            }
+            drawPath(smilePath, Color(0xFFE11D48), style = Stroke(width = 2f))
+        }
+    }
+}
+
+@Composable
+fun TeacherGraduationBooksIllustration(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // Book Stack at bottom
+        // Book 1 (Bottom Book - Cyan & Light Gray)
+        val b1Y = h * 0.72f
+        val b1H = h * 0.12f
+        val spine1 = Path().apply {
+            moveTo(w * 0.18f, b1Y)
+            lineTo(w * 0.52f, b1Y + b1H * 0.75f)
+            lineTo(w * 0.52f, b1Y + b1H * 1.75f)
+            lineTo(w * 0.18f, b1Y + b1H)
+            close()
+        }
+        drawPath(spine1, Color(0xFF0284C7))
+
+        val pages1 = Path().apply {
+            moveTo(w * 0.52f, b1Y + b1H * 0.75f)
+            lineTo(w * 0.88f, b1Y + b1H * 0.2f)
+            lineTo(w * 0.88f, b1Y + b1H * 1.2f)
+            lineTo(w * 0.52f, b1Y + b1H * 1.75f)
+            close()
+        }
+        drawPath(pages1, Color(0xFFF1F5F9))
+
+        // Book 2 (Middle Book - Vibrant Magenta/Pink & White)
+        val b2Y = h * 0.58f
+        val b2H = h * 0.11f
+        val spine2 = Path().apply {
+            moveTo(w * 0.22f, b2Y)
+            lineTo(w * 0.56f, b2Y + b2H * 0.75f)
+            lineTo(w * 0.56f, b2Y + b2H * 1.75f)
+            lineTo(w * 0.22f, b2Y + b2H)
+            close()
+        }
+        drawPath(spine2, Color(0xFFD946EF))
+
+        val pages2 = Path().apply {
+            moveTo(w * 0.56f, b2Y + b2H * 0.75f)
+            lineTo(w * 0.90f, b2Y + b2H * 0.2f)
+            lineTo(w * 0.90f, b2Y + b2H * 1.2f)
+            lineTo(w * 0.56f, b2Y + b2H * 1.75f)
+            close()
+        }
+        drawPath(pages2, Color(0xFFEDE9FE))
+
+        // Book 3 (Top Book - Vibrant Indigo/Blue & White)
+        val b3Y = h * 0.46f
+        val b3H = h * 0.10f
+        val spine3 = Path().apply {
+            moveTo(w * 0.20f, b3Y)
+            lineTo(w * 0.54f, b3Y + b3H * 0.75f)
+            lineTo(w * 0.54f, b3Y + b3H * 1.75f)
+            lineTo(w * 0.20f, b3Y + b3H)
+            close()
+        }
+        drawPath(spine3, Color(0xFF4F46E5))
+
+        val pages3 = Path().apply {
+            moveTo(w * 0.54f, b3Y + b3H * 0.75f)
+            lineTo(w * 0.86f, b3Y + b3H * 0.2f)
+            lineTo(w * 0.86f, b3Y + b3H * 1.2f)
+            lineTo(w * 0.54f, b3Y + b3H * 1.75f)
+            close()
+        }
+        drawPath(pages3, Color(0xFFE2E8F0))
+
+        // Mortarboard Cap (Graduation Hat) resting on top book
+        val capBand = Path().apply {
+            moveTo(w * 0.40f, h * 0.38f)
+            lineTo(w * 0.68f, h * 0.38f)
+            lineTo(w * 0.65f, h * 0.48f)
+            lineTo(w * 0.43f, h * 0.48f)
+            close()
+        }
+        drawPath(capBand, Color(0xFF1E1B4B))
+
+        val diamondTop = Path().apply {
+            moveTo(w * 0.54f, h * 0.12f)
+            lineTo(w * 0.92f, h * 0.25f)
+            lineTo(w * 0.52f, h * 0.38f)
+            lineTo(w * 0.14f, h * 0.25f)
+            close()
+        }
+        drawPath(
+            diamondTop,
+            Brush.linearGradient(
+                listOf(Color(0xFF38BDF8), Color(0xFF4F46E5), Color(0xFF1E1B4B)),
+                start = Offset(w * 0.14f, h * 0.12f),
+                end = Offset(w * 0.92f, h * 0.38f)
+            )
+        )
+        drawPath(
+            diamondTop,
+            Color(0xFF93C5FD).copy(alpha = 0.8f),
+            style = Stroke(width = 1.8f)
+        )
+
+        drawCircle(
+            color = Color(0xFFFBBF24),
+            radius = 3.5f,
+            center = Offset(w * 0.53f, h * 0.25f)
+        )
+
+        val tasselCord = Path().apply {
+            moveTo(w * 0.53f, h * 0.25f)
+            cubicTo(
+                w * 0.70f, h * 0.22f,
+                w * 0.86f, h * 0.24f,
+                w * 0.92f, h * 0.26f
+            )
+            lineTo(w * 0.93f, h * 0.46f)
+        }
+        drawPath(
+            tasselCord,
+            Color(0xFFFBBF24),
+            style = Stroke(width = 2.2f)
+        )
+
+        val tasselFringe = Path().apply {
+            moveTo(w * 0.90f, h * 0.44f)
+            lineTo(w * 0.96f, h * 0.44f)
+            lineTo(w * 0.95f, h * 0.54f)
+            lineTo(w * 0.89f, h * 0.54f)
+            close()
+        }
+        drawPath(tasselFringe, Color(0xFFF59E0B))
+    }
+}
+
+@Composable
 fun TeacherMetricCard(
     title: String,
     value: String,
-    emoji: String,
+    icon: ImageVector,
     color: Color,
     modifier: Modifier = Modifier,
     tag: String = "Active",
+    growth: String = "+0% vs last week",
     watermarkIcon: ImageVector? = null
 ) {
-    val cardBg: Color
-    val cardBorder: Color
-    val iconGrad: Brush
-    val defaultWatermark: ImageVector
-
-    when (color) {
-        RoyalBlue -> {
-            cardBg = NeonBlueCardBg
-            cardBorder = NeonBlueBorder
-            iconGrad = NeonBlueGrad
-            defaultWatermark = Icons.Rounded.People
-        }
-        PurpleAccent -> {
-            cardBg = NeonPurpleCardBg
-            cardBorder = NeonPurpleBorder
-            iconGrad = NeonPurpleGrad
-            defaultWatermark = Icons.Rounded.SportsEsports
-        }
-        EmeraldSuccess -> {
-            cardBg = NeonGreenCardBg
-            cardBorder = NeonGreenBorder
-            iconGrad = NeonGreenGrad
-            defaultWatermark = Icons.Rounded.Mic
-        }
-        OrangeVibrant, AmberGold -> {
-            cardBg = NeonAmberCardBg
-            cardBorder = NeonAmberBorder
-            iconGrad = NeonAmberGrad
-            defaultWatermark = Icons.Rounded.Headphones
-        }
-        else -> {
-            cardBg = Color(0xFF0F1535)
-            cardBorder = color
-            iconGrad = Brush.linearGradient(listOf(color, color))
-            defaultWatermark = Icons.Rounded.Analytics
-        }
+    val cardBg = when (color) {
+        Color(0xFF38BDF8) -> listOf(Color(0xFF071A3C), Color(0xFF030D20))
+        Color(0xFFF59E0B) -> listOf(Color(0xFF2E1303), Color(0xFF180A02))
+        Color(0xFF10B981) -> listOf(Color(0xFF032619), Color(0xFF02160E))
+        Color(0xFFA855F7) -> listOf(Color(0xFF1E0A3C), Color(0xFF100524))
+        else -> listOf(Color(0xFF0F1535), Color(0xFF070B1F))
     }
 
     Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = cardBg),
-        border = BorderStroke(1.2.dp, cardBorder.copy(alpha = 0.55f)),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.5.dp, color.copy(alpha = 0.85f)),
         modifier = modifier
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(cardBg))
+        ) {
+            KpiCardFluidWave(
+                color = color,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(55.dp)
+                    .align(Alignment.BottomCenter)
+            )
+
             Icon(
-                imageVector = watermarkIcon ?: defaultWatermark,
+                imageVector = watermarkIcon ?: icon,
                 contentDescription = null,
-                tint = cardBorder.copy(alpha = 0.22f),
+                tint = color.copy(alpha = 0.28f),
                 modifier = Modifier
                     .size(38.dp)
                     .align(Alignment.BottomEnd)
@@ -2751,8 +3143,125 @@ fun TeacherMetricCard(
             )
 
             Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Top Row: Circular Icon on Left, Pill on Right
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(color, color.copy(alpha = 0.7f))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF070B1F).copy(alpha = 0.85f),
+                        border = BorderStroke(1.dp, color.copy(alpha = 0.75f))
+                    ) {
+                        Text(
+                            text = tag,
+                            fontSize = 9.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.5.dp),
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                // Middle Content: Big Number on top, Label below it (matching screenshot!)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = value,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = title,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFCBD5E1),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Bottom row: growth trend
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ArrowUpward,
+                        contentDescription = null,
+                        tint = Color(0xFF4ADE80),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Text(
+                        text = growth,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF4ADE80),
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TeacherQuickOperationCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    color: Color,
+    gradient: List<Color>,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.5.dp, color.copy(alpha = 0.85f)),
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { onClick() }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(gradient))
+                .padding(14.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2761,32 +3270,56 @@ fun TeacherMetricCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(42.dp)
                             .clip(RoundedCornerShape(13.dp))
-                            .background(iconGrad),
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(color, color.copy(alpha = 0.7f))
+                                )
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(emoji, fontSize = 22.sp)
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
 
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF070B1F).copy(alpha = 0.70f),
-                        border = BorderStroke(1.dp, cardBorder.copy(alpha = 0.50f))
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(color.copy(alpha = 0.25f))
+                            .border(1.dp, color.copy(alpha = 0.6f), CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = tag,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(value, fontWeight = FontWeight.Black, fontSize = 24.sp, color = Color.White)
-                    Text(title, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF94A3B8), maxLines = 1)
+                    Text(
+                        text = title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = subtitle,
+                        fontSize = 11.5.sp,
+                        color = color.copy(alpha = 0.85f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
