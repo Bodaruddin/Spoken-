@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -1228,17 +1229,37 @@ fun PronunciationSection(
                             "View All →",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF60A5FA)
+                            color = Color(0xFF60A5FA),
+                            modifier = Modifier
+                                .clickable {
+                                    queryInput = "Entrepreneur"
+                                    viewModel.searchPhonetics("Entrepreneur")
+                                }
+                                .padding(4.dp)
                         )
                     }
 
-                    // Trending Words Capsules
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    // Trending Words Capsules - Horizontally swipable so words NEVER wrap vertically
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("trending_words_lazy_row"),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
                     ) {
-                        val trendingWords = listOf("Comfortable", "Thorough", "Phenomenon", "Entrepreneur")
-                        trendingWords.forEach { word ->
+                        val trendingWords = listOf(
+                            "Comfortable",
+                            "Thorough",
+                            "Phenomenon",
+                            "Entrepreneur",
+                            "Specifically",
+                            "Pronunciation",
+                            "Mischievous",
+                            "Schedule",
+                            "Colleague",
+                            "Worcestershire"
+                        )
+                        items(trendingWords) { word ->
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
                                 color = Color(0xFF4C1D95).copy(alpha = 0.7f),
@@ -1250,11 +1271,13 @@ fun PronunciationSection(
                                     }
                             ) {
                                 Text(
-                                    word,
-                                    fontSize = 11.5.sp,
+                                    text = word,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                                 )
                             }
                         }
@@ -1719,7 +1742,7 @@ fun PronunciationSection(
             }
         }
 
-        // 6. Section Header: "📚 Practice Drills & Accent Coach" with "🎧 6 drills available" badge
+        // 6. Section Header: "📚 Practice Drills & Accent Coach" with single-line badge
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -1734,7 +1757,9 @@ fun PronunciationSection(
                     "Practice Drills & Accent Coach",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 16.sp,
-                    color = Color.White
+                    color = Color.White,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
 
@@ -1744,70 +1769,96 @@ fun PronunciationSection(
                 border = BorderStroke(1.2.dp, Color(0xFF8B5CF6))
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Text("🎧", fontSize = 12.sp)
-                    Column {
-                        Text(
-                            "${drills.size} drills",
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Text(
-                            "available",
-                            fontSize = 9.sp,
-                            color = Color(0xFF94A3B8)
-                        )
-                    }
+                    Text(
+                        "${drills.size} drills available",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
             }
         }
 
-        // 7. Practice Drill Cards (3 Colorful Gradient Cards side by side)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        // 7. Practice Drill Cards - Horizontally Swipable LazyRow for all drills!
+        val drillGradients = listOf(
+            Pair(
+                Brush.verticalGradient(listOf(Color(0xFF0284C7), Color(0xFF0369A1), Color(0xFF075985))),
+                Color(0xFF38BDF8)
+            ),
+            Pair(
+                Brush.verticalGradient(listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9), Color(0xFF581C87))),
+                Color(0xFFC084FC)
+            ),
+            Pair(
+                Brush.verticalGradient(listOf(Color(0xFFF97316), Color(0xFFEA580C), Color(0xFFC2410C))),
+                Color(0xFFFDBA74)
+            ),
+            Pair(
+                Brush.verticalGradient(listOf(Color(0xFF059669), Color(0xFF047857), Color(0xFF065F46))),
+                Color(0xFF34D399)
+            ),
+            Pair(
+                Brush.verticalGradient(listOf(Color(0xFF4F46E5), Color(0xFF4338CA), Color(0xFF3730A3))),
+                Color(0xFF818CF8)
+            ),
+            Pair(
+                Brush.verticalGradient(listOf(Color(0xFFE11D48), Color(0xFFBE123C), Color(0xFF9F1239))),
+                Color(0xFFFB7185)
+            ),
+            Pair(
+                Brush.verticalGradient(listOf(Color(0xFF0891B2), Color(0xFF0E7490), Color(0xFF155E75))),
+                Color(0xFF22D3EE)
+            )
+        )
+
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("practice_drills_lazy_row"),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 2.dp, vertical = 4.dp)
         ) {
-            // Card 1: Comfortable (Vibrant Azure Blue)
-            PhoneticsDrillScreenshotCard(
-                word = "Comfortable",
-                ipa = "/'kʌmftəbl/",
-                focus = "Focus: Silent 'or'",
-                gradient = Brush.verticalGradient(
-                    listOf(Color(0xFF0284C7), Color(0xFF0369A1), Color(0xFF075985))
-                ),
-                borderColor = Color(0xFF38BDF8),
-                modifier = Modifier.weight(1f),
-                onPlay = { viewModel.speakAudio("Comfortable") }
-            )
+            itemsIndexed(drills) { index, drill ->
+                val (grad, border) = drillGradients[index % drillGradients.size]
+                PhoneticsDrillScreenshotCard(
+                    word = drill.wordOrSentence,
+                    ipa = drill.ipaPhonetic,
+                    focus = if (drill.audioFocus.startsWith("Focus:", ignoreCase = true)) drill.audioFocus else "Focus: ${drill.audioFocus}",
+                    difficulty = drill.difficulty,
+                    gradient = grad,
+                    borderColor = border,
+                    modifier = Modifier.width(168.dp),
+                    onPlay = { viewModel.speakAudio(drill.wordOrSentence) },
+                    onClick = {
+                        viewModel.startPronunciationDrill(drill)
+                    }
+                )
+            }
+        }
 
-            // Card 2: Specifically (Radiant Magenta-Purple)
-            PhoneticsDrillScreenshotCard(
-                word = "Specifically",
-                ipa = "/spə'sɪfɪkli/",
-                focus = "Focus: Consonant cluster",
-                gradient = Brush.verticalGradient(
-                    listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9), Color(0xFF581C87))
-                ),
-                borderColor = Color(0xFFC084FC),
-                modifier = Modifier.weight(1f),
-                onPlay = { viewModel.speakAudio("Specifically") }
-            )
-
-            // Card 3: Thought (Vibrant Amber-Orange)
-            PhoneticsDrillScreenshotCard(
-                word = "Thought",
-                ipa = "/θɔːtful/",
-                focus = "Focus: Soft 'th'",
-                gradient = Brush.verticalGradient(
-                    listOf(Color(0xFFF97316), Color(0xFFEA580C), Color(0xFFC2410C))
-                ),
-                borderColor = Color(0xFFFDBA74),
-                modifier = Modifier.weight(1f),
-                onPlay = { viewModel.speakAudio("Thought") }
+        // Active Drill Interactive Practice Card when a drill is selected
+        activeDrill?.let { drill ->
+            ActivePronunciationDrillCard(
+                drill = drill,
+                speechState = speechState,
+                evaluation = evaluation,
+                onClose = { viewModel.closePronunciationDrill() },
+                onPlayNormal = { viewModel.speakAudio(drill.wordOrSentence, slow = false) },
+                onPlaySlow = { viewModel.speakAudio(drill.wordOrSentence, slow = true) },
+                onToggleMic = {
+                    if (speechState is SpeechState.Listening) {
+                        viewModel.stopSpeakingPractice()
+                    } else {
+                        viewModel.startSpeakingPractice()
+                    }
+                }
             )
         }
 
@@ -1816,27 +1867,30 @@ fun PronunciationSection(
 }
 
 /**
- * Phonetics Drill Card matching screenshot design:
+ * Phonetics Drill Card:
  * Rounded card with gradient background, circular speaker in top-right,
  * bold word, IPA pronunciation below, and subtle focus label.
+ * Swipable and clickable to practice.
  */
 @Composable
 fun PhoneticsDrillScreenshotCard(
     word: String,
     ipa: String,
     focus: String,
+    difficulty: String = "",
     gradient: Brush,
     borderColor: Color,
     modifier: Modifier = Modifier,
-    onPlay: () -> Unit
+    onPlay: () -> Unit,
+    onClick: () -> Unit = onPlay
 ) {
     Card(
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.2.dp, borderColor.copy(alpha = 0.7f)),
+        border = BorderStroke(1.2.dp, borderColor.copy(alpha = 0.75f)),
         modifier = modifier
             .clip(RoundedCornerShape(22.dp))
-            .clickable { onPlay() }
+            .clickable { onClick() }
     ) {
         Box(
             modifier = Modifier
@@ -1848,23 +1902,46 @@ fun PhoneticsDrillScreenshotCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Top row with Speaker button
+                // Top row with difficulty badge and circular Speaker button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (difficulty.isNotBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.Black.copy(alpha = 0.28f),
+                            border = BorderStroke(0.6.dp, Color.White.copy(alpha = 0.35f))
+                        ) {
+                            Text(
+                                text = difficulty,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.95f),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    } else {
+                        Spacer(Modifier.width(1.dp))
+                    }
+
                     Surface(
                         shape = CircleShape,
-                        color = Color.Black.copy(alpha = 0.25f),
-                        border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.4f)),
-                        modifier = Modifier.size(30.dp)
+                        color = Color.Black.copy(alpha = 0.28f),
+                        border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.45f)),
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clickable { onPlay() }
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Rounded.VolumeUp,
                                 contentDescription = "Play",
                                 tint = Color.White,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                         }
                     }
@@ -1873,9 +1950,10 @@ fun PhoneticsDrillScreenshotCard(
                 Text(
                     text = word,
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 15.sp,
+                    fontSize = 15.5.sp,
                     color = Color.White,
                     maxLines = 1,
+                    softWrap = false,
                     overflow = TextOverflow.Ellipsis
                 )
 
@@ -1883,15 +1961,347 @@ fun PhoneticsDrillScreenshotCard(
                     text = ipa,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.9f)
+                    color = Color.White.copy(alpha = 0.92f),
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 Text(
                     text = focus,
                     fontSize = 10.5.sp,
-                    color = Color.White.copy(alpha = 0.8f),
-                    lineHeight = 14.sp
+                    color = Color.White.copy(alpha = 0.85f),
+                    lineHeight = 14.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Interactive Active Pronunciation Drill Practice Card:
+ * Shows when user selects any drill to practice pronunciation with microphone & AI feedback.
+ */
+@Composable
+fun ActivePronunciationDrillCard(
+    drill: PronunciationDrill,
+    speechState: SpeechState,
+    evaluation: com.example.data.model.SpeakingEvaluation?,
+    onClose: () -> Unit,
+    onPlayNormal: () -> Unit,
+    onPlaySlow: () -> Unit,
+    onToggleMic: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.8.dp, Color(0xFF38BDF8).copy(alpha = 0.9f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("active_drill_practice_card")
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF0F1E4E).copy(alpha = 0.98f),
+                            Color(0xFF151248).copy(alpha = 0.98f),
+                            Color(0xFF080D2C).copy(alpha = 0.98f)
+                        )
+                    )
+                )
+                .padding(18.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header with badge and close button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF0284C7).copy(alpha = 0.3f),
+                        border = BorderStroke(1.dp, Color(0xFF38BDF8))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text("🎯", fontSize = 12.sp)
+                            Text(
+                                "Accent Practice In Progress",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF38BDF8),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Close Drill",
+                            tint = Color.White.copy(alpha = 0.7f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                // Word & Phonetics Row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            text = drill.wordOrSentence,
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        Text(
+                            text = drill.ipaPhonetic,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFC084FC),
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF312E81).copy(alpha = 0.8f),
+                        border = BorderStroke(1.dp, Color(0xFF818CF8)),
+                        modifier = Modifier.padding(start = 8.dp)
+                    ) {
+                        Text(
+                            text = drill.difficulty,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFC7D2FE),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+
+                // Coach Tip
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF0C2152).copy(alpha = 0.85f),
+                    border = BorderStroke(1.2.dp, Color(0xFF0284C7).copy(alpha = 0.7f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("💡", fontSize = 20.sp)
+                        Column {
+                            Text(
+                                "Focus: ${drill.audioFocus}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF38BDF8),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            if (drill.tips.isNotBlank()) {
+                                Text(
+                                    drill.tips,
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFFCBD5E1),
+                                    lineHeight = 15.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Audio listen row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF1E293B),
+                        border = BorderStroke(1.dp, Color(0xFF7C3AED)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
+                            .clickable { onPlaySlow() }
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text("⏱️", fontSize = 13.sp)
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                "0.7x Slow",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF1E293B),
+                        border = BorderStroke(1.dp, Color(0xFF0284C7)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp)
+                            .clickable { onPlayNormal() }
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Rounded.VolumeUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                "Normal Audio",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
+
+                // Recording Microphone Action
+                val isListening = speechState is SpeechState.Listening
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color.Transparent,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .clickable { onToggleMic() }
+                        .testTag("active_drill_mic_button")
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.horizontalGradient(
+                                    if (isListening) listOf(Color(0xFFDC2626), Color(0xFFEF4444))
+                                    else listOf(Color(0xFF059669), Color(0xFF10B981))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isListening) Icons.Rounded.Stop else Icons.Rounded.Mic,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = when (speechState) {
+                                    is SpeechState.Listening -> "Listening... Tap to Stop"
+                                    is SpeechState.Processing -> "Analyzing Pronunciation..."
+                                    else -> "Record & Test Your Pronunciation"
+                                },
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
+
+                // If evaluated
+                evaluation?.let { eval ->
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF064E3B).copy(alpha = 0.9f),
+                        border = BorderStroke(1.2.dp, Color(0xFF10B981)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Pronunciation Score: ${eval.overallScore}%",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF6EE7B7),
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                                Text(
+                                    "Fluency: ${eval.fluencyScore}%",
+                                    fontSize = 12.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                            if (eval.spokenText.isNotBlank()) {
+                                Text(
+                                    "Heard: \"${eval.spokenText}\"",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFE2E8F0)
+                                )
+                            }
+                            if (eval.feedback.isNotBlank()) {
+                                Text(
+                                    "Coach: ${eval.feedback}",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFFA7F3D0),
+                                    lineHeight = 15.sp
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

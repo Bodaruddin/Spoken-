@@ -32,10 +32,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.data.model.*
 import com.example.ui.ActiveGameType
 import com.example.ui.MainViewModel
@@ -59,56 +70,43 @@ fun GamesHubScreen(
             modifier = modifier
         )
     } else {
-        // Games Catalog Grid
-        Column(
+        // Redesigned English Learning Arcade Hub exactly matching screenshot
+        Box(
             modifier = modifier
                 .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(listOf(AmberGold, OrangeVibrant))
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("🎮", fontSize = 28.sp)
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("English Learning Arcade", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                        Text(
-                            "Interactive games crafted by teachers & academy curriculum to accelerate spoken mastery!",
-                            fontSize = 12.sp,
-                            color = MutedGray
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF0F0624),
+                            Color(0xFF160935),
+                            Color(0xFF0C041E),
+                            Color(0xFF050110)
                         )
-                    }
-                }
-            }
+                    )
+                )
+        ) {
+            // Ambient neon wave lines in background
+            ArcadeBackgroundWaves()
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
+                verticalArrangement = Arrangement.spacedBy(13.dp),
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 28.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .testTag("arcade_games_grid")
             ) {
-                items(ActiveGameType.values()) { game ->
-                    GameCard(
-                        game = game,
-                        onClick = { viewModel.launchGame(game) }
+                // 1. Hero Banner Card (Spanning 2 columns)
+                item(span = { GridItemSpan(2) }) {
+                    ArcadeHeroCard()
+                }
+
+                // 2. The 8 Arcade Game Cards matching screenshot in exact order
+                items(arcadeGameCatalog) { config ->
+                    ArcadeGameCard(
+                        config = config,
+                        onClick = { viewModel.launchGame(config.gameType) }
                     )
                 }
             }
@@ -116,59 +114,750 @@ fun GamesHubScreen(
     }
 }
 
+/**
+ * Top Hero Banner Card matching screenshot:
+ * 🌿 🎮 🌿 English Learning Arcade, stack of books, golden trophy, and controller.
+ */
 @Composable
-fun GameCard(
-    game: ActiveGameType,
-    onClick: () -> Unit
-) {
+fun ArcadeHeroCard(modifier: Modifier = Modifier) {
     Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(
+            1.8.dp,
+            Brush.linearGradient(
+                listOf(
+                    Color(0xFF8B5CF6),
+                    Color(0xFF06B6D4),
+                    Color(0xFFD946EF),
+                    Color(0xFF8B5CF6)
+                )
+            )
+        ),
+        modifier = modifier
             .fillMaxWidth()
-            .height(138.dp)
-            .clickable { onClick() }
-            .testTag("game_card_${game.name.lowercase()}")
+            .testTag("arcade_hero_card")
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF1B144E).copy(alpha = 0.95f),
+                            Color(0xFF110B38).copy(alpha = 0.98f),
+                            Color(0xFF090622).copy(alpha = 0.98f)
+                        )
+                    )
+                )
+                .padding(16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(game.emoji, fontSize = 28.sp)
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFEFF6FF)
+                // Left Column: Title, Subtitle, and Pill Badge
+                Column(
+                    modifier = Modifier.weight(1.35f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Title row with laurel leaves & glowing gamepad
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text("🌿", fontSize = 16.sp)
+                        Text("🎮", fontSize = 26.sp)
+                        Column {
+                            Text(
+                                text = "English Learning",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 17.5.sp,
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "Arcade",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 17.5.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                                Text("🌿", fontSize = 16.sp)
+                            }
+                        }
+                    }
+
+                    // Subtitle
                     Text(
-                        "+40 XP",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = RoyalBlue,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        text = "Interactive games created by teachers & academy curriculum to accelerate spoken mastery!",
+                        fontSize = 11.sp,
+                        color = Color(0xFFCBD5E1),
+                        lineHeight = 15.sp,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
+
+                    // Pill Badge: [ 🎮 Learn • Play • Improve • Earn XP ]
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF241A5C).copy(alpha = 0.9f),
+                        border = BorderStroke(1.dp, Color(0xFF7C3AED).copy(alpha = 0.85f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text("🎮", fontSize = 12.sp)
+                            Text(
+                                text = "Learn • Play • Improve • Earn XP",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFDDD6FE),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
+
+                // Right: 3D Illustration Graphic of Golden Trophy, stack of books, and gamepad
+                Box(
+                    modifier = Modifier
+                        .size(126.dp)
+                        .clip(RoundedCornerShape(18.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.img_arcade_trophy),
+                        contentDescription = "Arcade Trophy & Gamepad",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }
+        }
+    }
+}
 
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    game.title,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface
+/**
+ * Ambient glowing wave streaks across the background (matches screenshot aesthetic).
+ */
+@Composable
+fun ArcadeBackgroundWaves(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.fillMaxSize()) {
+        val width = size.width
+        val height = size.height
+
+        // Top-left glowing magenta/violet wave
+        val topWave = Path().apply {
+            moveTo(-50f, height * 0.08f)
+            cubicTo(
+                width * 0.25f, height * 0.02f,
+                width * 0.6f, height * 0.04f,
+                width * 0.95f, -30f
+            )
+        }
+        drawPath(
+            path = topWave,
+            color = Color(0xFFC084FC).copy(alpha = 0.3f),
+            style = Stroke(width = 6.dp.toPx())
+        )
+        drawPath(
+            path = topWave,
+            color = Color(0xFF9333EA).copy(alpha = 0.15f),
+            style = Stroke(width = 16.dp.toPx())
+        )
+
+        // Bottom glowing neon streak
+        val bottomWave = Path().apply {
+            moveTo(width * 0.1f, height)
+            cubicTo(
+                width * 0.45f, height * 0.88f,
+                width * 0.75f, height * 0.91f,
+                width + 60f, height * 0.83f
+            )
+        }
+        drawPath(
+            path = bottomWave,
+            color = Color(0xFF8B5CF6).copy(alpha = 0.35f),
+            style = Stroke(width = 7.dp.toPx())
+        )
+        drawPath(
+            path = bottomWave,
+            color = Color(0xFFD946EF).copy(alpha = 0.15f),
+            style = Stroke(width = 18.dp.toPx())
+        )
+    }
+}
+
+/**
+ * Data specification for each Arcade Game Card matching exact screenshot colors
+ */
+data class ArcadeGameCardConfig(
+    val gameType: ActiveGameType,
+    val title: String,
+    val desc: String,
+    val borderColor: Color,
+    val accentColor: Color,
+    val glowColor: Color,
+    val bgGradients: List<Color>,
+    val pillBgColor: Color,
+    val iconType: ArcadeIconType
+)
+
+enum class ArcadeIconType {
+    PUZZLE_MATCH,
+    LETTER_BLOCKS,
+    NOTEPAD_PENCIL,
+    HEADPHONES_SOUND,
+    SWORDS_SHIELD,
+    PICTURE_FRAME,
+    LIGHTNING_BOLT,
+    STOPWATCH_TIMER
+}
+
+/**
+ * Catalog list representing all 8 cards with exact radiant colors from the screenshot.
+ */
+val arcadeGameCatalog = listOf(
+    // Row 1 Left: Word Match (Electric Cyan-Blue)
+    ArcadeGameCardConfig(
+        gameType = ActiveGameType.WORD_MATCH,
+        title = "Word Match",
+        desc = "Match English words with correct definitions",
+        borderColor = Color(0xFF0084FF),
+        accentColor = Color(0xFF0070F3),
+        glowColor = Color(0xFF00D2FF),
+        bgGradients = listOf(
+            Color(0xFF003896),
+            Color(0xFF002266),
+            Color(0xFF00123D)
+        ),
+        pillBgColor = Color(0xFF002266).copy(alpha = 0.85f),
+        iconType = ArcadeIconType.PUZZLE_MATCH
+    ),
+    // Row 1 Right: Missing Letters (Luminous Violet-Purple)
+    ArcadeGameCardConfig(
+        gameType = ActiveGameType.MISSING_LETTERS,
+        title = "Missing Letters",
+        desc = "Complete the word spelling correctly",
+        borderColor = Color(0xFFA855F7),
+        accentColor = Color(0xFF9333EA),
+        glowColor = Color(0xFFD946EF),
+        bgGradients = listOf(
+            Color(0xFF4A1A94),
+            Color(0xFF2E136E),
+            Color(0xFF1E0C4A)
+        ),
+        pillBgColor = Color(0xFF381072).copy(alpha = 0.85f),
+        iconType = ArcadeIconType.LETTER_BLOCKS
+    ),
+    // Row 2 Left: Sentence Builder (Rich Amber-Bronze Orange)
+    ArcadeGameCardConfig(
+        gameType = ActiveGameType.SENTENCE_BUILDER,
+        title = "Sentence Builder",
+        desc = "Arrange words into grammatical syntax",
+        borderColor = Color(0xFFF97316),
+        accentColor = Color(0xFFEA580C),
+        glowColor = Color(0xFFFB923C),
+        bgGradients = listOf(
+            Color(0xFF633223),
+            Color(0xFF421E14),
+            Color(0xFF280F08)
+        ),
+        pillBgColor = Color(0xFF4A1D0B).copy(alpha = 0.85f),
+        iconType = ArcadeIconType.NOTEPAD_PENCIL
+    ),
+    // Row 2 Right: Listen & Choose (Deep Petrol Ocean Teal)
+    ArcadeGameCardConfig(
+        gameType = ActiveGameType.LISTEN_CHOOSE,
+        title = "Listen & Choose",
+        desc = "Listen to audio speech & select answer",
+        borderColor = Color(0xFF06B6D4),
+        accentColor = Color(0xFF0D9488),
+        glowColor = Color(0xFF22D3EE),
+        bgGradients = listOf(
+            Color(0xFF014665),
+            Color(0xFF002F44),
+            Color(0xFF001A29)
+        ),
+        pillBgColor = Color(0xFF003046).copy(alpha = 0.85f),
+        iconType = ArcadeIconType.HEADPHONES_SOUND
+    ),
+    // Row 3 Left: Pronunciation Battle (Hot Neon Magenta-Pink)
+    ArcadeGameCardConfig(
+        gameType = ActiveGameType.PRONUNCIATION_BATTLE,
+        title = "Pronunciation Battle",
+        desc = "Speak with high phoneme accuracy",
+        borderColor = Color(0xFFEC4899),
+        accentColor = Color(0xFFD946EF),
+        glowColor = Color(0xFFF43F5E),
+        bgGradients = listOf(
+            Color(0xFF5A155D),
+            Color(0xFF3D0E44),
+            Color(0xFF260528)
+        ),
+        pillBgColor = Color(0xFF450D47).copy(alpha = 0.85f),
+        iconType = ArcadeIconType.SWORDS_SHIELD
+    ),
+    // Row 3 Right: Picture Vocabulary (Electric Sapphire Royal Blue)
+    ArcadeGameCardConfig(
+        gameType = ActiveGameType.PICTURE_VOCAB,
+        title = "Picture Vocabulary",
+        desc = "Identify everyday objects & actions",
+        borderColor = Color(0xFF0084FF),
+        accentColor = Color(0xFF2563EB),
+        glowColor = Color(0xFF38BDF8),
+        bgGradients = listOf(
+            Color(0xFF00348A),
+            Color(0xFF002268),
+            Color(0xFF001242)
+        ),
+        pillBgColor = Color(0xFF002568).copy(alpha = 0.85f),
+        iconType = ArcadeIconType.PICTURE_FRAME
+    ),
+    // Row 4 Left: Grammar Challenge (Electric Violet-Indigo)
+    ArcadeGameCardConfig(
+        gameType = ActiveGameType.GRAMMAR_CHALLENGE,
+        title = "Grammar Challenge",
+        desc = "Rapid-fire tenses and prepositions quiz",
+        borderColor = Color(0xFF8B5CF6),
+        accentColor = Color(0xFF7C3AED),
+        glowColor = Color(0xFFA855F7),
+        bgGradients = listOf(
+            Color(0xFF320D79),
+            Color(0xFF22085A),
+            Color(0xFF13043D)
+        ),
+        pillBgColor = Color(0xFF260960).copy(alpha = 0.85f),
+        iconType = ArcadeIconType.LIGHTNING_BOLT
+    ),
+    // Row 4 Right: Fast Vocabulary (Luminous Emerald-Mint Green)
+    ArcadeGameCardConfig(
+        gameType = ActiveGameType.FAST_VOCABULARY,
+        title = "Fast Vocabulary",
+        desc = "30-second rapid word recognition blitz",
+        borderColor = Color(0xFF10B981),
+        accentColor = Color(0xFF059669),
+        glowColor = Color(0xFF34D399),
+        bgGradients = listOf(
+            Color(0xFF004430),
+            Color(0xFF002E20),
+            Color(0xFF001A12)
+        ),
+        pillBgColor = Color(0xFF003324).copy(alpha = 0.85f),
+        iconType = ArcadeIconType.STOPWATCH_TIMER
+    )
+)
+
+/**
+ * Individual Arcade Game Card:
+ * Features the radiant gradient fill, glowing border, bottom fluid neon wave, and action button.
+ */
+@Composable
+fun ArcadeGameCard(
+    config: ArcadeGameCardConfig,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.8.dp, config.borderColor),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(168.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .clickable { onClick() }
+            .testTag("game_card_${config.gameType.name.lowercase()}")
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = config.bgGradients
+                    )
                 )
+                .padding(13.dp)
+        ) {
+            // Luminous bottom-right fluid neon wave matching screenshot
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = size.width
+                val h = size.height
+
+                // Radial corner glow
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            config.glowColor.copy(alpha = 0.55f),
+                            config.glowColor.copy(alpha = 0.22f),
+                            Color.Transparent
+                        ),
+                        center = Offset(w * 0.95f, h * 0.95f),
+                        radius = w * 0.70f
+                    ),
+                    radius = w * 0.70f,
+                    center = Offset(w * 0.95f, h * 0.95f)
+                )
+
+                // Flowing bottom-right fluid wave shape
+                val wave = Path().apply {
+                    moveTo(w * 0.30f, h)
+                    cubicTo(
+                        w * 0.55f, h * 0.82f,
+                        w * 0.80f, h * 0.86f,
+                        w, h * 0.70f
+                    )
+                    lineTo(w, h)
+                    close()
+                }
+
+                drawPath(
+                    path = wave,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            config.glowColor.copy(alpha = 0.45f),
+                            config.accentColor.copy(alpha = 0.75f)
+                        ),
+                        startY = h * 0.72f,
+                        endY = h
+                    )
+                )
+            }
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Top Row: Custom Icon + Star XP Pill
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ArcadeGameIcon(config.iconType)
+
+                    // +40 XP Pill matching card theme
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = config.pillBgColor,
+                        border = BorderStroke(1.dp, config.borderColor.copy(alpha = 0.75f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            Text("⭐", fontSize = 10.sp)
+                            Text(
+                                "+40 XP",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
+
+                // Middle: Title & Description
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = config.title,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 15.sp,
+                        color = Color.White,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Text(
+                        text = config.desc,
+                        fontSize = 11.sp,
+                        color = Color(0xFFCBD5E1),
+                        lineHeight = 14.5.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Bottom Row: Right-aligned circular action button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = config.accentColor,
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                                contentDescription = "Play",
+                                tint = Color.White,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Custom graphical icons for each of the 8 arcade game cards matching screenshot graphics.
+ */
+@Composable
+fun ArcadeGameIcon(type: ArcadeIconType, modifier: Modifier = Modifier) {
+    when (type) {
+        ArcadeIconType.PUZZLE_MATCH -> {
+            // Two interlocking puzzle pieces (Orange & Cyan)
+            Box(modifier = modifier.size(38.dp)) {
+                Surface(
+                    shape = RoundedCornerShape(topStart = 7.dp, bottomStart = 7.dp, bottomEnd = 7.dp),
+                    color = Color(0xFFF59E0B),
+                    border = BorderStroke(0.6.dp, Color(0xFFFBBF24)),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .align(Alignment.BottomStart)
+                ) {}
+                Surface(
+                    shape = RoundedCornerShape(topEnd = 7.dp, topStart = 7.dp, bottomEnd = 7.dp),
+                    color = Color(0xFF0284C7),
+                    border = BorderStroke(0.6.dp, Color(0xFF38BDF8)),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .align(Alignment.TopEnd)
+                ) {}
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFF59E0B))
+                        .align(Alignment.Center)
+                )
+            }
+        }
+
+        ArcadeIconType.LETTER_BLOCKS -> {
+            // 3 Colorful Letter Cubes: A (Magenta), B (Yellow), C (Cyan)
+            Box(modifier = modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                Surface(
+                    shape = RoundedCornerShape(5.dp),
+                    color = Color(0xFFD946EF),
+                    border = BorderStroke(0.8.dp, Color(0xFFF0ABFC)),
+                    modifier = Modifier
+                        .size(17.dp)
+                        .align(Alignment.TopCenter)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("A", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(5.dp),
+                    color = Color(0xFFFBBF24),
+                    border = BorderStroke(0.8.dp, Color(0xFFFDE68A)),
+                    modifier = Modifier
+                        .size(17.dp)
+                        .align(Alignment.BottomStart)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("B", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(5.dp),
+                    color = Color(0xFF06B6D4),
+                    border = BorderStroke(0.8.dp, Color(0xFF67E8F9)),
+                    modifier = Modifier
+                        .size(17.dp)
+                        .align(Alignment.BottomEnd)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("C", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    }
+                }
+            }
+        }
+
+        ArcadeIconType.NOTEPAD_PENCIL -> {
+            // Notepad sheet with angled pencil
+            Box(modifier = modifier.size(38.dp)) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0xFFF8FAFC),
+                    border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                    modifier = Modifier
+                        .size(28.dp)
+                        .align(Alignment.CenterStart)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            repeat(4) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(3.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF64748B))
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .background(Color(0xFF94A3B8).copy(alpha = 0.5f))
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.7f)
+                                .height(2.dp)
+                                .background(Color(0xFF94A3B8).copy(alpha = 0.5f))
+                        )
+                    }
+                }
                 Text(
-                    game.desc,
-                    fontSize = 11.sp,
-                    color = MutedGray,
-                    maxLines = 2
+                    "✏️",
+                    fontSize = 18.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 2.dp, y = (-2).dp)
+                )
+            }
+        }
+
+        ArcadeIconType.HEADPHONES_SOUND -> {
+            // Purple/Cyan headphones with central sound waves
+            Box(modifier = modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Rounded.Headphones,
+                    contentDescription = null,
+                    tint = Color(0xFFC084FC),
+                    modifier = Modifier.size(34.dp)
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.width(2.dp).height(8.dp).background(Color(0xFF38BDF8), RoundedCornerShape(1.dp)))
+                    Box(modifier = Modifier.width(2.dp).height(14.dp).background(Color(0xFF67E8F9), RoundedCornerShape(1.dp)))
+                    Box(modifier = Modifier.width(2.dp).height(9.dp).background(Color(0xFF38BDF8), RoundedCornerShape(1.dp)))
+                }
+            }
+        }
+
+        ArcadeIconType.SWORDS_SHIELD -> {
+            // Crossed swords with golden crest shield
+            Box(modifier = modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                Text("⚔️", fontSize = 28.sp)
+                Surface(
+                    shape = RoundedCornerShape(5.dp),
+                    color = Color(0xFFF59E0B),
+                    border = BorderStroke(0.8.dp, Color(0xFFFDE68A)),
+                    modifier = Modifier
+                        .size(16.dp)
+                        .offset(x = 6.dp, y = 4.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("🛡️", fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        ArcadeIconType.PICTURE_FRAME -> {
+            // Landscape picture frame (sky, sun, green hill)
+            Surface(
+                shape = RoundedCornerShape(9.dp),
+                border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+                modifier = modifier.size(34.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color(0xFF0284C7), Color(0xFF38BDF8))
+                            )
+                        )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFBBF24))
+                            .align(Alignment.TopEnd)
+                            .offset(x = (-4).dp, y = 4.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(14.dp)
+                            .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 6.dp))
+                            .background(Color(0xFF10B981))
+                            .align(Alignment.BottomCenter)
+                    )
+                }
+            }
+        }
+
+        ArcadeIconType.LIGHTNING_BOLT -> {
+            // Glowing yellow lightning bolt
+            Box(modifier = modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Rounded.ElectricBolt,
+                    contentDescription = null,
+                    tint = Color(0xFFFACC15),
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        }
+
+        ArcadeIconType.STOPWATCH_TIMER -> {
+            // Cyan Stopwatch with top button & ticking hands
+            Box(modifier = modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFF042F2C),
+                    border = BorderStroke(2.dp, Color(0xFF2DD4BF)),
+                    modifier = Modifier.size(30.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.Schedule,
+                            contentDescription = null,
+                            tint = Color(0xFF5EEAD4),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .width(8.dp)
+                        .height(3.dp)
+                        .background(Color(0xFF2DD4BF), RoundedCornerShape(1.dp))
+                        .align(Alignment.TopCenter)
+                        .offset(y = 1.dp)
                 )
             }
         }

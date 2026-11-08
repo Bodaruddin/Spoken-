@@ -211,10 +211,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         listOf(
             PronunciationDrill("pd1", "Comfortable", "/ˈkʌmftəbl/", "Silent 'or'", "Medium", "Native speakers drop the middle syllables: say 'KUMF-tuh-bl'."),
             PronunciationDrill("pd2", "Specifically", "/spəˈsɪfɪkli/", "Consonant cluster", "Hard", "Start with a crisp 'spuh', stress 'SIF', end quickly with 'ik-lee'."),
-            PronunciationDrill("pd3", "Thoughtful", "/ˈθɔːtfəl/", "Soft 'th' sound", "Medium", "Place tongue gently between teeth with breath for the 'th' sound."),
-            PronunciationDrill("pd4", "World", "/wɜːld/", "r + l blend", "Hard", "Curl your tongue slightly for 'er', then glide smoothly to 'ld'."),
+            PronunciationDrill("pd3", "Thoughtful", "/θɔːtful/", "Soft 'th' sound", "Medium", "Place tongue gently between teeth with breath for the 'th' sound."),
+            PronunciationDrill("pd4", "Phenomenon", "/fəˈnɒmɪnən/", "Vowel reduction", "Hard", "Stress the second syllable: 'fuh-NAH-muh-non'."),
             PronunciationDrill("pd5", "Entrepreneur", "/ˌɒntrəprəˈnɜːr/", "Stress placement", "Hard", "Stress the final syllable: 'on-truh-pruh-NUR'."),
-            PronunciationDrill("pd6", "Schedule", "/ˈskedʒuːl/", "Soft 'dge'", "Easy", "In American English, it starts with 'sked' like 'skeleton'.")
+            PronunciationDrill("pd6", "World", "/wɜːld/", "r + l blend", "Hard", "Curl your tongue slightly for 'er', then glide smoothly to 'ld'."),
+            PronunciationDrill("pd7", "Schedule", "/ˈskedʒuːl/", "Soft 'dge'", "Easy", "In American English, it starts with 'sked' like 'skeleton'.")
         )
     )
     val pronunciationDrills: StateFlow<List<PronunciationDrill>> = _pronunciationDrills.asStateFlow()
