@@ -1,5 +1,8 @@
 package com.example.ui.screens.common
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -22,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,6 +71,7 @@ fun SpeakingAndPhoneticsManagement(
     var roleplayToDelete by remember { mutableStateOf<RoleplayScenario?>(null) }
 
     var showCreateVocabDialog by remember { mutableStateOf(false) }
+    var showImportExcelDialog by remember { mutableStateOf(false) }
     var vocabToDelete by remember { mutableStateOf<VocabularyWord?>(null) }
 
     val prompts by viewModel.speakingPrompts.collectAsState()
@@ -293,6 +298,7 @@ fun SpeakingAndPhoneticsManagement(
                 TeacherVocabularyManagementList(
                     vocabularyWords = vocabularyWords,
                     onAddNew = { showCreateVocabDialog = true },
+                    onOpenExcelImport = { showImportExcelDialog = true },
                     onDelete = { vocabToDelete = it },
                     onSpeakAudio = { word, slow -> viewModel.speakAudio(word, slow) }
                 )
@@ -314,6 +320,10 @@ fun SpeakingAndPhoneticsManagement(
     if (showCreateVocabDialog) {
         CreateTeacherVocabularyWordDialog(
             onDismiss = { showCreateVocabDialog = false },
+            onOpenExcelImport = {
+                showCreateVocabDialog = false
+                showImportExcelDialog = true
+            },
             onCreate = { word, assamese, transliteration, ipa, syllables, pos, cat, tip, ex, meaning ->
                 viewModel.addTeacherVocabularyWord(
                     word = word,
@@ -329,6 +339,18 @@ fun SpeakingAndPhoneticsManagement(
                 )
                 showCreateVocabDialog = false
                 toastMessage = "Added '$word' ($assamese) to English-Assamese dictionary!"
+            }
+        )
+    }
+
+    // Import English to Assamese Words Excel / CSV Dialog
+    if (showImportExcelDialog) {
+        ImportAssameseWordsExcelDialog(
+            onDismiss = { showImportExcelDialog = false },
+            onImportWords = { parsedRows ->
+                val count = viewModel.batchImportVocabularyWords(parsedRows)
+                showImportExcelDialog = false
+                toastMessage = "Successfully imported $count words into English-Assamese dictionary!"
             }
         )
     }
@@ -1498,6 +1520,7 @@ fun CreateRoleplayScenarioDialog(
 fun TeacherVocabularyManagementList(
     vocabularyWords: List<VocabularyWord>,
     onAddNew: () -> Unit,
+    onOpenExcelImport: () -> Unit = {},
     onDelete: (VocabularyWord) -> Unit,
     onSpeakAudio: (String, Boolean) -> Unit,
     modifier: Modifier = Modifier
@@ -1579,26 +1602,54 @@ fun TeacherVocabularyManagementList(
 
                         Spacer(Modifier.width(8.dp))
 
-                        Button(
-                            onClick = onAddNew,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = AmberGold),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                            modifier = Modifier.testTag("teacher_add_word_btn")
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            OutlinedButton(
+                                onClick = onOpenExcelImport,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = EmeraldSuccess),
+                                border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.6f)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                                modifier = Modifier.testTag("teacher_import_excel_btn")
                             ) {
-                                Icon(Icons.Filled.Add, contentDescription = null, tint = Color.Black, modifier = Modifier.size(15.dp))
-                                Text(
-                                    text = "Add Word",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.Black,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text("📊", fontSize = 13.sp)
+                                    Text(
+                                        text = "Import Excel",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+
+                            Button(
+                                onClick = onAddNew,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = AmberGold),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                                modifier = Modifier.testTag("teacher_add_word_btn")
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Filled.Add, contentDescription = null, tint = Color.Black, modifier = Modifier.size(15.dp))
+                                    Text(
+                                        text = "Add Word",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.Black,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             }
                         }
                     }
@@ -1831,6 +1882,7 @@ fun TeacherVocabularyManagementList(
 @Composable
 fun CreateTeacherVocabularyWordDialog(
     onDismiss: () -> Unit,
+    onOpenExcelImport: (() -> Unit)? = null,
     onCreate: (
         word: String,
         assameseMeaning: String,
@@ -1873,6 +1925,62 @@ fun CreateTeacherVocabularyWordDialog(
                     .padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Quick Excel / CSV Sheet Import Banner Option
+                if (onOpenExcelImport != null) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = EmeraldSuccess.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.45f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenExcelImport() }
+                            .testTag("dialog_open_excel_import_banner")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = EmeraldSuccess,
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text("📊", fontSize = 16.sp)
+                                    }
+                                }
+                                Column {
+                                    Text(
+                                        text = "Import from Excel / CSV Sheet",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = EmeraldSuccess
+                                    )
+                                    Text(
+                                        text = "Bulk upload English-to-Assamese words table (.xlsx / .csv)",
+                                        fontSize = 10.5.sp,
+                                        color = MutedGray,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                tint = EmeraldSuccess,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+
                 // English Word + Auto-detect button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -2045,6 +2153,431 @@ fun CreateTeacherVocabularyWordDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+// -------------------------------------------------------------
+// IMPORT ENGLISH TO ASSAMESE WORDS EXCEL / CSV DIALOG
+// -------------------------------------------------------------
+@Composable
+fun ImportAssameseWordsExcelDialog(
+    onDismiss: () -> Unit,
+    onImportWords: (List<com.example.util.ParsedVocabRow>) -> Unit
+) {
+    val context = LocalContext.current
+    var selectedTab by remember { mutableStateOf(0) } // 0 = File Upload (.xlsx / .csv), 1 = Paste Spreadsheet Rows
+    var selectedFileName by remember { mutableStateOf<String?>(null) }
+    var rawInputText by remember { mutableStateOf("") }
+    var parsedWords by remember { mutableStateOf<List<com.example.util.ParsedVocabRow>>(emptyList()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isParsing by remember { mutableStateOf(false) }
+
+    // Launcher for Android Document Picker (.xlsx and .csv files)
+    val documentPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                isParsing = true
+                errorMessage = null
+                // Query display name
+                var name: String? = null
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIdx != -1 && cursor.moveToFirst()) {
+                        name = cursor.getString(nameIdx)
+                    }
+                }
+                val fileName = name ?: uri.lastPathSegment ?: "spreadsheet.xlsx"
+                selectedFileName = fileName
+
+                val rows = com.example.util.ExcelWordSheetParser.parseFromUri(context, uri, fileName)
+                if (rows.isEmpty()) {
+                    errorMessage = "No valid English words found in '$fileName'. Please check column headers."
+                    parsedWords = emptyList()
+                } else {
+                    parsedWords = rows
+                    errorMessage = null
+                }
+            } catch (e: Exception) {
+                errorMessage = "Failed to parse file: ${e.localizedMessage ?: "Unknown error"}"
+            } finally {
+                isParsing = false
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("import_assamese_excel_dialog"),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(EmeraldSuccess),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("📊", fontSize = 18.sp)
+                    }
+                    Column {
+                        Text(
+                            text = "Import Excel Sheet",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "English to Assamese Vocabulary",
+                            fontSize = 11.sp,
+                            color = EmeraldSuccess,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close", modifier = Modifier.size(18.dp))
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Tab Selection: Upload File vs Paste Rows
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    contentColor = EmeraldSuccess,
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp))
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("📁 File (.xlsx / .csv)", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("📋 Paste Rows", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    )
+                }
+
+                if (selectedTab == 0) {
+                    // Option 1: File Picker Card
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                documentPickerLauncher.launch(
+                                    arrayOf(
+                                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                        "application/vnd.ms-excel",
+                                        "text/csv",
+                                        "text/comma-separated-values",
+                                        "text/plain",
+                                        "*/*"
+                                    )
+                                )
+                            }
+                            .testTag("select_excel_file_picker_btn")
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(EmeraldSuccess.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.UploadFile,
+                                    contentDescription = null,
+                                    tint = EmeraldSuccess,
+                                    modifier = Modifier.size(26.dp)
+                                )
+                            }
+                            Text(
+                                text = selectedFileName ?: "Tap to select .xlsx or .csv file",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = if (selectedFileName != null) EmeraldSuccess else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "Supports Excel sheets with English Word & Assamese Meaning columns",
+                                fontSize = 10.5.sp,
+                                color = MutedGray
+                            )
+                        }
+                    }
+
+                    // Quick Sample Template Loader Button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilledTonalButton(
+                            onClick = {
+                                val sampleCsv = com.example.util.ExcelWordSheetParser.getSampleExcelTemplateCsv()
+                                parsedWords = com.example.util.ExcelWordSheetParser.parseRawText(sampleCsv)
+                                selectedFileName = "Sample_Assamese_Vocab.xlsx"
+                                errorMessage = null
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            modifier = Modifier.testTag("load_sample_excel_template_btn")
+                        ) {
+                            Text("✨ Load Sample Excel Words", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Text(
+                            text = "Auto-fills IPA & coaching tips",
+                            fontSize = 10.sp,
+                            color = MutedGray
+                        )
+                    }
+                } else {
+                    // Option 2: Paste Rows Text Field
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Paste spreadsheet rows (CSV or Tab-separated):",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MutedGray
+                        )
+                        OutlinedTextField(
+                            value = rawInputText,
+                            onValueChange = {
+                                rawInputText = it
+                                if (it.isNotBlank()) {
+                                    val rows = com.example.util.ExcelWordSheetParser.parseRawText(it)
+                                    parsedWords = rows
+                                    if (rows.isEmpty()) {
+                                        errorMessage = "Could not parse rows. Use: Word, Assamese Meaning"
+                                    } else {
+                                        errorMessage = null
+                                    }
+                                } else {
+                                    parsedWords = emptyList()
+                                }
+                            },
+                            placeholder = {
+                                Text(
+                                    "Word, অসমীয়া অৰ্থ, Transliteration, IPA\nConfidence, আত্মবিশ্বাস, Aatmabixwaas, /ˈkɒnfɪdəns/\nOpportunity, সুযোগ, Xujog, /ˌɒpəˈtjuːnɪti/",
+                                    fontSize = 11.sp
+                                )
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            minLines = 4,
+                            maxLines = 6,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("paste_excel_rows_input")
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    rawInputText = com.example.util.ExcelWordSheetParser.getSampleExcelTemplateCsv()
+                                    parsedWords = com.example.util.ExcelWordSheetParser.parseRawText(rawInputText)
+                                    errorMessage = null
+                                }
+                            ) {
+                                Text("Paste Sample Template", fontSize = 11.sp, color = RoyalBlue)
+                            }
+
+                            if (rawInputText.isNotBlank()) {
+                                TextButton(onClick = { rawInputText = ""; parsedWords = emptyList() }) {
+                                    Text("Clear", fontSize = 11.sp, color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Error Message if any
+                errorMessage?.let { err ->
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = err,
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
+                }
+
+                // Parsed Preview List
+                if (parsedWords.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Preview Words (${parsedWords.size})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.5.sp,
+                                color = EmeraldSuccess
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = EmeraldSuccess.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = "Ready to Import",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EmeraldSuccess,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 180.dp)
+                        ) {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                items(parsedWords) { row ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = row.englishWord,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp,
+                                                    color = RoyalBlue
+                                                )
+                                                if (row.ipa.isNotBlank()) {
+                                                    Text(
+                                                        text = row.ipa,
+                                                        fontSize = 10.sp,
+                                                        color = PurpleAccent
+                                                    )
+                                                }
+                                            }
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = row.assameseMeaning,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AmberGold
+                                                )
+                                                if (row.assameseTransliteration.isNotBlank()) {
+                                                    Text(
+                                                        text = "(${row.assameseTransliteration})",
+                                                        fontSize = 10.sp,
+                                                        color = MutedGray
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = RoyalBlue.copy(alpha = 0.1f)
+                                        ) {
+                                            Text(
+                                                text = row.category,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = RoyalBlue,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (parsedWords.isNotEmpty()) {
+                        onImportWords(parsedWords)
+                    }
+                },
+                enabled = parsedWords.isNotEmpty() && !isParsing,
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                modifier = Modifier.testTag("confirm_import_excel_words_btn")
+            ) {
+                Text(
+                    text = if (parsedWords.isEmpty()) "Import 0 Words" else "Import ${parsedWords.size} Words",
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
         }
     )
 }

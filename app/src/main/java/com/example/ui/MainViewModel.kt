@@ -1037,6 +1037,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.deleteVocabularyWord(wordId)
     }
 
+    fun batchImportVocabularyWords(
+        words: List<com.example.util.ParsedVocabRow>
+    ): Int {
+        var count = 0
+        val teacherName = currentUser.value.name.ifBlank { "Faculty Instructor" }
+        words.forEach { row ->
+            if (row.englishWord.isNotBlank() && row.assameseMeaning.isNotBlank()) {
+                val newWord = VocabularyWord(
+                    id = "vocab_${System.currentTimeMillis()}_$count",
+                    word = row.englishWord.trim().replaceFirstChar { it.uppercase() },
+                    phonetic = row.ipa.trim().ifBlank { "/${row.englishWord.lowercase()}/" },
+                    partOfSpeech = row.partOfSpeech.trim().ifBlank { "noun" },
+                    meaning = "English vocabulary term with Assamese translation.",
+                    exampleSentence = row.exampleSentence.trim().ifBlank { "We use '${row.englishWord}' in daily spoken English." },
+                    category = row.category.trim().ifBlank { "General" },
+                    assameseMeaning = row.assameseMeaning.trim(),
+                    assameseTransliteration = row.assameseTransliteration.trim(),
+                    syllables = row.syllables.trim().ifBlank { row.englishWord },
+                    coachingTip = row.coachingTip.trim().ifBlank { "Practice clear articulation and natural stress." },
+                    addedByTeacher = teacherName
+                )
+                repository.addVocabularyWord(newWord)
+                count++
+            }
+        }
+        return count
+    }
+
     fun toggleWordFavorite(wordId: String) {
         repository.toggleWordFavorite(wordId)
     }
