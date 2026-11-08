@@ -582,7 +582,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         listOf(
             WordMatchChallenge("wm_1", "Eloquence", "Fluent or persuasive speech", "Communication", "System"),
             WordMatchChallenge("wm_2", "Resilience", "Ability to recover quickly from hardship", "Mindset", "System"),
-            WordMatchChallenge("wm_3", "Articulate", "Expressing ideas clearly and coherently", "Communication", "System"),
+            WordMatchChallenge("wm_3", "Articulation", "Clear and effective pronunciation", "Communication", "System"),
             WordMatchChallenge("wm_4", "Pragmatic", "Sensible and practical rather than theoretical", "Academic", "System"),
             WordMatchChallenge("wm_5", "Meticulous", "Showing great attention to detail and care", "General", "Prof. Eleanor Vance"),
             WordMatchChallenge("wm_6", "Serendipity", "Finding pleasant things unexpectedly", "General", "Dean Arthur Pendelton")

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -1246,6 +1247,8 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     var showCreateDialog by remember { mutableStateOf(false) }
     var activeEditingChallenge by remember { mutableStateOf<ActiveEditingChallenge?>(null) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
+    var isSearchVisible by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     val currentUser by viewModel.currentUser.collectAsState()
 
     val wordMatches by viewModel.wordMatchChallenges.collectAsState()
@@ -1256,103 +1259,287 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     val fastVocabs by viewModel.fastVocabularyChallenges.collectAsState()
     val grammarChallenges by viewModel.grammarChallenges.collectAsState()
 
-    LazyColumn(
+    val filteredWordMatches = remember(wordMatches, searchQuery) {
+        if (searchQuery.isBlank()) wordMatches
+        else wordMatches.filter { it.word.contains(searchQuery.trim(), ignoreCase = true) || it.definition.contains(searchQuery.trim(), ignoreCase = true) || it.category.contains(searchQuery.trim(), ignoreCase = true) }
+    }
+    val filteredMissingLetters = remember(missingLetters, searchQuery) {
+        if (searchQuery.isBlank()) missingLetters
+        else missingLetters.filter { it.fullWord.contains(searchQuery.trim(), ignoreCase = true) || it.hint.contains(searchQuery.trim(), ignoreCase = true) || it.category.contains(searchQuery.trim(), ignoreCase = true) }
+    }
+    val filteredSentenceBuilders = remember(sentenceBuilders, searchQuery) {
+        if (searchQuery.isBlank()) sentenceBuilders
+        else sentenceBuilders.filter { it.targetSentence.contains(searchQuery.trim(), ignoreCase = true) || it.hint.contains(searchQuery.trim(), ignoreCase = true) }
+    }
+    val filteredListenChooses = remember(listenChooses, searchQuery) {
+        if (searchQuery.isBlank()) listenChooses
+        else listenChooses.filter { it.question.contains(searchQuery.trim(), ignoreCase = true) || it.audioScript.contains(searchQuery.trim(), ignoreCase = true) }
+    }
+    val filteredPronunciationBattles = remember(pronunciationBattles, searchQuery) {
+        if (searchQuery.isBlank()) pronunciationBattles
+        else pronunciationBattles.filter { it.challengeSentence.contains(searchQuery.trim(), ignoreCase = true) || it.targetPhonemeFocus.contains(searchQuery.trim(), ignoreCase = true) }
+    }
+    val filteredFastVocabs = remember(fastVocabs, searchQuery) {
+        if (searchQuery.isBlank()) fastVocabs
+        else fastVocabs.filter { it.word.contains(searchQuery.trim(), ignoreCase = true) || it.prompt.contains(searchQuery.trim(), ignoreCase = true) }
+    }
+    val filteredGrammarChallenges = remember(grammarChallenges, searchQuery) {
+        if (searchQuery.isBlank()) grammarChallenges
+        else grammarChallenges.filter { it.question.contains(searchQuery.trim(), ignoreCase = true) || it.explanation.contains(searchQuery.trim(), ignoreCase = true) }
+    }
+
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
-            .testTag("teacher_game_creator_screen"),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xFF080D26),
+                        Color(0xFF090E2A),
+                        Color(0xFF060919)
+                    )
+                )
+            )
     ) {
+        // Ambient neon glow top left
+        Box(
+            modifier = Modifier
+                .size(240.dp)
+                .offset(x = (-80).dp, y = (-40).dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color(0xFFD946EF).copy(alpha = 0.25f), Color.Transparent)
+                    )
+                )
+        )
+        // Ambient neon glow top right
+        Box(
+            modifier = Modifier
+                .size(260.dp)
+                .align(Alignment.TopEnd)
+                .offset(x = 80.dp, y = 40.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color(0xFF8B5CF6).copy(alpha = 0.2f), Color.Transparent)
+                    )
+                )
+        )
+        // Ambient neon glow bottom
+        Box(
+            modifier = Modifier
+                .size(300.dp)
+                .align(Alignment.BottomCenter)
+                .offset(y = 100.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color(0xFF00D2FF).copy(alpha = 0.15f), Color.Transparent)
+                    )
+                )
+        )
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+                .testTag("teacher_game_creator_screen"),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+        // 1. Hero Banner: Game & Challenge Creator with cyber wave and neon border
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
-                border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.35f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0A0F24).copy(alpha = 0.92f)),
+                border = BorderStroke(
+                    1.5.dp,
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFFEC4899),
+                            Color(0xFF8B5CF6),
+                            Color(0xFF00E5FF)
+                        )
+                    )
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    // Fluid wave accent at bottom
+                    Box(
                         modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            .fillMaxWidth()
+                            .height(55.dp)
+                            .align(Alignment.BottomCenter)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(RoyalBlue, PurpleAccent)
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("🎮", fontSize = 20.sp)
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                "Game & Challenge Creator",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1
-                            )
-                            Text(
-                                "Publish & edit interactive learning challenges for students",
-                                fontSize = 11.sp,
-                                color = MutedGray,
-                                maxLines = 1
-                            )
-                        }
+                        KpiCardFluidWave(color = Color(0xFF8B5CF6))
                     }
 
-                    Button(
-                        onClick = { showCreateDialog = true },
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("New", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Glowing 3D Gamepad badge
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(Color(0xFF9333EA), Color(0xFF6366F1), Color(0xFF3B82F6))
+                                        )
+                                    )
+                                    .border(1.dp, Color(0xFFD8B4FE).copy(alpha = 0.7f), RoundedCornerShape(14.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("🎮", fontSize = 22.sp)
+                            }
+
+                            // Vertical divider
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .height(34.dp)
+                                    .background(Color(0xFF334155).copy(alpha = 0.8f))
+                            )
+
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    "Game & Challenge Creator",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.sp,
+                                    color = Color.White,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    "Publish & edit interactive learning",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF94A3B8),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        // Electric cyan "+ New" button
+                        Button(
+                            onClick = { showCreateDialog = true },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Transparent
+                            ),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(Color(0xFF00D2FF), Color(0xFF0072FF))
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .border(1.dp, Color(0xFF7DD3FC).copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                        ) {
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "New",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Horizontal Category Tabs
+        // 2. Horizontal Category Tabs Carousel
         item {
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 contentPadding = PaddingValues(vertical = 2.dp)
             ) {
                 items(GameCategoryFilter.values()) { cat ->
                     val isSel = selectedCategory == cat
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSel) RoyalBlue else MaterialTheme.colorScheme.surface,
-                        border = if (isSel) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier.clickable { selectedCategory = cat }
+                    val tabShape = RoundedCornerShape(16.dp)
+
+                    Box(
+                        modifier = Modifier
+                            .clip(tabShape)
+                            .then(
+                                if (isSel) {
+                                    Modifier
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color(0xFF00D2FF), Color(0xFF0088FF))
+                                            )
+                                        )
+                                        .border(1.dp, Color(0xFF7DD3FC).copy(alpha = 0.8f), tabShape)
+                                } else {
+                                    Modifier
+                                        .background(Color(0xFF0C1326).copy(alpha = 0.85f))
+                                        .border(1.dp, Color(0xFF1E293B), tabShape)
+                                }
+                            )
+                            .clickable { selectedCategory = cat }
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(cat.emoji, fontSize = 16.sp)
+                            when (cat) {
+                                GameCategoryFilter.WORD_MATCH -> {
+                                    Text("🧩", fontSize = 15.sp)
+                                }
+                                GameCategoryFilter.MISSING_LETTERS -> {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isSel) Color.White.copy(alpha = 0.25f) else Color(0xFF1E3A5F)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            "abc",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = if (isSel) Color.White else Color(0xFF38BDF8)
+                                        )
+                                    }
+                                }
+                                GameCategoryFilter.SENTENCE_BUILDER -> {
+                                    Text("🏗️", fontSize = 15.sp)
+                                }
+                                GameCategoryFilter.LISTEN_CHOOSE -> {
+                                    Text("🎧", fontSize = 15.sp)
+                                }
+                                GameCategoryFilter.PRONUNCIATION_BATTLE -> {
+                                    Text("🎙️", fontSize = 15.sp)
+                                }
+                                GameCategoryFilter.FAST_VOCABULARY -> {
+                                    Text("⚡", fontSize = 15.sp)
+                                }
+                                GameCategoryFilter.GRAMMAR_CHALLENGE -> {
+                                    Text("📚", fontSize = 15.sp)
+                                }
+                            }
                             Text(
                                 cat.title,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 12.sp,
-                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                fontSize = 13.sp,
+                                color = if (isSel) Color.White else Color(0xFFCBD5E1),
                                 maxLines = 1
                             )
                         }
@@ -1361,12 +1548,12 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             }
         }
 
-        // Prominent "Add New Question" banner card
+        // 3. Action Banner: "+ Add New Word Match"
         item {
             Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
-                border = BorderStroke(1.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF09122C).copy(alpha = 0.92f)),
+                border = BorderStroke(1.5.dp, Color(0xFF0077B6).copy(alpha = 0.7f)),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { showCreateDialog = true }
@@ -1374,7 +1561,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -1385,37 +1572,75 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        // Glowing cyan circle with white plus
                         Box(
                             modifier = Modifier
-                                .size(40.dp)
+                                .size(42.dp)
                                 .clip(CircleShape)
-                                .background(RoyalBlue),
+                                .background(
+                                    Brush.radialGradient(
+                                        listOf(Color(0xFF00F0FF), Color(0xFF0072FF))
+                                    )
+                                )
+                                .border(1.dp, Color(0xFF7DD3FC).copy(alpha = 0.8f), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White)
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                "+ Add New ${selectedCategory.title} Question",
+                                "+ Add New ${selectedCategory.title}",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 color = Color.White,
                                 maxLines = 1
                             )
                             Text(
-                                "Create a question or drill to publish directly to students",
+                                "Create a question or drill to publish",
                                 fontSize = 11.sp,
-                                color = Color(0xFFCBD5E1),
+                                color = Color(0xFF94A3B8),
                                 maxLines = 1
                             )
                         }
                     }
-                    Button(
-                        onClick = { showCreateDialog = true },
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+
+                    // Magenta-violet pill button: "Add New ->"
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFFD946EF), Color(0xFF8B5CF6))
+                                )
+                            )
+                            .border(1.dp, Color(0xFFF0ABFC).copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                            .clickable { showCreateDialog = true }
+                            .padding(horizontal = 14.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text("Add New", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "Add New",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1
+                            )
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowForward,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -1433,16 +1658,104 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             }
         }
 
-        // Items based on selected category with Edit & Delete support
+        // 4. Section Header with Layers Icon, Title, Count, and Search Button
+        val (categoryHeaderLabel, currentCount) = when (selectedCategory) {
+            GameCategoryFilter.WORD_MATCH -> "Existing Word Match Pairs" to filteredWordMatches.size
+            GameCategoryFilter.MISSING_LETTERS -> "Existing Missing Letters Challenges" to filteredMissingLetters.size
+            GameCategoryFilter.SENTENCE_BUILDER -> "Existing Sentence Builder Challenges" to filteredSentenceBuilders.size
+            GameCategoryFilter.LISTEN_CHOOSE -> "Existing Listen & Choose Drills" to filteredListenChooses.size
+            GameCategoryFilter.PRONUNCIATION_BATTLE -> "Existing Pronunciation Battles" to filteredPronunciationBattles.size
+            GameCategoryFilter.FAST_VOCABULARY -> "Existing Fast Vocabulary Blitzes" to filteredFastVocabs.size
+            GameCategoryFilter.GRAMMAR_CHALLENGE -> "Existing Grammar Challenges" to filteredGrammarChallenges.size
+        }
+
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.Layers,
+                        contentDescription = null,
+                        tint = Color(0xFF00D2FF),
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        "$categoryHeaderLabel ($currentCount)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = Color.White
+                    )
+                }
+
+                // Circular search toggle button
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF0A152E))
+                        .border(1.dp, Color(0xFF0077B6).copy(alpha = 0.7f), CircleShape)
+                        .clickable { isSearchVisible = !isSearchVisible },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        if (isSearchVisible) Icons.Filled.Close else Icons.Filled.Search,
+                        contentDescription = "Search",
+                        tint = Color(0xFF00D2FF),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+
+        if (isSearchVisible) {
+            item {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Filter ${selectedCategory.title} challenges...", fontSize = 12.sp, color = Color(0xFF64748B)) },
+                    leadingIcon = {
+                        Icon(Icons.Filled.Search, contentDescription = null, tint = Color(0xFF00D2FF), modifier = Modifier.size(18.dp))
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Filled.Close, contentDescription = "Clear", tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFF0B1428),
+                        unfocusedContainerColor = Color(0xFF0B1428),
+                        focusedBorderColor = Color(0xFF00D2FF),
+                        unfocusedBorderColor = Color(0xFF1E293B),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        // Items based on selected category with Edit & Delete support and alternating cyber neon themes
         when (selectedCategory) {
             GameCategoryFilter.WORD_MATCH -> {
-                item { Text("Existing Word Match Pairs (${wordMatches.size})", fontWeight = FontWeight.Bold, fontSize = 14.sp) }
-                items(wordMatches) { item ->
+                itemsIndexed(filteredWordMatches) { index, item ->
                     GameItemCard(
                         title = item.word,
                         subtitle = item.definition,
                         tag = item.category,
                         createdBy = item.createdBy,
+                        index = index,
                         onPlayAudio = { viewModel.speakAudio(item.word) },
                         onEdit = {
                             activeEditingChallenge = ActiveEditingChallenge(
@@ -1462,13 +1775,13 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 }
             }
             GameCategoryFilter.MISSING_LETTERS -> {
-                item { Text("Existing Missing Letters Challenges (${missingLetters.size})", fontWeight = FontWeight.Bold, fontSize = 14.sp) }
-                items(missingLetters) { item ->
+                itemsIndexed(filteredMissingLetters) { index, item ->
                     GameItemCard(
                         title = item.fullWord,
                         subtitle = "Clue: ${item.hint}",
                         tag = item.category,
                         createdBy = item.createdBy,
+                        index = index,
                         onPlayAudio = { viewModel.speakAudio(item.fullWord) },
                         onEdit = {
                             activeEditingChallenge = ActiveEditingChallenge(
@@ -1488,13 +1801,13 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 }
             }
             GameCategoryFilter.SENTENCE_BUILDER -> {
-                item { Text("Existing Sentence Builder Challenges (${sentenceBuilders.size})", fontWeight = FontWeight.Bold, fontSize = 14.sp) }
-                items(sentenceBuilders) { item ->
+                itemsIndexed(filteredSentenceBuilders) { index, item ->
                     GameItemCard(
                         title = item.targetSentence,
                         subtitle = "Hint: ${item.hint}" + if (item.assameseTranslation.isNotBlank()) "\n🇮🇳 অসমীয়া: ${item.assameseTranslation}" else "",
                         tag = "Sentence Syntax",
                         createdBy = item.createdBy,
+                        index = index,
                         onPlayAudio = { viewModel.speakAudio(item.targetSentence) },
                         onEdit = {
                             activeEditingChallenge = ActiveEditingChallenge(
@@ -1514,13 +1827,13 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 }
             }
             GameCategoryFilter.LISTEN_CHOOSE -> {
-                item { Text("Existing Listen & Choose Drills (${listenChooses.size})", fontWeight = FontWeight.Bold, fontSize = 14.sp) }
-                items(listenChooses) { item ->
+                itemsIndexed(filteredListenChooses) { index, item ->
                     GameItemCard(
                         title = item.question,
                         subtitle = "Audio Speech: \"${item.audioScript}\"",
                         tag = "Answer: ${item.options.getOrNull(item.correctIndex) ?: ""}",
                         createdBy = item.createdBy,
+                        index = index,
                         onPlayAudio = { viewModel.speakAudio(item.audioScript) },
                         onEdit = {
                             activeEditingChallenge = ActiveEditingChallenge(
@@ -1543,13 +1856,13 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 }
             }
             GameCategoryFilter.PRONUNCIATION_BATTLE -> {
-                item { Text("Existing Pronunciation Battles (${pronunciationBattles.size})", fontWeight = FontWeight.Bold, fontSize = 14.sp) }
-                items(pronunciationBattles) { item ->
+                itemsIndexed(filteredPronunciationBattles) { index, item ->
                     GameItemCard(
                         title = item.challengeSentence,
                         subtitle = "Phoneme Focus: ${item.targetPhonemeFocus}",
                         tag = "Passing: ${item.passingScore}% (${item.difficulty})",
                         createdBy = item.createdBy,
+                        index = index,
                         onPlayAudio = { viewModel.speakAudio(item.challengeSentence) },
                         onEdit = {
                             activeEditingChallenge = ActiveEditingChallenge(
@@ -1569,13 +1882,13 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 }
             }
             GameCategoryFilter.FAST_VOCABULARY -> {
-                item { Text("Existing Fast Vocabulary Blitzes (${fastVocabs.size})", fontWeight = FontWeight.Bold, fontSize = 14.sp) }
-                items(fastVocabs) { item ->
+                itemsIndexed(filteredFastVocabs) { index, item ->
                     GameItemCard(
                         title = item.word,
                         subtitle = item.prompt,
                         tag = "Answer: ${item.options.getOrNull(item.correctIndex) ?: ""}",
                         createdBy = item.createdBy,
+                        index = index,
                         onPlayAudio = { viewModel.speakAudio(item.word) },
                         onEdit = {
                             activeEditingChallenge = ActiveEditingChallenge(
@@ -1598,13 +1911,13 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 }
             }
             GameCategoryFilter.GRAMMAR_CHALLENGE -> {
-                item { Text("Existing Grammar Challenges (${grammarChallenges.size})", fontWeight = FontWeight.Bold, fontSize = 14.sp) }
-                items(grammarChallenges) { item ->
+                itemsIndexed(filteredGrammarChallenges) { index, item ->
                     GameItemCard(
                         title = item.question,
                         subtitle = "Rule: ${item.explanation}",
                         tag = item.category,
                         createdBy = item.createdBy,
+                        index = index,
                         onPlayAudio = { viewModel.speakAudio(item.question) },
                         onEdit = {
                             activeEditingChallenge = ActiveEditingChallenge(
@@ -1627,6 +1940,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 }
             }
         }
+    }
     }
 
     if (showCreateDialog) {
@@ -1651,6 +1965,151 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     }
 }
 
+// Data class and theme selector for radiant GameItemCards
+data class GameCardTheme(
+    val borderColor: Color,
+    val bgGrad: List<Color>,
+    val iconGrad: List<Color>,
+    val iconType: String,
+    val pillBg: Color,
+    val pillBorder: Color,
+    val pillText: Color,
+    val accentColor: Color
+)
+
+fun getGameCardTheme(title: String, tag: String, index: Int): GameCardTheme {
+    return when {
+        title.equals("Eloquence", ignoreCase = true) || (tag.equals("Communication", ignoreCase = true) && index % 3 == 0) -> {
+            GameCardTheme(
+                borderColor = Color(0xFF00D2FF),
+                bgGrad = listOf(Color(0xFF0B1C48), Color(0xFF071133)),
+                iconGrad = listOf(Color(0xFF00D2FF), Color(0xFF1D4ED8)),
+                iconType = "megaphone",
+                pillBg = Color(0xFF0A224E),
+                pillBorder = Color(0xFF00D2FF).copy(alpha = 0.7f),
+                pillText = Color(0xFF38BDF8),
+                accentColor = Color(0xFF00D2FF)
+            )
+        }
+        title.equals("Resilience", ignoreCase = true) || tag.equals("Mindset", ignoreCase = true) || (index % 3 == 1) -> {
+            GameCardTheme(
+                borderColor = Color(0xFF00E676),
+                bgGrad = listOf(Color(0xFF082728), Color(0xFF05171B)),
+                iconGrad = listOf(Color(0xFF00E676), Color(0xFF059669)),
+                iconType = "mountain",
+                pillBg = Color(0xFF063327),
+                pillBorder = Color(0xFF00E676).copy(alpha = 0.7f),
+                pillText = Color(0xFF34D399),
+                accentColor = Color(0xFF34D399)
+            )
+        }
+        title.equals("Articulation", ignoreCase = true) || (index % 3 == 2) -> {
+            GameCardTheme(
+                borderColor = Color(0xFFB026FF),
+                bgGrad = listOf(Color(0xFF1E0E3D), Color(0xFF120726)),
+                iconGrad = listOf(Color(0xFFC084FC), Color(0xFF7C3AED)),
+                iconType = "microphone",
+                pillBg = Color(0xFF28104D),
+                pillBorder = Color(0xFFC084FC).copy(alpha = 0.7f),
+                pillText = Color(0xFFC084FC),
+                accentColor = Color(0xFF38BDF8)
+            )
+        }
+        else -> {
+            GameCardTheme(
+                borderColor = Color(0xFF00D2FF),
+                bgGrad = listOf(Color(0xFF0B1C48), Color(0xFF071133)),
+                iconGrad = listOf(Color(0xFF00D2FF), Color(0xFF1D4ED8)),
+                iconType = "megaphone",
+                pillBg = Color(0xFF0A224E),
+                pillBorder = Color(0xFF00D2FF).copy(alpha = 0.7f),
+                pillText = Color(0xFF38BDF8),
+                accentColor = Color(0xFF00D2FF)
+            )
+        }
+    }
+}
+
+@Composable
+fun ChallengeBadgeIcon(iconType: String, modifier: Modifier = Modifier) {
+    when (iconType) {
+        "megaphone" -> {
+            Icon(
+                Icons.Filled.Campaign,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = modifier
+            )
+        }
+        "mountain" -> {
+            Canvas(modifier = modifier) {
+                val w = size.width
+                val h = size.height
+                // Mountain body (Forest Green)
+                val mtnPath = Path().apply {
+                    moveTo(w * 0.12f, h * 0.88f)
+                    lineTo(w * 0.50f, h * 0.28f)
+                    lineTo(w * 0.88f, h * 0.88f)
+                    close()
+                }
+                drawPath(mtnPath, Color(0xFF047857))
+
+                // Left darker shading
+                val shadePath = Path().apply {
+                    moveTo(w * 0.12f, h * 0.88f)
+                    lineTo(w * 0.50f, h * 0.28f)
+                    lineTo(w * 0.50f, h * 0.88f)
+                    close()
+                }
+                drawPath(shadePath, Color(0xFF065F46))
+
+                // Snow cap
+                val snowPath = Path().apply {
+                    moveTo(w * 0.35f, h * 0.52f)
+                    lineTo(w * 0.50f, h * 0.28f)
+                    lineTo(w * 0.65f, h * 0.52f)
+                    lineTo(w * 0.55f, h * 0.46f)
+                    lineTo(w * 0.45f, h * 0.50f)
+                    close()
+                }
+                drawPath(snowPath, Color.White)
+
+                // Yellow Flagpole on peak
+                drawLine(
+                    color = Color(0xFFFEF08A),
+                    start = Offset(w * 0.50f, h * 0.30f),
+                    end = Offset(w * 0.50f, h * 0.10f),
+                    strokeWidth = 2.5.dp.toPx()
+                )
+                // Yellow triangular flag waving to the right
+                val flagPath = Path().apply {
+                    moveTo(w * 0.50f, h * 0.10f)
+                    lineTo(w * 0.76f, h * 0.18f)
+                    lineTo(w * 0.50f, h * 0.26f)
+                    close()
+                }
+                drawPath(flagPath, Color(0xFFFACC15))
+            }
+        }
+        "microphone" -> {
+            Icon(
+                Icons.Filled.Mic,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = modifier
+            )
+        }
+        else -> {
+            Icon(
+                Icons.Filled.SportsEsports,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = modifier
+            )
+        }
+    }
+}
+
 @Composable
 fun GameItemCard(
     title: String,
@@ -1659,64 +2118,190 @@ fun GameItemCard(
     createdBy: String,
     onPlayAudio: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    index: Int = 0
 ) {
+    val theme = getGameCardTheme(title = title, tag = tag, index = index)
+
     Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = CyberCardBg),
-        border = BorderStroke(1.2.dp, Color(0xFF818CF8).copy(alpha = 0.35f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        modifier = Modifier.fillMaxWidth()
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.5.dp, theme.borderColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("game_item_card_$title")
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(theme.bgGrad)
+                )
+                .padding(14.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFF131F46),
-                    border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f))
+                // Left 3D Icon Badge (Megaphone, Mountain with Yellow Flag, Microphone)
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(
+                            Brush.linearGradient(theme.iconGrad)
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(18.dp)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(tag, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                    ChallengeBadgeIcon(iconType = theme.iconType, modifier = Modifier.size(34.dp))
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    IconButton(onClick = onPlayAudio, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Rounded.VolumeUp, contentDescription = "Play Audio", tint = RoyalBlue, modifier = Modifier.size(18.dp))
-                    }
-                    IconButton(onClick = onEdit, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Edit Question", tint = RoyalBlue, modifier = Modifier.size(18.dp))
-                    }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(30.dp)) {
-                        Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = CoralAccent, modifier = Modifier.size(18.dp))
-                    }
-                }
-            }
 
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-            Text(subtitle, fontSize = 12.sp, color = Color(0xFF94A3B8))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Published by: $createdBy", fontSize = 10.sp, color = RoyalBlue)
-                
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilledTonalButton(
-                        onClick = onEdit,
+                // Middle Info Column
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Category Tag Pill
+                    Surface(
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.height(30.dp)
+                        color = theme.pillBg,
+                        border = BorderStroke(1.dp, theme.pillBorder)
                     ) {
-                        Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(12.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Edit", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = tag,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = theme.pillText,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.5.dp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Text(
+                        text = title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.5.sp,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Text(
+                        text = subtitle,
+                        fontSize = 12.sp,
+                        color = Color(0xFFCBD5E1),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 16.sp
+                    )
+
+                    Text(
+                        text = "Published by: $createdBy",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = theme.accentColor
+                    )
+                }
+
+                // Right Actions Column (3 square buttons at top + Edit pill at bottom)
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.height(104.dp)
+                ) {
+                    // Top Row: Volume, Edit, Delete
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF0D2556),
+                            border = BorderStroke(1.dp, Color(0xFF2563EB).copy(alpha = 0.6f)),
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clickable { onPlayAudio() }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.VolumeUp,
+                                    contentDescription = "Play Audio",
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF0D2556),
+                            border = BorderStroke(1.dp, Color(0xFF2563EB).copy(alpha = 0.6f)),
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clickable { onEdit() }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Filled.Edit,
+                                    contentDescription = "Edit Question",
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF3B1525),
+                            border = BorderStroke(1.dp, Color(0xFFF43F5E).copy(alpha = 0.6f)),
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clickable { onDelete() }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = "Delete",
+                                    tint = Color(0xFFF43F5E),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Bottom: Edit Pill Button
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.Transparent,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF8B5CF6), Color(0xFF6366F1))
+                                )
+                            )
+                            .clickable { onEdit() }
+                            .testTag("edit_pill_btn_$title")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Edit,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = "Edit",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
             }
