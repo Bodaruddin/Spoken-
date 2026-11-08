@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.AdminTab
@@ -174,7 +175,7 @@ fun AdminBottomBar(
             AdminTabItem(AdminTab.STUDENTS, "Students", Icons.Rounded.School),
             AdminTabItem(AdminTab.GAMES, "Games Hub", Icons.Rounded.SportsEsports),
             AdminTabItem(AdminTab.TEACHERS, "Faculty", Icons.Rounded.RecordVoiceOver),
-            AdminTabItem(AdminTab.CURRICULUM, "Courses & AI", Icons.Rounded.MenuBook)
+            AdminTabItem(AdminTab.CURRICULUM, "Courses", Icons.Rounded.MenuBook)
         )
 
         Row(
@@ -190,7 +191,7 @@ fun AdminBottomBar(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
                         .clickable { onTabSelected(item.tab) }
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                        .padding(horizontal = 4.dp, vertical = 4.dp)
                         .testTag("admin_tab_${item.tab.name.lowercase()}"),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
@@ -198,7 +199,7 @@ fun AdminBottomBar(
                     if (isSelected) {
                         Box(
                             modifier = Modifier
-                                .size(width = 64.dp, height = 34.dp)
+                                .size(width = 60.dp, height = 34.dp)
                                 .clip(RoundedCornerShape(17.dp))
                                 .background(
                                     Brush.horizontalGradient(
@@ -217,7 +218,7 @@ fun AdminBottomBar(
                     } else {
                         Box(
                             modifier = Modifier
-                                .size(width = 64.dp, height = 34.dp),
+                                .size(width = 60.dp, height = 34.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -231,11 +232,11 @@ fun AdminBottomBar(
                     Spacer(Modifier.height(3.dp))
                     Text(
                         text = item.label,
-                        fontSize = 10.sp,
+                        fontSize = 9.5.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         color = if (isSelected) Color.White else Color(0xFF94A3B8),
                         maxLines = 1,
-                        softWrap = false
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

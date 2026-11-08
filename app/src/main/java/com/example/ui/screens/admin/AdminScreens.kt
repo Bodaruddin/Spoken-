@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.SectionHeader
@@ -133,16 +134,16 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
 
                     Row(
                         modifier = Modifier
-                            .padding(16.dp)
+                            .padding(14.dp)
                             .fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         // Golden double-ringed shield emblem with open book
                         GoldenAcademicShieldEmblem(
-                            modifier = Modifier.size(68.dp)
+                            modifier = Modifier.size(54.dp)
                         )
 
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(10.dp))
 
                         // Admin Info
                         Column(
@@ -152,16 +153,18 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                             Text(
                                 text = currentUser.name.ifBlank { "Dean Arthur Pendelton" },
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 19.sp,
+                                fontSize = 16.sp,
                                 color = Color.White,
                                 maxLines = 1,
-                                softWrap = false
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "Global Academic Administrator",
-                                fontSize = 12.sp,
+                                fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = Color(0xFFA5B4FC)
+                                color = Color(0xFFA5B4FC),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -171,47 +174,50 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                                     imageVector = Icons.Rounded.School,
                                     contentDescription = null,
                                     tint = Color(0xFFA5B4FC),
-                                    modifier = Modifier.size(14.dp)
+                                    modifier = Modifier.size(13.dp)
                                 )
                                 Text(
                                     text = "Speakly University",
-                                    fontSize = 12.sp,
+                                    fontSize = 11.5.sp,
                                     color = Color(0xFFA5B4FC),
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(3.dp))
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = Color(0xFF04261B).copy(alpha = 0.85f),
                                 border = BorderStroke(1.dp, Color(0xFF10B981))
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(8.dp)
+                                            .size(7.dp)
                                             .clip(CircleShape)
                                             .background(Color(0xFF10B981))
                                     )
                                     Text(
                                         text = "Institution Online",
-                                        fontSize = 11.sp,
+                                        fontSize = 10.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = Color.White,
+                                        maxLines = 1
                                     )
                                 }
                             }
                         }
 
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(8.dp))
 
                         // Greek/Roman university building with pediment, pillars, dome, flag, and green trees
                         UniversityBuildingIllustration(
-                            modifier = Modifier.size(width = 104.dp, height = 90.dp)
+                            modifier = Modifier.size(width = 80.dp, height = 72.dp)
                         )
                     }
                 }
@@ -511,7 +517,13 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                         ) {
                             Icon(Icons.Rounded.SwapHoriz, contentDescription = null, modifier = Modifier.size(16.dp), tint = PurpleAccent)
                             Spacer(Modifier.width(6.dp))
-                            Text("👩‍🏫 Switch to Teacher Panel (Direct Access • No PIN)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                "👩‍🏫 Switch to Teacher Panel (Direct Access • No PIN)",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
@@ -1993,11 +2005,11 @@ fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                             Spacer(Modifier.width(4.dp))
                             Text(
                                 sec.title,
-                                fontSize = 11.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                                 color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
-                                softWrap = false
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -2622,60 +2634,36 @@ fun AdminKpiCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Top Row: Icon + Title/Value + Tag Pill
+                // Header Row: Left Icon Circle + Right Tag Pill (Full space for pill on right)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top,
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.weight(1f)
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(color, color.copy(alpha = 0.7f))
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(color, color.copy(alpha = 0.7f))
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            iconContent()
-                        }
-
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = title,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                            Text(
-                                text = value,
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color.White,
-                                maxLines = 1
-                            )
-                        }
+                        iconContent()
                     }
 
                     // Tag Pill
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF070B1F).copy(alpha = 0.75f),
+                        color = Color(0xFF070B1F).copy(alpha = 0.85f),
                         border = BorderStroke(1.dp, color.copy(alpha = 0.70f))
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.5.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
@@ -2692,11 +2680,32 @@ fun AdminKpiCard(
                                 fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = color,
-                                maxLines = 1,
-                                softWrap = false
+                                maxLines = 1
                             )
                         }
                     }
+                }
+
+                // Middle Content: Title (full card width!) + Value (full card width!)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = title,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFCBD5E1),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = value,
+                        fontSize = 25.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        maxLines = 1
+                    )
                 }
 
                 // Bottom row: growth indicator
@@ -2714,7 +2723,8 @@ fun AdminKpiCard(
                         text = growth,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF4ADE80)
+                        color = Color(0xFF4ADE80),
+                        maxLines = 1
                     )
                 }
             }
@@ -2743,7 +2753,7 @@ fun RapidOperationCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Brush.verticalGradient(gradient))
-                .padding(vertical = 16.dp, horizontal = 4.dp),
+                .padding(vertical = 14.dp, horizontal = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -2754,17 +2764,18 @@ fun RapidOperationCard(
                     imageVector = icon,
                     contentDescription = title,
                     tint = Color.White,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(26.dp)
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = title,
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     textAlign = TextAlign.Center,
-                    lineHeight = 15.sp,
-                    maxLines = 2
+                    lineHeight = 14.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
