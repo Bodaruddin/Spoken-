@@ -66,18 +66,24 @@ fun AppTopBar(
     onAdminCredentialsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val isRoleAdmin = role == Role.ADMIN
     Surface(
-        color = Color(0xFF0C1434).copy(alpha = 0.95f),
+        color = if (isRoleAdmin) Color(0xFF0B1033).copy(alpha = 0.95f) else Color(0xFF0C1434).copy(alpha = 0.95f),
+        shape = if (isRoleAdmin) RoundedCornerShape(26.dp) else RoundedCornerShape(0.dp),
         tonalElevation = 0.dp,
-        border = BorderStroke(1.dp, Color(0xFF283B70).copy(alpha = 0.5f)),
+        border = BorderStroke(
+            1.2.dp,
+            if (isRoleAdmin) Color(0xFF6366F1).copy(alpha = 0.65f) else Color(0xFF283B70).copy(alpha = 0.5f)
+        ),
         modifier = modifier
             .fillMaxWidth()
             .statusBarsPadding()
+            .then(if (isRoleAdmin) Modifier.padding(horizontal = 14.dp, vertical = 6.dp) else Modifier)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -89,14 +95,14 @@ fun AppTopBar(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(42.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(
-                            Brush.linearGradient(listOf(Color(0xFF4F46E5), Color(0xFF3B82F6)))
+                            Brush.linearGradient(listOf(Color(0xFF4F46E5), Color(0xFF6366F1)))
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("SP", color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                    Text("SP", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp)
                 }
                 Column {
                     Text(
@@ -116,6 +122,16 @@ fun AppTopBar(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
+            }
+
+            // Divider for Admin
+            if (isRoleAdmin) {
+                Box(
+                    modifier = Modifier
+                        .height(28.dp)
+                        .width(1.2.dp)
+                        .background(Color(0xFF283B70).copy(alpha = 0.7f))
+                )
             }
 
             // Stat pills & Role switcher button
@@ -156,8 +172,8 @@ fun AppTopBar(
                 if (role == Role.ADMIN) {
                     Surface(
                         shape = CircleShape,
-                        color = if (isCloudConnected) Color(0xFF062A1F) else Color(0xFF131A38),
-                        border = BorderStroke(1.dp, if (isCloudConnected) Color(0xFF10B981) else Color(0xFF2A3660)),
+                        color = if (isCloudConnected) Color(0xFF04261B) else Color(0xFF0A182E),
+                        border = BorderStroke(1.dp, if (isCloudConnected) Color(0xFF10B981) else Color(0xFF1E3A5F)),
                         modifier = Modifier
                             .size(34.dp)
                             .testTag("cloud_connect_button")
@@ -168,7 +184,7 @@ fun AppTopBar(
                                 imageVector = if (isCloudConnected) Icons.Filled.CloudDone else Icons.Rounded.CloudQueue,
                                 contentDescription = "Cloud Database Sync",
                                 modifier = Modifier.size(17.dp),
-                                tint = if (isCloudConnected) Color(0xFF10B981) else Color(0xFF94A3B8)
+                                tint = if (isCloudConnected) Color(0xFF10B981) else Color(0xFF64748B)
                             )
                         }
                     }
@@ -176,8 +192,8 @@ fun AppTopBar(
                     // Admin Credentials Icon Button (Icon only - tap to manage credentials)
                     Surface(
                         shape = CircleShape,
-                        color = Color(0xFF1E293B),
-                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                        color = Color(0xFF052338),
+                        border = BorderStroke(1.dp, Color(0xFF06B6D4)),
                         modifier = Modifier
                             .size(34.dp)
                             .testTag("admin_credentials_header_btn")
@@ -188,7 +204,7 @@ fun AppTopBar(
                                 imageVector = Icons.Filled.Key,
                                 contentDescription = "Manage Admin Credentials",
                                 modifier = Modifier.size(16.dp),
-                                tint = Color(0xFF38BDF8)
+                                tint = Color(0xFF06B6D4)
                             )
                         }
                     }
@@ -215,7 +231,7 @@ fun AppTopBar(
                 Surface(
                     shape = RoundedCornerShape(20.dp),
                     color = Color.Transparent,
-                    border = BorderStroke(1.dp, roleBorderColor.copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, roleBorderColor.copy(alpha = 0.85f)),
                     modifier = Modifier
                         .testTag("role_switch_button")
                         .clip(RoundedCornerShape(20.dp))
@@ -223,7 +239,7 @@ fun AppTopBar(
                         .clickable { onRoleClick() }
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
@@ -250,7 +266,7 @@ fun AppTopBar(
                         imageVector = Icons.Rounded.Logout,
                         contentDescription = "Log Out",
                         tint = Color(0xFFCBD5E1),
-                        modifier = Modifier.size(19.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

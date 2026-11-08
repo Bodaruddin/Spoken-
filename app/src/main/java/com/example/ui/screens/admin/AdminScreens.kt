@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -20,17 +21,23 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.example.ui.components.SectionHeader
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.components.SectionHeader
 import com.example.data.model.LearningLevel
 import com.example.data.model.Role
 import com.example.data.model.StudentManagementInfo
@@ -75,205 +82,398 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val sentences by viewModel.sentenceBuilderChallenges.collectAsState()
     val totalGames = wordMatches.size + sentences.size + 15
 
+    var selectedRange by remember { mutableStateOf("This Month") }
+    var showRangeDropdown by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(14.dp)
             .testTag("admin_dashboard_screen"),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Hero Card: Dean Arthur Pendelton (Exact match to screenshot)
         item {
             Card(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                border = BorderStroke(1.2.dp, Color(0xFF60A5FA).copy(alpha = 0.5f)),
+                border = BorderStroke(
+                    1.5.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            Color(0xFFEC4899),
+                            Color(0xFF818CF8),
+                            Color(0xFF06B6D4)
+                        )
+                    )
+                ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(HeroBannerGrad)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFF13113F),
+                                    Color(0xFF0B1438),
+                                    Color(0xFF081232)
+                                )
+                            )
+                        )
                 ) {
-                    // Translucent university pillars watermark on right side (from screenshot)
-                    Icon(
-                        imageVector = Icons.Rounded.AccountBalance,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.18f),
+                    // Fluid bottom wave in hero card
+                    KpiCardFluidWave(
+                        color = Color(0xFF818CF8),
                         modifier = Modifier
-                            .size(120.dp)
-                            .align(Alignment.BottomEnd)
-                            .offset(x = 12.dp, y = 14.dp)
+                            .fillMaxWidth()
+                            .height(65.dp)
+                            .align(Alignment.BottomCenter)
                     )
+
                     Row(
-                        modifier = Modifier.padding(18.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Golden circular badge with shield
-                        Box(
-                            modifier = Modifier
-                                .size(68.dp)
-                                .clip(CircleShape)
-                                .background(Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFEA580C))))
-                                .border(2.dp, Color(0xFFFDE68A).copy(alpha = 0.85f), CircleShape),
-                            contentAlignment = Alignment.Center
+                        // Golden double-ringed shield emblem with open book
+                        GoldenAcademicShieldEmblem(
+                            modifier = Modifier.size(68.dp)
+                        )
+
+                        Spacer(Modifier.width(12.dp))
+
+                        // Admin Info
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            Text("🛡️", fontSize = 34.sp)
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = currentUser.name.ifBlank { "Dean Arthur Pendelton" },
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 19.sp,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false
                             )
                             Text(
-                                text = "Global Academic Administrator • Speakly University",
+                                text = "Global Academic Administrator",
                                 fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.82f)
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFFA5B4FC)
                             )
-                            Spacer(Modifier.height(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFF070B24).copy(alpha = 0.65f),
-                                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.45f))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.School,
+                                    contentDescription = null,
+                                    tint = Color(0xFFA5B4FC),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "Speakly University",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFA5B4FC),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF04261B).copy(alpha = 0.85f),
+                                border = BorderStroke(1.dp, Color(0xFF10B981))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(7.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF10B981))
-                                        )
-                                        Text(
-                                            text = "Institution Online",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF86EFAC)
-                                        )
-                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF10B981))
+                                    )
+                                    Text(
+                                        text = "Institution Online",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
                                 }
+                            }
                         }
+
+                        Spacer(Modifier.width(6.dp))
+
+                        // Greek/Roman university building with pediment, pillars, dome, flag, and green trees
+                        UniversityBuildingIllustration(
+                            modifier = Modifier.size(width = 104.dp, height = 90.dp)
+                        )
                     }
                 }
             }
         }
 
-        // Executive KPI Cards (Matching Screenshot)
+        // Section 1: Institution KPI Overview (Matching Screenshot 2x3 Grid)
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionHeader("Institution KPI Overview")
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    AdminKpiCard("Total Students", "${students.size}", "🎓", RoyalBlue, Modifier.weight(1f), "Enrolled", Icons.Rounded.People)
-                    AdminKpiCard("Faculty Teachers", "${teachers.size}", "👨‍🏫", PurpleAccent, Modifier.weight(1f), "Faculty", Icons.Rounded.Groups)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    AdminKpiCard("Daily Active Users", "${students.count { it.isActive }}", "⚡", EmeraldSuccess, Modifier.weight(1f), "Live Today", Icons.Rounded.BarChart)
-                    AdminKpiCard("Avg Speaking Score", "84.2%", "🎖️", AmberGold, Modifier.weight(1f), "+4.1% MoM", Icons.Rounded.TrendingUp)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    AdminKpiCard("Arcade Challenges", "$totalGames", "🎮", CyanAccent, Modifier.weight(1f), "12 Modes", Icons.Rounded.SportsEsports)
-                    AdminKpiCard("Voice Practice Hours", "3,240h", "⏱️", CoralAccent, Modifier.weight(1f), "Total Hours", Icons.Rounded.Mic)
-                }
-            }
-        }
+                // Header with Dropdown
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.BarChart,
+                            contentDescription = null,
+                            tint = Color(0xFF818CF8),
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = "Institution KPI Overview",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 18.sp,
+                            color = Color.White
+                        )
+                    }
 
-        // Rapid Operations (Matching Screenshot 3-card gradient row)
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SectionHeader("Executive Rapid Operations")
+                    // Dropdown Range Selector
+                    Box {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFF1E1742),
+                            border = BorderStroke(1.dp, Color(0xFF6366F1).copy(alpha = 0.55f)),
+                            modifier = Modifier.clickable { showRangeDropdown = true }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CalendarMonth,
+                                    contentDescription = null,
+                                    tint = Color(0xFFC084FC),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = selectedRange,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                                Icon(
+                                    imageVector = Icons.Rounded.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = Color(0xFFC084FC),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = showRangeDropdown,
+                            onDismissRequest = { showRangeDropdown = false }
+                        ) {
+                            listOf("This Month", "Last Month", "This Semester", "All Time").forEach { range ->
+                                DropdownMenuItem(
+                                    text = { Text(range, fontSize = 12.sp) },
+                                    onClick = {
+                                        selectedRange = range
+                                        showRangeDropdown = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Row 1: Total Students & Faculty Teachers
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    // Card 1: Add Student (Purple-indigo gradient)
-                    Card(
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                        border = BorderStroke(1.2.dp, Color(0xFF818CF8).copy(alpha = 0.5f)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { viewModel.selectAdminTab(AdminTab.STUDENTS) }
+                    AdminKpiCard(
+                        title = "Total Students",
+                        value = "${students.size.coerceAtLeast(6)}",
+                        tag = "Enrolled",
+                        growth = "+20% vs last month",
+                        color = Color(0xFF38BDF8),
+                        watermarkIcon = Icons.Rounded.Groups,
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Brush.linearGradient(listOf(Color(0xFF4338CA), Color(0xFF6366F1))))
-                                .padding(vertical = 16.dp, horizontal = 6.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(Icons.Rounded.PersonAdd, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
-                                Text("Add Student", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                        }
+                        Icon(
+                            imageVector = Icons.Rounded.School,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
 
-                    // Card 2: Manage Users (Cyan-teal gradient)
-                    Card(
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                        border = BorderStroke(1.2.dp, Color(0xFF22D3EE).copy(alpha = 0.5f)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { viewModel.selectAdminTab(AdminTab.TEACHERS) }
+                    AdminKpiCard(
+                        title = "Faculty Teachers",
+                        value = "${teachers.size.coerceAtLeast(3)}",
+                        tag = "Faculty",
+                        growth = "+0% vs last month",
+                        color = Color(0xFFA855F7),
+                        watermarkIcon = Icons.Rounded.Groups,
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Brush.linearGradient(listOf(Color(0xFF0E7490), Color(0xFF06B6D4))))
-                                .padding(vertical = 16.dp, horizontal = 6.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(Icons.Rounded.Groups, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
-                                Text("Manage Users", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                        }
-                    }
-
-                    // Card 3: View Reports (Pink-magenta gradient)
-                    Card(
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                        border = BorderStroke(1.2.dp, Color(0xFFF472B6).copy(alpha = 0.5f)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { viewModel.selectAdminTab(AdminTab.CURRICULUM) }
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Brush.linearGradient(listOf(Color(0xFFBE185D), Color(0xFFEC4899))))
-                                .padding(vertical = 16.dp, horizontal = 6.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(Icons.Rounded.BarChart, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
-                                Text("View Reports", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                        }
+                        Text("👩‍🏫", fontSize = 22.sp)
                     }
                 }
 
-                // Secondary Rapid Actions
+                // Row 2: Daily Active Users & Avg Speaking Score
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    AdminKpiCard(
+                        title = "Daily Active Users",
+                        value = "${students.count { it.isActive }.coerceAtLeast(5)}",
+                        tag = "Live Today",
+                        growth = "+25% vs last month",
+                        color = Color(0xFF10B981),
+                        watermarkIcon = Icons.Rounded.BarChart,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Bolt,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    AdminKpiCard(
+                        title = "Avg Speaking Score",
+                        value = "84.2%",
+                        tag = "+4.1% MoM",
+                        growth = "+4.1% vs last month",
+                        color = Color(0xFFF59E0B),
+                        watermarkIcon = Icons.Rounded.TrendingUp,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.WorkspacePremium,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
+                // Row 3: Arcade Challenges & Voice Practice Hours
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    AdminKpiCard(
+                        title = "Arcade Challenges",
+                        value = "$totalGames",
+                        tag = "12 Modes",
+                        growth = "+15% vs last month",
+                        color = Color(0xFF06B6D4),
+                        watermarkIcon = Icons.Rounded.SportsEsports,
+                        tagIcon = Icons.Rounded.GridView,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.SportsEsports,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    AdminKpiCard(
+                        title = "Voice Practice Hours",
+                        value = "3,240h",
+                        tag = "Total Hours",
+                        growth = "+12% vs last month",
+                        color = Color(0xFFFB7185),
+                        watermarkIcon = Icons.Rounded.Mic,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Timer,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Section 2: Executive Rapid Operations (Matching Screenshot 4-card gradient row)
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("🚀", fontSize = 18.sp)
+                    Text(
+                        "Executive Rapid Operations",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 18.sp,
+                        color = Color.White
+                    )
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Card 1: Add Student (Purple-violet gradient)
+                    RapidOperationCard(
+                        title = "Add\nStudent",
+                        icon = Icons.Rounded.GroupAdd,
+                        gradient = listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9)),
+                        borderColor = Color(0xFFC084FC),
+                        modifier = Modifier.weight(1f),
+                        onClick = { viewModel.selectAdminTab(AdminTab.STUDENTS) }
+                    )
+
+                    // Card 2: Manage Faculty (Ocean-blue gradient)
+                    RapidOperationCard(
+                        title = "Manage\nFaculty",
+                        icon = Icons.Rounded.CoPresent,
+                        gradient = listOf(Color(0xFF0284C7), Color(0xFF0369A1)),
+                        borderColor = Color(0xFF38BDF8),
+                        modifier = Modifier.weight(1f),
+                        onClick = { viewModel.selectAdminTab(AdminTab.TEACHERS) }
+                    )
+
+                    // Card 3: Create Challenge (Emerald-green gradient)
+                    RapidOperationCard(
+                        title = "Create\nChallenge",
+                        icon = Icons.Rounded.GridView,
+                        gradient = listOf(Color(0xFF10B981), Color(0xFF047857)),
+                        borderColor = Color(0xFF34D399),
+                        modifier = Modifier.weight(1f),
+                        onClick = { viewModel.selectAdminTab(AdminTab.GAMES) }
+                    )
+
+                    // Card 4: View Reports (Warm amber-gold gradient)
+                    RapidOperationCard(
+                        title = "View\nReports",
+                        icon = Icons.Rounded.TrendingUp,
+                        gradient = listOf(Color(0xFFF59E0B), Color(0xFFD97706)),
+                        borderColor = Color(0xFFFBBF24),
+                        modifier = Modifier.weight(1f),
+                        onClick = { viewModel.selectAdminTab(AdminTab.CURRICULUM) }
+                    )
+                }
+
+                // Secondary Rapid Actions (Preserving existing actions)
                 Card(
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = CyberCardBg),
                     border = BorderStroke(1.dp, CyberCardBorder),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             Button(
                                 onClick = {
@@ -2045,129 +2245,527 @@ fun AdminCurriculumFrameworkView(viewModel: MainViewModel, modifier: Modifier = 
 // REUSABLE DASHBOARD CARDS
 // -------------------------------------------------------------
 @Composable
+fun GoldenAcademicShieldEmblem(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFFFBBF24),
+                        Color(0xFFD97706),
+                        Color(0xFF92400E)
+                    )
+                )
+            )
+            .border(2.5.dp, Color(0xFFFDE68A), CircleShape)
+            .padding(4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val cx = w / 2f
+            val cy = h / 2f
+
+            // Inner golden ring
+            drawCircle(
+                color = Color(0xFFFDE68A).copy(alpha = 0.5f),
+                radius = w * 0.44f,
+                style = Stroke(width = 1.5f)
+            )
+
+            // Shield Path
+            val shieldW = w * 0.58f
+            val shieldH = h * 0.65f
+            val sx = (w - shieldW) / 2f
+            val sy = (h - shieldH) / 2f + 2f
+
+            val shieldPath = Path().apply {
+                moveTo(sx, sy)
+                lineTo(sx + shieldW, sy)
+                lineTo(sx + shieldW, sy + shieldH * 0.55f)
+                cubicTo(
+                    sx + shieldW, sy + shieldH * 0.85f,
+                    cx, sy + shieldH,
+                    cx, sy + shieldH
+                )
+                cubicTo(
+                    cx, sy + shieldH,
+                    sx, sy + shieldH * 0.85f,
+                    sx, sy + shieldH * 0.55f
+                )
+                close()
+            }
+
+            // Fill Shield with Royal Blue Gradient
+            drawPath(
+                path = shieldPath,
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color(0xFF2563EB), Color(0xFF1E3A8A)),
+                    startY = sy,
+                    endY = sy + shieldH
+                )
+            )
+
+            // Shield Golden Border
+            drawPath(
+                path = shieldPath,
+                color = Color(0xFFFDE68A),
+                style = Stroke(width = 2f)
+            )
+
+            // Laurel dots along outer rim
+            val laurelColor = Color(0xFFFEF08A)
+            for (angle in listOf(-140f, -115f, -90f, -65f, -40f, 40f, 65f, 90f, 115f, 140f)) {
+                val rad = Math.toRadians(angle.toDouble())
+                val r = w * 0.40f
+                val lx = cx + (r * Math.cos(rad)).toFloat()
+                val ly = cy + (r * Math.sin(rad)).toFloat()
+                drawCircle(
+                    color = laurelColor,
+                    radius = 2.2f,
+                    center = Offset(lx, ly)
+                )
+            }
+        }
+
+        // Open book icon inside the shield
+        Icon(
+            imageVector = Icons.Rounded.MenuBook,
+            contentDescription = null,
+            tint = Color(0xFFF0F9FF),
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
+@Composable
+fun UniversityBuildingIllustration(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        val shrubColorDark = Color(0xFF059669)
+        val shrubColorLight = Color(0xFF10B981)
+        val buildingBaseColor = Color(0xFF818CF8)
+        val buildingLightColor = Color(0xFFE0E7FF)
+        val columnHighlight = Color(0xFFFFFFFF)
+        val columnShadow = Color(0xFF6366F1)
+        val roofColor = Color(0xFFC7D2FE)
+        val pedimentBorder = Color(0xFFE0E7FF)
+        val flagPoleColor = Color(0xFFE2E8F0)
+
+        // 1. Shrubbery mounds at left and right base
+        drawCircle(
+            color = shrubColorDark,
+            radius = w * 0.12f,
+            center = Offset(w * 0.12f, h * 0.82f)
+        )
+        drawCircle(
+            color = shrubColorLight,
+            radius = w * 0.09f,
+            center = Offset(w * 0.18f, h * 0.85f)
+        )
+        drawCircle(
+            color = shrubColorDark,
+            radius = w * 0.12f,
+            center = Offset(w * 0.88f, h * 0.82f)
+        )
+        drawCircle(
+            color = shrubColorLight,
+            radius = w * 0.09f,
+            center = Offset(w * 0.82f, h * 0.85f)
+        )
+
+        // 2. Front stairs (3 tiers)
+        val stepBottom = h * 0.88f
+        val stepH = h * 0.035f
+        drawRoundRect(
+            color = buildingBaseColor.copy(alpha = 0.8f),
+            topLeft = Offset(w * 0.10f, stepBottom),
+            size = Size(w * 0.80f, stepH),
+            cornerRadius = CornerRadius(2f, 2f)
+        )
+        drawRoundRect(
+            color = buildingLightColor.copy(alpha = 0.9f),
+            topLeft = Offset(w * 0.14f, stepBottom - stepH),
+            size = Size(w * 0.72f, stepH),
+            cornerRadius = CornerRadius(2f, 2f)
+        )
+        drawRoundRect(
+            color = columnHighlight,
+            topLeft = Offset(w * 0.18f, stepBottom - stepH * 2),
+            size = Size(w * 0.64f, stepH),
+            cornerRadius = CornerRadius(2f, 2f)
+        )
+
+        // 3. Portico back wall & entrance arch
+        val porticoTop = h * 0.45f
+        val porticoBottom = stepBottom - stepH * 2
+        val porticoHeight = porticoBottom - porticoTop
+        drawRect(
+            color = Color(0xFF1E1B4B).copy(alpha = 0.75f),
+            topLeft = Offset(w * 0.20f, porticoTop),
+            size = Size(w * 0.60f, porticoHeight)
+        )
+        val doorW = w * 0.16f
+        val doorH = porticoHeight * 0.65f
+        val doorX = (w - doorW) / 2f
+        val doorY = porticoBottom - doorH
+        drawRoundRect(
+            color = Color(0xFF0F172A),
+            topLeft = Offset(doorX, doorY),
+            size = Size(doorW, doorH),
+            cornerRadius = CornerRadius(doorW / 2, doorW / 2)
+        )
+
+        // 4. Columns (4 classical pillars)
+        val numColumns = 4
+        val colWidth = w * 0.055f
+        val colLeft = w * 0.22f
+        val colRight = w * 0.78f - colWidth
+        val colSpacing = (colRight - colLeft) / (numColumns - 1)
+
+        for (i in 0 until numColumns) {
+            val cx = colLeft + i * colSpacing
+            drawRect(
+                color = columnHighlight,
+                topLeft = Offset(cx - 2f, porticoBottom - 4f),
+                size = Size(colWidth + 4f, 4f)
+            )
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(columnHighlight, buildingLightColor, columnShadow.copy(alpha = 0.7f)),
+                    startX = cx,
+                    endX = cx + colWidth
+                ),
+                topLeft = Offset(cx, porticoTop + 5f),
+                size = Size(colWidth, porticoHeight - 9f)
+            )
+            drawRect(
+                color = columnHighlight,
+                topLeft = Offset(cx - 3f, porticoTop),
+                size = Size(colWidth + 6f, 5f)
+            )
+        }
+
+        // 5. Entablature (horizontal beam above columns)
+        val entablatureTop = porticoTop - h * 0.055f
+        val entablatureHeight = h * 0.055f
+        drawRect(
+            color = buildingLightColor,
+            topLeft = Offset(w * 0.16f, entablatureTop),
+            size = Size(w * 0.68f, entablatureHeight)
+        )
+        drawLine(
+            color = columnShadow,
+            start = Offset(w * 0.16f, entablatureTop + entablatureHeight),
+            end = Offset(w * 0.84f, entablatureTop + entablatureHeight),
+            strokeWidth = 2f
+        )
+
+        // 6. Triangular Pediment
+        val pedimentTop = h * 0.22f
+        val pedimentPath = Path().apply {
+            moveTo(w * 0.50f, pedimentTop)
+            lineTo(w * 0.86f, entablatureTop)
+            lineTo(w * 0.14f, entablatureTop)
+            close()
+        }
+        drawPath(
+            path = pedimentPath,
+            brush = Brush.verticalGradient(
+                colors = listOf(buildingLightColor, roofColor),
+                startY = pedimentTop,
+                endY = entablatureTop
+            )
+        )
+        drawPath(
+            path = pedimentPath,
+            color = pedimentBorder,
+            style = Stroke(width = 2.5f)
+        )
+
+        // 7. Dome / cupola & Flagpole on roof
+        val domeW = w * 0.14f
+        val domeH = h * 0.08f
+        val domeX = (w - domeW) / 2f
+        val domeY = pedimentTop - domeH * 0.75f
+        drawArc(
+            color = columnHighlight,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = true,
+            topLeft = Offset(domeX, domeY),
+            size = Size(domeW, domeH)
+        )
+
+        val poleX = w * 0.50f
+        val poleTop = h * 0.04f
+        drawLine(
+            color = flagPoleColor,
+            start = Offset(poleX, domeY),
+            end = Offset(poleX, poleTop),
+            strokeWidth = 2.5f
+        )
+
+        // Waving Flag
+        val flagPath = Path().apply {
+            moveTo(poleX, poleTop)
+            cubicTo(
+                poleX + w * 0.06f, poleTop - 3f,
+                poleX + w * 0.09f, poleTop + 6f,
+                poleX + w * 0.14f, poleTop + 2f
+            )
+            lineTo(poleX + w * 0.14f, poleTop + h * 0.055f)
+            cubicTo(
+                poleX + w * 0.09f, poleTop + h * 0.055f + 4f,
+                poleX + w * 0.06f, poleTop + h * 0.055f - 3f,
+                poleX, poleTop + h * 0.055f
+            )
+            close()
+        }
+        drawPath(
+            path = flagPath,
+            color = Color(0xFFF8FAFC)
+        )
+    }
+}
+
+@Composable
+fun KpiCardFluidWave(color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        val wavePath = Path().apply {
+            moveTo(0f, h)
+            lineTo(0f, h * 0.70f)
+            cubicTo(
+                w * 0.35f, h * 0.90f,
+                w * 0.60f, h * 0.35f,
+                w, h * 0.50f
+            )
+            lineTo(w, h)
+            close()
+        }
+
+        drawPath(
+            path = wavePath,
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    color.copy(alpha = 0.45f),
+                    color.copy(alpha = 0.10f)
+                ),
+                startY = h * 0.3f,
+                endY = h
+            )
+        )
+    }
+}
+
+@Composable
 fun AdminKpiCard(
     title: String,
     value: String,
-    emoji: String,
+    tag: String,
+    growth: String,
     color: Color,
+    watermarkIcon: ImageVector,
     modifier: Modifier = Modifier,
-    tag: String = "Live",
-    watermarkIcon: ImageVector? = null
+    tagIcon: ImageVector? = null,
+    iconContent: @Composable () -> Unit
 ) {
-    val cardBg: Color
-    val cardBorder: Color
-    val iconGrad: Brush
-    val defaultWatermark: ImageVector
-
-    when (color) {
-        RoyalBlue -> {
-            cardBg = NeonBlueCardBg
-            cardBorder = NeonBlueBorder
-            iconGrad = NeonBlueGrad
-            defaultWatermark = Icons.Rounded.People
-        }
-        PurpleAccent -> {
-            cardBg = NeonPurpleCardBg
-            cardBorder = NeonPurpleBorder
-            iconGrad = NeonPurpleGrad
-            defaultWatermark = Icons.Rounded.Groups
-        }
-        EmeraldSuccess -> {
-            cardBg = NeonGreenCardBg
-            cardBorder = NeonGreenBorder
-            iconGrad = NeonGreenGrad
-            defaultWatermark = Icons.Rounded.BarChart
-        }
-        AmberGold -> {
-            cardBg = NeonAmberCardBg
-            cardBorder = NeonAmberBorder
-            iconGrad = NeonAmberGrad
-            defaultWatermark = Icons.Rounded.TrendingUp
-        }
-        CyanAccent -> {
-            cardBg = NeonCyanCardBg
-            cardBorder = NeonCyanBorder
-            iconGrad = NeonCyanGrad
-            defaultWatermark = Icons.Rounded.SportsEsports
-        }
-        CoralAccent, SoftPink -> {
-            cardBg = NeonPinkCardBg
-            cardBorder = NeonPinkBorder
-            iconGrad = NeonPinkGrad
-            defaultWatermark = Icons.Rounded.Mic
-        }
-        else -> {
-            cardBg = Color(0xFF0F1535)
-            cardBorder = color
-            iconGrad = Brush.linearGradient(listOf(color, color))
-            defaultWatermark = Icons.Rounded.Analytics
-        }
+    val cardBg = when (color) {
+        Color(0xFF38BDF8) -> listOf(Color(0xFF071A3C), Color(0xFF030D20))
+        Color(0xFFA855F7) -> listOf(Color(0xFF1E0A3C), Color(0xFF100524))
+        Color(0xFF10B981) -> listOf(Color(0xFF032619), Color(0xFF02160E))
+        Color(0xFFF59E0B) -> listOf(Color(0xFF2E1303), Color(0xFF180A02))
+        Color(0xFF06B6D4) -> listOf(Color(0xFF051C30), Color(0xFF020E1A))
+        Color(0xFFFB7185) -> listOf(Color(0xFF2B0517), Color(0xFF16020C))
+        else -> listOf(Color(0xFF0F1535), Color(0xFF070B1F))
     }
 
     Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = cardBg),
-        border = BorderStroke(1.2.dp, cardBorder.copy(alpha = 0.55f)),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.5.dp, color.copy(alpha = 0.75f)),
         modifier = modifier
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            // Subtle watermark icon in bottom-right corner as seen in screenshot
-            Icon(
-                imageVector = watermarkIcon ?: defaultWatermark,
-                contentDescription = null,
-                tint = cardBorder.copy(alpha = 0.22f),
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(cardBg))
+        ) {
+            // Fluid wave at bottom
+            KpiCardFluidWave(
+                color = color,
                 modifier = Modifier
-                    .size(38.dp)
+                    .fillMaxWidth()
+                    .height(55.dp)
+                    .align(Alignment.BottomCenter)
+            )
+
+            // Subtle watermark icon in bottom-right corner
+            Icon(
+                imageVector = watermarkIcon,
+                contentDescription = null,
+                tint = color.copy(alpha = 0.28f),
+                modifier = Modifier
+                    .size(36.dp)
                     .align(Alignment.BottomEnd)
-                    .offset(x = (-10).dp, y = (-10).dp)
+                    .offset(x = (-12).dp, y = (-10).dp)
             )
 
             Column(
-                modifier = Modifier.padding(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Top Row: Icon + Title/Value + Tag Pill
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(RoundedCornerShape(13.dp))
-                            .background(iconGrad),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Text(emoji, fontSize = 22.sp)
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(color, color.copy(alpha = 0.7f))
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            iconContent()
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = title,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            Text(
+                                text = value,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White,
+                                maxLines = 1
+                            )
+                        }
                     }
+
+                    // Tag Pill
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF070B1F).copy(alpha = 0.70f),
-                        border = BorderStroke(1.dp, cardBorder.copy(alpha = 0.50f))
+                        color = Color(0xFF070B1F).copy(alpha = 0.75f),
+                        border = BorderStroke(1.dp, color.copy(alpha = 0.70f))
                     ) {
-                        Text(
-                            text = tag,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
+                            if (tagIcon != null) {
+                                Icon(
+                                    imageVector = tagIcon,
+                                    contentDescription = null,
+                                    tint = color,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                            }
+                            Text(
+                                text = tag,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = color,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = value,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 24.sp,
-                        color = Color.White
+
+                // Bottom row: growth indicator
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ArrowUpward,
+                        contentDescription = null,
+                        tint = Color(0xFF4ADE80),
+                        modifier = Modifier.size(12.dp)
                     )
                     Text(
-                        text = title,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF94A3B8)
+                        text = growth,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF4ADE80)
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun RapidOperationCard(
+    title: String,
+    icon: ImageVector,
+    gradient: List<Color>,
+    borderColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.5.dp, borderColor.copy(alpha = 0.85f)),
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { onClick() }
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(gradient))
+                .padding(vertical = 16.dp, horizontal = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = Color.White,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 15.sp,
+                    maxLines = 2
+                )
             }
         }
     }
