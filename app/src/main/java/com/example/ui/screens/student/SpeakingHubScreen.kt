@@ -77,14 +77,24 @@ fun SpeakingHubScreen(
     val speakingPrompts by viewModel.speakingPrompts.collectAsState()
 
     BackHandler {
-        viewModel.selectStudentTab(StudentTab.HOME)
+        if (currentSubTab == SpeakingSubTab.ENGLISH_ADVENTURE) {
+            viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
+        } else {
+            viewModel.selectStudentTab(StudentTab.HOME)
+        }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .testTag("speaking_hub_screen")
-    ) {
+    if (currentSubTab == SpeakingSubTab.ENGLISH_ADVENTURE) {
+        EnglishAdventureScreen(
+            viewModel = viewModel,
+            modifier = modifier.fillMaxSize()
+        )
+    } else {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .testTag("speaking_hub_screen")
+        ) {
         // 1. Top Bar exactly matching screenshot
         Row(
             modifier = Modifier
@@ -224,42 +234,36 @@ fun SpeakingHubScreen(
             }
         }
 
-        if (currentSubTab == SpeakingSubTab.ENGLISH_ADVENTURE) {
-            EnglishAdventureScreen(
-                viewModel = viewModel,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                when (currentSubTab) {
-                    SpeakingSubTab.AI_PARTNER -> {
-                        item {
-                            AiPartnerExactScreen(
-                                viewModel = viewModel,
-                                speechState = speechState,
-                                evaluation = lastEvaluation
-                            )
-                        }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            when (currentSubTab) {
+                SpeakingSubTab.AI_PARTNER -> {
+                    item {
+                        AiPartnerExactScreen(
+                            viewModel = viewModel,
+                            speechState = speechState,
+                            evaluation = lastEvaluation
+                        )
                     }
-                    SpeakingSubTab.DAILY_CHALLENGE -> {
-                        item {
-                            DailyChallengeSection(
-                                prompts = speakingPrompts,
-                                viewModel = viewModel,
-                                speechState = speechState,
-                                evaluation = lastEvaluation
-                            )
-                        }
+                }
+                SpeakingSubTab.DAILY_CHALLENGE -> {
+                    item {
+                        DailyChallengeSection(
+                            prompts = speakingPrompts,
+                            viewModel = viewModel,
+                            speechState = speechState,
+                            evaluation = lastEvaluation
+                        )
                     }
-                    SpeakingSubTab.ENGLISH_ADVENTURE -> {
-                        // Handled above in direct full-screen view
-                    }
-                    SpeakingSubTab.PRONUNCIATION_COACH -> {
-                        item {
+                }
+                SpeakingSubTab.ENGLISH_ADVENTURE -> {
+                    // Handled at top level outside Speaking Practice bar
+                }
+                SpeakingSubTab.PRONUNCIATION_COACH -> {
+                    item {
                         PronunciationSection(
                             drills = pronunciationDrills,
                             activeDrill = activeDrill,
