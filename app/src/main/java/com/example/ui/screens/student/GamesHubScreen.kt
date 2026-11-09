@@ -883,27 +883,29 @@ fun ActiveGameRunner(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Game Header Bar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        // Game Header Bar (Custom integrated hero banner is rendered inside PronunciationBattleGame)
+        if (gameType != ActiveGameType.PRONUNCIATION_BATTLE) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(gameType.emoji, fontSize = 28.sp)
-                Column {
-                    Text(gameType.title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                    Text("Interactive Learning Challenge", fontSize = 11.sp, color = MutedGray)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(gameType.emoji, fontSize = 28.sp)
+                    Column {
+                        Text(gameType.title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Text("Interactive Learning Challenge", fontSize = 11.sp, color = MutedGray)
+                    }
                 }
-            }
-            IconButton(
-                onClick = onClose,
-                modifier = Modifier.testTag("close_game_button")
-            ) {
-                Icon(Icons.Filled.Close, contentDescription = "Close Game")
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier.testTag("close_game_button")
+                ) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close Game")
+                }
             }
         }
 
@@ -913,7 +915,7 @@ fun ActiveGameRunner(
             ActiveGameType.MISSING_LETTERS -> MissingLettersGame(viewModel)
             ActiveGameType.SENTENCE_BUILDER -> SentenceBuilderGame(viewModel)
             ActiveGameType.LISTEN_CHOOSE -> ListenAndChooseGame(viewModel)
-            ActiveGameType.PRONUNCIATION_BATTLE -> PronunciationBattleGame(viewModel)
+            ActiveGameType.PRONUNCIATION_BATTLE -> PronunciationBattleGame(viewModel, onClose)
             ActiveGameType.FAST_VOCABULARY -> FastVocabularyGame(viewModel)
             ActiveGameType.GRAMMAR_CHALLENGE -> GrammarChallengeGame(viewModel)
             ActiveGameType.PICTURE_VOCAB -> PictureVocabGame(viewModel)
@@ -2048,12 +2050,16 @@ fun ListenAndChooseGame(viewModel: MainViewModel) {
 // 5. PRONUNCIATION BATTLE GAME - Evaluates & rewards speech with score reset
 // =========================================================================
 @Composable
-fun PronunciationBattleGame(viewModel: MainViewModel) {
+fun PronunciationBattleGame(
+    viewModel: MainViewModel,
+    onClose: () -> Unit = {}
+) {
     val challenges by viewModel.pronunciationBattleChallenges.collectAsState()
     var challengeIndex by remember { mutableIntStateOf(0) }
     val current = challenges.getOrNull(challengeIndex) ?: return
 
     val speechState by viewModel.speechManager.speechState.collectAsState()
+    val isListening = speechState is com.example.service.SpeechState.Listening
     val evaluation by viewModel.lastEvaluation.collectAsState()
     var hasAwarded by remember(current.id) { mutableStateOf(false) }
 
@@ -2066,106 +2072,686 @@ fun PronunciationBattleGame(viewModel: MainViewModel) {
         }
     }
 
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth()
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+        // -------------------------------------------------------------
+        // TOP HERO BANNER CARD (Deep Purple Gradient with Speakly Mascot & Close)
+        // -------------------------------------------------------------
+        Surface(
+            shape = RoundedCornerShape(26.dp),
+            color = Color(0xFF1E0E45),
+            border = BorderStroke(1.dp, Color(0xFF7C3AED).copy(alpha = 0.5f)),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("⚔️ Pronunciation Battle Arena", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = RoyalBlue)
-                Text("${challengeIndex + 1}/${challenges.size}", fontSize = 12.sp, color = MutedGray)
-            }
-
-            Text(
-                "Phoneme Focus: ${current.targetPhonemeFocus} • Passing Target: ${current.passingScore}%",
-                fontSize = 12.sp,
-                color = MutedGray,
-                textAlign = TextAlign.Center
-            )
-
-            // Sentence Card
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = Color(0xFF0F1E42),
-                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    "\"${current.challengeSentence}\"",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-
-            // Audio Guide
-            Button(
-                onClick = { viewModel.speakAudio(current.challengeSentence) },
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Icon(Icons.Rounded.VolumeUp, contentDescription = "Listen", tint = RoyalBlue)
-                Spacer(Modifier.width(6.dp))
-                Text("Listen to Native Guide", color = RoyalBlue, fontSize = 12.sp)
-            }
-
-            // Microphone Recording
-            MicrophoneButton(
-                speechState = speechState,
-                onStart = { viewModel.startSpeakingPractice() },
-                onStop = { viewModel.stopSpeakingPractice() },
-                onSimulate = { viewModel.simulateVoiceInput(it) },
-                samplePrompt = current.challengeSentence
-            )
-
-            // Live Evaluation Feedback
-            evaluation?.let { eval ->
-                val passed = eval.pronunciationScore >= current.passingScore
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (passed) Color(0xFFDCFCE7) else Color(0xFFFEF3C7),
-                    border = BorderStroke(1.dp, if (passed) EmeraldSuccess else AmberGold),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = if (passed) "🏆 Battle Won! Accuracy: ${eval.pronunciationScore}%" else "⚡ Score: ${eval.pronunciationScore}% (Need ${current.passingScore}%)",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = if (passed) Color(0xFF166534) else Color(0xFF92400E)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                Color(0xFF2E1065),
+                                Color(0xFF1E1045),
+                                Color(0xFF11082E)
+                            )
                         )
+                    )
+                    .padding(16.dp)
+            ) {
+                // Top Right Circular Close Button
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0x33FFFFFF),
+                    border = BorderStroke(1.dp, Color(0x44FFFFFF)),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(32.dp)
+                        .clickable { onClose() }
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Close Game",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Left Column: Crest, Title, Pill
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Shield Crest & Soundwave Pill
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF3B1578),
+                                border = BorderStroke(1.5.dp, Color(0xFFA855F7)),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text("⚔️", fontSize = 16.sp)
+                                }
+                            }
+
+                            // Small cyan soundwave badge
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF17133C),
+                                border = BorderStroke(1.dp, Color(0xFF38BDF8)),
+                                modifier = Modifier.padding(start = 2.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.GraphicEq,
+                                        contentDescription = null,
+                                        tint = Color(0xFF38BDF8),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text("✨", fontSize = 10.sp)
+                                }
+                            }
+                        }
+
+                        // Title with Golden Laurels
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("🌿", fontSize = 16.sp)
+                            Text(
+                                "Pronunciation",
+                                fontSize = 19.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                            Text("🌿", fontSize = 16.sp)
+                        }
+
+                        // Big Golden "Battle"
                         Text(
-                            text = eval.feedback,
-                            fontSize = 12.sp,
-                            color = if (passed) Color(0xFF15803D) else Color(0xFF78350F),
-                            textAlign = TextAlign.Center
+                            text = "Battle",
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFFFACC15)
+                        )
+
+                        // Purple Ribbon Pill
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF7C3AED)
+                        ) {
+                            Text(
+                                text = "Interactive Learning Challenge",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+
+                    // Right Mascot (Speakly Owl)
+                    Box(
+                        modifier = Modifier
+                            .size(92.dp)
+                            .padding(top = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.app_logo),
+                            contentDescription = "Speakly Mascot",
+                            modifier = Modifier
+                                .size(88.dp)
+                                .clip(RoundedCornerShape(22.dp)),
+                            contentScale = ContentScale.Crop
                         )
                     }
                 }
             }
+        }
 
-            Button(
-                onClick = {
-                    challengeIndex = (challengeIndex + 1) % challenges.size
-                    viewModel.clearEvaluation()
-                    hasAwarded = false
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+        // -------------------------------------------------------------
+        // MAIN ARENA CARD (Glowing Neon Gradient Border + Concentric Orb)
+        // -------------------------------------------------------------
+        Surface(
+            shape = RoundedCornerShape(26.dp),
+            color = Color(0xFF090C28),
+            border = BorderStroke(
+                1.5.dp,
+                Brush.linearGradient(
+                    listOf(
+                        Color(0xFFA855F7),
+                        Color(0xFF38BDF8),
+                        Color(0xFF2563EB)
+                    )
+                )
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("Next Battle Phrase ➡️")
+                // Arena Header Row: Shield + Title + Step Counter Pill
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFF1E1045),
+                            border = BorderStroke(1.5.dp, Color(0xFFA855F7)),
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("⚔️", fontSize = 18.sp)
+                            }
+                        }
+                        Text(
+                            "Pronunciation Battle Arena",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color.White
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF1A1A46),
+                        border = BorderStroke(1.dp, Color(0xFF4338CA))
+                    ) {
+                        Text(
+                            text = "${challengeIndex + 1} / ${challenges.size}",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+
+                // Phoneme Focus & Passing Target Bar
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF12183A),
+                    border = BorderStroke(1.dp, Color(0xFF2A3462)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Left: Phoneme Focus
+                        Row(
+                            modifier = Modifier.weight(1.3f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.GraphicEq,
+                                contentDescription = null,
+                                tint = Color(0xFF67E8F9),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column {
+                                Text(
+                                    "Phoneme Focus",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    current.targetPhonemeFocus,
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        // Divider
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(32.dp)
+                                .background(Color(0xFF2A3462))
+                        )
+
+                        // Right: Passing Target
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.TrackChanges,
+                                contentDescription = null,
+                                tint = Color(0xFFA855F7),
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Column {
+                                Text(
+                                    "Passing Target",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    "${current.passingScore}%",
+                                    color = Color(0xFF4ADE80),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Sentence Box with Golden Quotes
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFF10173F).copy(alpha = 0.85f),
+                    border = BorderStroke(
+                        1.5.dp,
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFF38BDF8),
+                                Color(0xFFA855F7)
+                            )
+                        )
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 20.dp)
+                    ) {
+                        Text(
+                            text = "“",
+                            color = Color(0xFFFACC15),
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .offset(x = 0.dp, y = (-12).dp)
+                        )
+
+                        Text(
+                            text = "\"${current.challengeSentence}\"",
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 24.sp,
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+
+                        Text(
+                            text = "”",
+                            color = Color(0xFFFACC15),
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .offset(x = 0.dp, y = 12.dp)
+                        )
+                    }
+                }
+
+                // Listen to Native Guide (Flanked by soundwaves)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    // Left Soundwave bars
+                    Canvas(modifier = Modifier.width(38.dp).height(20.dp)) {
+                        val barWidth = 2.5.dp.toPx()
+                        val spacing = 3.dp.toPx()
+                        val heights = listOf(0.4f, 0.75f, 1f, 0.6f, 0.9f, 0.45f)
+                        heights.forEachIndexed { i, h ->
+                            val x = i * (barWidth + spacing)
+                            val barH = size.height * h
+                            drawLine(
+                                color = Color(0xFF6366F1).copy(alpha = 0.65f),
+                                start = Offset(x, (size.height - barH) / 2f),
+                                end = Offset(x, (size.height + barH) / 2f),
+                                strokeWidth = barWidth
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = Color.Transparent,
+                        modifier = Modifier
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF6366F1), Color(0xFF9333EA))
+                                ),
+                                RoundedCornerShape(24.dp)
+                            )
+                            .clickable { viewModel.speakAudio(current.challengeSentence) }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.VolumeUp,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Listen to Native Guide",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    // Right Soundwave bars
+                    Canvas(modifier = Modifier.width(38.dp).height(20.dp)) {
+                        val barWidth = 2.5.dp.toPx()
+                        val spacing = 3.dp.toPx()
+                        val heights = listOf(0.45f, 0.9f, 0.6f, 1f, 0.75f, 0.4f)
+                        heights.forEachIndexed { i, h ->
+                            val x = i * (barWidth + spacing)
+                            val barH = size.height * h
+                            drawLine(
+                                color = Color(0xFF6366F1).copy(alpha = 0.65f),
+                                start = Offset(x, (size.height - barH) / 2f),
+                                end = Offset(x, (size.height + barH) / 2f),
+                                strokeWidth = barWidth
+                            )
+                        }
+                    }
+                }
+
+                // Concentric Glowing Microphone Orb
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        // Left sound ripples
+                        Canvas(modifier = Modifier.width(30.dp).height(50.dp)) {
+                            drawArc(
+                                color = Color(0xFF38BDF8).copy(alpha = 0.6f),
+                                startAngle = 120f,
+                                sweepAngle = 120f,
+                                useCenter = false,
+                                style = Stroke(width = 2.dp.toPx())
+                            )
+                            drawArc(
+                                color = Color(0xFF818CF8).copy(alpha = 0.4f),
+                                startAngle = 130f,
+                                sweepAngle = 100f,
+                                useCenter = false,
+                                style = Stroke(width = 1.5.dp.toPx())
+                            )
+                        }
+
+                        Spacer(Modifier.width(10.dp))
+
+                        // 3-Tier Concentric Circle Orb
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF0C1033),
+                            border = BorderStroke(
+                                3.dp,
+                                Brush.sweepGradient(
+                                    listOf(
+                                        Color(0xFF00E5FF),
+                                        Color(0xFF3B82F6),
+                                        Color(0xFFA855F7),
+                                        Color(0xFFEC4899),
+                                        Color(0xFF00E5FF)
+                                    )
+                                )
+                            ),
+                            modifier = Modifier.size(126.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                // Middle Circle
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color(0xFF151940),
+                                    border = BorderStroke(1.dp, Color(0xFF3B487A)),
+                                    modifier = Modifier.size(96.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        // Inner Clickable Orb
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = Color.Transparent,
+                                            modifier = Modifier
+                                                .size(74.dp)
+                                                .background(
+                                                    Brush.verticalGradient(
+                                                        listOf(
+                                                            Color(0xFF00E5FF),
+                                                            Color(0xFF2563EB),
+                                                            Color(0xFF7C3AED)
+                                                        )
+                                                    ),
+                                                    CircleShape
+                                                )
+                                                .clickable {
+                                                    if (isListening) {
+                                                        viewModel.stopSpeakingPractice()
+                                                    } else {
+                                                        viewModel.startSpeakingPractice()
+                                                    }
+                                                }
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (isListening) Icons.Filled.Stop else Icons.Filled.Mic,
+                                                    contentDescription = "Microphone",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(34.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.width(10.dp))
+
+                        // Right sound ripples
+                        Canvas(modifier = Modifier.width(30.dp).height(50.dp)) {
+                            drawArc(
+                                color = Color(0xFF38BDF8).copy(alpha = 0.6f),
+                                startAngle = -60f,
+                                sweepAngle = 120f,
+                                useCenter = false,
+                                style = Stroke(width = 2.dp.toPx())
+                            )
+                            drawArc(
+                                color = Color(0xFF818CF8).copy(alpha = 0.4f),
+                                startAngle = -50f,
+                                sweepAngle = 100f,
+                                useCenter = false,
+                                style = Stroke(width = 1.5.dp.toPx())
+                            )
+                        }
+                    }
+
+                    // Text prompt below orb
+                    Text(
+                        text = if (isListening) "Listening... Speak Now" else "Tap to Speak",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+
+                    // Test with Sample Voice pill
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFF13183B),
+                        border = BorderStroke(1.dp, Color(0xFF3B487A)),
+                        modifier = Modifier.clickable {
+                            viewModel.simulateVoiceInput(current.challengeSentence)
+                        }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.VolumeUp,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Test with Sample Voice",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                // Live Diagnostic Evaluation Feedback (if available)
+                evaluation?.let { eval ->
+                    val passed = eval.pronunciationScore >= current.passingScore
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (passed) Color(0xFF0F2E1E) else Color(0xFF351A08),
+                        border = BorderStroke(1.dp, if (passed) Color(0xFF4ADE80) else Color(0xFFFBBF24)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = if (passed) "🏆 Battle Won! Accuracy: ${eval.pronunciationScore}%" else "⚡ Score: ${eval.pronunciationScore}% (Need ${current.passingScore}%)",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (passed) Color(0xFF4ADE80) else Color(0xFFFBBF24)
+                            )
+                            Text(
+                                text = eval.feedback,
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.9f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                // Next Battle Phrase Button
+                Surface(
+                    shape = RoundedCornerShape(26.dp),
+                    color = Color.Transparent,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    Color(0xFF8B5CF6),
+                                    Color(0xFF3B82F6),
+                                    Color(0xFF06B6D4)
+                                )
+                            ),
+                            RoundedCornerShape(26.dp)
+                        )
+                        .clickable {
+                            challengeIndex = (challengeIndex + 1) % challenges.size
+                            viewModel.clearEvaluation()
+                            hasAwarded = false
+                        }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Next Battle Phrase",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.ArrowForward,
+                                    contentDescription = null,
+                                    tint = Color(0xFF2563EB),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
