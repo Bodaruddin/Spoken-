@@ -50,13 +50,13 @@ enum class TeacherSpeakingSection(val title: String, val emoji: String) {
 enum class AdminSpeakingSection(val title: String, val emoji: String) {
     SPEAKING_PROMPTS("AI Speaking Prompts", "🎙️"),
     PHONETICS_DRILLS("Phonetics & Drills", "🎯"),
-    ROLEPLAY_SCENARIOS("Roleplay Scenarios", "🎭")
+    ADVENTURE_WORLDS("English Adventure Worlds", "🗺️")
 }
 
 enum class SpeakingSubTab {
     AI_PARTNER,
     DAILY_CHALLENGE,
-    ROLEPLAY,
+    ENGLISH_ADVENTURE,
     PRONUNCIATION_COACH,
     PICTURE_DESCRIPTION
 }
@@ -158,6 +158,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val stages = repository.stages
     val speakingPrompts = repository.speakingPrompts
     val roleplays = repository.roleplays
+    val adventureWorlds = repository.adventureWorlds
+    val adventureProgress = repository.adventureProgress
+    val adventureBadges = repository.adventureBadges
+    val adventureLeaderboard = repository.adventureLeaderboard
     val pronunciationDrills = repository.pronunciationDrills
     val vocabularyWords = repository.vocabularyWords
     val grammarTopics = repository.grammarTopics
@@ -405,6 +409,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _activeRoleplay = MutableStateFlow<RoleplayScenario?>(null)
     val activeRoleplay: StateFlow<RoleplayScenario?> = _activeRoleplay.asStateFlow()
     val roleplayTurnIndex = MutableStateFlow(0)
+
+    // English Adventure Selection States
+    private val _selectedAdventureWorld = MutableStateFlow<AdventureWorld?>(null)
+    val selectedAdventureWorld: StateFlow<AdventureWorld?> = _selectedAdventureWorld.asStateFlow()
+
+    private val _activeAdventureLevel = MutableStateFlow<AdventureLevel?>(null)
+    val activeAdventureLevel: StateFlow<AdventureLevel?> = _activeAdventureLevel.asStateFlow()
+
+    private val _activeAdventureMission = MutableStateFlow<AdventureMission?>(null)
+    val activeAdventureMission: StateFlow<AdventureMission?> = _activeAdventureMission.asStateFlow()
 
     private val _activePronunciationDrill = MutableStateFlow<PronunciationDrill?>(
         repository.pronunciationDrills.value.find { it.wordOrSentence.equals("Specifically", ignoreCase = true) }
@@ -1074,6 +1088,88 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _activeRoleplay.value = null
         _lastEvaluation.value = null
     }
+
+    // =========================================================================
+    // ENGLISH ADVENTURE ACTIONS & SUPABASE CLOUD SYNC
+    // =========================================================================
+
+    fun selectAdventureWorld(world: AdventureWorld?) {
+        _selectedAdventureWorld.value = world
+        _activeAdventureLevel.value = null
+        _activeAdventureMission.value = null
+    }
+
+    fun selectAdventureLevel(level: AdventureLevel?) {
+        _activeAdventureLevel.value = level
+        _activeAdventureMission.value = level?.missions?.firstOrNull()
+    }
+
+    fun startAdventureMission(mission: AdventureMission) {
+        _activeAdventureMission.value = mission
+        _lastEvaluation.value = null
+    }
+
+    fun exitAdventureMission() {
+        _activeAdventureMission.value = null
+        _lastEvaluation.value = null
+    }
+
+    fun completeAdventureMission(
+        worldId: String,
+        levelId: String,
+        missionId: String,
+        scorePercent: Int
+    ): Pair<Int, Boolean> {
+        val result = repository.completeAdventureMission(worldId, levelId, missionId, scorePercent)
+        val progress = repository.adventureProgress.value
+        val world = repository.adventureWorlds.value.find { it.id == worldId }
+        val worldName = world?.name ?: "Vocabulary Island"
+
+        // Trigger celebratory reward popup
+        _celebrationReward.value = Pair(40 + result.first * 10, 20 + result.first * 5)
+
+        // Sync with Supabase cloud database in background
+        viewModelScope.launch {
+            supabaseService.syncAdventureProgress(
+                studentId = progress.studentId,
+                currentWorld = worldName,
+                completedLevels = progress.completedLevelIds.size,
+                totalStars = progress.totalStars,
+                totalCoins = progress.totalCoins,
+                totalXp = progress.totalXp
+            )
+            // also sync general student progress table
+            val p = repository.studentProfile.value
+            supabaseService.syncStudentProgress(
+                studentId = p.userId,
+                xp = p.xpPoints,
+                coins = p.coins,
+                speakingScore = p.speakingScore,
+                completedStages = p.completedStagesCount
+            )
+        }
+        return result
+    }
+
+    fun getTeacherAdventureReports(): List<StudentAdventureProgressSummary> = repository.getTeacherAdventureReports()
+
+    fun addAdventureWorld(name: String, description: String, tagline: String, emoji: String, requiredStars: Int) =
+        repository.addAdventureWorld(name, description, tagline, emoji, requiredStars)
+
+    fun updateAdventureWorld(world: AdventureWorld) = repository.updateAdventureWorld(world)
+
+    fun deleteAdventureWorld(worldId: String) = repository.deleteAdventureWorld(worldId)
+
+    fun addAdventureLevel(worldId: String, title: String, description: String, emoji: String, xp: Int, coins: Int) =
+        repository.addAdventureLevel(worldId, title, description, emoji, xp, coins)
+
+    fun deleteAdventureLevel(worldId: String, levelId: String) = repository.deleteAdventureLevel(worldId, levelId)
+
+    fun addAdventureMission(worldId: String, levelId: String, title: String, description: String, type: AdventureMissionType, targetSentence: String, options: List<String>, correctAnswer: String, clue: String, xp: Int, coins: Int) =
+        repository.addAdventureMission(worldId, levelId, title, description, type, targetSentence, options, correctAnswer, clue, xp, coins)
+
+    fun deleteAdventureMission(worldId: String, levelId: String, missionId: String) =
+        repository.deleteAdventureMission(worldId, levelId, missionId)
 
     // Games Management
     fun launchGame(game: ActiveGameType) {

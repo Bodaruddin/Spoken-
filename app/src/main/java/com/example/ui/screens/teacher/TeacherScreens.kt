@@ -555,13 +555,65 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
         }
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .testTag("teacher_students_screen"),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    var activeStudentSubTab by remember { mutableStateOf("ROSTER") }
+
+    Column(modifier = modifier.fillMaxSize()) {
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (activeStudentSubTab == "ROSTER") RoyalBlue else MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.weight(1f).clickable { activeStudentSubTab = "ROSTER" }
+                ) {
+                    Text(
+                        "👥 Cohort Roster",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (activeStudentSubTab == "ADVENTURE") Color(0xFF7C3AED) else MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.weight(1f).clickable { activeStudentSubTab = "ADVENTURE" }
+                ) {
+                    Text(
+                        "🗺️ Adventure Progress",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            }
+        }
+
+        if (activeStudentSubTab == "ADVENTURE") {
+            com.example.ui.screens.common.TeacherAdventureProgressTracker(
+                viewModel = viewModel,
+                modifier = Modifier.weight(1f)
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(16.dp)
+                    .testTag("teacher_students_screen"),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
@@ -691,6 +743,8 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                     viewModel.speakAudio("Target pronunciation drill assigned to ${student.name}")
                 }
             )
+        }
+    }
         }
     }
 

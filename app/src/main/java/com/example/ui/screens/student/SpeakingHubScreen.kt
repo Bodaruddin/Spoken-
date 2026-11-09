@@ -197,11 +197,11 @@ fun SpeakingHubScreen(
             }
             item {
                 SpeakingTabPill(
-                    title = "Roleplay",
-                    emoji = "🎭",
-                    isSelected = currentSubTab == SpeakingSubTab.ROLEPLAY
+                    title = "English Adventure",
+                    emoji = "🗺️",
+                    isSelected = currentSubTab == SpeakingSubTab.ENGLISH_ADVENTURE
                 ) {
-                    viewModel.selectSpeakingSubTab(SpeakingSubTab.ROLEPLAY)
+                    viewModel.selectSpeakingSubTab(SpeakingSubTab.ENGLISH_ADVENTURE)
                 }
             }
             item {
@@ -224,45 +224,42 @@ fun SpeakingHubScreen(
             }
         }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            when (currentSubTab) {
-                SpeakingSubTab.AI_PARTNER -> {
-                    item {
-                        AiPartnerExactScreen(
-                            viewModel = viewModel,
-                            speechState = speechState,
-                            evaluation = lastEvaluation
-                        )
+        if (currentSubTab == SpeakingSubTab.ENGLISH_ADVENTURE) {
+            EnglishAdventureScreen(
+                viewModel = viewModel,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                when (currentSubTab) {
+                    SpeakingSubTab.AI_PARTNER -> {
+                        item {
+                            AiPartnerExactScreen(
+                                viewModel = viewModel,
+                                speechState = speechState,
+                                evaluation = lastEvaluation
+                            )
+                        }
                     }
-                }
-                SpeakingSubTab.DAILY_CHALLENGE -> {
-                    item {
-                        DailyChallengeSection(
-                            prompts = speakingPrompts,
-                            viewModel = viewModel,
-                            speechState = speechState,
-                            evaluation = lastEvaluation
-                        )
+                    SpeakingSubTab.DAILY_CHALLENGE -> {
+                        item {
+                            DailyChallengeSection(
+                                prompts = speakingPrompts,
+                                viewModel = viewModel,
+                                speechState = speechState,
+                                evaluation = lastEvaluation
+                            )
+                        }
                     }
-                }
-                SpeakingSubTab.ROLEPLAY -> {
-                    item {
-                        RoleplaySection(
-                            roleplays = roleplays,
-                            activeRoleplay = activeRoleplay,
-                            turnIndex = roleplayTurnIndex,
-                            viewModel = viewModel,
-                            speechState = speechState,
-                            evaluation = lastEvaluation
-                        )
+                    SpeakingSubTab.ENGLISH_ADVENTURE -> {
+                        // Handled above in direct full-screen view
                     }
-                }
-                SpeakingSubTab.PRONUNCIATION_COACH -> {
-                    item {
+                    SpeakingSubTab.PRONUNCIATION_COACH -> {
+                        item {
                         PronunciationSection(
                             drills = pronunciationDrills,
                             activeDrill = activeDrill,
@@ -284,6 +281,7 @@ fun SpeakingHubScreen(
             }
         }
     }
+}
 }
 
 /**

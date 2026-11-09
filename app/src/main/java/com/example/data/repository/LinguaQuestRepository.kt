@@ -217,6 +217,30 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     )
     val roleplays: StateFlow<List<RoleplayScenario>> = _roleplays.asStateFlow()
 
+    // English Adventure Worlds & Progress
+    private val _adventureWorlds = MutableStateFlow(AdventureDataDefaults.createDefaultWorlds())
+    val adventureWorlds: StateFlow<List<AdventureWorld>> = _adventureWorlds.asStateFlow()
+
+    private val _adventureProgress = MutableStateFlow(
+        AdventureProgress(
+            studentId = "std_001",
+            completedLevelIds = emptySet(),
+            completedMissionIds = emptySet(),
+            unlockedWorldIds = setOf("world_vocab"),
+            levelStars = emptyMap(),
+            totalStars = 0,
+            totalCoins = 0,
+            totalXp = 0
+        )
+    )
+    val adventureProgress: StateFlow<AdventureProgress> = _adventureProgress.asStateFlow()
+
+    private val _adventureBadges = MutableStateFlow(AdventureDataDefaults.createDefaultBadges())
+    val adventureBadges: StateFlow<List<AdventureBadge>> = _adventureBadges.asStateFlow()
+
+    private val _adventureLeaderboard = MutableStateFlow(AdventureDataDefaults.createDefaultLeaderboard())
+    val adventureLeaderboard: StateFlow<List<AdventureLeaderboardEntry>> = _adventureLeaderboard.asStateFlow()
+
     // Pronunciation Drills
     private val _pronunciationDrills = MutableStateFlow(
         listOf(
@@ -2544,6 +2568,325 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (changed) {
             _assignments.value = current
             appPreferences?.saveAssignments(current)
+        }
+    }
+
+    // =========================================================================
+    // ENGLISH ADVENTURE PROGRESSION, REWARDS & ADMIN/TEACHER OPERATIONS
+    // =========================================================================
+
+    fun completeAdventureMission(
+        worldId: String,
+        levelId: String,
+        missionId: String,
+        scorePercent: Int
+    ): Pair<Int, Boolean> { // returns Pair(starsEarned, isLevelCompleted)
+        val stars = when {
+            scorePercent >= 85 -> 3
+            scorePercent >= 65 -> 2
+            else -> 1
+        }
+
+        val currentProgress = _adventureProgress.value
+        val newCompletedMissions = currentProgress.completedMissionIds + missionId
+
+        // Find world and level
+        var levelJustCompleted = false
+        val worlds = _adventureWorlds.value.map { world ->
+            if (world.id == worldId) {
+                val updatedLevels = world.levels.mapIndexed { idx, lvl ->
+                    if (lvl.id == levelId) {
+                        val allMissionsDone = lvl.missions.all { it.id in newCompletedMissions }
+                        val prevStars = currentProgress.levelStars[levelId] ?: 0
+                        val finalStars = maxOf(prevStars, stars)
+                        if (allMissionsDone) levelJustCompleted = true
+                        lvl.copy(
+                            isCompleted = allMissionsDone || lvl.isCompleted,
+                            starsEarned = finalStars
+                        )
+                    } else {
+                        lvl
+                    }
+                }
+
+                // If level is completed, unlock next level in this world
+                val finalizedLevels = updatedLevels.mapIndexed { idx, lvl ->
+                    if (idx > 0 && updatedLevels[idx - 1].isCompleted) {
+                        lvl.copy(isUnlocked = true)
+                    } else {
+                        lvl
+                    }
+                }
+                world.copy(levels = finalizedLevels)
+            } else {
+                world
+            }
+        }
+
+        // Calculate new stars map
+        val currentStarsMap = currentProgress.levelStars.toMutableMap()
+        val prevStarsForLevel = currentStarsMap[levelId] ?: 0
+        currentStarsMap[levelId] = maxOf(prevStarsForLevel, stars)
+        val newTotalStars = currentStarsMap.values.sum()
+
+        // Unlock next worlds based on required total stars
+        val unlockedWorlds = worlds.map { world ->
+            if (newTotalStars >= world.requiredTotalStars) {
+                val levelsWithFirstUnlocked = world.levels.mapIndexed { idx, lvl ->
+                    if (idx == 0) lvl.copy(isUnlocked = true) else lvl
+                }
+                world.copy(isUnlocked = true, levels = levelsWithFirstUnlocked)
+            } else {
+                world
+            }
+        }
+        _adventureWorlds.value = unlockedWorlds
+
+        // Credit XP and Coins
+        val earnedXp = 40 + (stars * 10)
+        val earnedCoins = 20 + (stars * 5)
+        addRewards(earnedXp, earnedCoins)
+
+        val completedLevelIds = currentProgress.completedLevelIds.toMutableSet()
+        if (levelJustCompleted) {
+            completedLevelIds.add(levelId)
+        }
+
+        val unlockedWorldIds = unlockedWorlds.filter { it.isUnlocked }.map { it.id }.toSet()
+
+        // Unlock Badges
+        val updatedBadges = _adventureBadges.value.map { badge ->
+            when (badge.id) {
+                "b_island" -> badge.copy(isUnlocked = newTotalStars >= 3)
+                "b_knight" -> badge.copy(isUnlocked = newTotalStars >= 8)
+                "b_listener" -> badge.copy(isUnlocked = newTotalStars >= 14)
+                "b_orator" -> badge.copy(isUnlocked = newTotalStars >= 20)
+                "b_monarch" -> badge.copy(isUnlocked = newTotalStars >= 25)
+                else -> badge
+            }
+        }
+        _adventureBadges.value = updatedBadges
+
+        // Update progress state
+        val updatedProgress = currentProgress.copy(
+            completedMissionIds = newCompletedMissions,
+            completedLevelIds = completedLevelIds,
+            unlockedWorldIds = unlockedWorldIds,
+            levelStars = currentStarsMap,
+            totalStars = newTotalStars,
+            totalCoins = currentProgress.totalCoins + earnedCoins,
+            totalXp = currentProgress.totalXp + earnedXp
+        )
+        _adventureProgress.value = updatedProgress
+
+        // Update current user in leaderboard
+        _adventureLeaderboard.update { list ->
+            list.map { entry ->
+                if (entry.isCurrentUser) {
+                    val highestWorld = unlockedWorlds.lastOrNull { it.isUnlocked }?.name ?: "Vocabulary Island"
+                    entry.copy(
+                        totalStars = newTotalStars,
+                        coins = entry.coins + earnedCoins,
+                        xp = entry.xp + earnedXp,
+                        currentWorld = highestWorld
+                    )
+                } else {
+                    entry
+                }
+            }.sortedByDescending { it.totalStars }
+                .mapIndexed { index, entry -> entry.copy(rank = index + 1) }
+        }
+
+        return Pair(stars, levelJustCompleted)
+    }
+
+    // Admin World Management
+    fun addAdventureWorld(
+        name: String,
+        description: String,
+        tagline: String,
+        emoji: String,
+        requiredStars: Int
+    ): AdventureWorld {
+        val newWorld = AdventureWorld(
+            id = "world_${System.currentTimeMillis()}",
+            name = name.trim(),
+            order = _adventureWorlds.value.size + 1,
+            description = description.trim(),
+            tagline = tagline.trim(),
+            emoji = emoji.ifBlank { "🗺️" },
+            themeColorHex = 0xFF7C3AED,
+            gradientStartHex = 0xFF6366F1,
+            gradientEndHex = 0xFF9333EA,
+            requiredTotalStars = requiredStars,
+            isUnlocked = requiredStars == 0,
+            levels = emptyList()
+        )
+        _adventureWorlds.update { it + newWorld }
+        return newWorld
+    }
+
+    fun updateAdventureWorld(updated: AdventureWorld) {
+        _adventureWorlds.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
+        }
+    }
+
+    fun deleteAdventureWorld(worldId: String) {
+        _adventureWorlds.update { list ->
+            list.filterNot { it.id == worldId }
+        }
+    }
+
+    // Admin Level Management
+    fun addAdventureLevel(
+        worldId: String,
+        title: String,
+        description: String,
+        emoji: String,
+        xpReward: Int,
+        coinsReward: Int
+    ): AdventureLevel? {
+        val world = _adventureWorlds.value.find { it.id == worldId } ?: return null
+        val newLevel = AdventureLevel(
+            id = "lvl_${System.currentTimeMillis()}",
+            worldId = worldId,
+            levelNumber = world.levels.size + 1,
+            title = title.trim(),
+            description = description.trim(),
+            iconEmoji = emoji.ifBlank { "⭐" },
+            xpReward = xpReward,
+            coinsReward = coinsReward,
+            isUnlocked = world.levels.isEmpty() || world.levels.last().isCompleted
+        )
+        _adventureWorlds.update { list ->
+            list.map { w ->
+                if (w.id == worldId) {
+                    w.copy(levels = w.levels + newLevel)
+                } else w
+            }
+        }
+        return newLevel
+    }
+
+    fun deleteAdventureLevel(worldId: String, levelId: String) {
+        _adventureWorlds.update { list ->
+            list.map { w ->
+                if (w.id == worldId) {
+                    w.copy(levels = w.levels.filterNot { it.id == levelId })
+                } else w
+            }
+        }
+    }
+
+    // Admin Mission Management
+    fun addAdventureMission(
+        worldId: String,
+        levelId: String,
+        title: String,
+        description: String,
+        type: AdventureMissionType,
+        targetSentence: String,
+        options: List<String>,
+        correctAnswer: String,
+        clue: String,
+        xp: Int,
+        coins: Int
+    ): AdventureMission? {
+        val newMission = AdventureMission(
+            id = "m_${System.currentTimeMillis()}",
+            levelId = levelId,
+            worldId = worldId,
+            title = title.trim(),
+            description = description.trim(),
+            type = type,
+            targetSentence = targetSentence.trim(),
+            options = options.filter { it.isNotBlank() },
+            correctAnswer = correctAnswer.trim(),
+            clue = clue.trim(),
+            xp = xp,
+            coins = coins,
+            scrambledWords = if (type == AdventureMissionType.SENTENCE_BUILDER) {
+                targetSentence.split(" ").filter { it.isNotBlank() }.shuffled()
+            } else if (type == AdventureMissionType.WORD_PUZZLE) {
+                correctAnswer.map { it.toString() }.shuffled()
+            } else emptyList()
+        )
+
+        _adventureWorlds.update { list ->
+            list.map { w ->
+                if (w.id == worldId) {
+                    w.copy(
+                        levels = w.levels.map { lvl ->
+                            if (lvl.id == levelId) {
+                                lvl.copy(missions = lvl.missions + newMission)
+                            } else lvl
+                        }
+                    )
+                } else w
+            }
+        }
+        return newMission
+    }
+
+    fun deleteAdventureMission(worldId: String, levelId: String, missionId: String) {
+        _adventureWorlds.update { list ->
+            list.map { w ->
+                if (w.id == worldId) {
+                    w.copy(
+                        levels = w.levels.map { lvl ->
+                            if (lvl.id == levelId) {
+                                lvl.copy(missions = lvl.missions.filterNot { it.id == missionId })
+                            } else lvl
+                        }
+                    )
+                } else w
+            }
+        }
+    }
+
+    // Teacher Student Adventure Monitoring Reports
+    fun getTeacherAdventureReports(): List<StudentAdventureProgressSummary> {
+        val students = _adminStudents.value
+        val worlds = _adventureWorlds.value
+        val totalLevels = worlds.sumOf { it.levels.size }
+
+        return students.mapIndexed { idx, s ->
+            val compLevels = when (idx) {
+                0 -> 3 // Alex Morgan
+                1 -> 2
+                2 -> 2
+                3 -> 1
+                else -> 0
+            }
+            val stars = when (idx) {
+                0 -> _adventureProgress.value.totalStars.coerceAtLeast(8)
+                1 -> 5
+                2 -> 6
+                3 -> 3
+                else -> 1
+            }
+            val worldName = when (idx) {
+                0 -> "Speaking City"
+                1 -> "Grammar Kingdom"
+                2 -> "Listening Forest"
+                3 -> "Vocabulary Island"
+                else -> "Vocabulary Island"
+            }
+            StudentAdventureProgressSummary(
+                studentId = s.id,
+                studentName = s.name,
+                avatar = s.avatarEmoji,
+                className = s.batch,
+                currentWorld = worldName,
+                completedLevelsCount = compLevels,
+                totalLevelsCount = totalLevels,
+                totalStars = stars,
+                coinsEarned = s.xpPoints / 4,
+                xpEarned = s.xpPoints,
+                lastActiveMission = if (compLevels > 0) "Level $compLevels Completed" else "Just Began",
+                completionPercent = if (totalLevels > 0) compLevels.toFloat() / totalLevels else 0f
+            )
         }
     }
 }

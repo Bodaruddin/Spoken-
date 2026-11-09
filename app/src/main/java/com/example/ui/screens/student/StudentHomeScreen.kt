@@ -395,14 +395,14 @@ fun StudentHomeScreen(
                 )
 
                 ScreenshotActionCard(
-                    title = "Roleplays",
-                    subtitle = "Real Life Dialogues",
-                    iconEmoji = "🎭",
+                    title = "English Adventure",
+                    subtitle = "5 Gaming Worlds",
+                    iconEmoji = "🗺️",
                     gradient = RoleplaysCardGrad,
                     borderColor = Color(0xFFC084FC),
                     modifier = Modifier.weight(1f),
                     onClick = {
-                        viewModel.selectSpeakingSubTab(SpeakingSubTab.ROLEPLAY)
+                        viewModel.selectSpeakingSubTab(SpeakingSubTab.ENGLISH_ADVENTURE)
                         viewModel.selectStudentTab(StudentTab.PRACTICE)
                     }
                 )

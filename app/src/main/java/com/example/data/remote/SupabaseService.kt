@@ -507,12 +507,24 @@ class SupabaseService {
                 max_points INT DEFAULT 100
             );
 
+            -- 6. English Adventure Progress Table
+            CREATE TABLE IF NOT EXISTS student_adventure_progress (
+                student_id TEXT PRIMARY KEY,
+                current_world TEXT,
+                completed_levels INT DEFAULT 0,
+                total_stars INT DEFAULT 0,
+                total_coins INT DEFAULT 0,
+                total_xp INT DEFAULT 0,
+                last_updated TIMESTAMPTZ DEFAULT NOW()
+            );
+
             -- Enable Row Level Security (RLS) & Allow Read/Write
             ALTER TABLE students ENABLE ROW LEVEL SECURITY;
             ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
             ALTER TABLE student_progress ENABLE ROW LEVEL SECURITY;
             ALTER TABLE speaking_evaluations ENABLE ROW LEVEL SECURITY;
             ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE student_adventure_progress ENABLE ROW LEVEL SECURITY;
 
             -- Policies with full SELECT, INSERT, UPDATE, DELETE permissions
             DROP POLICY IF EXISTS "Allow public students" ON students;
@@ -529,6 +541,48 @@ class SupabaseService {
 
             DROP POLICY IF EXISTS "Allow public assignments" ON assignments;
             CREATE POLICY "Allow public assignments" ON assignments FOR ALL USING (true) WITH CHECK (true);
+
+            DROP POLICY IF EXISTS "Allow public adventure" ON student_adventure_progress;
+            CREATE POLICY "Allow public adventure" ON student_adventure_progress FOR ALL USING (true) WITH CHECK (true);
         """.trimIndent()
     }
+
+    suspend fun syncAdventureProgress(
+        studentId: String,
+        currentWorld: String,
+        completedLevels: Int,
+        totalStars: Int,
+        totalCoins: Int,
+        totalXp: Int
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        try {
+            val jsonPayload = """
+                {
+                    "student_id": "$studentId",
+                    "current_world": "$currentWorld",
+                    "completed_levels": $completedLevels,
+                    "total_stars": $totalStars,
+                    "total_coins": $totalCoins,
+                    "total_xp": $totalXp,
+                    "last_updated": "now()"
+                }
+            """.trimIndent()
+
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/student_adventure_progress")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .addHeader("Prefer", "resolution=merge-duplicates")
+                .post(jsonPayload.toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                response.isSuccessful
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
 }
+

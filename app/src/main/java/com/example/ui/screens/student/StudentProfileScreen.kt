@@ -458,7 +458,7 @@ fun StudentProfileScreen(
                         Text("$completedCount / 3 Done", fontSize = 12.sp, color = if (completedCount == 3) EmeraldSuccess else RoyalBlue, fontWeight = FontWeight.Bold)
                     }
 
-                    MissionItem("Practice 1 Speaking Roleplay / Conversation", "50 XP", if (isSpokenDone) 1f else 0.5f, isSpokenDone)
+                    MissionItem("Complete 1 English Adventure Mission", "50 XP", if (isSpokenDone) 1f else 0.5f, isSpokenDone)
                     MissionItem("Score >80% on Pronunciation Drill", "40 XP", (profile.pronunciationScore / 100f).coerceIn(0f, 1f), isPronunciationDone)
                     MissionItem("Vocabulary & Grammar Precision Challenge", "60 XP", (profile.grammarScore / 100f).coerceIn(0f, 1f), isGrammarDone)
 

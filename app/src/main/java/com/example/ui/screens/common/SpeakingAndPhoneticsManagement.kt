@@ -45,7 +45,7 @@ enum class SpeakingManageTab(val title: String, val emoji: String) {
     SPEAKING_PROMPTS("AI Speaking", "🎙️"),
     PHONETICS_DRILLS("Phonetics & Drills", "🎯"),
     VOCAB_ASSAMESE("Assamese Words", "📖"),
-    ROLEPLAY_SCENARIOS("Roleplays", "🎭")
+    ENGLISH_ADVENTURE("Adventure Worlds", "🗺️")
 }
 
 @Composable
@@ -77,6 +77,7 @@ fun SpeakingAndPhoneticsManagement(
     val prompts by viewModel.speakingPrompts.collectAsState()
     val drills by viewModel.pronunciationDrills.collectAsState()
     val roleplays by viewModel.roleplays.collectAsState()
+    val adventureWorlds by viewModel.adventureWorlds.collectAsState()
     val vocabularyWords by viewModel.vocabularyWords.collectAsState()
 
     Column(
@@ -147,7 +148,7 @@ fun SpeakingAndPhoneticsManagement(
                                 SpeakingManageTab.SPEAKING_PROMPTS -> showCreatePromptDialog = true
                                 SpeakingManageTab.PHONETICS_DRILLS -> showCreateDrillDialog = true
                                 SpeakingManageTab.VOCAB_ASSAMESE -> showCreateVocabDialog = true
-                                SpeakingManageTab.ROLEPLAY_SCENARIOS -> showCreateRoleplayDialog = true
+                                SpeakingManageTab.ENGLISH_ADVENTURE -> { /* Handled in AdventureWorldsManagementList */ }
                             }
                         },
                         shape = RoundedCornerShape(12.dp),
@@ -165,7 +166,7 @@ fun SpeakingAndPhoneticsManagement(
                                     SpeakingManageTab.SPEAKING_PROMPTS -> "New Prompt"
                                     SpeakingManageTab.PHONETICS_DRILLS -> "New Drill"
                                     SpeakingManageTab.VOCAB_ASSAMESE -> "Add Word"
-                                    SpeakingManageTab.ROLEPLAY_SCENARIOS -> "New Roleplay"
+                                    SpeakingManageTab.ENGLISH_ADVENTURE -> "Adventure"
                                 },
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
@@ -193,7 +194,7 @@ fun SpeakingAndPhoneticsManagement(
                             SpeakingManageTab.SPEAKING_PROMPTS -> prompts.size
                             SpeakingManageTab.PHONETICS_DRILLS -> drills.size
                             SpeakingManageTab.VOCAB_ASSAMESE -> vocabularyWords.size
-                            SpeakingManageTab.ROLEPLAY_SCENARIOS -> roleplays.size
+                            SpeakingManageTab.ENGLISH_ADVENTURE -> adventureWorlds.size
                         }
                         Surface(
                             shape = RoundedCornerShape(10.dp),
@@ -303,10 +304,9 @@ fun SpeakingAndPhoneticsManagement(
                     onSpeakAudio = { word, slow -> viewModel.speakAudio(word, slow) }
                 )
             }
-            SpeakingManageTab.ROLEPLAY_SCENARIOS -> {
-                RoleplayManagementList(
-                    scenarios = roleplays,
-                    onDelete = { roleplayToDelete = it }
+            SpeakingManageTab.ENGLISH_ADVENTURE -> {
+                AdventureWorldsManagementList(
+                    viewModel = viewModel
                 )
             }
         }

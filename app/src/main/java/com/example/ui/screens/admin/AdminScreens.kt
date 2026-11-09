@@ -1989,7 +1989,8 @@ fun AdminTeachersManagement(viewModel: MainViewModel, modifier: Modifier = Modif
 enum class AdminCurriculumSection(val title: String, val emoji: String) {
     COURSES("CEFR Framework", "📚"),
     SPEAKING("AI Speaking", "🎙️"),
-    PHONETICS("Phonetics & Drills", "🎯")
+    PHONETICS("Phonetics & Drills", "🎯"),
+    ADVENTURE("English Adventure", "🗺️")
 }
 
 @Composable
@@ -2001,7 +2002,7 @@ fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Mod
         selectedSection = when (adminSpeakingSection) {
             AdminSpeakingSection.SPEAKING_PROMPTS -> AdminCurriculumSection.SPEAKING
             AdminSpeakingSection.PHONETICS_DRILLS -> AdminCurriculumSection.PHONETICS
-            AdminSpeakingSection.ROLEPLAY_SCENARIOS -> AdminCurriculumSection.SPEAKING
+            AdminSpeakingSection.ADVENTURE_WORLDS -> AdminCurriculumSection.ADVENTURE
         }
     }
 
@@ -2073,9 +2074,16 @@ fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                     initialTab = SpeakingManageTab.PHONETICS_DRILLS
                 )
             }
+            AdminCurriculumSection.ADVENTURE -> {
+                com.example.ui.screens.common.AdventureWorldsManagementList(
+                    viewModel = viewModel,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
+
 
 @Composable
 fun AdminCurriculumFrameworkView(viewModel: MainViewModel, modifier: Modifier = Modifier) {
