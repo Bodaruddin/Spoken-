@@ -116,29 +116,13 @@ fun StudentProfileScreen(
                             }
                         }
 
-                        // Utility Actions (Switch Role + Logout)
+                        // Utility Actions (Role Badge / Back to Admin + Logout)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Student Role Badge
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF1E293B),
-                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.3f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text("🦉", fontSize = 12.sp)
-                                    Text("Student", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
-                                }
-                            }
-
-                            // If in Admin Session, direct 1-tap return to Admin Panel without security PIN
                             if (isAdminSession) {
+                                // If in Admin Session, direct 1-tap return to Admin Panel
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFFF59E0B),
@@ -158,33 +142,53 @@ fun StudentProfileScreen(
                                     }
                                 }
                             } else {
-                                // Staff Portal Access for Faculty/Admin to unlock staff portal
+                                // Student Role Badge
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFF1E293B),
-                                    border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.5f)),
-                                    modifier = Modifier
-                                        .testTag("student_profile_staff_switch_button")
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .clickable { viewModel.toggleRoleSwitcher(true) }
+                                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.3f))
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Text("🛡️", fontSize = 12.sp)
-                                        Text("Staff Access", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA855F7))
+                                        Text("🦉", fontSize = 12.sp)
+                                        Text("Student", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
                                     }
                                 }
                             }
 
-                            // Logout
-                            IconButton(
-                                onClick = { viewModel.logout() },
-                                modifier = Modifier.size(32.dp)
+                            // Prominent, clearly visible Logout Button
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFDC2626).copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                modifier = Modifier
+                                    .testTag("student_profile_logout_button")
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { viewModel.logout() }
                             ) {
-                                Icon(Icons.Filled.Logout, contentDescription = "Logout", tint = CoralAccent, modifier = Modifier.size(18.dp))
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Logout,
+                                        contentDescription = "Logout",
+                                        tint = Color(0xFFF87171),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        "Logout",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFFCA5A5),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             }
                         }
                     }
@@ -981,6 +985,81 @@ fun StudentProfileScreen(
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // 7. Account Session & Logout Section
+        item {
+            Card(
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                border = BorderStroke(1.2.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("student_profile_logout_card")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFEF4444).copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Filled.Logout,
+                                contentDescription = null,
+                                tint = Color(0xFFF87171),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Account Session",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Signed in as ${user.email.ifBlank { user.name }}",
+                                fontSize = 11.sp,
+                                color = Color(0xFF94A3B8),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.width(10.dp))
+
+                    Button(
+                        onClick = { viewModel.logout() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            "Log Out",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                 }
             }
