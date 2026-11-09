@@ -275,7 +275,7 @@ fun StudentProfileScreen(
                                     border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f))
                                 ) {
                                     Text(
-                                        text = "${profile.currentLevel.displayName} (${profile.currentLevel.cefr})",
+                                        text = "⭐ ${profile.activityLevelName}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF7DD3FC),
@@ -367,9 +367,9 @@ fun StudentProfileScreen(
                         modifier = Modifier.weight(1f)
                     )
                     StudentStatTile(
-                        title = "CEFR",
-                        value = profile.currentLevel.cefr,
-                        emoji = "🏆",
+                        title = "Level",
+                        value = "Level ${profile.activityLevel}",
+                        emoji = "⭐",
                         cardBg = NeonPurpleCardBg,
                         borderColor = NeonPurpleBorder,
                         gradient = NeonPurpleGrad,
@@ -411,8 +411,8 @@ fun StudentProfileScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("🏆 Overall CEFR", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Medium)
-                            Text("${profile.currentLevel.cefr} • ${profile.overallScore}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AmberGold)
+                            Text("🏆 Overall Level", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Medium)
+                            Text("Level ${profile.activityLevel} • ${profile.overallScore}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AmberGold)
                         }
                     }
                 }
@@ -669,7 +669,7 @@ fun StudentProfileScreen(
                                 .padding(end = 8.dp)
                         ) {
                             Text(
-                                text = "CEFR Spoken Proficiency Radar",
+                                text = "Activity & Proficiency Level",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
                                 color = Color.White,
@@ -677,7 +677,7 @@ fun StudentProfileScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "Real-time AI diagnostic scores (Level ${profile.currentLevel.cefr} • ${profile.currentLevel.displayName})",
+                                text = "Dynamic learning progress (Level ${profile.activityLevel} • ${profile.xpPoints} XP)",
                                 fontSize = 11.sp,
                                 color = Color(0xFF94A3B8),
                                 maxLines = 1,
@@ -691,7 +691,7 @@ fun StudentProfileScreen(
                             border = BorderStroke(1.dp, Color(0xFF38BDF8))
                         ) {
                             Text(
-                                text = "${profile.overallScore}% Overall • Level ${profile.currentLevel.cefr}",
+                                text = "${profile.overallScore}% Overall • Level ${profile.activityLevel}",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 12.sp,
                                 color = Color(0xFF38BDF8),
@@ -702,35 +702,49 @@ fun StudentProfileScreen(
                         }
                     }
 
-                    // CEFR Scale Framework Roadmap
+                    // Level Framework Roadmap (Level 1, 2, 3 according to student activity)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
                             .background(Color(0xFF0F172A))
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                            .padding(horizontal = 6.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        val levels = listOf("A1" to "Beg", "A2" to "Elem", "B1" to "Pre-Int", "B2" to "Int", "C1" to "Upper", "C2" to "Adv")
-                        levels.forEach { (code, desc) ->
-                            val isActive = profile.currentLevel.cefr.equals(code, ignoreCase = true)
+                        val levelItems = listOf(
+                            1 to "Lvl 1",
+                            2 to "Lvl 2",
+                            3 to "Lvl 3",
+                            4 to "Lvl 4",
+                            5 to "Lvl 5",
+                            6 to "Lvl 6"
+                        )
+                        levelItems.forEach { (lvl, label) ->
+                            val isActive = profile.activityLevel == lvl
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
                                 color = if (isActive) Color(0xFF2563EB) else Color.Transparent,
                                 border = if (isActive) BorderStroke(1.dp, Color(0xFF60A5FA)) else null
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
-                                        code,
+                                        label,
                                         fontSize = 11.sp,
                                         fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium,
                                         color = if (isActive) Color.White else Color(0xFF64748B)
                                     )
                                     Text(
-                                        desc,
+                                        when (lvl) {
+                                            1 -> "0-250 XP"
+                                            2 -> "250+ XP"
+                                            3 -> "800+ XP"
+                                            4 -> "1.5k XP"
+                                            5 -> "2.5k XP"
+                                            else -> "4k+ XP"
+                                        },
                                         fontSize = 8.sp,
                                         color = if (isActive) Color(0xFFBFDBFE) else Color(0xFF475569)
                                     )

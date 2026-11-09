@@ -62,7 +62,21 @@ data class StudentProfile(
     val completedStagesCount: Int = 14,
     val speakingPracticeMinutes: Int = 165,
     val lastPracticeDate: String = ""
-)
+) {
+    // Dynamic level (Level 1, 2, 3...) calculated from student activity (XP, stages cleared, practice time)
+    val activityLevel: Int
+        get() = when {
+            xpPoints >= 4000 || completedStagesCount >= 30 -> 6
+            xpPoints >= 2500 || completedStagesCount >= 20 -> 5
+            xpPoints >= 1500 || completedStagesCount >= 12 -> 4
+            xpPoints >= 800 || completedStagesCount >= 7 -> 3
+            xpPoints >= 250 || completedStagesCount >= 2 -> 2
+            else -> 1
+        }
+
+    val activityLevelName: String
+        get() = "Level $activityLevel"
+}
 
 data class World(
     val id: Int,
