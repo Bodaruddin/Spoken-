@@ -679,6 +679,14 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
                 student = student,
                 onManageClick = { selectedStudentForDetail = student },
                 onAssignDrill = {
+                    val teacher = viewModel.currentUser.value.name.ifBlank { "Faculty" }
+                    viewModel.createAssignment(
+                        title = "Target Pronunciation Drill - ${student.name}",
+                        instructions = "Complete 15-minute voice challenge and pronunciation assessment assigned by $teacher.",
+                        targetClass = student.batch.ifBlank { student.studentClass.ifBlank { "All Classes" } },
+                        dueDate = "In 3 Days",
+                        topicType = "Speaking Drill"
+                    )
                     actionToast = "Assigned 15-minute voice challenge to ${student.name}!"
                     viewModel.speakAudio("Target pronunciation drill assigned to ${student.name}")
                 }

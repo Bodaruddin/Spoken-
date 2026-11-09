@@ -54,6 +54,8 @@ fun StudentProfileScreen(
 
     var showVocabNotebook by remember { mutableStateOf(false) }
     var previewSubmissionForCert by remember { mutableStateOf<ExamSubmission?>(null) }
+    var showClassSelectionDialog by remember { mutableStateOf(false) }
+    val academicClasses by viewModel.academicClasses.collectAsState()
 
     LazyColumn(
         modifier = modifier
@@ -282,10 +284,13 @@ fun StudentProfileScreen(
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = Color(0xFF10B981).copy(alpha = 0.2f),
-                                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                                    border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f)),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { showClassSelectionDialog = true }
                                 ) {
                                     Text(
-                                        text = "🏫 ${user.studentClass}",
+                                        text = "🏫 ${user.studentClass.ifBlank { "Batch Alpha" }} ▾",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF86EFAC),
@@ -1001,6 +1006,83 @@ fun StudentProfileScreen(
                     }
                 )
             }
+        )
+    }
+
+    // Academic Class / Batch Selection Dialog
+    if (showClassSelectionDialog) {
+        AlertDialog(
+            onDismissRequest = { showClassSelectionDialog = false },
+            title = {
+                Text(
+                    text = "Select Academic Class / Batch",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = Color.White
+                )
+            },
+            text = {
+                val availableClasses = remember(academicClasses) {
+                    val base = academicClasses.toMutableList()
+                    if (!base.contains("Batch Alpha")) base.add(0, "Batch Alpha")
+                    base
+                }
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Exams and assignments will be aligned with your chosen class:",
+                        fontSize = 12.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                    availableClasses.forEach { cls ->
+                        val isSelected = user.studentClass.equals(cls, ignoreCase = true)
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) Color(0xFF2563EB) else Color(0xFF1E293B),
+                            border = BorderStroke(1.dp, if (isSelected) Color(0xFF60A5FA) else Color(0xFF334155)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    viewModel.updateCurrentStudentClass(cls)
+                                    showClassSelectionDialog = false
+                                    Toast.makeText(context, "Class set to $cls", Toast.LENGTH_SHORT).show()
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = cls,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 14.sp,
+                                    color = Color.White
+                                )
+                                if (isSelected) {
+                                    Icon(
+                                        Icons.Rounded.CheckCircle,
+                                        contentDescription = "Selected",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showClassSelectionDialog = false }) {
+                    Text("Close", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = Color(0xFF0F172A)
         )
     }
 }

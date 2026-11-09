@@ -313,14 +313,25 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     val grammarTopics: StateFlow<List<GrammarTopic>> = _grammarTopics.asStateFlow()
 
     // Teacher Assignments
-    private val _assignments = MutableStateFlow(
-        listOf(
-            Assignment("asg_1", "3-Minute Impromptu Speech: Climate Action", "Prof. Eleanor Vance", "Class 10", "Tomorrow, 6 PM", "Record a 2-3 minute audio response explaining two small eco-habits you practice.", "Speaking", 100, 20, 24),
-            Assignment("asg_2", "Business Pitch Presentation Dialogue", "Prof. Eleanor Vance", "All Classes", "Friday, 11:59 PM", "Present your imaginary startup product in clear, persuasive English.", "Presentation", 100, 14, 24),
-            Assignment("asg_3", "Pronunciation Drill: Minimal Pairs (P vs B)", "Dr. Marcus Reed", "Class 9", "In 3 Days", "Record 10 sample sentences focusing on explosive /p/ and voiced /b/ sounds.", "Pronunciation", 50, 18, 20),
-            Assignment("asg_4", "Everyday English: Ordering at a Restaurant", "Prof. Eleanor Vance", "Class 8", "In 4 Days", "Practice ordering a three-course dinner and asking for the bill politely.", "Speaking", 60, 12, 22)
-        )
+    private val defaultAssignments = listOf(
+        Assignment("asg_1", "3-Minute Impromptu Speech: Climate Action", "Prof. Eleanor Vance", "Class 10", "Tomorrow, 6 PM", "Record a 2-3 minute audio response explaining two small eco-habits you practice.", "Speaking", 100, 20, 24),
+        Assignment("asg_2", "Business Pitch Presentation Dialogue", "Prof. Eleanor Vance", "All Classes", "Friday, 11:59 PM", "Present your imaginary startup product in clear, persuasive English.", "Presentation", 100, 14, 24),
+        Assignment("asg_3", "Pronunciation Drill: Minimal Pairs (P vs B)", "Dr. Marcus Reed", "Class 9", "In 3 Days", "Record 10 sample sentences focusing on explosive /p/ and voiced /b/ sounds.", "Pronunciation", 50, 18, 20),
+        Assignment("asg_4", "Everyday English: Ordering at a Restaurant", "Prof. Eleanor Vance", "Class 8", "In 4 Days", "Practice ordering a three-course dinner and asking for the bill politely.", "Speaking", 60, 12, 22)
     )
+
+    private fun loadInitialAssignments(): List<Assignment> {
+        val saved = appPreferences?.getAssignments()
+        if (!saved.isNullOrEmpty()) {
+            val savedIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultAssignments.filter { it.id !in savedIds }
+            return saved + missingDefaults
+        }
+        appPreferences?.saveAssignments(defaultAssignments)
+        return defaultAssignments
+    }
+
+    private val _assignments = MutableStateFlow(loadInitialAssignments())
     val assignments: StateFlow<List<Assignment>> = _assignments.asStateFlow()
 
     fun addAssignment(
@@ -344,12 +355,12 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             totalAssigned = 25
         )
         _assignments.value = listOf(newAsg) + _assignments.value
+        appPreferences?.saveAssignments(_assignments.value)
         return newAsg
     }
 
     // --- MCQ ONLINE EXAMS & CERTIFICATES ---
-    private val _exams = MutableStateFlow(
-        listOf(
+    private val defaultExams = listOf(
             Exam(
                 id = "exm_grammar_8",
                 title = "English Grammar Test",
@@ -873,12 +884,23 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 )
             )
         )
-    )
+
+    private fun loadInitialExams(): List<Exam> {
+        val saved = appPreferences?.getExams()
+        if (!saved.isNullOrEmpty()) {
+            val savedIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultExams.filter { it.id !in savedIds }
+            return saved + missingDefaults
+        }
+        appPreferences?.saveExams(defaultExams)
+        return defaultExams
+    }
+
+    private val _exams = MutableStateFlow(loadInitialExams())
     val exams: StateFlow<List<Exam>> = _exams.asStateFlow()
 
     // Submissions and Completed Certificates
-    private val _examSubmissions = MutableStateFlow(
-        listOf(
+    private val defaultSubmissions = listOf(
             ExamSubmission(
                 id = "sub_fariha_1",
                 examId = "exm_grammar_8",
@@ -966,7 +988,19 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 certificateId = "SPK-EXM-2026-5120"
             )
         )
-    )
+
+    private fun loadInitialSubmissions(): List<ExamSubmission> {
+        val saved = appPreferences?.getExamSubmissions()
+        if (!saved.isNullOrEmpty()) {
+            val savedIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultSubmissions.filter { it.id !in savedIds }
+            return saved + missingDefaults
+        }
+        appPreferences?.saveExamSubmissions(defaultSubmissions)
+        return defaultSubmissions
+    }
+
+    private val _examSubmissions = MutableStateFlow(loadInitialSubmissions())
     val examSubmissions: StateFlow<List<ExamSubmission>> = _examSubmissions.asStateFlow()
 
     fun createExam(
@@ -996,12 +1030,15 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             isPublished = true
         )
         _exams.value = listOf(newExam) + _exams.value
+        appPreferences?.saveExams(_exams.value)
         return newExam
     }
 
     fun deleteExam(examId: String) {
         _exams.value = _exams.value.filter { it.id != examId }
         _examSubmissions.value = _examSubmissions.value.filter { it.examId != examId }
+        appPreferences?.saveExams(_exams.value)
+        appPreferences?.saveExamSubmissions(_examSubmissions.value)
     }
 
     fun submitExam(
@@ -1078,6 +1115,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         _examSubmissions.value = listOf(submission) + _examSubmissions.value.filterNot {
             it.examId == examId && (it.studentId == studentId || it.studentName.equals(studentName, ignoreCase = true))
         }
+        appPreferences?.saveExamSubmissions(_examSubmissions.value)
 
         return submission
     }
@@ -1325,47 +1363,69 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     }
 
     // Dynamic Game Content Collections
-    private val _wordMatchChallenges = MutableStateFlow(
-        listOf(
-            WordMatchChallenge("wm_1", "Eloquence", "Fluent or persuasive speech", "Communication", "System"),
-            WordMatchChallenge("wm_2", "Resilience", "Ability to recover quickly from hardship", "Mindset", "System"),
-            WordMatchChallenge("wm_3", "Articulation", "Clear and effective pronunciation", "Communication", "System"),
-            WordMatchChallenge("wm_4", "Pragmatic", "Sensible and practical rather than theoretical", "Academic", "System"),
-            WordMatchChallenge("wm_5", "Meticulous", "Showing great attention to detail and care", "General", "Prof. Eleanor Vance"),
-            WordMatchChallenge("wm_6", "Serendipity", "Finding pleasant things unexpectedly", "General", "Dean Arthur Pendelton")
-        )
+    private val defaultWordMatchChallenges = listOf(
+        WordMatchChallenge("wm_1", "Eloquence", "Fluent or persuasive speech", "Communication", "System"),
+        WordMatchChallenge("wm_2", "Resilience", "Ability to recover quickly from hardship", "Mindset", "System"),
+        WordMatchChallenge("wm_3", "Articulation", "Clear and effective pronunciation", "Communication", "System"),
+        WordMatchChallenge("wm_4", "Pragmatic", "Sensible and practical rather than theoretical", "Academic", "System"),
+        WordMatchChallenge("wm_5", "Meticulous", "Showing great attention to detail and care", "General", "Prof. Eleanor Vance"),
+        WordMatchChallenge("wm_6", "Serendipity", "Finding pleasant things unexpectedly", "General", "Dean Arthur Pendelton")
     )
+
+    private fun loadInitialWordMatches(): List<WordMatchChallenge> {
+        val saved = appPreferences?.getWordMatchChallenges()
+        if (!saved.isNullOrEmpty()) {
+            val savedIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultWordMatchChallenges.filter { it.id !in savedIds }
+            return saved + missingDefaults
+        }
+        appPreferences?.saveWordMatchChallenges(defaultWordMatchChallenges)
+        return defaultWordMatchChallenges
+    }
+
+    private val _wordMatchChallenges = MutableStateFlow(loadInitialWordMatches())
     val wordMatchChallenges: StateFlow<List<WordMatchChallenge>> = _wordMatchChallenges.asStateFlow()
 
-    private val _missingLettersChallenges = MutableStateFlow(
-        listOf(
-            // Animals Category
-            MissingLettersChallenge("ml_a1", "ELEPHANT", "The largest living land animal with large ears and a trunk", listOf(1, 4, 6), "Animals", "System"),
-            MissingLettersChallenge("ml_a2", "GIRAFFE", "Tallest living terrestrial animal with an extremely long neck", listOf(2, 4), "Animals", "System"),
-            MissingLettersChallenge("ml_a3", "KANGAROO", "Large Australian marsupial that hops on powerful hind legs", listOf(2, 5), "Animals", "Prof. Eleanor Vance"),
-            MissingLettersChallenge("ml_a4", "DOLPHIN", "Highly intelligent aquatic marine mammal known for playful acrobatics", listOf(1, 4), "Animals", "Dr. Marcus Reed"),
-            MissingLettersChallenge("ml_a5", "LEOPARD", "Graceful solitary big cat with a spotted coat and stealthy hunter", listOf(2, 5), "Animals", "System"),
+    private val defaultMissingLettersChallenges = listOf(
+        // Animals Category
+        MissingLettersChallenge("ml_a1", "ELEPHANT", "The largest living land animal with large ears and a trunk", listOf(1, 4, 6), "Animals", "System"),
+        MissingLettersChallenge("ml_a2", "GIRAFFE", "Tallest living terrestrial animal with an extremely long neck", listOf(2, 4), "Animals", "System"),
+        MissingLettersChallenge("ml_a3", "KANGAROO", "Large Australian marsupial that hops on powerful hind legs", listOf(2, 5), "Animals", "Prof. Eleanor Vance"),
+        MissingLettersChallenge("ml_a4", "DOLPHIN", "Highly intelligent aquatic marine mammal known for playful acrobatics", listOf(1, 4), "Animals", "Dr. Marcus Reed"),
+        MissingLettersChallenge("ml_a5", "LEOPARD", "Graceful solitary big cat with a spotted coat and stealthy hunter", listOf(2, 5), "Animals", "System"),
 
-            // Vegetables Category
-            MissingLettersChallenge("ml_v1", "BROCCOLI", "Edible green plant in the cabbage family with large flowering head", listOf(2, 5), "Vegetables", "System"),
-            MissingLettersChallenge("ml_v2", "CUCUMBER", "Widely cultivated creeping vine plant bearing cylindrical green fruit", listOf(1, 4, 6), "Vegetables", "System"),
-            MissingLettersChallenge("ml_v3", "SPINACH", "Nutritious leafy green flowering plant rich in iron and vitamins", listOf(2, 5), "Vegetables", "Prof. Eleanor Vance"),
-            MissingLettersChallenge("ml_v4", "CABBAGE", "Leafy green or purple biennial plant grown as an annual vegetable", listOf(1, 4), "Vegetables", "Dean Arthur Pendelton"),
-            MissingLettersChallenge("ml_v5", "CARROT", "Crisp root vegetable usually orange in color with sweet earthy taste", listOf(1, 3), "Vegetables", "Dr. Marcus Reed"),
+        // Vegetables Category
+        MissingLettersChallenge("ml_v1", "BROCCOLI", "Edible green plant in the cabbage family with large flowering head", listOf(2, 5), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v2", "CUCUMBER", "Widely cultivated creeping vine plant bearing cylindrical green fruit", listOf(1, 4, 6), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v3", "SPINACH", "Nutritious leafy green flowering plant rich in iron and vitamins", listOf(2, 5), "Vegetables", "Prof. Eleanor Vance"),
+        MissingLettersChallenge("ml_v4", "CABBAGE", "Leafy green or purple biennial plant grown as an annual vegetable", listOf(1, 4), "Vegetables", "Dean Arthur Pendelton"),
+        MissingLettersChallenge("ml_v5", "CARROT", "Crisp root vegetable usually orange in color with sweet earthy taste", listOf(1, 3), "Vegetables", "Dr. Marcus Reed"),
 
-            // Fruits Category
-            MissingLettersChallenge("ml_f1", "PINEAPPLE", "Tropical plant with edible fruit comprising coalesced berries", listOf(2, 6), "Fruits", "System"),
-            MissingLettersChallenge("ml_f2", "STRAWBERRY", "Sweet, soft red fruit with small seeds on its surface", listOf(3, 7), "Fruits", "Prof. Eleanor Vance"),
-            MissingLettersChallenge("ml_f3", "WATERMELON", "Large sweet fruit with smooth green rind and juicy red flesh", listOf(2, 5, 8), "Fruits", "System"),
+        // Fruits Category
+        MissingLettersChallenge("ml_f1", "PINEAPPLE", "Tropical plant with edible fruit comprising coalesced berries", listOf(2, 6), "Fruits", "System"),
+        MissingLettersChallenge("ml_f2", "STRAWBERRY", "Sweet, soft red fruit with small seeds on its surface", listOf(3, 7), "Fruits", "Prof. Eleanor Vance"),
+        MissingLettersChallenge("ml_f3", "WATERMELON", "Large sweet fruit with smooth green rind and juicy red flesh", listOf(2, 5, 8), "Fruits", "System"),
 
-            // General Vocabulary Category
-            MissingLettersChallenge("ml_1", "CONVERSATION", "An informal spoken exchange between people", listOf(2, 5, 8), "General", "System"),
-            MissingLettersChallenge("ml_2", "PRONUNCIATION", "The correct way in which a word or language is spoken", listOf(2, 6, 9), "General", "System"),
-            MissingLettersChallenge("ml_3", "FLUENCY", "Ability to speak smoothly, easily, and naturally", listOf(1, 4), "General", "Prof. Eleanor Vance"),
-            MissingLettersChallenge("ml_4", "VOCABULARY", "The body of words used in a particular language", listOf(1, 5, 8), "General", "System"),
-            MissingLettersChallenge("ml_5", "INTELLIGENT", "Having or showing mental alertness and capacity", listOf(3, 7), "General", "Dr. Marcus Reed")
-        )
+        // General Vocabulary Category
+        MissingLettersChallenge("ml_1", "CONVERSATION", "An informal spoken exchange between people", listOf(2, 5, 8), "General", "System"),
+        MissingLettersChallenge("ml_2", "PRONUNCIATION", "The correct way in which a word or language is spoken", listOf(2, 6, 9), "General", "System"),
+        MissingLettersChallenge("ml_3", "FLUENCY", "Ability to speak smoothly, easily, and naturally", listOf(1, 4), "General", "Prof. Eleanor Vance"),
+        MissingLettersChallenge("ml_4", "VOCABULARY", "The body of words used in a particular language", listOf(1, 5, 8), "General", "System"),
+        MissingLettersChallenge("ml_5", "INTELLIGENT", "Having or showing mental alertness and capacity", listOf(3, 7), "General", "Dr. Marcus Reed")
     )
+
+    private fun loadInitialMissingLetters(): List<MissingLettersChallenge> {
+        val saved = appPreferences?.getMissingLettersChallenges()
+        if (!saved.isNullOrEmpty()) {
+            val savedIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultMissingLettersChallenges.filter { it.id !in savedIds }
+            return saved + missingDefaults
+        }
+        appPreferences?.saveMissingLettersChallenges(defaultMissingLettersChallenges)
+        return defaultMissingLettersChallenges
+    }
+
+    private val _missingLettersChallenges = MutableStateFlow(loadInitialMissingLetters())
     val missingLettersChallenges: StateFlow<List<MissingLettersChallenge>> = _missingLettersChallenges.asStateFlow()
 
     private val _missingLettersCustomCategories = MutableStateFlow(
@@ -2007,16 +2067,19 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         val id = "wm_${System.currentTimeMillis()}"
         val item = WordMatchChallenge(id, word.trim(), definition.trim(), category.trim(), createdBy)
         _wordMatchChallenges.update { it + item }
+        appPreferences?.saveWordMatchChallenges(_wordMatchChallenges.value)
     }
 
     fun deleteWordMatchChallenge(id: String) {
         _wordMatchChallenges.update { it.filterNot { item -> item.id == id } }
+        appPreferences?.saveWordMatchChallenges(_wordMatchChallenges.value)
     }
 
     fun updateWordMatchChallenge(updated: WordMatchChallenge) {
         _wordMatchChallenges.update { list ->
             list.map { if (it.id == updated.id) updated else it }
         }
+        appPreferences?.saveWordMatchChallenges(_wordMatchChallenges.value)
     }
 
     fun addMissingLettersChallenge(
@@ -2039,6 +2102,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         addMissingLettersCategory(targetCat)
         val item = MissingLettersChallenge(id, cleaned, hint.trim(), indices, targetCat, createdBy)
         _missingLettersChallenges.update { it + item }
+        appPreferences?.saveMissingLettersChallenges(_missingLettersChallenges.value)
     }
 
     fun bulkImportMissingLetters(
@@ -2071,18 +2135,21 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
 
         if (newChallenges.isNotEmpty()) {
             _missingLettersChallenges.update { it + newChallenges }
+            appPreferences?.saveMissingLettersChallenges(_missingLettersChallenges.value)
         }
         return count
     }
 
     fun deleteMissingLettersChallenge(id: String) {
         _missingLettersChallenges.update { it.filterNot { item -> item.id == id } }
+        appPreferences?.saveMissingLettersChallenges(_missingLettersChallenges.value)
     }
 
     fun updateMissingLettersChallenge(updated: MissingLettersChallenge) {
         _missingLettersChallenges.update { list ->
             list.map { if (it.id == updated.id) updated else it }
         }
+        appPreferences?.saveMissingLettersChallenges(_missingLettersChallenges.value)
     }
 
     fun addSentenceBuilderChallenge(targetSentence: String, hint: String = "Assemble syntax", assameseTranslation: String = "", createdBy: String) {
@@ -2400,5 +2467,85 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             list.filterNot { it.id == scenarioId }
         }
     }
+
+    // =========================================================================
+    // REMOTE SUPABASE CLOUD SYNC MERGERS
+    // =========================================================================
+
+    fun mergeRemoteStudents(remoteStudents: List<StudentManagementInfo>) {
+        if (remoteStudents.isEmpty()) return
+        val current = _adminStudents.value.toMutableList()
+        var changed = false
+        for (remote in remoteStudents) {
+            val existingIndex = current.indexOfFirst {
+                it.id == remote.id || (it.email.isNotBlank() && it.email.equals(remote.email, ignoreCase = true))
+            }
+            if (existingIndex >= 0) {
+                // Keep local high score / progress if higher
+                val existing = current[existingIndex]
+                current[existingIndex] = remote.copy(
+                    xpPoints = maxOf(existing.xpPoints, remote.xpPoints),
+                    streakDays = maxOf(existing.streakDays, remote.streakDays),
+                    securityPin = if (remote.securityPin.isNotBlank()) remote.securityPin else existing.securityPin,
+                    batch = if (remote.batch.isNotBlank() && !remote.batch.equals("Batch Alpha", ignoreCase = true)) remote.batch else existing.batch
+                )
+                changed = true
+            } else {
+                current.add(remote)
+                changed = true
+            }
+        }
+        if (changed) {
+            _adminStudents.value = current
+            appPreferences?.saveStudents(current)
+            refreshLeaderboard()
+        }
+    }
+
+    fun mergeRemoteTeachers(remoteTeachers: List<User>) {
+        if (remoteTeachers.isEmpty()) return
+        val current = _adminTeachers.value.toMutableList()
+        var changed = false
+        for (remote in remoteTeachers) {
+            val existingIndex = current.indexOfFirst {
+                it.id == remote.id || (it.email.isNotBlank() && it.email.equals(remote.email, ignoreCase = true))
+            }
+            if (existingIndex >= 0) {
+                val existing = current[existingIndex]
+                current[existingIndex] = remote.copy(
+                    securityPin = if (remote.securityPin.isNotBlank()) remote.securityPin else existing.securityPin
+                )
+                changed = true
+            } else {
+                current.add(remote)
+                changed = true
+            }
+        }
+        if (changed) {
+            _adminTeachers.value = current
+            appPreferences?.saveTeachers(current)
+        }
+    }
+
+    fun mergeRemoteAssignments(remoteAssignments: List<Assignment>) {
+        if (remoteAssignments.isEmpty()) return
+        val current = _assignments.value.toMutableList()
+        var changed = false
+        for (remote in remoteAssignments) {
+            val existingIndex = current.indexOfFirst { it.id == remote.id }
+            if (existingIndex >= 0) {
+                current[existingIndex] = remote
+                changed = true
+            } else {
+                current.add(0, remote)
+                changed = true
+            }
+        }
+        if (changed) {
+            _assignments.value = current
+            appPreferences?.saveAssignments(current)
+        }
+    }
 }
+
 

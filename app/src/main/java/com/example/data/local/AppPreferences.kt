@@ -35,10 +35,20 @@ class AppPreferences(context: Context) {
 
         // Missing Letters Categories
         private const val KEY_MISSING_LETTERS_CATEGORIES = "key_missing_letters_categories"
+
+        // Teacher Uploaded & Created Content Keys
+        private const val KEY_EXAMS_LIST = "key_exams_list"
+        private const val KEY_EXAM_SUBMISSIONS = "key_exam_submissions"
+        private const val KEY_ASSIGNMENTS_LIST = "key_assignments_list"
+        private const val KEY_WORD_MATCH_LIST = "key_word_match_list"
+        private const val KEY_MISSING_LETTERS_LIST = "key_missing_letters_list"
+        private const val KEY_SENTENCE_BUILDER_LIST = "key_sentence_builder_list"
+        private const val KEY_LISTEN_CHOOSE_LIST = "key_listen_choose_list"
+        private const val KEY_PRONUNCIATION_BATTLE_LIST = "key_pronunciation_battle_list"
     }
 
     fun saveMissingLettersCategories(categories: List<String>) {
-        val jsonArray = org.json.JSONArray()
+        val jsonArray = JSONArray()
         categories.forEach { jsonArray.put(it) }
         prefs.edit().putString(KEY_MISSING_LETTERS_CATEGORIES, jsonArray.toString()).apply()
     }
@@ -46,7 +56,7 @@ class AppPreferences(context: Context) {
     fun getMissingLettersCategories(): List<String>? {
         val raw = prefs.getString(KEY_MISSING_LETTERS_CATEGORIES, null) ?: return null
         return try {
-            val jsonArray = org.json.JSONArray(raw)
+            val jsonArray = JSONArray(raw)
             val list = mutableListOf<String>()
             for (i in 0 until jsonArray.length()) {
                 list.add(jsonArray.getString(i))
@@ -253,6 +263,202 @@ class AppPreferences(context: Context) {
     }
 
     // =========================================================================
+    // TEACHER UPLOADED EXAMS PERSISTENCE
+    // =========================================================================
+
+    fun saveExams(exams: List<Exam>) {
+        try {
+            val array = JSONArray()
+            for (exam in exams) {
+                array.put(examToJson(exam))
+            }
+            prefs.edit().putString(KEY_EXAMS_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getExams(): List<Exam>? {
+        val raw = prefs.getString(KEY_EXAMS_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<Exam>()
+            for (i in 0 until array.length()) {
+                list.add(jsonToExam(array.getJSONObject(i)))
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveExamSubmissions(submissions: List<ExamSubmission>) {
+        try {
+            val array = JSONArray()
+            for (sub in submissions) {
+                array.put(submissionToJson(sub))
+            }
+            prefs.edit().putString(KEY_EXAM_SUBMISSIONS, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getExamSubmissions(): List<ExamSubmission>? {
+        val raw = prefs.getString(KEY_EXAM_SUBMISSIONS, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<ExamSubmission>()
+            for (i in 0 until array.length()) {
+                list.add(jsonToSubmission(array.getJSONObject(i)))
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // =========================================================================
+    // ASSIGNMENTS PERSISTENCE
+    // =========================================================================
+
+    fun saveAssignments(assignments: List<Assignment>) {
+        try {
+            val array = JSONArray()
+            for (asg in assignments) {
+                val obj = JSONObject()
+                obj.put("id", asg.id)
+                obj.put("title", asg.title)
+                obj.put("teacherName", asg.teacherName)
+                obj.put("batch", asg.batch)
+                obj.put("dueDate", asg.dueDate)
+                obj.put("instructions", asg.instructions)
+                obj.put("topicType", asg.topicType)
+                obj.put("maxPoints", asg.maxPoints)
+                obj.put("submissionsCount", asg.submissionsCount)
+                obj.put("totalAssigned", asg.totalAssigned)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_ASSIGNMENTS_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getAssignments(): List<Assignment>? {
+        val raw = prefs.getString(KEY_ASSIGNMENTS_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<Assignment>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    Assignment(
+                        id = obj.optString("id", "asg_${System.currentTimeMillis()}"),
+                        title = obj.optString("title", ""),
+                        teacherName = obj.optString("teacherName", "Faculty"),
+                        batch = obj.optString("batch", AcademicClasses.DEFAULT_CLASS),
+                        dueDate = obj.optString("dueDate", "In 3 Days"),
+                        instructions = obj.optString("instructions", ""),
+                        topicType = obj.optString("topicType", "Speaking"),
+                        maxPoints = obj.optInt("maxPoints", 100),
+                        submissionsCount = obj.optInt("submissionsCount", 0),
+                        totalAssigned = obj.optInt("totalAssigned", 25)
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // =========================================================================
+    // GAME CHALLENGES PERSISTENCE
+    // =========================================================================
+
+    fun saveMissingLettersChallenges(challenges: List<MissingLettersChallenge>) {
+        try {
+            val array = JSONArray()
+            for (c in challenges) {
+                val obj = JSONObject()
+                obj.put("id", c.id)
+                obj.put("fullWord", c.fullWord)
+                obj.put("hint", c.hint)
+                val idxArr = JSONArray()
+                c.missingIndices.forEach { idxArr.put(it) }
+                obj.put("missingIndices", idxArr)
+                obj.put("category", c.category)
+                obj.put("createdBy", c.createdBy)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_MISSING_LETTERS_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getMissingLettersChallenges(): List<MissingLettersChallenge>? {
+        val raw = prefs.getString(KEY_MISSING_LETTERS_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<MissingLettersChallenge>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val idxArr = obj.optJSONArray("missingIndices")
+                val indices = mutableListOf<Int>()
+                if (idxArr != null) {
+                    for (j in 0 until idxArr.length()) indices.add(idxArr.getInt(j))
+                }
+                list.add(
+                    MissingLettersChallenge(
+                        id = obj.optString("id", ""),
+                        fullWord = obj.optString("fullWord", ""),
+                        hint = obj.optString("hint", ""),
+                        missingIndices = indices,
+                        category = obj.optString("category", "General"),
+                        createdBy = obj.optString("createdBy", "System")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveWordMatchChallenges(challenges: List<WordMatchChallenge>) {
+        try {
+            val array = JSONArray()
+            for (c in challenges) {
+                val obj = JSONObject()
+                obj.put("id", c.id)
+                obj.put("word", c.word)
+                obj.put("definition", c.definition)
+                obj.put("category", c.category)
+                obj.put("createdBy", c.createdBy)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_WORD_MATCH_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getWordMatchChallenges(): List<WordMatchChallenge>? {
+        val raw = prefs.getString(KEY_WORD_MATCH_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<WordMatchChallenge>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    WordMatchChallenge(
+                        id = obj.optString("id", ""),
+                        word = obj.optString("word", ""),
+                        definition = obj.optString("definition", ""),
+                        category = obj.optString("category", "General"),
+                        createdBy = obj.optString("createdBy", "System")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // =========================================================================
     // JSON SERIALIZERS / DESERIALIZERS
     // =========================================================================
 
@@ -377,6 +583,134 @@ class AppPreferences(context: Context) {
             completedStagesCount = obj.optInt("completedStagesCount", 0),
             speakingPracticeMinutes = obj.optInt("speakingPracticeMinutes", 0),
             lastPracticeDate = obj.optString("lastPracticeDate", "")
+        )
+    }
+
+    private fun examToJson(exam: Exam): JSONObject {
+        val obj = JSONObject()
+        obj.put("id", exam.id)
+        obj.put("title", exam.title)
+        obj.put("description", exam.description)
+        obj.put("teacherName", exam.teacherName)
+        obj.put("targetClass", exam.targetClass)
+        obj.put("subjectCategory", exam.subjectCategory)
+        obj.put("durationMinutes", exam.durationMinutes)
+        obj.put("totalMarks", exam.totalMarks)
+        obj.put("passingPercentage", exam.passingPercentage)
+        obj.put("createdAt", exam.createdAt)
+        obj.put("dueDate", exam.dueDate)
+        obj.put("isPublished", exam.isPublished)
+
+        val qArr = JSONArray()
+        for (q in exam.questions) {
+            val qObj = JSONObject()
+            qObj.put("id", q.id)
+            qObj.put("question", q.question)
+            val optArr = JSONArray()
+            q.options.forEach { optArr.put(it) }
+            qObj.put("options", optArr)
+            qObj.put("correctOptionIndex", q.correctOptionIndex)
+            qObj.put("marks", q.marks)
+            qObj.put("explanation", q.explanation)
+            qArr.put(qObj)
+        }
+        obj.put("questions", qArr)
+        return obj
+    }
+
+    private fun jsonToExam(obj: JSONObject): Exam {
+        val qArr = obj.optJSONArray("questions")
+        val questions = mutableListOf<ExamQuestion>()
+        if (qArr != null) {
+            for (i in 0 until qArr.length()) {
+                val qObj = qArr.getJSONObject(i)
+                val optArr = qObj.optJSONArray("options")
+                val options = mutableListOf<String>()
+                if (optArr != null) {
+                    for (j in 0 until optArr.length()) options.add(optArr.getString(j))
+                }
+                questions.add(
+                    ExamQuestion(
+                        id = qObj.optString("id", "q_$i"),
+                        question = qObj.optString("question", ""),
+                        options = options,
+                        correctOptionIndex = qObj.optInt("correctOptionIndex", 0),
+                        marks = qObj.optInt("marks", 5),
+                        explanation = qObj.optString("explanation", "")
+                    )
+                )
+            }
+        }
+        return Exam(
+            id = obj.optString("id", "exm_${System.currentTimeMillis()}"),
+            title = obj.optString("title", "Exam"),
+            description = obj.optString("description", ""),
+            teacherName = obj.optString("teacherName", "Faculty"),
+            targetClass = obj.optString("targetClass", AcademicClasses.DEFAULT_CLASS),
+            subjectCategory = obj.optString("subjectCategory", "English Grammar"),
+            durationMinutes = obj.optInt("durationMinutes", 15),
+            totalMarks = obj.optInt("totalMarks", 50),
+            passingPercentage = obj.optInt("passingPercentage", 60),
+            questions = questions,
+            createdAt = obj.optString("createdAt", "Nov 2026"),
+            dueDate = obj.optString("dueDate", "Upcoming"),
+            isPublished = obj.optBoolean("isPublished", true)
+        )
+    }
+
+    private fun submissionToJson(sub: ExamSubmission): JSONObject {
+        val obj = JSONObject()
+        obj.put("id", sub.id)
+        obj.put("examId", sub.examId)
+        obj.put("examTitle", sub.examTitle)
+        obj.put("studentId", sub.studentId)
+        obj.put("studentName", sub.studentName)
+        obj.put("studentClass", sub.studentClass)
+        obj.put("studentAvatar", sub.studentAvatar)
+        obj.put("scoreObtained", sub.scoreObtained)
+        obj.put("totalMarks", sub.totalMarks)
+        obj.put("percentage", sub.percentage)
+        obj.put("isPassed", sub.isPassed)
+        obj.put("grade", sub.grade)
+        obj.put("performanceTitle", sub.performanceTitle)
+        obj.put("timeTakenSeconds", sub.timeTakenSeconds)
+        obj.put("completedAt", sub.completedAt)
+        obj.put("certificateId", sub.certificateId)
+
+        val answersObj = JSONObject()
+        sub.selectedAnswers.forEach { (k, v) -> answersObj.put(k, v) }
+        obj.put("selectedAnswers", answersObj)
+        return obj
+    }
+
+    private fun jsonToSubmission(obj: JSONObject): ExamSubmission {
+        val answersObj = obj.optJSONObject("selectedAnswers")
+        val selectedAnswers = mutableMapOf<String, Int>()
+        if (answersObj != null) {
+            val keys = answersObj.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                selectedAnswers[k] = answersObj.optInt(k, 0)
+            }
+        }
+        return ExamSubmission(
+            id = obj.optString("id", ""),
+            examId = obj.optString("examId", ""),
+            examTitle = obj.optString("examTitle", ""),
+            studentId = obj.optString("studentId", ""),
+            studentName = obj.optString("studentName", ""),
+            studentClass = obj.optString("studentClass", ""),
+            studentAvatar = obj.optString("studentAvatar", "🎓"),
+            selectedAnswers = selectedAnswers,
+            scoreObtained = obj.optInt("scoreObtained", 0),
+            totalMarks = obj.optInt("totalMarks", 100),
+            percentage = obj.optInt("percentage", 0),
+            isPassed = obj.optBoolean("isPassed", false),
+            grade = obj.optString("grade", "C"),
+            performanceTitle = obj.optString("performanceTitle", "Satisfactory"),
+            timeTakenSeconds = obj.optInt("timeTakenSeconds", 0),
+            completedAt = obj.optString("completedAt", "Today"),
+            certificateId = obj.optString("certificateId", "SPK-EXM-2026-0000")
         )
     }
 }

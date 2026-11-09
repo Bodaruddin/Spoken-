@@ -56,6 +56,7 @@ fun StudentExamsScreen(
 
     var selectedStatusFilter by remember { mutableStateOf("All") } // "All", "Pending", "Completed"
     var selectedCategoryFilter by remember { mutableStateOf("All Categories") }
+    var selectedClassFilter by remember { mutableStateOf("All Classes") }
     var searchQuery by remember { mutableStateOf("") }
 
     // Active exam session state
@@ -75,11 +76,24 @@ fun StudentExamsScreen(
     }
 
     // Filter exams according to class, status, category, and search query
-    val filteredExams = remember(exams, selectedStatusFilter, selectedCategoryFilter, searchQuery, studentSubmissionsMap, studentClass) {
+    val filteredExams = remember(exams, selectedStatusFilter, selectedCategoryFilter, selectedClassFilter, searchQuery, studentSubmissionsMap, studentClass) {
         exams.filter { exam ->
-            // Class match: Target class or All Classes
-            val matchesClass = exam.targetClass.equals("All Classes", ignoreCase = true) ||
-                exam.targetClass.equals(studentClass, ignoreCase = true)
+            // Class match: if All Classes selected or student in generic batch, show all exams
+            val matchesClass = when {
+                selectedClassFilter != "All Classes" -> {
+                    exam.targetClass.equals(selectedClassFilter, ignoreCase = true) ||
+                    exam.targetClass.equals("All Classes", ignoreCase = true)
+                }
+                studentClass.equals("Batch Alpha", ignoreCase = true) || studentClass.isBlank() -> {
+                    true
+                }
+                else -> {
+                    exam.targetClass.equals("All Classes", ignoreCase = true) ||
+                    exam.targetClass.equals(studentClass, ignoreCase = true) ||
+                    exam.targetClass.contains(studentClass, ignoreCase = true) ||
+                    studentClass.contains(exam.targetClass, ignoreCase = true)
+                }
+            }
 
             val hasCompleted = studentSubmissionsMap.containsKey(exam.id)
             val matchesStatus = when (selectedStatusFilter) {
@@ -102,10 +116,7 @@ fun StudentExamsScreen(
     }
 
     val completedCount = studentSubmissionsMap.size
-    val pendingCount = exams.count { exam ->
-        (exam.targetClass.equals("All Classes", ignoreCase = true) || exam.targetClass.equals(studentClass, ignoreCase = true)) &&
-            !studentSubmissionsMap.containsKey(exam.id)
-    }
+    val pendingCount = exams.count { exam -> !studentSubmissionsMap.containsKey(exam.id) }
 
     LazyColumn(
         modifier = modifier

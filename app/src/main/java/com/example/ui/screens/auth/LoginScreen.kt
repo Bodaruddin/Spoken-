@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.ui.MainViewModel
 import com.example.ui.theme.*
+import kotlinx.coroutines.launch
 
 enum class AuthMode {
     SIGN_IN,
@@ -108,6 +109,9 @@ fun LoginScreen(
     var authMode by remember { mutableStateOf(AuthMode.SIGN_IN) }
 
     // Unified Sign In States
+    val coroutineScope = rememberCoroutineScope()
+    var isAuthenticating by remember { mutableStateOf(false) }
+    var selectedRole by remember { mutableStateOf<com.example.data.model.Role?>(null) }
     var email by remember { mutableStateOf("") }
     var securityPin by remember { mutableStateOf("") }
     var pinVisible by remember { mutableStateOf(false) }
@@ -436,6 +440,49 @@ fun LoginScreen(
                             }
                         }
 
+                        // Portal Target Selector Chips
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "Login Portal Target",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFA5B4FC)
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                val roles = listOf(
+                                    null to "Auto-Detect",
+                                    com.example.data.model.Role.STUDENT to "Student",
+                                    com.example.data.model.Role.TEACHER to "Faculty",
+                                    com.example.data.model.Role.ADMIN to "Admin"
+                                )
+                                roles.forEach { (role, label) ->
+                                    val isSelected = selectedRole == role
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (isSelected) Color(0xFF7C3AED) else Color(0xFF070F35),
+                                        border = BorderStroke(1.2.dp, if (isSelected) Color(0xFF00D2FF) else Color(0xFF2E3B70)),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { selectedRole = role }
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) Color.White else Color(0xFFCBD5E1),
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.padding(vertical = 7.dp, horizontal = 2.dp),
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         // Email or User ID Field
                         OutlinedTextField(
                             value = email,
@@ -533,16 +580,24 @@ fun LoginScreen(
                             }
                         }
 
-                        // Gradient Sign In Button (Purple to Cyan Gradient matching screenshot)
+                        // Gradient Sign In Button with Supabase remote authentication
                         Button(
                             onClick = {
-                                val result = viewModel.unifiedLogin(email, securityPin)
-                                if (result is MainViewModel.UnifiedLoginResult.Error) {
-                                    loginError = result.message
-                                } else {
+                                if (!isAuthenticating) {
+                                    isAuthenticating = true
                                     loginError = null
+                                    coroutineScope.launch {
+                                        val result = viewModel.unifiedLoginAsync(email, securityPin, selectedRole)
+                                        isAuthenticating = false
+                                        if (result is MainViewModel.UnifiedLoginResult.Error) {
+                                            loginError = result.message
+                                        } else {
+                                            loginError = null
+                                        }
+                                    }
                                 }
                             },
+                            enabled = !isAuthenticating,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(50.dp)
@@ -565,22 +620,41 @@ fun LoginScreen(
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        Icons.AutoMirrored.Rounded.Login,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Text(
-                                        text = "Sign In",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = Color.White
-                                    )
+                                if (isAuthenticating) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            color = Color.White,
+                                            strokeWidth = 2.dp
+                                        )
+                                        Text(
+                                            text = "Connecting to Supabase Database...",
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                } else {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.AutoMirrored.Rounded.Login,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Text(
+                                            text = if (selectedRole != null) "Sign In as ${selectedRole?.name}" else "Sign In",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color.White
+                                        )
+                                    }
                                 }
                             }
                         }

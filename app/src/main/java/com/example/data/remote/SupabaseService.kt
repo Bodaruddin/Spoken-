@@ -1,12 +1,16 @@
 package com.example.data.remote
 
+import android.util.Log
 import com.example.BuildConfig
+import com.example.data.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 sealed class SupabaseConnectionState {
@@ -19,8 +23,8 @@ sealed class SupabaseConnectionState {
 class SupabaseService {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(12, TimeUnit.SECONDS)
         .build()
 
     // Configurable endpoint & key (defaults to user project or BuildConfig)
@@ -67,11 +71,11 @@ class SupabaseService {
                 }
             } catch (_: Exception) { }
 
-            // 2. Fallback check: student_progress table query
+            // 2. Fallback check: students table query
             if (!connected) {
                 try {
                     val restRequest = Request.Builder()
-                        .url("$cleanUrl/rest/v1/student_progress?select=student_id&limit=1")
+                        .url("$cleanUrl/rest/v1/students?select=id&limit=1")
                         .addHeader("apikey", key.trim())
                         .addHeader("Authorization", "Bearer ${key.trim()}")
                         .get()
@@ -95,6 +99,192 @@ class SupabaseService {
             }
         } catch (e: Exception) {
             SupabaseConnectionState.Error("Network error connecting to Supabase: ${e.localizedMessage}")
+        }
+    }
+
+    // =========================================================================
+    // FETCH DATA FROM SUPABASE
+    // =========================================================================
+
+    suspend fun fetchStudents(): List<StudentManagementInfo> = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext emptyList()
+        val list = mutableListOf<StudentManagementInfo>()
+        try {
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/students?select=*")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: ""
+                    val jsonArray = JSONArray(body)
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
+                        val id = obj.optString("id", "std_${System.currentTimeMillis()}_$i")
+                        val name = obj.optString("name", "Student")
+                        val email = obj.optString("email", "")
+                        val batch = obj.optString("batch", AcademicClasses.DEFAULT_CLASS)
+                        val pin = obj.optString("security_pin", "1234")
+                        val isActive = obj.optBoolean("is_active", true)
+                        val xp = obj.optInt("xp_points", 100)
+                        val joined = obj.optString("created_at", "Nov 2026").take(10)
+
+                        list.add(
+                            StudentManagementInfo(
+                                id = id,
+                                name = name,
+                                email = email,
+                                avatarEmoji = "🎓",
+                                batch = batch,
+                                level = LearningLevel.INTERMEDIATE,
+                                isActive = isActive,
+                                speakingScore = 75,
+                                pronunciationScore = 75,
+                                fluencyScore = 75,
+                                grammarScore = 75,
+                                vocabularyScore = 75,
+                                listeningScore = 75,
+                                streakDays = 1,
+                                xpPoints = xp,
+                                joinedDate = joined,
+                                teacherNotes = "Synced from Supabase database",
+                                securityPin = pin
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error fetching students from Supabase: ${e.message}")
+        }
+        list
+    }
+
+    suspend fun fetchTeachers(): List<User> = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext emptyList()
+        val list = mutableListOf<User>()
+        try {
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/teachers?select=*")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: ""
+                    val jsonArray = JSONArray(body)
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
+                        val id = obj.optString("id", "tch_${System.currentTimeMillis()}_$i")
+                        val name = obj.optString("name", "Faculty Instructor")
+                        val email = obj.optString("email", "")
+                        val dept = obj.optString("department", "Spoken English Dept")
+                        val pin = obj.optString("security_pin", "7321")
+                        val isActive = obj.optBoolean("is_active", true)
+                        val joined = obj.optString("created_at", "Nov 2026").take(10)
+
+                        list.add(
+                            User(
+                                id = id,
+                                name = name,
+                                email = email,
+                                role = Role.TEACHER,
+                                avatarEmoji = "👨‍🏫",
+                                batch = dept,
+                                isActive = isActive,
+                                joinedDate = joined,
+                                securityPin = pin
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error fetching teachers from Supabase: ${e.message}")
+        }
+        list
+    }
+
+    suspend fun fetchAssignments(): List<Assignment> = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext emptyList()
+        val list = mutableListOf<Assignment>()
+        try {
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/assignments?select=*")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: ""
+                    val jsonArray = JSONArray(body)
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
+                        list.add(
+                            Assignment(
+                                id = obj.optString("id", "asg_${System.currentTimeMillis()}"),
+                                title = obj.optString("title", "Assignment"),
+                                teacherName = obj.optString("teacher_name", "Faculty Instructor"),
+                                batch = obj.optString("batch", AcademicClasses.DEFAULT_CLASS),
+                                dueDate = obj.optString("due_date", "In 3 Days"),
+                                instructions = obj.optString("instructions", ""),
+                                topicType = "Speaking & Academic",
+                                maxPoints = obj.optInt("max_points", 100),
+                                submissionsCount = 0,
+                                totalAssigned = 25
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error fetching assignments: ${e.message}")
+        }
+        list
+    }
+
+    suspend fun saveAssignment(assignment: Assignment): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        try {
+            val escapedTitle = assignment.title.replace("\"", "\\\"").trim()
+            val escapedTeacher = assignment.teacherName.replace("\"", "\\\"").trim()
+            val escapedBatch = assignment.batch.replace("\"", "\\\"").trim()
+            val escapedDueDate = assignment.dueDate.replace("\"", "\\\"").trim()
+            val escapedInstructions = assignment.instructions.replace("\"", "\\\"").trim()
+
+            val jsonPayload = """
+                {
+                    "id": "${assignment.id}",
+                    "title": "$escapedTitle",
+                    "teacher_name": "$escapedTeacher",
+                    "batch": "$escapedBatch",
+                    "due_date": "$escapedDueDate",
+                    "instructions": "$escapedInstructions",
+                    "max_points": ${assignment.maxPoints}
+                }
+            """.trimIndent()
+
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/assignments")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .addHeader("Prefer", "resolution=merge-duplicates")
+                .post(jsonPayload.toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                response.isSuccessful
+            }
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error saving assignment to Supabase: ${e.message}")
+            false
         }
     }
 
@@ -173,9 +363,10 @@ class SupabaseService {
                 .post(studentPayload.toRequestBody("application/json".toMediaType()))
                 .build()
 
-            try {
-                client.newCall(studentReq).execute().close()
-            } catch (_: Exception) { }
+            var saved = false
+            client.newCall(studentReq).execute().use { resp ->
+                saved = resp.isSuccessful
+            }
 
             // 2. Also record in student_progress table by student id
             syncStudentProgress(id, xp = 100, coins = 50, speakingScore = 75, completedStages = 0)
@@ -183,8 +374,9 @@ class SupabaseService {
             // 3. Also record in student_progress table by email for immediate cross-lookup
             syncStudentProgress(cleanEmail, xp = 100, coins = 50, speakingScore = 75, completedStages = 0)
 
-            true
+            saved
         } catch (e: Exception) {
+            Log.e("SupabaseService", "Error saving student account: ${e.message}")
             false
         }
     }
@@ -227,6 +419,7 @@ class SupabaseService {
 
             client.newCall(request).execute().use { it.isSuccessful }
         } catch (e: Exception) {
+            Log.e("SupabaseService", "Error saving teacher account: ${e.message}")
             false
         }
     }
@@ -321,11 +514,21 @@ class SupabaseService {
             ALTER TABLE speaking_evaluations ENABLE ROW LEVEL SECURITY;
             ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
 
-            CREATE POLICY "Allow public students" ON students FOR ALL USING (true);
-            CREATE POLICY "Allow public teachers" ON teachers FOR ALL USING (true);
-            CREATE POLICY "Allow public student_progress" ON student_progress FOR ALL USING (true);
-            CREATE POLICY "Allow public speaking_evals" ON speaking_evaluations FOR ALL USING (true);
-            CREATE POLICY "Allow public assignments" ON assignments FOR ALL USING (true);
+            -- Policies with full SELECT, INSERT, UPDATE, DELETE permissions
+            DROP POLICY IF EXISTS "Allow public students" ON students;
+            CREATE POLICY "Allow public students" ON students FOR ALL USING (true) WITH CHECK (true);
+
+            DROP POLICY IF EXISTS "Allow public teachers" ON teachers;
+            CREATE POLICY "Allow public teachers" ON teachers FOR ALL USING (true) WITH CHECK (true);
+
+            DROP POLICY IF EXISTS "Allow public student_progress" ON student_progress;
+            CREATE POLICY "Allow public student_progress" ON student_progress FOR ALL USING (true) WITH CHECK (true);
+
+            DROP POLICY IF EXISTS "Allow public speaking_evals" ON speaking_evaluations;
+            CREATE POLICY "Allow public speaking_evals" ON speaking_evaluations FOR ALL USING (true) WITH CHECK (true);
+
+            DROP POLICY IF EXISTS "Allow public assignments" ON assignments;
+            CREATE POLICY "Allow public assignments" ON assignments FOR ALL USING (true) WITH CHECK (true);
         """.trimIndent()
     }
 }

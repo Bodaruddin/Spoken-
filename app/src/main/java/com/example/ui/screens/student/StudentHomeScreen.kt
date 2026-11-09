@@ -48,6 +48,17 @@ fun StudentHomeScreen(
     val assignments by viewModel.assignments.collectAsState()
     val exams by viewModel.exams.collectAsState()
 
+    val studentAssignments = remember(assignments, user.studentClass) {
+        val matched = assignments.filter {
+            it.batch.equals(user.studentClass, ignoreCase = true) ||
+            it.batch.equals("All Classes", ignoreCase = true) ||
+            it.batch.contains(user.studentClass, ignoreCase = true) ||
+            user.studentClass.equals("Batch Alpha", ignoreCase = true) ||
+            user.studentClass.isBlank()
+        }
+        if (matched.isNotEmpty()) matched else assignments
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -161,11 +172,14 @@ fun StudentHomeScreen(
         item {
             val studentClass = user.studentClass
             val classExams = remember(exams, studentClass) {
-                exams.filter {
+                val matched = exams.filter {
                     it.targetClass.equals(studentClass, ignoreCase = true) ||
                     it.targetClass.equals("All Classes", ignoreCase = true) ||
-                    it.targetClass.contains(studentClass, ignoreCase = true)
+                    it.targetClass.contains(studentClass, ignoreCase = true) ||
+                    studentClass.equals("Batch Alpha", ignoreCase = true) ||
+                    studentClass.isBlank()
                 }
+                if (matched.isNotEmpty()) matched else exams
             }
 
             Card(
@@ -311,6 +325,153 @@ fun StudentHomeScreen(
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF38BDF8)
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2b. Faculty Assignments & Homework Container
+        if (studentAssignments.isNotEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    border = BorderStroke(1.5.dp, Color(0xFF6366F1).copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("home_assignments_card")
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        Color(0xFF1E1B4B).copy(alpha = 0.95f),
+                                        Color(0xFF0F172A).copy(alpha = 0.95f)
+                                    )
+                                )
+                            )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color(0xFF312E81)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("📚", fontSize = 20.sp)
+                                    }
+
+                                    Column {
+                                        Text(
+                                            text = "Faculty Assignments & Drills",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = "${studentAssignments.size} Active Tasks",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFFA5B4FC)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFF4338CA).copy(alpha = 0.6f),
+                                    border = BorderStroke(1.dp, Color(0xFF818CF8).copy(alpha = 0.4f))
+                                ) {
+                                    Text(
+                                        text = "Teacher Panel",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFC7D2FE),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+
+                            studentAssignments.take(3).forEach { asg ->
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = Color(0xFF0F172A).copy(alpha = 0.9f),
+                                    border = BorderStroke(1.dp, Color(0xFF3730A3)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                                        ) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = asg.topicType,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF38BDF8)
+                                                )
+                                                Text(
+                                                    text = "• By ${asg.teacherName} • ${asg.dueDate}",
+                                                    fontSize = 11.sp,
+                                                    color = Color(0xFF94A3B8)
+                                                )
+                                            }
+                                            Text(
+                                                text = asg.title,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                color = Color.White,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+
+                                        Spacer(Modifier.width(8.dp))
+
+                                        OutlinedButton(
+                                            onClick = { viewModel.selectStudentTab(StudentTab.PRACTICE) },
+                                            shape = RoundedCornerShape(10.dp),
+                                            border = BorderStroke(1.dp, Color(0xFF818CF8)),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                containerColor = Color(0xFF1E1B4B)
+                                            ),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                "Start Drill",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFC7D2FE)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
