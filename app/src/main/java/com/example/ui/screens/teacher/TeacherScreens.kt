@@ -26,6 +26,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import com.example.util.CertificatePdfGenerator
+import com.example.ui.components.SpeaklyCertificatePreviewDialog
 import com.example.util.ExcelWordSheetParser
 import com.example.util.ParsedMissingLetterRow
 import androidx.compose.material3.*
@@ -3397,78 +3398,22 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
 
     // --- Teacher Certificate Preview Dialog with PDF Download ---
     selectedSubmissionForCert?.let { sub ->
-        AlertDialog(
-            onDismissRequest = { selectedSubmissionForCert = null },
-            title = {
-                Text("Certificate: ${sub.studentName}", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Mini Certificate Card
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFFFCFBF7),
-                        border = BorderStroke(3.dp, Color(0xFFB8860B)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text("SPEAKLY ACADEMY OF ENGLISH", fontWeight = FontWeight.ExtraBold, fontSize = 10.sp, color = Color(0xFF090D26))
-                            Text("CERTIFICATE OF EXCELLENCE", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF091030))
-                            Text("Awarded to", fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, fontSize = 10.sp, color = Color(0xFF475569))
-                            Text(sub.studentName, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Color(0xFF090D26))
-                            Text("Class ${sub.studentClass} • \"${sub.examTitle}\"", fontSize = 10.sp, color = Color(0xFF334155), textAlign = TextAlign.Center)
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth().background(Color(0xFFF1F5F9), RoundedCornerShape(8.dp)).padding(6.dp),
-                                horizontalArrangement = Arrangement.SpaceAround
-                            ) {
-                                Text("Score: ${sub.scoreObtained}/${sub.totalMarks}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF090D26))
-                                Text("Percent: ${sub.percentage}%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF090D26))
-                                Text("Grade: ${sub.grade}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D))
-                            }
-                            Text("ID: ${sub.certificateId} • Verified", fontSize = 8.sp, color = Color(0xFF64748B))
-                        }
-                    }
-
-                    Text("Generate the official high-resolution landscape A4 PDF with royal gold filigree and faculty signatures.", fontSize = 11.5.sp, color = Color(0xFF94A3B8))
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        CertificatePdfGenerator.generateCertificatePdf(
-                            context = context,
-                            submission = sub,
-                            onSuccess = { file ->
-                                Toast.makeText(context, "Certificate PDF downloaded to Downloads!", Toast.LENGTH_LONG).show()
-                                CertificatePdfGenerator.openOrSharePdf(context, file)
-                            },
-                            onError = { err ->
-                                Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
-                            }
-                        )
+        SpeaklyCertificatePreviewDialog(
+            initialSubmission = sub,
+            allSubmissions = examSubmissions,
+            onDismiss = { selectedSubmissionForCert = null },
+            onDownloadPdf = { submissionToDownload ->
+                CertificatePdfGenerator.generateCertificatePdf(
+                    context = context,
+                    submission = submissionToDownload,
+                    onSuccess = { file ->
+                        Toast.makeText(context, "Certificate PDF downloaded to Downloads!", Toast.LENGTH_LONG).show()
+                        CertificatePdfGenerator.openOrSharePdf(context, file)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
-                ) {
-                    Icon(Icons.Rounded.Download, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Download PDF", color = Color.White, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { selectedSubmissionForCert = null }) {
-                    Text("Close")
-                }
+                    onError = { err ->
+                        Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                    }
+                )
             }
         )
     }

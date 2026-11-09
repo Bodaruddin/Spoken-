@@ -22,20 +22,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.AchievementBadge
+import com.example.data.model.ExamSubmission
 import com.example.data.model.LeaderboardUser
 import com.example.data.remote.SupabaseConnectionState
 import com.example.ui.MainViewModel
+import com.example.ui.components.OfficialSpeaklyCertificateCard
 import com.example.ui.components.SectionHeader
+import com.example.ui.components.SpeaklyCertificatePreviewDialog
 import com.example.ui.theme.*
+import com.example.util.CertificatePdfGenerator
 
 @Composable
 fun StudentProfileScreen(
     viewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val user by viewModel.currentUser.collectAsState()
     val profile by viewModel.studentProfile.collectAsState()
     val badges by viewModel.badges.collectAsState()
@@ -43,8 +50,10 @@ fun StudentProfileScreen(
     val leaderboard by viewModel.leaderboard.collectAsState()
     val supabaseStatus by viewModel.supabaseStatus.collectAsState()
     val isAdminSession by viewModel.isAdminSession.collectAsState()
+    val examSubmissions by viewModel.examSubmissions.collectAsState()
 
     var showVocabNotebook by remember { mutableStateOf(false) }
+    var previewSubmissionForCert by remember { mutableStateOf<ExamSubmission?>(null) }
 
     LazyColumn(
         modifier = modifier
@@ -523,7 +532,111 @@ fun StudentProfileScreen(
             }
         }
 
-        // 4. Comprehensive CEFR Spoken Proficiency Matrix
+        // 4. Official Exam Certificates & Credentials
+        val passedCertificates = examSubmissions.filter { it.isPassed }
+        if (passedCertificates.isNotEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                    border = BorderStroke(1.5.dp, Color(0xFFD4AF37)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFF0F172A),
+                                    Color(0xFF1E1B4B),
+                                    Color(0xFF2E1065)
+                                )
+                            )
+                        )
+                        .testTag("student_earned_certificates_section")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("🏆", fontSize = 20.sp)
+                                Column {
+                                    Text(
+                                        "Official Verified Certificates",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        "${passedCertificates.size} Accredited Credential(s) Earned",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFFFDE047)
+                                    )
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF065F46)
+                            ) {
+                                Text(
+                                    "VERIFIED",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFA7F3D0),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+
+                        // Display top certificate preview
+                        val primaryCert = passedCertificates.firstOrNull { it.studentName.contains("Fariha", ignoreCase = true) }
+                            ?: passedCertificates.first()
+
+                        OfficialSpeaklyCertificateCard(
+                            submission = primaryCert,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { previewSubmissionForCert = primaryCert }
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = primaryCert.studentName,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "${primaryCert.examTitle} • Grade ${primaryCert.grade} (${primaryCert.percentage}%)",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFCBD5E1)
+                                )
+                            }
+                            Button(
+                                onClick = { previewSubmissionForCert = primaryCert },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = AmberGold),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                            ) {
+                                Text("View Full 🏆", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF78350F))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. Comprehensive CEFR Spoken Proficiency Matrix
         item {
             Card(
                 shape = RoundedCornerShape(22.dp),
@@ -867,6 +980,28 @@ fun StudentProfileScreen(
                 }
             }
         }
+    }
+
+    // Official Certificate Preview Dialog Modal
+    previewSubmissionForCert?.let { sub ->
+        SpeaklyCertificatePreviewDialog(
+            initialSubmission = sub,
+            allSubmissions = examSubmissions,
+            onDismiss = { previewSubmissionForCert = null },
+            onDownloadPdf = { submissionToDownload ->
+                CertificatePdfGenerator.generateCertificatePdf(
+                    context = context,
+                    submission = submissionToDownload,
+                    onSuccess = { file ->
+                        Toast.makeText(context, "Certificate PDF downloaded: ${file.name}", Toast.LENGTH_LONG).show()
+                        CertificatePdfGenerator.openOrSharePdf(context, file)
+                    },
+                    onError = { err ->
+                        Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+        )
     }
 }
 

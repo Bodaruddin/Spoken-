@@ -37,6 +37,8 @@ import com.example.data.model.Exam
 import com.example.data.model.ExamQuestion
 import com.example.data.model.ExamSubmission
 import com.example.ui.MainViewModel
+import com.example.ui.components.OfficialSpeaklyCertificateCard
+import com.example.ui.components.SpeaklyCertificatePreviewDialog
 import com.example.ui.theme.*
 import com.example.util.CertificatePdfGenerator
 import java.io.File
@@ -83,6 +85,7 @@ fun StudentExamsScreen(
             val matchesStatus = when (selectedStatusFilter) {
                 "Pending" -> !hasCompleted
                 "Completed" -> hasCompleted
+                "Certificates" -> hasCompleted && (studentSubmissionsMap[exam.id]?.isPassed == true)
                 else -> true
             }
 
@@ -188,7 +191,9 @@ fun StudentExamsScreen(
                             value = "${studentSubmissionsMap.values.count { it.isPassed }}",
                             icon = Icons.Rounded.WorkspacePremium,
                             color = AmberGold,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedStatusFilter = "Certificates" }
                         )
                     }
                 }
@@ -229,10 +234,12 @@ fun StudentExamsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val certCount = studentSubmissionsMap.values.count { it.isPassed }
                     val statusOptions = listOf(
-                        "All" to "All Exams (${filteredExams.size})",
-                        "Pending" to "Pending ($pendingCount ⏳)",
-                        "Completed" to "Completed ($completedCount ✅)"
+                        "All" to "All Exams",
+                        "Pending" to "Pending ($pendingCount)",
+                        "Completed" to "Done ($completedCount)",
+                        "Certificates" to "Certificates 🏆 ($certCount)"
                     )
                     statusOptions.forEach { (statusKey, label) ->
                         val isSelected = selectedStatusFilter == statusKey
@@ -285,6 +292,106 @@ fun StudentExamsScreen(
                                 color = if (isSelected) Color(0xFFE9D5FF) else Color(0xFF94A3B8),
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- Featured Official Certificate Banner (From Provided Screenshot) ---
+        val featuredCert = examSubmissions.firstOrNull { it.studentName.contains("Fariha", ignoreCase = true) }
+            ?: examSubmissions.firstOrNull { it.isPassed }
+        if (featuredCert != null && (selectedStatusFilter == "All" || selectedStatusFilter == "Certificates")) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                    border = BorderStroke(1.5.dp, Color(0xFFD4AF37)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFF1E1B4B),
+                                    Color(0xFF312E81),
+                                    Color(0xFF4C1D95)
+                                )
+                            )
+                        )
+                        .clickable { selectedSubmissionForCert = featuredCert }
+                        .testTag("featured_certificate_banner")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text("👑", fontSize = 16.sp)
+                                Text(
+                                    "OFFICIAL VERIFIED CERTIFICATE",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFFDE047),
+                                    letterSpacing = 1.sp
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF065F46)
+                            ) {
+                                Text(
+                                    "GRADE ${featuredCert.grade} • VERIFIED",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFA7F3D0),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+
+                        // Official Certificate Card Rendering
+                        OfficialSpeaklyCertificateCard(
+                            submission = featuredCert,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { selectedSubmissionForCert = featuredCert }
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "${featuredCert.studentName} (${featuredCert.studentClass})",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "${featuredCert.examTitle} • ${featuredCert.scoreObtained}/${featuredCert.totalMarks} Marks",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFCBD5E1)
+                                )
+                            }
+                            Button(
+                                onClick = { selectedSubmissionForCert = featuredCert },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = AmberGold),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text("View Full 🏆", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF78350F))
+                            }
                         }
                     }
                 }
@@ -374,15 +481,16 @@ fun StudentExamsScreen(
 
     // --- Certificate Preview Dialog Modal ---
     selectedSubmissionForCert?.let { sub ->
-        CertificatePreviewDialog(
-            submission = sub,
+        SpeaklyCertificatePreviewDialog(
+            initialSubmission = sub,
+            allSubmissions = examSubmissions,
             onDismiss = { selectedSubmissionForCert = null },
-            onDownloadPdf = {
+            onDownloadPdf = { submissionToDownload ->
                 CertificatePdfGenerator.generateCertificatePdf(
                     context = context,
-                    submission = sub,
+                    submission = submissionToDownload,
                     onSuccess = { file ->
-                        Toast.makeText(context, "Certificate PDF saved to Downloads!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Certificate PDF downloaded: ${file.name}", Toast.LENGTH_LONG).show()
                         CertificatePdfGenerator.openOrSharePdf(context, file)
                     },
                     onError = { err ->
@@ -1197,266 +1305,6 @@ private fun RuleItem(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
         Column {
             Text(title, fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color.White)
             Text(desc, fontSize = 11.sp, color = Color(0xFF94A3B8))
-        }
-    }
-}
-
-// -------------------------------------------------------------
-// PREMIUM CERTIFICATE PREVIEW DIALOG
-// -------------------------------------------------------------
-@Composable
-private fun CertificatePreviewDialog(
-    submission: ExamSubmission,
-    onDismiss: () -> Unit,
-    onDownloadPdf: () -> Unit
-) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF040714)),
-            color = Color(0xFF040714)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                // Top Action Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Rounded.Close, contentDescription = "Close", tint = Color.White)
-                    }
-                    Text(
-                        "Official Verified Certificate",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = Color.White
-                    )
-                    Button(
-                        onClick = onDownloadPdf,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Icon(Icons.Rounded.Download, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("PDF", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
-                    }
-                }
-
-                // Certificate Canvas Surface (Scrollable container for viewing)
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFCFBF7)), // Ivory background
-                    border = BorderStroke(4.dp, Color(0xFFB8860B)), // Dark gold framing
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(vertical = 10.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .border(1.5.dp, Color(0xFF090D26), RoundedCornerShape(16.dp))
-                            .padding(14.dp)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Academy Seal & Header
-                            Box(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFF0F172A))
-                                    .border(2.dp, Color(0xFFD4AF37), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("★", fontSize = 24.sp, color = Color(0xFFFFD700))
-                            }
-
-                            Text(
-                                text = "SPEAKLY ACADEMY OF ENGLISH",
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 13.sp,
-                                color = Color(0xFF090D26),
-                                letterSpacing = 1.5.sp
-                            )
-                            Text(
-                                text = "OFFICIAL RECORD OF ACADEMIC EXCELLENCE",
-                                fontSize = 9.sp,
-                                color = Color(0xFF64748B),
-                                letterSpacing = 1.sp
-                            )
-
-                            // Gold divider line
-                            Box(
-                                modifier = Modifier
-                                    .width(180.dp)
-                                    .height(1.5.dp)
-                                    .background(Color(0xFFD4AF37))
-                            )
-
-                            Spacer(Modifier.height(4.dp))
-
-                            Text(
-                                text = "CERTIFICATE OF EXCELLENCE",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
-                                color = Color(0xFF091030),
-                                letterSpacing = 1.sp
-                            )
-
-                            Text(
-                                text = "This credential is proudly awarded to",
-                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                fontSize = 11.5.sp,
-                                color = Color(0xFF475569)
-                            )
-
-                            // Student Name
-                            Text(
-                                text = submission.studentName,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 22.sp,
-                                color = Color(0xFF090D26),
-                                fontFamily = FontFamily.Serif
-                            )
-
-                            Box(
-                                modifier = Modifier
-                                    .width(200.dp)
-                                    .height(1.dp)
-                                    .background(Color(0xFFB8860B))
-                            )
-
-                            Text(
-                                text = "Student of ${submission.studentClass} • Speakly Digital Campus",
-                                fontSize = 11.sp,
-                                color = Color(0xFF334155)
-                            )
-
-                            Text(
-                                text = "for demonstrating proficiency and successfully passing",
-                                fontSize = 11.sp,
-                                color = Color(0xFF64748B)
-                            )
-
-                            Text(
-                                text = "\"${submission.examTitle}\"",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color(0xFF1E3A8A),
-                                textAlign = TextAlign.Center
-                            )
-
-                            // Score & Grade Box
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFFF1F5F9),
-                                border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(10.dp),
-                                    horizontalArrangement = Arrangement.SpaceAround,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("MARKS", fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                                        Text("${submission.scoreObtained}/${submission.totalMarks}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF090D26))
-                                    }
-                                    VerticalDivider(modifier = Modifier.height(24.dp), color = Color(0xFFCBD5E1))
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("PERCENTAGE", fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                                        Text("${submission.percentage}%", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF090D26))
-                                    }
-                                    VerticalDivider(modifier = Modifier.height(24.dp), color = Color(0xFFCBD5E1))
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("GRADE", fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                                        Text("Grade ${submission.grade}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF15803D))
-                                    }
-                                }
-                            }
-
-                            // Signatures & Gold Seal Row
-                            Spacer(Modifier.height(6.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Faculty Signature
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Eleanor Vance", fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, fontSize = 13.sp, color = Color(0xFF1E293B))
-                                    Box(modifier = Modifier.width(90.dp).height(1.dp).background(Color(0xFF94A3B8)))
-                                    Text("Prof. Eleanor Vance", fontWeight = FontWeight.Bold, fontSize = 8.5.sp, color = Color(0xFF334155))
-                                    Text("Head of English Faculty", fontSize = 7.5.sp, color = Color(0xFF64748B))
-                                }
-
-                                // Gold Embossed Seal
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFDAA520))
-                                        .border(2.dp, Color(0xFFB8860B), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("★ SEAL ★", fontSize = 6.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF78350F))
-                                }
-
-                                // Dean Signature
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("Marcus Reed", fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, fontSize = 13.sp, color = Color(0xFF1E293B))
-                                    Box(modifier = Modifier.width(90.dp).height(1.dp).background(Color(0xFF94A3B8)))
-                                    Text("Dr. Marcus Reed", fontWeight = FontWeight.Bold, fontSize = 8.5.sp, color = Color(0xFF334155))
-                                    Text("Academic Dean", fontSize = 7.5.sp, color = Color(0xFF64748B))
-                                }
-                            }
-
-                            // Footer IDs
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("ID: ${submission.certificateId}", fontSize = 8.sp, color = Color(0xFF64748B))
-                                Text("✓ AUTHENTIC VERIFIED", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D))
-                            }
-                        }
-                    }
-                }
-
-                // Download Full Resolution PDF Button
-                Button(
-                    onClick = onDownloadPdf,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Rounded.Download, contentDescription = null, tint = Color.White)
-                        Text("Download Certificate PDF", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                    }
-                }
-            }
         }
     }
 }

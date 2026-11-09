@@ -351,6 +351,132 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     private val _exams = MutableStateFlow(
         listOf(
             Exam(
+                id = "exm_grammar_8",
+                title = "English Grammar Test",
+                description = "Official Spoken English Learning & Academic Portal comprehensive grammar examination covering tenses, voice, speech, vocabulary, and syntax.",
+                teacherName = "Prof. Eleanor Vance",
+                targetClass = "Class 8",
+                subjectCategory = "English",
+                durationMinutes = 20,
+                totalMarks = 100,
+                passingPercentage = 60,
+                createdAt = "27 Nov 2026",
+                dueDate = "Completed",
+                isPublished = true,
+                questions = listOf(
+                    ExamQuestion(
+                        id = "qg8_1",
+                        question = "Choose the correct sentence in Present Perfect Continuous Tense:",
+                        options = listOf(
+                            "She is reading a novel since morning.",
+                            "She has been reading a novel for three hours.",
+                            "She had been reading the novel yesterday.",
+                            "She will be reading a novel."
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 10,
+                        explanation = "Present perfect continuous tense uses 'has/have been + verb-ing' to express continuous action up to present."
+                    ),
+                    ExamQuestion(
+                        id = "qg8_2",
+                        question = "Which word correctly completes: 'The principal congratulated Fariha ______ her exceptional speech.'?",
+                        options = listOf("for", "on", "at", "with"),
+                        correctOptionIndex = 1,
+                        marks = 10,
+                        explanation = "The standard preposition with congratulate is 'on'."
+                    ),
+                    ExamQuestion(
+                        id = "qg8_3",
+                        question = "Convert to Passive: 'The teacher praised the students for their high score.'",
+                        options = listOf(
+                            "The students were praised by the teacher for their high score.",
+                            "The students had been praised by the teacher.",
+                            "The teacher was praising the students.",
+                            "The students are praised by teacher."
+                        ),
+                        correctOptionIndex = 0,
+                        marks = 10,
+                        explanation = "Past simple active becomes 'were praised' in passive voice."
+                    ),
+                    ExamQuestion(
+                        id = "qg8_4",
+                        question = "Select the Complex sentence:",
+                        options = listOf(
+                            "The bell rang and students entered.",
+                            "Although it rained heavily, she achieved first place in the debate.",
+                            "He likes literature, but his sister prefers math.",
+                            "The morning sunlight was warm and pleasant."
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 10,
+                        explanation = "Subordinating conjunction 'Although' introduces a dependent clause."
+                    ),
+                    ExamQuestion(
+                        id = "qg8_5",
+                        question = "Choose the correct conditional sentence (Type 2):",
+                        options = listOf(
+                            "If I have time, I would travel.",
+                            "If I had more time, I would travel across the world.",
+                            "If I would have time, I will travel.",
+                            "If I had time, I travel."
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 10,
+                        explanation = "Type 2 conditional takes past simple in if-clause and would + base verb in main clause."
+                    ),
+                    ExamQuestion(
+                        id = "qg8_6",
+                        question = "Identify the antonym of 'Meticulous':",
+                        options = listOf("Careful", "Careless", "Thorough", "Precise"),
+                        correctOptionIndex = 1,
+                        marks = 10,
+                        explanation = "'Careless' is the direct opposite of 'Meticulous'."
+                    ),
+                    ExamQuestion(
+                        id = "qg8_7",
+                        question = "Choose the correct indirect speech for: He said, 'I am studying English.'",
+                        options = listOf(
+                            "He said that he was studying English.",
+                            "He said that he is studying English.",
+                            "He said that I was studying English.",
+                            "He told that he studies English."
+                        ),
+                        correctOptionIndex = 0,
+                        marks = 10,
+                        explanation = "Present continuous shifts back to past continuous in indirect reported speech."
+                    ),
+                    ExamQuestion(
+                        id = "qg8_8",
+                        question = "Which word is an Adverb in: 'She spoke quite eloquently at the academic seminar.'?",
+                        options = listOf("spoke", "quite", "eloquently", "Both 'quite' and 'eloquently'"),
+                        correctOptionIndex = 3,
+                        marks = 10,
+                        explanation = "'Eloquently' is an adverb of manner and 'quite' is an adverb of degree modifying it."
+                    ),
+                    ExamQuestion(
+                        id = "qg8_9",
+                        question = "Select the sentence with correct subject-verb agreement:",
+                        options = listOf(
+                            "Neither the teacher nor the students was present.",
+                            "Neither the teacher nor the students were present.",
+                            "Either the book or the pens is on table.",
+                            "The group of students are waiting."
+                        ),
+                        correctOptionIndex = 1,
+                        marks = 10,
+                        explanation = "With 'neither... nor', the verb agrees with the closer subject ('students')."
+                    ),
+                    ExamQuestion(
+                        id = "qg8_10",
+                        question = "Identify the idiom meaning 'to face a difficult situation with courage':",
+                        options = listOf("Bite the bullet", "Break the ice", "Spill the beans", "Burn the bridge"),
+                        correctOptionIndex = 0,
+                        marks = 10,
+                        explanation = "'Bite the bullet' means to bravely endure a difficult situation."
+                    )
+                )
+            ),
+            Exam(
                 id = "exm_1",
                 title = "Class 10 Comprehensive English Grammar & Tenses Test",
                 description = "Assessment covering Present & Past tenses, active/passive voice, complex clauses, prepositions, and reported speech.",
@@ -754,6 +880,29 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     private val _examSubmissions = MutableStateFlow(
         listOf(
             ExamSubmission(
+                id = "sub_fariha_1",
+                examId = "exm_grammar_8",
+                examTitle = "English Grammar Test",
+                studentId = "stu_fariha",
+                studentName = "Fariha Yesmin",
+                studentClass = "VIII",
+                studentAvatar = "🎓",
+                selectedAnswers = mapOf(
+                    "qg8_1" to 1, "qg8_2" to 1, "qg8_3" to 0, "qg8_4" to 1,
+                    "qg8_5" to 1, "qg8_6" to 1, "qg8_7" to 0, "qg8_8" to 3,
+                    "qg8_9" to 1
+                ),
+                scoreObtained = 88,
+                totalMarks = 100,
+                percentage = 88,
+                isPassed = true,
+                grade = "A",
+                performanceTitle = "Excellent Performance",
+                timeTakenSeconds = 810,
+                completedAt = "27 Nov 2026",
+                certificateId = "SPK-2026-000368"
+            ),
+            ExamSubmission(
                 id = "sub_exm_1",
                 examId = "exm_1",
                 examTitle = "Class 10 Comprehensive English Grammar & Tenses Test",
@@ -893,8 +1042,8 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         }
 
         val performanceTitle = when {
-            percentage >= 90 -> "Outstanding Distinction"
-            percentage >= 80 -> "Distinction with Honors"
+            percentage >= 90 -> "Outstanding Performance"
+            percentage >= 80 -> "Excellent Performance"
             percentage >= 70 -> "First Class Distinction"
             percentage >= 60 -> "Higher Merit"
             percentage >= 50 -> "Merit Pass"
@@ -902,8 +1051,8 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             else -> "Course Completion"
         }
 
-        val randomCertNum = (1000..9999).random()
-        val certificateId = "SPK-EXM-2026-$randomCertNum"
+        val randomCertNum = String.format("%06d", (100..999999).random())
+        val certificateId = "SPK-2026-$randomCertNum"
 
         val submission = ExamSubmission(
             id = "sub_exm_${System.currentTimeMillis()}",

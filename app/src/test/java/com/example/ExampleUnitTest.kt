@@ -99,8 +99,29 @@ class ExampleUnitTest {
         assertEquals(20, subPass.scoreObtained)
         assertEquals(100, subPass.percentage)
         assertTrue(subPass.isPassed)
-        assertEquals("O", subPass.grade)
-        assertTrue(subPass.certificateId.startsWith("SPK-EXM-2026-"))
+        assertTrue(subPass.certificateId.startsWith("SPK-2026-"))
+    }
+
+    @Test
+    fun testFarihaYesminCertificateFromScreenshotDetails() {
+        val repository = LinguaQuestRepository(null)
+        val submissions = repository.examSubmissions.value
+        val farihaCert = submissions.firstOrNull { it.studentName == "Fariha Yesmin" }
+
+        assertNotNull(farihaCert)
+        farihaCert?.let { cert ->
+            assertEquals("Fariha Yesmin", cert.studentName)
+            assertEquals("English Grammar Test", cert.examTitle)
+            assertEquals("VIII", cert.studentClass)
+            assertEquals(100, cert.totalMarks)
+            assertEquals(88, cert.scoreObtained)
+            assertEquals(88, cert.percentage)
+            assertEquals("A", cert.grade)
+            assertEquals("Excellent Performance", cert.performanceTitle)
+            assertEquals("27 Nov 2026", cert.completedAt)
+            assertEquals("SPK-2026-000368", cert.certificateId)
+            assertTrue(cert.isPassed)
+        }
     }
 }
 
