@@ -46,6 +46,29 @@ fun StudentHomeScreen(
     val profile by viewModel.studentProfile.collectAsState()
     val announcements by viewModel.announcements.collectAsState()
     val exams by viewModel.exams.collectAsState()
+    val examSubmissions by viewModel.examSubmissions.collectAsState()
+
+    val studentSubmissionsMap = remember(examSubmissions, user) {
+        examSubmissions.filter {
+            it.studentId == user.id || it.studentName.equals(user.name, ignoreCase = true)
+        }.associateBy { it.examId }
+    }
+
+    val studentClass = user.studentClass
+    val classExams = remember(exams, studentClass) {
+        val matched = exams.filter {
+            it.targetClass.equals(studentClass, ignoreCase = true) ||
+            it.targetClass.equals("All Classes", ignoreCase = true) ||
+            it.targetClass.contains(studentClass, ignoreCase = true) ||
+            studentClass.equals("Batch Alpha", ignoreCase = true) ||
+            studentClass.isBlank()
+        }
+        if (matched.isNotEmpty()) matched else exams
+    }
+
+    val pendingExams = remember(classExams, studentSubmissionsMap) {
+        classExams.filter { !studentSubmissionsMap.containsKey(it.id) }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -156,175 +179,166 @@ fun StudentHomeScreen(
             }
         }
 
-        // 2. Online MCQ Exams Portal Container
-        item {
-            val studentClass = user.studentClass
-            val classExams = remember(exams, studentClass) {
-                val matched = exams.filter {
-                    it.targetClass.equals(studentClass, ignoreCase = true) ||
-                    it.targetClass.equals("All Classes", ignoreCase = true) ||
-                    it.targetClass.contains(studentClass, ignoreCase = true) ||
-                    studentClass.equals("Batch Alpha", ignoreCase = true) ||
-                    studentClass.isBlank()
-                }
-                if (matched.isNotEmpty()) matched else exams
-            }
+        // 2. Online MCQ Exams Portal Container - Only shown if student has pending/uncompleted exams
 
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                border = BorderStroke(1.5.dp, TasksContainerBorder),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { viewModel.selectStudentTab(StudentTab.EXAMS) }
-                    .testTag("home_exams_portal_card")
-            ) {
-                Box(
+        if (pendingExams.isNotEmpty()) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    border = BorderStroke(1.5.dp, TasksContainerBorder),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(TasksContainerGrad)
+                        .clickable { viewModel.selectStudentTab(StudentTab.EXAMS) }
+                        .testTag("home_exams_portal_card")
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(TasksContainerGrad)
                     ) {
-                        // Header row with "View All ->" button
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
+                            // Header row with "View All ->" button
                             Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0xFF1E293B)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("📝", fontSize = 20.sp)
-                                }
-
-                                Column(
-                                    modifier = Modifier.weight(1f, fill = false)
-                                ) {
-                                    Text(
-                                        text = "Online MCQ Exams & Certificates",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp,
-                                        color = Color.White,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    val displayClass = if (studentClass.startsWith("Class", ignoreCase = true)) studentClass else "Class $studentClass"
-                                    Text(
-                                        text = "$displayClass • ${classExams.size} Active Exams",
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF94A3B8),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-
-                            Spacer(Modifier.width(8.dp))
-
-                            Button(
-                                onClick = { viewModel.selectStudentTab(StudentTab.EXAMS) },
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF2563EB)
-                                ),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                            ) {
-                                Text(
-                                    "View All →",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
-                        }
-
-                        // Nested Deep Navy Exam Teaser Card
-                        val nextExam = classExams.firstOrNull()
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color(0xFF0B1437).copy(alpha = 0.95f),
-                            border = BorderStroke(1.2.dp, Color(0xFF1E3A8A)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(
+                                Row(
                                     modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color(0xFF1E293B)),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Text(
-                                            nextExam?.subjectCategory ?: "English Grammar",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF38BDF8)
-                                        )
-                                        Text(
-                                            "• ⏱️ ${nextExam?.durationMinutes ?: 15} Mins • 🎯 ${nextExam?.totalMarks ?: 50} Marks",
-                                            fontSize = 11.sp,
-                                            color = Color(0xFFF97316),
-                                            fontWeight = FontWeight.SemiBold
-                                        )
+                                        Text("📝", fontSize = 20.sp)
                                     }
 
-                                    Text(
-                                        nextExam?.title ?: "Class 10 Comprehensive English Grammar & Tenses Test",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = Color.White,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                    Column(
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    ) {
+                                        Text(
+                                            text = "Online MCQ Exams & Certificates",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        val displayClass = if (studentClass.startsWith("Class", ignoreCase = true)) studentClass else "Class $studentClass"
+                                        Text(
+                                            text = "$displayClass • ${pendingExams.size} Active Exams",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF94A3B8),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
                                 }
 
                                 Spacer(Modifier.width(8.dp))
 
-                                OutlinedButton(
-                                    onClick = {
-                                        viewModel.selectStudentTab(StudentTab.EXAMS)
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.2.dp, Color(0xFF0284C7)),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        containerColor = Color(0xFF07214A).copy(alpha = 0.8f)
+                                Button(
+                                    onClick = { viewModel.selectStudentTab(StudentTab.EXAMS) },
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF2563EB)
                                     ),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                                 ) {
-                                    Icon(
-                                        Icons.Rounded.Quiz,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(15.dp),
-                                        tint = Color(0xFF38BDF8)
-                                    )
-                                    Spacer(Modifier.width(4.dp))
                                     Text(
-                                        "Take Exam",
-                                        fontSize = 12.sp,
+                                        "View All →",
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF38BDF8)
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
+                                }
+                            }
+
+                            // Nested Deep Navy Exam Teaser Card
+                            val nextExam = pendingExams.firstOrNull()
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color(0xFF0B1437).copy(alpha = 0.95f),
+                                border = BorderStroke(1.2.dp, Color(0xFF1E3A8A)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                nextExam?.subjectCategory ?: "English Grammar",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF38BDF8)
+                                            )
+                                            Text(
+                                                "• ⏱️ ${nextExam?.durationMinutes ?: 15} Mins • 🎯 ${nextExam?.totalMarks ?: 50} Marks",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFFF97316),
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+
+                                        Text(
+                                            nextExam?.title ?: "Class 10 Comprehensive English Grammar & Tenses Test",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    Spacer(Modifier.width(8.dp))
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            viewModel.selectStudentTab(StudentTab.EXAMS)
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.2.dp, Color(0xFF0284C7)),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            containerColor = Color(0xFF07214A).copy(alpha = 0.8f)
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Quiz,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(15.dp),
+                                            tint = Color(0xFF38BDF8)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            "Take Exam",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF38BDF8)
+                                        )
+                                    }
                                 }
                             }
                         }
