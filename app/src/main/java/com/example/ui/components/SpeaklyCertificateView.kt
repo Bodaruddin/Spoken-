@@ -1,6 +1,13 @@
 package com.example.ui.components
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Typeface
 import android.widget.Toast
+import androidx.core.content.res.ResourcesCompat
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -48,6 +55,9 @@ val CinzelFontFamily = FontFamily(Font(R.font.cinzel, FontWeight.Bold))
  * High-fidelity representation of the official Speakly Certificate of Achievement.
  * Exactly matches the design in the provided screenshot with rich gold baroque framing,
  * royal purple banners, Speakly owl mascot, and fetched student details.
+ * Uses exact 1491 x 1055 scaled vector canvas drawing to guarantee that all fetched
+ * student fields (Class, Test Date, Subject, Grade, Certificate ID) stay strictly
+ * inside their designated boxes across all screen sizes and densities.
  */
 @Composable
 fun OfficialSpeaklyCertificateCard(
@@ -55,6 +65,7 @@ fun OfficialSpeaklyCertificateCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
     val isExactFarihaSample = submission.studentName.trim().equals("Fariha Yesmin", ignoreCase = true) &&
             submission.examTitle.contains("English Grammar", ignoreCase = true) &&
             submission.scoreObtained == 88
@@ -63,6 +74,22 @@ fun OfficialSpeaklyCertificateCard(
         R.drawable.certificate_sample_full
     } else {
         R.drawable.certificate_clean_template
+    }
+
+    val bgBitmap = remember(bgDrawableRes) {
+        BitmapFactory.decodeResource(
+            context.resources,
+            bgDrawableRes,
+            BitmapFactory.Options().apply { inScaled = false }
+        )
+    }
+
+    val greatVibesTypeface = remember {
+        try {
+            ResourcesCompat.getFont(context, R.font.great_vibes)
+        } catch (_: Exception) {
+            null
+        } ?: Typeface.create(Typeface.SERIF, Typeface.ITALIC)
     }
 
     Card(
@@ -76,191 +103,132 @@ fun OfficialSpeaklyCertificateCard(
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
             .testTag("official_speakly_certificate_card")
     ) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val width = maxWidth
-            val height = maxHeight
+        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+            val bitmap = bgBitmap ?: return@Canvas
 
-            // 1. Master Background Canvas
-            Image(
-                painter = painterResource(id = bgDrawableRes),
-                contentDescription = "Speakly Certificate of Achievement",
-                contentScale = ContentScale.FillBounds,
-                modifier = Modifier.fillMaxSize()
-            )
+            val scaleX = size.width / 1491f
+            val scaleY = size.height / 1055f
 
-            // 2. Dynamic Overlays if not the static sample
-            if (!isExactFarihaSample) {
-                // (a) Dynamic Student Name in Cursive Script
-                val nameSize = when {
-                    submission.studentName.length > 25 -> (width.value * 0.030f).sp
-                    submission.studentName.length > 18 -> (width.value * 0.035f).sp
-                    else -> (width.value * 0.040f).sp
-                }
+            val native = drawContext.canvas.nativeCanvas
+            native.save()
+            native.scale(scaleX, scaleY)
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset(y = height * (388f / 1055f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = submission.studentName,
-                        fontFamily = GreatVibesFontFamily,
-                        fontSize = nameSize,
-                        fontWeight = FontWeight.Normal,
-                        color = Color(0xFF3B0764), // Royal deep violet/purple
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                // 1. Draw Master Background Template (1491 x 1055)
+                val destRect = android.graphics.RectF(0f, 0f, 1491f, 1055f)
+                val filterPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG or android.graphics.Paint.ANTI_ALIAS_FLAG)
+                native.drawBitmap(bitmap, null, destRect, filterPaint)
 
-                // (b) Left Card: Test Details Values
-                val subject = when {
-                    submission.examTitle.contains("Phonetic", ignoreCase = true) -> "Phonetics"
-                    submission.examTitle.contains("Vocab", ignoreCase = true) -> "Vocabulary"
-                    else -> "English"
-                }
-
-                val classDisplay = when {
-                    submission.studentClass.equals("Class 8", ignoreCase = true) || submission.studentClass.equals("VIII", ignoreCase = true) -> "VIII"
-                    submission.studentClass.equals("Class 10", ignoreCase = true) || submission.studentClass.equals("X", ignoreCase = true) -> "X"
-                    submission.studentClass.equals("Class 9", ignoreCase = true) || submission.studentClass.equals("IX", ignoreCase = true) -> "IX"
-                    submission.studentClass.equals("Class 7", ignoreCase = true) || submission.studentClass.equals("VII", ignoreCase = true) -> "VII"
-                    submission.studentClass.equals("Class 6", ignoreCase = true) || submission.studentClass.equals("VI", ignoreCase = true) -> "VI"
-                    else -> submission.studentClass
-                }
-
-                val testDateDisplay = if (submission.completedAt.isNotBlank() && submission.completedAt != "Today") {
-                    submission.completedAt
-                } else {
-                    "27 Nov 2026"
-                }
-
-                val leftCardFontSize = (width.value * 0.015f).coerceAtLeast(8f).sp
-
-                Column(
-                    modifier = Modifier
-                        .offset(
-                            x = width * (385f / 1491f),
-                            y = height * (602f / 1055f)
-                        )
-                        .width(width * (260f / 1491f)),
-                    verticalArrangement = Arrangement.spacedBy(height * (14f / 1055f))
-                ) {
-                    // Test Title
-                    Text(
-                        text = submission.examTitle,
-                        fontSize = leftCardFontSize,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF090D26),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    // Subject
-                    Text(
-                        text = subject,
-                        fontSize = leftCardFontSize,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF090D26),
-                        maxLines = 1
-                    )
-                    // Class
-                    Text(
-                        text = classDisplay,
-                        fontSize = leftCardFontSize,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF090D26),
-                        maxLines = 1
-                    )
-                    // Test Date
-                    Text(
-                        text = testDateDisplay,
-                        fontSize = leftCardFontSize,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF090D26),
-                        maxLines = 1
-                    )
-                }
-
-                // (c) Right Table: Result Summary Values
-                val tableValueFontSize = (width.value * 0.026f).coerceAtLeast(11f).sp
-
-                Row(
-                    modifier = Modifier
-                        .offset(
-                            x = width * (715f / 1491f),
-                            y = height * (668f / 1055f)
-                        )
-                        .width(width * (635f / 1491f))
-                        .height(height * (75f / 1055f)),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Total Marks
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "${submission.totalMarks}",
-                            fontSize = tableValueFontSize,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF090D26)
-                        )
-                    }
-                    // Obtained Marks
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "${submission.scoreObtained}",
-                            fontSize = tableValueFontSize,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF090D26)
-                        )
-                    }
-                    // Percentage
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "${submission.percentage}%",
-                            fontSize = tableValueFontSize,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF090D26)
-                        )
-                    }
-                    // Grade with Soft Pill Badge
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFFFCE7F3),
-                            modifier = Modifier
-                                .width(width * (70f / 1491f))
-                                .height(height * (50f / 1055f))
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = submission.grade,
-                                    fontSize = tableValueFontSize,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF090D26)
-                                )
-                            }
+                // 2. Render Dynamic Student Details (Pixel-aligned to template coordinates)
+                if (!isExactFarihaSample) {
+                    // (a) Dynamic Student Name in Cursive Script Calligraphy
+                    val namePaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.parseColor("#3B0764") // Royal deep violet/purple
+                        typeface = greatVibesTypeface
+                        textSize = when {
+                            submission.studentName.length > 28 -> 44f
+                            submission.studentName.length > 20 -> 52f
+                            else -> 58f
                         }
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        isAntiAlias = true
                     }
+                    native.drawText(submission.studentName, 745f, 442f, namePaint)
+
+                    // (b) Left Card: Test Details (Placed exactly right after the colons)
+                    val leftCardPaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.parseColor("#090D26") // Deep charcoal navy
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                        textSize = 21f
+                        textAlign = android.graphics.Paint.Align.LEFT
+                        isAntiAlias = true
+                    }
+
+                    val subject = when {
+                        submission.examTitle.contains("Phonetic", ignoreCase = true) -> "Phonetics & Pronunciation"
+                        submission.examTitle.contains("Vocab", ignoreCase = true) -> "Vocabulary & Idioms"
+                        else -> "English"
+                    }
+
+                    val studentClassDisplay = when {
+                        submission.studentClass.equals("Class 8", ignoreCase = true) || submission.studentClass.equals("VIII", ignoreCase = true) -> "VIII"
+                        submission.studentClass.equals("Class 10", ignoreCase = true) || submission.studentClass.equals("X", ignoreCase = true) -> "X"
+                        submission.studentClass.equals("Class 9", ignoreCase = true) || submission.studentClass.equals("IX", ignoreCase = true) -> "IX"
+                        submission.studentClass.equals("Class 7", ignoreCase = true) || submission.studentClass.equals("VII", ignoreCase = true) -> "VII"
+                        submission.studentClass.equals("Class 6", ignoreCase = true) || submission.studentClass.equals("VI", ignoreCase = true) -> "VI"
+                        else -> submission.studentClass
+                    }
+
+                    val dateDisplay = if (submission.completedAt.isNotBlank() && submission.completedAt != "Today") {
+                        submission.completedAt
+                    } else {
+                        "27 Nov 2026"
+                    }
+
+                    // Test Title: check length to avoid overflowing card right border
+                    if (leftCardPaint.measureText(submission.examTitle) > 265f) {
+                        leftCardPaint.textSize = 17f
+                    }
+                    native.drawText(submission.examTitle, 382f, 638f, leftCardPaint)
+
+                    // Subject: reset text size if needed
+                    leftCardPaint.textSize = if (leftCardPaint.measureText(subject) > 265f) 18f else 21f
+                    native.drawText(subject, 382f, 677f, leftCardPaint)
+
+                    leftCardPaint.textSize = 21f
+                    // Class
+                    native.drawText(studentClassDisplay, 382f, 714f, leftCardPaint)
+
+                    // Test Date
+                    native.drawText(dateDisplay, 382f, 752f, leftCardPaint)
+
+                    // (c) Right Card: Result Summary Table Values
+                    val tableValuePaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.parseColor("#090D26")
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                        textSize = 38f
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        isAntiAlias = true
+                    }
+
+                    // Total Marks: Center x=792, baseline y=718
+                    native.drawText("${submission.totalMarks}", 792f, 718f, tableValuePaint)
+
+                    // Obtained Marks: Center x=952, baseline y=718
+                    native.drawText("${submission.scoreObtained}", 952f, 718f, tableValuePaint)
+
+                    // Percentage: Center x=1115, baseline y=718
+                    native.drawText("${submission.percentage}%", 1115f, 718f, tableValuePaint)
+
+                    // Grade Pill & Letter: Center x=1278
+                    val pillPaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.parseColor("#FCE7F3") // Soft lavender/pink pill
+                        style = android.graphics.Paint.Style.FILL
+                        isAntiAlias = true
+                    }
+                    val pillRect = android.graphics.RectF(1240f, 672f, 1315f, 730f)
+                    native.drawRoundRect(pillRect, 14f, 14f, pillPaint)
+
+                    val gradePaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.parseColor("#090D26")
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                        textSize = 36f
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        isAntiAlias = true
+                    }
+                    native.drawText(submission.grade, 1278f, 714f, gradePaint)
+
+                    // (d) Certificate ID in the bottom pill (Right after "Certificate ID: ")
+                    val idPaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.parseColor("#090D26")
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                        textSize = 21f
+                        textAlign = android.graphics.Paint.Align.LEFT
+                        isAntiAlias = true
+                    }
+                    native.drawText(submission.certificateId, 742f, 988f, idPaint)
                 }
 
-                // (d) Certificate ID in Bottom Pill
-                val idFontSize = (width.value * 0.015f).coerceAtLeast(8f).sp
-                Box(
-                    modifier = Modifier
-                        .offset(
-                            x = width * (742f / 1491f),
-                            y = height * (964f / 1055f)
-                        )
-                ) {
-                    Text(
-                        text = submission.certificateId,
-                        fontSize = idFontSize,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF090D26)
-                    )
-                }
-            }
+                native.restore()
         }
     }
 }

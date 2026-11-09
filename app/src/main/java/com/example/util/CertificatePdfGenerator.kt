@@ -127,7 +127,7 @@ object CertificatePdfGenerator {
         val leftCardPaint = Paint().apply {
             color = android.graphics.Color.parseColor("#090D26") // Deep charcoal navy
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = if (submission.examTitle.length > 28) 18f else 22f
+            textSize = 21f
             textAlign = Paint.Align.LEFT
             isAntiAlias = true
         }
@@ -154,32 +154,39 @@ object CertificatePdfGenerator {
         }
 
         // Test Title
-        canvas.drawText(submission.examTitle, 385f, 626f, leftCardPaint)
+        if (leftCardPaint.measureText(submission.examTitle) > 265f) {
+            leftCardPaint.textSize = 17f
+        }
+        canvas.drawText(submission.examTitle, 382f, 638f, leftCardPaint)
+
         // Subject
-        leftCardPaint.textSize = 22f
-        canvas.drawText(subject, 385f, 666f, leftCardPaint)
+        leftCardPaint.textSize = if (leftCardPaint.measureText(subject) > 265f) 18f else 21f
+        canvas.drawText(subject, 382f, 677f, leftCardPaint)
+
         // Class
-        canvas.drawText(studentClassDisplay, 385f, 703f, leftCardPaint)
+        leftCardPaint.textSize = 21f
+        canvas.drawText(studentClassDisplay, 382f, 714f, leftCardPaint)
+
         // Test Date
-        canvas.drawText(dateDisplay, 385f, 742f, leftCardPaint)
+        canvas.drawText(dateDisplay, 382f, 752f, leftCardPaint)
 
         // 4. Right Card: Result Summary Table Values
         val tableValuePaint = Paint().apply {
             color = android.graphics.Color.parseColor("#090D26")
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = 40f
+            textSize = 38f
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
         }
 
         // Total Marks: Center x=792
-        canvas.drawText("${submission.totalMarks}", 792f, 722f, tableValuePaint)
+        canvas.drawText("${submission.totalMarks}", 792f, 718f, tableValuePaint)
 
         // Obtained Marks: Center x=952
-        canvas.drawText("${submission.scoreObtained}", 952f, 722f, tableValuePaint)
+        canvas.drawText("${submission.scoreObtained}", 952f, 718f, tableValuePaint)
 
         // Percentage: Center x=1115
-        canvas.drawText("${submission.percentage}%", 1115f, 722f, tableValuePaint)
+        canvas.drawText("${submission.percentage}%", 1115f, 718f, tableValuePaint)
 
         // Grade Pill & Letter: Center x=1278
         val pillPaint = Paint().apply {
@@ -187,20 +194,27 @@ object CertificatePdfGenerator {
             style = Paint.Style.FILL
             isAntiAlias = true
         }
-        val pillRect = RectF(1225f, 672f, 1330f, 734f)
-        canvas.drawRoundRect(pillRect, 16f, 16f, pillPaint)
+        val pillRect = RectF(1240f, 672f, 1315f, 730f)
+        canvas.drawRoundRect(pillRect, 14f, 14f, pillPaint)
 
-        canvas.drawText(submission.grade, 1278f, 718f, tableValuePaint)
+        val gradePaint = Paint().apply {
+            color = android.graphics.Color.parseColor("#090D26")
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textSize = 36f
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        canvas.drawText(submission.grade, 1278f, 714f, gradePaint)
 
         // 5. Certificate ID in the bottom pill
         val idPaint = Paint().apply {
             color = android.graphics.Color.parseColor("#090D26")
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = 22f
+            textSize = 21f
             textAlign = Paint.Align.LEFT
             isAntiAlias = true
         }
-        canvas.drawText(submission.certificateId, 742f, 985f, idPaint)
+        canvas.drawText(submission.certificateId, 742f, 988f, idPaint)
     }
 
     /**
