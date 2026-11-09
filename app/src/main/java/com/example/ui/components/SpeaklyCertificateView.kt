@@ -185,37 +185,37 @@ fun OfficialSpeaklyCertificateCard(
                     val tableValuePaint = android.graphics.Paint().apply {
                         color = android.graphics.Color.parseColor("#090D26")
                         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                        textSize = 38f
-                        textAlign = android.graphics.Paint.Align.CENTER
-                        isAntiAlias = true
-                    }
-
-                    // Total Marks: Center x=792, baseline y=718
-                    native.drawText("${submission.totalMarks}", 792f, 718f, tableValuePaint)
-
-                    // Obtained Marks: Center x=952, baseline y=718
-                    native.drawText("${submission.scoreObtained}", 952f, 718f, tableValuePaint)
-
-                    // Percentage: Center x=1115, baseline y=718
-                    native.drawText("${submission.percentage}%", 1115f, 718f, tableValuePaint)
-
-                    // Grade Pill & Letter: Center x=1278
-                    val pillPaint = android.graphics.Paint().apply {
-                        color = android.graphics.Color.parseColor("#FCE7F3") // Soft lavender/pink pill
-                        style = android.graphics.Paint.Style.FILL
-                        isAntiAlias = true
-                    }
-                    val pillRect = android.graphics.RectF(1240f, 672f, 1315f, 730f)
-                    native.drawRoundRect(pillRect, 14f, 14f, pillPaint)
-
-                    val gradePaint = android.graphics.Paint().apply {
-                        color = android.graphics.Color.parseColor("#090D26")
-                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                         textSize = 36f
                         textAlign = android.graphics.Paint.Align.CENTER
                         isAntiAlias = true
                     }
-                    native.drawText(submission.grade, 1278f, 714f, gradePaint)
+
+                    // Total Marks: Center x=793, baseline y=722
+                    native.drawText("${submission.totalMarks}", 793f, 722f, tableValuePaint)
+
+                    // Obtained Marks: Center x=958, baseline y=722
+                    native.drawText("${submission.scoreObtained}", 958f, 722f, tableValuePaint)
+
+                    // Percentage: Center x=1130, baseline y=722
+                    native.drawText("${submission.percentage}%", 1130f, 722f, tableValuePaint)
+
+                    // Grade Pill & Letter: Center x=1284, Pill strictly inside y=690..730 to never overlap header
+                    val pillPaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.parseColor("#F8DDF0") // Soft lavender/pink pill
+                        style = android.graphics.Paint.Style.FILL
+                        isAntiAlias = true
+                    }
+                    val pillRect = android.graphics.RectF(1244f, 690f, 1324f, 730f)
+                    native.drawRoundRect(pillRect, 12f, 12f, pillPaint)
+
+                    val gradePaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.parseColor("#090D26")
+                        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                        textSize = 34f
+                        textAlign = android.graphics.Paint.Align.CENTER
+                        isAntiAlias = true
+                    }
+                    native.drawText(submission.grade, 1284f, 718f, gradePaint)
 
                     // (d) Certificate ID in the bottom pill (Right after "Certificate ID: ")
                     val idPaint = android.graphics.Paint().apply {

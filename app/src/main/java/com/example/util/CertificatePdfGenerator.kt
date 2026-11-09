@@ -174,37 +174,37 @@ object CertificatePdfGenerator {
         val tableValuePaint = Paint().apply {
             color = android.graphics.Color.parseColor("#090D26")
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textSize = 38f
-            textAlign = Paint.Align.CENTER
-            isAntiAlias = true
-        }
-
-        // Total Marks: Center x=792
-        canvas.drawText("${submission.totalMarks}", 792f, 718f, tableValuePaint)
-
-        // Obtained Marks: Center x=952
-        canvas.drawText("${submission.scoreObtained}", 952f, 718f, tableValuePaint)
-
-        // Percentage: Center x=1115
-        canvas.drawText("${submission.percentage}%", 1115f, 718f, tableValuePaint)
-
-        // Grade Pill & Letter: Center x=1278
-        val pillPaint = Paint().apply {
-            color = android.graphics.Color.parseColor("#FCE7F3") // Soft magenta/purple pill
-            style = Paint.Style.FILL
-            isAntiAlias = true
-        }
-        val pillRect = RectF(1240f, 672f, 1315f, 730f)
-        canvas.drawRoundRect(pillRect, 14f, 14f, pillPaint)
-
-        val gradePaint = Paint().apply {
-            color = android.graphics.Color.parseColor("#090D26")
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textSize = 36f
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
         }
-        canvas.drawText(submission.grade, 1278f, 714f, gradePaint)
+
+        // Total Marks: Center x=793, baseline y=722
+        canvas.drawText("${submission.totalMarks}", 793f, 722f, tableValuePaint)
+
+        // Obtained Marks: Center x=958, baseline y=722
+        canvas.drawText("${submission.scoreObtained}", 958f, 722f, tableValuePaint)
+
+        // Percentage: Center x=1130, baseline y=722
+        canvas.drawText("${submission.percentage}%", 1130f, 722f, tableValuePaint)
+
+        // Grade Pill & Letter: Center x=1284, Pill strictly inside y=690..730 to never overlap header
+        val pillPaint = Paint().apply {
+            color = android.graphics.Color.parseColor("#F8DDF0") // Soft lavender/pink pill
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        val pillRect = RectF(1244f, 690f, 1324f, 730f)
+        canvas.drawRoundRect(pillRect, 12f, 12f, pillPaint)
+
+        val gradePaint = Paint().apply {
+            color = android.graphics.Color.parseColor("#090D26")
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textSize = 34f
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+        }
+        canvas.drawText(submission.grade, 1284f, 718f, gradePaint)
 
         // 5. Certificate ID in the bottom pill
         val idPaint = Paint().apply {
