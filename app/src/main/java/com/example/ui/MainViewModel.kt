@@ -44,7 +44,8 @@ enum class AdminTab(val label: String, val iconEmoji: String) {
 enum class TeacherSpeakingSection(val title: String, val emoji: String) {
     SUBMISSIONS("Student Recordings", "🎧"),
     MANAGE_SPEAKING("AI Speaking Prompts", "🎙️"),
-    MANAGE_PHONETICS("Phonetics & Drills", "🎯")
+    MANAGE_PHONETICS("Phonetics & Drills", "🎯"),
+    ADVENTURE_WORLDS("English Adventure", "🗺️")
 }
 
 enum class AdminSpeakingSection(val title: String, val emoji: String) {
@@ -1164,13 +1165,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun addAdventureLevel(worldId: String, title: String, description: String, emoji: String, xp: Int, coins: Int) =
         repository.addAdventureLevel(worldId, title, description, emoji, xp, coins)
 
+    fun updateAdventureLevel(worldId: String, levelId: String, title: String, description: String, emoji: String, xp: Int, coins: Int) =
+        repository.updateAdventureLevel(worldId, levelId, title, description, emoji, xp, coins)
+
     fun deleteAdventureLevel(worldId: String, levelId: String) = repository.deleteAdventureLevel(worldId, levelId)
 
     fun addAdventureMission(worldId: String, levelId: String, title: String, description: String, type: AdventureMissionType, targetSentence: String, options: List<String>, correctAnswer: String, clue: String, xp: Int, coins: Int) =
         repository.addAdventureMission(worldId, levelId, title, description, type, targetSentence, options, correctAnswer, clue, xp, coins)
 
+    fun updateAdventureMission(worldId: String, levelId: String, missionId: String, title: String, description: String, type: AdventureMissionType, targetSentence: String, options: List<String>, correctAnswer: String, clue: String, xp: Int, coins: Int) =
+        repository.updateAdventureMission(worldId, levelId, missionId, title, description, type, targetSentence, options, correctAnswer, clue, xp, coins)
+
     fun deleteAdventureMission(worldId: String, levelId: String, missionId: String) =
         repository.deleteAdventureMission(worldId, levelId, missionId)
+
+    fun resetAdventureWorldsToDefault() = repository.resetAdventureWorldsToDefault()
 
     // Games Management
     fun launchGame(game: ActiveGameType) {

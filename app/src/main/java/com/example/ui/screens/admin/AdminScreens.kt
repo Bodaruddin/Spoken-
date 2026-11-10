@@ -1065,15 +1065,16 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
         }
 
         // Prominent "+ Add New Question" banner card
-        item {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
-                border = BorderStroke(1.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showCreateDialog = true }
-            ) {
+        if (selectedCategory != GameCategoryFilter.ENGLISH_ADVENTURE) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
+                    border = BorderStroke(1.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showCreateDialog = true }
+                ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1122,6 +1123,7 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                     }
                 }
             }
+        }
         }
 
         statusMsg?.let { msg ->
@@ -1326,6 +1328,14 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                             )
                         },
                         onDelete = { viewModel.deleteGrammarChallenge(item.id) }
+                    )
+                }
+            }
+            GameCategoryFilter.ENGLISH_ADVENTURE -> {
+                item {
+                    com.example.ui.screens.common.AdventureWorldsManagementList(
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 600.dp, max = 1600.dp)
                     )
                 }
             }

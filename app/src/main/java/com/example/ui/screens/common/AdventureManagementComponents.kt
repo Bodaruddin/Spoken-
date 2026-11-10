@@ -39,9 +39,13 @@ fun AdventureWorldsManagementList(
     val worlds by viewModel.adventureWorlds.collectAsState()
 
     var showCreateWorldDialog by remember { mutableStateOf(false) }
+    var worldToEdit by remember { mutableStateOf<AdventureWorld?>(null) }
     var worldForNewLevel by remember { mutableStateOf<AdventureWorld?>(null) }
+    var levelToEdit by remember { mutableStateOf<Pair<String, AdventureLevel>?>(null) }
     var levelForNewMission by remember { mutableStateOf<Pair<String, AdventureLevel>?>(null) } // Pair(worldId, level)
+    var missionToEdit by remember { mutableStateOf<Triple<String, String, AdventureMission>?>(null) } // worldId, levelId, mission
     var worldToDelete by remember { mutableStateOf<AdventureWorld?>(null) }
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
 
     var expandedWorldId by remember { mutableStateOf<String?>(worlds.firstOrNull()?.id) }
 
@@ -66,7 +70,7 @@ fun AdventureWorldsManagementList(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                         Text(
                             "English Adventure Worlds (${worlds.size})",
                             fontWeight = FontWeight.Bold,
@@ -74,21 +78,36 @@ fun AdventureWorldsManagementList(
                             color = Color.White
                         )
                         Text(
-                            "Manage worlds, levels, questions & missions",
+                            "Manage worlds, levels, questions & interactive missions",
                             fontSize = 11.sp,
                             color = Color(0xFF94A3B8)
                         )
                     }
 
-                    Button(
-                        onClick = { showCreateWorldDialog = true },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
-                        modifier = Modifier.testTag("admin_add_world_btn")
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Add World", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(
+                            onClick = { showResetConfirmDialog = true },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color(0xFF64748B)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFCBD5E1)),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Reset Defaults", modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Reset", fontSize = 11.sp)
+                        }
+
+                        Button(
+                            onClick = { showCreateWorldDialog = true },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
+                            modifier = Modifier.testTag("admin_add_world_btn"),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Add World", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -155,6 +174,13 @@ fun AdventureWorldsManagementList(
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(Icons.Filled.AddCircle, contentDescription = "Add Level", tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
+                        }
+
+                        IconButton(
+                            onClick = { worldToEdit = world },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit World", tint = Color(0xFFFBBF24), modifier = Modifier.size(18.dp))
                         }
 
                         IconButton(
@@ -242,6 +268,12 @@ fun AdventureWorldsManagementList(
                                                         Icon(Icons.Filled.Add, contentDescription = "Add Question", tint = Color(0xFF4ADE80), modifier = Modifier.size(16.dp))
                                                     }
                                                     IconButton(
+                                                        onClick = { levelToEdit = Pair(world.id, level) },
+                                                        modifier = Modifier.size(28.dp)
+                                                    ) {
+                                                        Icon(Icons.Filled.Edit, contentDescription = "Edit Level", tint = Color(0xFFFBBF24), modifier = Modifier.size(15.dp))
+                                                    }
+                                                    IconButton(
                                                         onClick = { viewModel.deleteAdventureLevel(world.id, level.id) },
                                                         modifier = Modifier.size(28.dp)
                                                     ) {
@@ -285,11 +317,19 @@ fun AdventureWorldsManagementList(
                                                             )
                                                         }
 
-                                                        IconButton(
-                                                            onClick = { viewModel.deleteAdventureMission(world.id, level.id, mission.id) },
-                                                            modifier = Modifier.size(24.dp)
-                                                        ) {
-                                                            Icon(Icons.Filled.Close, contentDescription = "Delete", tint = Color(0xFFF87171), modifier = Modifier.size(14.dp))
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            IconButton(
+                                                                onClick = { missionToEdit = Triple(world.id, level.id, mission) },
+                                                                modifier = Modifier.size(24.dp)
+                                                            ) {
+                                                                Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = Color(0xFFFBBF24), modifier = Modifier.size(13.dp))
+                                                            }
+                                                            IconButton(
+                                                                onClick = { viewModel.deleteAdventureMission(world.id, level.id, mission.id) },
+                                                                modifier = Modifier.size(24.dp)
+                                                            ) {
+                                                                Icon(Icons.Filled.Close, contentDescription = "Delete", tint = Color(0xFFF87171), modifier = Modifier.size(14.dp))
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -613,6 +653,317 @@ fun AdventureWorldsManagementList(
             }
         )
     }
+
+    worldToEdit?.let { world ->
+        var name by remember(world.id) { mutableStateOf(world.name) }
+        var description by remember(world.id) { mutableStateOf(world.description) }
+        var tagline by remember(world.id) { mutableStateOf(world.tagline) }
+        var emoji by remember(world.id) { mutableStateOf(world.emoji) }
+        var reqStars by remember(world.id) { mutableStateOf(world.requiredTotalStars.toString()) }
+
+        AlertDialog(
+            onDismissRequest = { worldToEdit = null },
+            title = { Text("Edit Adventure World", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("World Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = tagline,
+                        onValueChange = { tagline = it },
+                        label = { Text("Tagline") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        label = { Text("Description") },
+                        maxLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = emoji,
+                            onValueChange = { emoji = it },
+                            label = { Text("Emoji") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = reqStars,
+                            onValueChange = { reqStars = it },
+                            label = { Text("Required Stars") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (name.isNotBlank()) {
+                            viewModel.updateAdventureWorld(
+                                world.copy(
+                                    name = name.trim(),
+                                    tagline = tagline.trim(),
+                                    description = description.trim(),
+                                    emoji = emoji.ifBlank { "🗺️" },
+                                    requiredTotalStars = reqStars.toIntOrNull() ?: 0
+                                )
+                            )
+                            worldToEdit = null
+                        }
+                    }
+                ) {
+                    Text("Save Changes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { worldToEdit = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    levelToEdit?.let { (worldId, level) ->
+        var title by remember(level.id) { mutableStateOf(level.title) }
+        var description by remember(level.id) { mutableStateOf(level.description) }
+        var emoji by remember(level.id) { mutableStateOf(level.iconEmoji) }
+        var xp by remember(level.id) { mutableStateOf(level.xpReward.toString()) }
+        var coins by remember(level.id) { mutableStateOf(level.coinsReward.toString()) }
+
+        AlertDialog(
+            onDismissRequest = { levelToEdit = null },
+            title = { Text("Edit Level: ${level.title}", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Level Title") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        label = { Text("Description") },
+                        maxLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = emoji,
+                            onValueChange = { emoji = it },
+                            label = { Text("Emoji") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = xp,
+                            onValueChange = { xp = it },
+                            label = { Text("XP Reward") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = coins,
+                            onValueChange = { coins = it },
+                            label = { Text("Coins") },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (title.isNotBlank()) {
+                            viewModel.updateAdventureLevel(
+                                worldId = worldId,
+                                levelId = level.id,
+                                title = title,
+                                description = description,
+                                emoji = emoji,
+                                xp = xp.toIntOrNull() ?: 70,
+                                coins = coins.toIntOrNull() ?: 30
+                            )
+                            levelToEdit = null
+                        }
+                    }
+                ) {
+                    Text("Save Level")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { levelToEdit = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    missionToEdit?.let { (worldId, levelId, mission) ->
+        var missionType by remember(mission.id) { mutableStateOf(mission.type) }
+        var title by remember(mission.id) { mutableStateOf(mission.title) }
+        var description by remember(mission.id) { mutableStateOf(mission.description) }
+        var targetSentence by remember(mission.id) { mutableStateOf(mission.targetSentence) }
+        var optionsText by remember(mission.id) { mutableStateOf(mission.options.joinToString(", ")) }
+        var correctAnswer by remember(mission.id) { mutableStateOf(mission.correctAnswer) }
+        var clue by remember(mission.id) { mutableStateOf(mission.clue) }
+
+        AlertDialog(
+            onDismissRequest = { missionToEdit = null },
+            title = { Text("Edit Mission / Question", fontWeight = FontWeight.Bold) },
+            text = {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        Text("Mission Type:", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            AdventureMissionType.values().forEach { type ->
+                                val isSel = missionType == type
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier
+                                        .padding(2.dp)
+                                        .clickable { missionType = type }
+                                ) {
+                                    Text(
+                                        text = "${type.emoji} ${type.displayName.take(7)}",
+                                        color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = title,
+                            onValueChange = { title = it },
+                            label = { Text("Mission Title") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = description,
+                            onValueChange = { description = it },
+                            label = { Text("Question / Instructions") },
+                            maxLines = 2,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = targetSentence,
+                            onValueChange = { targetSentence = it },
+                            label = { Text("Target Sentence / Audio Text") },
+                            maxLines = 2,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = optionsText,
+                            onValueChange = { optionsText = it },
+                            label = { Text("Options (comma-separated)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = correctAnswer,
+                            onValueChange = { correctAnswer = it },
+                            label = { Text("Correct Answer") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = clue,
+                            onValueChange = { clue = it },
+                            label = { Text("Clue / Hint (Optional)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (title.isNotBlank()) {
+                            val opts = optionsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                            viewModel.updateAdventureMission(
+                                worldId = worldId,
+                                levelId = levelId,
+                                missionId = mission.id,
+                                title = title,
+                                description = description,
+                                type = missionType,
+                                targetSentence = targetSentence,
+                                options = opts,
+                                correctAnswer = correctAnswer,
+                                clue = clue,
+                                xp = mission.xp,
+                                coins = mission.coins
+                            )
+                            missionToEdit = null
+                        }
+                    }
+                ) {
+                    Text("Save Mission")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { missionToEdit = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showResetConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirmDialog = false },
+            title = { Text("Restore Official Adventure Worlds?", fontWeight = FontWeight.Bold) },
+            text = { Text("This will reset the English Adventure worlds, levels, and missions back to the official default curriculum (Vocabulary Island, Ocean Reef, Pirate Harbor, Dragon Mountains, Castle of Wisdom).") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.resetAdventureWorldsToDefault()
+                        showResetConfirmDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED))
+                ) {
+                    Text("Restore Defaults")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 // -------------------------------------------------------------
@@ -623,6 +974,7 @@ fun TeacherAdventureProgressTracker(
     viewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
+    var trackerTab by remember { mutableStateOf("PROGRESS") } // "PROGRESS" or "MANAGE"
     val reports = remember { viewModel.getTeacherAdventureReports() }
     val worlds by viewModel.adventureWorlds.collectAsState()
 
@@ -634,12 +986,74 @@ fun TeacherAdventureProgressTracker(
                 (searchQuery.isBlank() || report.studentName.contains(searchQuery, ignoreCase = true))
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
+    Column(modifier = modifier.fillMaxSize()) {
+        // Mode Selector: Student Progress vs Manage Worlds & Games
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xFF0F1538),
+            border = BorderStroke(1.dp, Color(0xFF2B3466)),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (trackerTab == "PROGRESS") Color(0xFF7C3AED) else Color.Transparent,
+                    modifier = Modifier.weight(1f).clickable { trackerTab = "PROGRESS" }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("📊", fontSize = 14.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Student Progress",
+                            fontWeight = if (trackerTab == "PROGRESS") FontWeight.Bold else FontWeight.Medium,
+                            color = if (trackerTab == "PROGRESS") Color.White else Color(0xFF94A3B8),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (trackerTab == "MANAGE") Color(0xFF7C3AED) else Color.Transparent,
+                    modifier = Modifier.weight(1f).clickable { trackerTab = "MANAGE" }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🗺️", fontSize = 14.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Manage Games & Worlds",
+                            fontWeight = if (trackerTab == "MANAGE") FontWeight.Bold else FontWeight.Medium,
+                            color = if (trackerTab == "MANAGE") Color.White else Color(0xFF94A3B8),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        if (trackerTab == "MANAGE") {
+            AdventureWorldsManagementList(
+                viewModel = viewModel,
+                modifier = Modifier.weight(1f)
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
         item {
             // Summary Hero Card
             Surface(
@@ -858,3 +1272,7 @@ fun TeacherAdventureProgressTracker(
         }
     }
 }
+}
+}
+
+

@@ -1356,7 +1356,8 @@ enum class GameCategoryFilter(val title: String, val emoji: String) {
     LISTEN_CHOOSE("Listen & Choose", "🎧"),
     PRONUNCIATION_BATTLE("Pronunciation Battle", "⚔️"),
     FAST_VOCABULARY("Fast Vocabulary", "⏱️"),
-    GRAMMAR_CHALLENGE("Grammar Challenge", "⚡")
+    GRAMMAR_CHALLENGE("Grammar Challenge", "⚡"),
+    ENGLISH_ADVENTURE("English Adventure", "🗺️")
 }
 
 // Active editing state for game challenges
@@ -1675,6 +1676,9 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                                 GameCategoryFilter.GRAMMAR_CHALLENGE -> {
                                     Text("📚", fontSize = 15.sp)
                                 }
+                                GameCategoryFilter.ENGLISH_ADVENTURE -> {
+                                    Text("🗺️", fontSize = 15.sp)
+                                }
                             }
                             Text(
                                 cat.title,
@@ -1690,8 +1694,9 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         }
 
         // 3. Action Banner: "+ Add New Word Match"
-        item {
-            Card(
+        if (selectedCategory != GameCategoryFilter.ENGLISH_ADVENTURE) {
+            item {
+                Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF09122C).copy(alpha = 0.92f)),
                 border = BorderStroke(1.5.dp, Color(0xFF0077B6).copy(alpha = 0.7f)),
@@ -1785,6 +1790,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                     }
                 }
             }
+        }
         }
 
         if (selectedCategory == GameCategoryFilter.MISSING_LETTERS) {
@@ -1979,6 +1985,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             GameCategoryFilter.PRONUNCIATION_BATTLE -> "Existing Pronunciation Battles" to filteredPronunciationBattles.size
             GameCategoryFilter.FAST_VOCABULARY -> "Existing Fast Vocabulary Blitzes" to filteredFastVocabs.size
             GameCategoryFilter.GRAMMAR_CHALLENGE -> "Existing Grammar Challenges" to filteredGrammarChallenges.size
+            GameCategoryFilter.ENGLISH_ADVENTURE -> "English Adventure Worlds" to viewModel.adventureWorlds.value.size
         }
 
         item {
@@ -2248,6 +2255,14 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                             )
                         },
                         onDelete = { viewModel.deleteGrammarChallenge(item.id) }
+                    )
+                }
+            }
+            GameCategoryFilter.ENGLISH_ADVENTURE -> {
+                item {
+                    com.example.ui.screens.common.AdventureWorldsManagementList(
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 600.dp, max = 1600.dp)
                     )
                 }
             }
@@ -2711,6 +2726,9 @@ fun EditGameChallengeDialog(
                         OutlinedTextField(value = f4, onValueChange = { f4 = it }, label = { Text("Distractor Option 2") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = f5, onValueChange = { f5 = it }, label = { Text("Grammar Rule Explanation") }, modifier = Modifier.fillMaxWidth())
                     }
+                    GameCategoryFilter.ENGLISH_ADVENTURE -> {
+                        Text("Manage English Adventure missions directly from the world cards.", color = Color.White)
+                    }
                 }
             }
         },
@@ -2803,6 +2821,12 @@ fun TeacherSpeakingReview(viewModel: MainViewModel, modifier: Modifier = Modifie
                     userRole = Role.TEACHER,
                     modifier = Modifier.weight(1f),
                     initialTab = SpeakingManageTab.PHONETICS_DRILLS
+                )
+            }
+            TeacherSpeakingSection.ADVENTURE_WORLDS -> {
+                com.example.ui.screens.common.AdventureWorldsManagementList(
+                    viewModel = viewModel,
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
@@ -4984,6 +5008,9 @@ fun CreateGameChallengeDialog(
                         OutlinedTextField(value = field4, onValueChange = { field4 = it }, label = { Text("Distractor Option 2") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = field5, onValueChange = { field5 = it }, label = { Text("Grammar Rule Explanation") }, modifier = Modifier.fillMaxWidth())
                     }
+                    GameCategoryFilter.ENGLISH_ADVENTURE -> {
+                        Text("To add English Adventure content, use the dedicated 'Add World' or 'Add Level/Mission' controls in the Adventure Hub.", color = Color.White)
+                    }
                 }
             }
         },
@@ -5039,6 +5066,9 @@ fun CreateGameChallengeDialog(
                             viewModel.addGrammarChallenge(field1, opts, 0, field5.ifBlank { "Standard grammatical syntax rule." }, "Grammar", authorName)
                             onCreated()
                         }
+                    }
+                    GameCategoryFilter.ENGLISH_ADVENTURE -> {
+                        onCreated()
                     }
                 }
             }) {

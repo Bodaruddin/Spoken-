@@ -2845,6 +2845,90 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         }
     }
 
+    fun updateAdventureLevel(
+        worldId: String,
+        levelId: String,
+        title: String,
+        description: String,
+        emoji: String,
+        xpReward: Int,
+        coinsReward: Int
+    ) {
+        _adventureWorlds.update { list ->
+            list.map { w ->
+                if (w.id == worldId) {
+                    w.copy(
+                        levels = w.levels.map { lvl ->
+                            if (lvl.id == levelId) {
+                                lvl.copy(
+                                    title = title.trim(),
+                                    description = description.trim(),
+                                    iconEmoji = emoji.ifBlank { lvl.iconEmoji },
+                                    xpReward = xpReward,
+                                    coinsReward = coinsReward
+                                )
+                            } else lvl
+                        }
+                    )
+                } else w
+            }
+        }
+    }
+
+    fun updateAdventureMission(
+        worldId: String,
+        levelId: String,
+        missionId: String,
+        title: String,
+        description: String,
+        type: AdventureMissionType,
+        targetSentence: String,
+        options: List<String>,
+        correctAnswer: String,
+        clue: String,
+        xp: Int,
+        coins: Int
+    ) {
+        _adventureWorlds.update { list ->
+            list.map { w ->
+                if (w.id == worldId) {
+                    w.copy(
+                        levels = w.levels.map { lvl ->
+                            if (lvl.id == levelId) {
+                                lvl.copy(
+                                    missions = lvl.missions.map { m ->
+                                        if (m.id == missionId) {
+                                            m.copy(
+                                                title = title.trim(),
+                                                description = description.trim(),
+                                                type = type,
+                                                targetSentence = targetSentence.trim(),
+                                                options = options.filter { it.isNotBlank() },
+                                                correctAnswer = correctAnswer.trim(),
+                                                clue = clue.trim(),
+                                                xp = xp,
+                                                coins = coins,
+                                                scrambledWords = if (type == AdventureMissionType.SENTENCE_BUILDER) {
+                                                    targetSentence.split(" ").filter { it.isNotBlank() }.shuffled()
+                                                } else if (type == AdventureMissionType.WORD_PUZZLE) {
+                                                    correctAnswer.map { it.toString() }.shuffled()
+                                                } else emptyList()
+                                            )
+                                        } else m
+                                    }
+                                )
+                            } else lvl
+                        }
+                    )
+                } else w
+            }
+        }
+    }
+
+    fun resetAdventureWorldsToDefault() {
+        _adventureWorlds.value = AdventureDataDefaults.createDefaultWorlds()
+    }
+
     // Teacher Student Adventure Monitoring Reports
     fun getTeacherAdventureReports(): List<StudentAdventureProgressSummary> {
         val students = _adminStudents.value
