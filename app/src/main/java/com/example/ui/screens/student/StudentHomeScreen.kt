@@ -273,71 +273,126 @@ fun StudentHomeScreen(
                                 border = BorderStroke(1.2.dp, Color(0xFF1E3A8A)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 14.dp, vertical = 12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Column(
-                                        modifier = Modifier.weight(1f),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    // Row 1: Subject Category tag + Exam Title
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFF0284C7).copy(alpha = 0.22f),
+                                            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
                                         ) {
                                             Text(
-                                                nextExam?.subjectCategory ?: "English Grammar",
+                                                text = nextExam?.subjectCategory ?: "English Grammar",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF38BDF8)
-                                            )
-                                            Text(
-                                                "• ⏱️ ${nextExam?.durationMinutes ?: 15} Mins • 🎯 ${nextExam?.totalMarks ?: 50} Marks",
-                                                fontSize = 11.sp,
-                                                color = Color(0xFFF97316),
-                                                fontWeight = FontWeight.SemiBold
+                                                color = Color(0xFF38BDF8),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                             )
                                         }
 
                                         Text(
-                                            nextExam?.title ?: "Class 10 Comprehensive English Grammar & Tenses Test",
+                                            text = nextExam?.title ?: "Class 10 Comprehensive English Grammar & Tenses Test",
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
+                                            fontSize = 13.5.sp,
                                             color = Color.White,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
                                         )
                                     }
 
-                                    Spacer(Modifier.width(8.dp))
-
-                                    OutlinedButton(
-                                        onClick = {
-                                            viewModel.selectStudentTab(StudentTab.EXAMS)
-                                        },
-                                        shape = RoundedCornerShape(12.dp),
-                                        border = BorderStroke(1.2.dp, Color(0xFF0284C7)),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            containerColor = Color(0xFF07214A).copy(alpha = 0.8f)
-                                        ),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                    // Row 2: Duration & Marks badges + "Take Exam" Button
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(
-                                            Icons.Rounded.Quiz,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(15.dp),
-                                            tint = Color(0xFF38BDF8)
-                                        )
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(
-                                            "Take Exam",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF38BDF8)
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            // Duration Badge (Amber)
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = Color(0xFF7C2D12).copy(alpha = 0.35f),
+                                                border = BorderStroke(1.dp, Color(0xFFF97316).copy(alpha = 0.5f))
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Text("⏱️", fontSize = 11.sp)
+                                                    Text(
+                                                        text = "${nextExam?.durationMinutes ?: 15} Mins",
+                                                        fontSize = 11.sp,
+                                                        color = Color(0xFFFDBA74),
+                                                        fontWeight = FontWeight.Bold,
+                                                        softWrap = false
+                                                    )
+                                                }
+                                            }
+
+                                            // Marks Badge (Emerald)
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = Color(0xFF064E3B).copy(alpha = 0.35f),
+                                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Text("🎯", fontSize = 11.sp)
+                                                    Text(
+                                                        text = "${nextExam?.totalMarks ?: 50} Marks",
+                                                        fontSize = 11.sp,
+                                                        color = Color(0xFF6EE7B7),
+                                                        fontWeight = FontWeight.Bold,
+                                                        softWrap = false
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = {
+                                                viewModel.selectStudentTab(StudentTab.EXAMS)
+                                            },
+                                            shape = RoundedCornerShape(12.dp),
+                                            border = BorderStroke(1.2.dp, Color(0xFF0284C7)),
+                                            colors = ButtonDefaults.outlinedButtonColors(
+                                                containerColor = Color(0xFF07214A).copy(alpha = 0.8f)
+                                            ),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Rounded.Quiz,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(15.dp),
+                                                tint = Color(0xFF38BDF8)
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                "Take Exam",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF38BDF8),
+                                                softWrap = false
+                                            )
+                                        }
                                     }
                                 }
                             }
