@@ -1335,7 +1335,8 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                 item {
                     com.example.ui.screens.common.AdventureWorldsManagementList(
                         viewModel = viewModel,
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 600.dp, max = 1600.dp)
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 450.dp, max = 750.dp),
+                        contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp)
                     )
                 }
             }

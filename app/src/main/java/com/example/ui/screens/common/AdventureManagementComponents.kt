@@ -34,7 +34,8 @@ import com.example.ui.theme.*
 @Composable
 fun AdventureWorldsManagementList(
     viewModel: MainViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(14.dp)
 ) {
     val worlds by viewModel.adventureWorlds.collectAsState()
 
@@ -50,9 +51,8 @@ fun AdventureWorldsManagementList(
     var expandedWorldId by remember { mutableStateOf<String?>(worlds.firstOrNull()?.id) }
 
     LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(14.dp),
+        modifier = modifier.fillMaxSize(),
+        contentPadding = contentPadding,
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
@@ -145,17 +145,23 @@ fun AdventureWorldsManagementList(
 
                         Spacer(Modifier.width(12.dp))
 
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Text(
                                     text = "World ${world.order}: ${world.name}",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
-                                    color = Color.White
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
-                                Spacer(Modifier.width(6.dp))
+                                Spacer(Modifier.width(4.dp))
                                 Text(
-                                    "(${world.levels.size} levels)",
+                                    "(${world.levels.size})",
                                     fontSize = 11.sp,
                                     color = Color(world.themeColorHex)
                                 )
@@ -171,23 +177,23 @@ fun AdventureWorldsManagementList(
 
                         IconButton(
                             onClick = { worldForNewLevel = world },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(28.dp)
                         ) {
-                            Icon(Icons.Filled.AddCircle, contentDescription = "Add Level", tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
+                            Icon(Icons.Filled.AddCircle, contentDescription = "Add Level", tint = Color(0xFF38BDF8), modifier = Modifier.size(19.dp))
                         }
 
                         IconButton(
                             onClick = { worldToEdit = world },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(28.dp)
                         ) {
-                            Icon(Icons.Filled.Edit, contentDescription = "Edit World", tint = Color(0xFFFBBF24), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit World", tint = Color(0xFFFBBF24), modifier = Modifier.size(17.dp))
                         }
 
                         IconButton(
                             onClick = { worldToDelete = world },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(28.dp)
                         ) {
-                            Icon(Icons.Filled.Delete, contentDescription = "Delete World", tint = Color(0xFFF87171), modifier = Modifier.size(18.dp))
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete World", tint = Color(0xFFF87171), modifier = Modifier.size(17.dp))
                         }
 
                         Icon(
@@ -204,8 +210,8 @@ fun AdventureWorldsManagementList(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(Color(0xFF0C0F2B))
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                .padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
                                 "Levels inside ${world.name}:",
@@ -241,43 +247,58 @@ fun AdventureWorldsManagementList(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Row(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .padding(end = 4.dp),
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                                 ) {
-                                                    Text(level.iconEmoji, fontSize = 16.sp)
+                                                    Text(level.iconEmoji, fontSize = 15.sp)
                                                     Text(
                                                         "Level ${level.levelNumber}: ${level.title}",
                                                         fontWeight = FontWeight.Bold,
-                                                        fontSize = 13.sp,
-                                                        color = Color.White
+                                                        fontSize = 12.5.sp,
+                                                        color = Color.White,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f, fill = false)
                                                     )
                                                 }
 
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(
-                                                        "+${level.xpReward} XP",
-                                                        fontSize = 11.sp,
-                                                        color = Color(0xFF38BDF8),
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Spacer(Modifier.width(6.dp))
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                ) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = Color(0xFF0369A1).copy(alpha = 0.35f),
+                                                        modifier = Modifier.padding(end = 2.dp)
+                                                    ) {
+                                                        Text(
+                                                            "+${level.xpReward} XP",
+                                                            fontSize = 10.sp,
+                                                            color = Color(0xFF38BDF8),
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                                        )
+                                                    }
                                                     IconButton(
                                                         onClick = { levelForNewMission = Pair(world.id, level) },
-                                                        modifier = Modifier.size(28.dp)
+                                                        modifier = Modifier.size(26.dp)
                                                     ) {
-                                                        Icon(Icons.Filled.Add, contentDescription = "Add Question", tint = Color(0xFF4ADE80), modifier = Modifier.size(16.dp))
+                                                        Icon(Icons.Filled.Add, contentDescription = "Add Question", tint = Color(0xFF4ADE80), modifier = Modifier.size(15.dp))
                                                     }
                                                     IconButton(
                                                         onClick = { levelToEdit = Pair(world.id, level) },
-                                                        modifier = Modifier.size(28.dp)
+                                                        modifier = Modifier.size(26.dp)
                                                     ) {
-                                                        Icon(Icons.Filled.Edit, contentDescription = "Edit Level", tint = Color(0xFFFBBF24), modifier = Modifier.size(15.dp))
+                                                        Icon(Icons.Filled.Edit, contentDescription = "Edit Level", tint = Color(0xFFFBBF24), modifier = Modifier.size(14.dp))
                                                     }
                                                     IconButton(
                                                         onClick = { viewModel.deleteAdventureLevel(world.id, level.id) },
-                                                        modifier = Modifier.size(28.dp)
+                                                        modifier = Modifier.size(26.dp)
                                                     ) {
-                                                        Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete Level", tint = Color(0xFFF87171), modifier = Modifier.size(16.dp))
+                                                        Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete Level", tint = Color(0xFFF87171), modifier = Modifier.size(15.dp))
                                                     }
                                                 }
                                             }
@@ -292,28 +313,32 @@ fun AdventureWorldsManagementList(
                                                     Row(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
-                                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                                            .padding(horizontal = 8.dp, vertical = 5.dp),
                                                         horizontalArrangement = Arrangement.SpaceBetween,
                                                         verticalAlignment = Alignment.CenterVertically
                                                     ) {
                                                         Row(
-                                                            modifier = Modifier.weight(1f),
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .padding(end = 4.dp),
                                                             verticalAlignment = Alignment.CenterVertically,
-                                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                                                         ) {
-                                                            Text(mission.type.emoji, fontSize = 14.sp)
+                                                            Text(mission.type.emoji, fontSize = 13.sp)
                                                             Text(
                                                                 mission.title,
                                                                 color = Color.White,
-                                                                fontSize = 12.sp,
+                                                                fontSize = 11.5.sp,
                                                                 fontWeight = FontWeight.Medium,
                                                                 maxLines = 1,
-                                                                overflow = TextOverflow.Ellipsis
+                                                                overflow = TextOverflow.Ellipsis,
+                                                                modifier = Modifier.weight(1f, fill = false)
                                                             )
                                                             Text(
                                                                 "(${mission.type.displayName})",
                                                                 color = Color(0xFF94A3B8),
-                                                                fontSize = 10.sp
+                                                                fontSize = 10.sp,
+                                                                maxLines = 1
                                                             )
                                                         }
 
@@ -365,22 +390,28 @@ fun AdventureWorldsManagementList(
                         onValueChange = { name = it },
                         label = { Text("World Name") },
                         placeholder = { Text("e.g. Vocabulary Island") },
-                        singleLine = true
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = tagline,
                         onValueChange = { tagline = it },
                         label = { Text("Tagline") },
                         placeholder = { Text("e.g. Realm of Lexical Discovery") },
-                        singleLine = true
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = description,
                         onValueChange = { description = it },
                         label = { Text("Description") },
-                        maxLines = 3
+                        maxLines = 3,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         OutlinedTextField(
                             value = emoji,
                             onValueChange = { emoji = it },
@@ -441,15 +472,20 @@ fun AdventureWorldsManagementList(
                         onValueChange = { title = it },
                         label = { Text("Level Title") },
                         placeholder = { Text("e.g. Coral Reef Sanctuary") },
-                        singleLine = true
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         value = description,
                         onValueChange = { description = it },
                         label = { Text("Description") },
-                        maxLines = 2
+                        maxLines = 2,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         OutlinedTextField(
                             value = emoji,
                             onValueChange = { emoji = it },
@@ -464,14 +500,14 @@ fun AdventureWorldsManagementList(
                             modifier = Modifier.weight(1f),
                             singleLine = true
                         )
-                        OutlinedTextField(
-                            value = coins,
-                            onValueChange = { coins = it },
-                            label = { Text("Coins") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
                     }
+                    OutlinedTextField(
+                        value = coins,
+                        onValueChange = { coins = it },
+                        label = { Text("Coins Reward") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
                 }
             },
             confirmButton = {
@@ -759,7 +795,10 @@ fun AdventureWorldsManagementList(
                         maxLines = 2,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         OutlinedTextField(
                             value = emoji,
                             onValueChange = { emoji = it },
@@ -774,14 +813,14 @@ fun AdventureWorldsManagementList(
                             modifier = Modifier.weight(1f),
                             singleLine = true
                         )
-                        OutlinedTextField(
-                            value = coins,
-                            onValueChange = { coins = it },
-                            label = { Text("Coins") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true
-                        )
                     }
+                    OutlinedTextField(
+                        value = coins,
+                        onValueChange = { coins = it },
+                        label = { Text("Coins Reward") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
                 }
             },
             confirmButton = {
@@ -1177,30 +1216,37 @@ fun TeacherAdventureProgressTracker(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 6.dp)
                         ) {
                             Surface(
                                 shape = CircleShape,
                                 color = Color(0xFF1E2652),
-                                modifier = Modifier.size(42.dp)
+                                modifier = Modifier.size(40.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text(report.avatar, fontSize = 22.sp)
+                                    Text(report.avatar, fontSize = 20.sp)
                                 }
                             }
 
-                            Column {
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
                                 Text(
                                     text = report.studentName,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = Color.White
+                                    fontSize = 13.5.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = "${report.className} • Current: ${report.currentWorld}",
                                     fontSize = 11.sp,
                                     color = Color(0xFF38BDF8),
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -1214,8 +1260,9 @@ fun TeacherAdventureProgressTracker(
                                 "⭐ ${report.totalStars} Stars",
                                 color = Color(0xFFFACC15),
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                fontSize = 11.5.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                maxLines = 1
                             )
                         }
                     }
