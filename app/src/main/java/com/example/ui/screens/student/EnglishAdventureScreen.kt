@@ -30,6 +30,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -460,10 +462,10 @@ private fun AdventureMainView(
         IconButton(
             onClick = onBack,
             modifier = Modifier
-                .padding(start = 12.dp, top = 10.dp)
-                .size(38.dp)
-                .background(Color(0x990A1128), CircleShape)
-                .border(1.dp, Color(0x66FFFFFF), CircleShape)
+                .padding(start = 12.dp, top = 8.dp)
+                .size(40.dp)
+                .background(Color(0xAA0A1128), CircleShape)
+                .border(1.2.dp, Color(0x66FFFFFF), CircleShape)
         ) {
             Icon(
                 Icons.AutoMirrored.Rounded.ArrowBack,
@@ -476,7 +478,7 @@ private fun AdventureMainView(
         // 3. SCROLLABLE ADVENTURE CONTENT
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
@@ -485,7 +487,7 @@ private fun AdventureMainView(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = 10.dp, vertical = 2.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
@@ -493,8 +495,8 @@ private fun AdventureMainView(
                         contentDescription = "English Adventure - Explore Learn Play Win",
                         contentScale = ContentScale.Fit,
                         modifier = Modifier
-                            .fillMaxWidth(0.96f)
-                            .height(118.dp)
+                            .fillMaxWidth(0.95f)
+                            .height(125.dp)
                     )
                 }
             }
@@ -660,7 +662,7 @@ private fun AdventureMainView(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(58.dp),
+                                .height(62.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
@@ -672,19 +674,22 @@ private fun AdventureMainView(
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.padding(horizontal = 16.dp)
+                                modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp)
                             ) {
                                 Text(
-                                    currentWorld.emoji,
-                                    fontSize = 18.sp
+                                    text = currentWorld.emoji,
+                                    fontSize = 19.sp
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 Text(
                                     text = currentWorld.name,
                                     color = Color(0xFF381403),
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 18.sp,
-                                    letterSpacing = 0.5.sp
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontFamily = FontFamily(Font(R.font.cinzel, FontWeight.Bold)),
+                                    fontSize = 16.5.sp,
+                                    letterSpacing = 0.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -696,8 +701,9 @@ private fun AdventureMainView(
                             shape = CircleShape,
                             color = Color(0xFF2563EB),
                             border = BorderStroke(1.5.dp, Color(0xFF60A5FA)),
+                            shadowElevation = 4.dp,
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(36.dp)
                                 .clickable { onOpenWorldInfo() }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -713,13 +719,21 @@ private fun AdventureMainView(
 
                     Spacer(Modifier.height(4.dp))
 
-                    Text(
-                        text = "Complete missions to earn stars and unlock next realm",
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0x77000000),
+                        border = BorderStroke(0.8.dp, Color(0x33FFFFFF)),
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Text(
+                            text = "Complete missions to earn stars and unlock next realm",
+                            color = Color(0xFFE2E8F0),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.5.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
+                        )
+                    }
                 }
             }
 
@@ -824,17 +838,43 @@ private fun AdventureMainView(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 6.dp, bottom = 10.dp),
+                        .padding(top = 10.dp, bottom = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_adventure_chest),
-                        contentDescription = "Golden Treasure Chest with Gems",
-                        contentScale = ContentScale.Fit,
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
-                            .size(width = 165.dp, height = 105.dp)
                             .clickable { onOpenChest() }
-                    )
+                            .padding(8.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_adventure_chest),
+                            contentDescription = "Golden Treasure Chest with Gems",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.size(width = 175.dp, height = 115.dp)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0x99000000),
+                            border = BorderStroke(1.dp, Color(0xFFFBBF24)),
+                            shadowElevation = 4.dp
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Text("✨", fontSize = 12.sp)
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "Tap to Claim Island Rewards",
+                                    color = Color(0xFFFDE047),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -984,9 +1024,10 @@ private fun AdventureLevelCardExact(
                 Text(
                     text = title,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.5.sp,
+                    fontSize = 13.sp,
                     color = Color.White,
-                    maxLines = 1,
+                    maxLines = 2,
+                    lineHeight = 16.sp,
                     overflow = TextOverflow.Ellipsis
                 )
 
