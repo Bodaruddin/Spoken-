@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -60,8 +61,12 @@ fun EnglishAdventureScreen(
     val activeLevel by viewModel.activeAdventureLevel.collectAsState()
     val activeMission by viewModel.activeAdventureMission.collectAsState()
 
-    // Default to World 1 (Vocabulary Island) if none selected
-    val currentWorld = selectedWorld ?: worlds.firstOrNull { it.id == "world_1" } ?: worlds.firstOrNull() ?: AdventureDataDefaults.createDefaultWorlds().first()
+    // Resolve the active world dynamically from the latest `worlds` state to capture unlocked levels & completed stars
+    val currentWorld = worlds.find { it.id == selectedWorld?.id }
+        ?: selectedWorld
+        ?: worlds.firstOrNull { it.id == "world_vocab" }
+        ?: worlds.firstOrNull()
+        ?: AdventureDataDefaults.createDefaultWorlds().first()
 
     // Modal dialog controls
     var showWorldMapDialog by remember { mutableStateOf(false) }
@@ -121,10 +126,21 @@ fun EnglishAdventureScreen(
                 onOpenWorldInfo = { showWorldInfoDialog = true },
                 onOpenChest = { showChestRewardDialog = true },
                 onLaunchLevel = { level ->
-                    if (level.isUnlocked || level.levelNumber == 1) {
+                    val index = currentWorld.levels.indexOfFirst { it.id == level.id }
+                    val prevLevel = if (index > 0) currentWorld.levels.getOrNull(index - 1) else null
+                    val isPrevCompleted = prevLevel == null || prevLevel.isCompleted || (progress.levelStars[prevLevel.id] ?: 0) > 0
+                    val isUnlocked = level.isUnlocked || level.levelNumber == 1 || isPrevCompleted
+
+                    if (isUnlocked) {
                         viewModel.selectAdventureWorld(currentWorld)
                         viewModel.selectAdventureLevel(level)
-                        level.missions.firstOrNull()?.let { viewModel.startAdventureMission(it) }
+                        val missionToStart = level.missions.firstOrNull { it.id !in progress.completedMissionIds }
+                            ?: level.missions.firstOrNull()
+                        if (missionToStart != null) {
+                            viewModel.startAdventureMission(missionToStart)
+                        } else {
+                            level.missions.firstOrNull()?.let { viewModel.startAdventureMission(it) }
+                        }
                     } else {
                         lockedSnackbarMsg = "Complete Level ${level.levelNumber - 1} to unlock ${level.title}!"
                     }
@@ -397,7 +413,10 @@ fun EnglishAdventureScreen(
                 },
                 confirmButton = {
                     Button(
-                        onClick = { showChestRewardDialog = false },
+                        onClick = {
+                            viewModel.rewardGameWin(50, 25)
+                            showChestRewardDialog = false
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
                     ) {
                         Text("Claim Loot!")
@@ -737,99 +756,34 @@ private fun AdventureMainView(
                 }
             }
 
-            // E. LEVEL 1: Tropical Bay Market
-            item {
-                val level1 = currentWorld.levels.getOrNull(0) ?: AdventureLevel(
-                    id = "lvl_1_1",
-                    worldId = currentWorld.id,
-                    levelNumber = 1,
-                    title = "Tropical Bay Market",
-                    description = "Identify exotic island goods, spices, and vibrant descriptive adjectives.",
-                    iconEmoji = "🥥",
-                    starsEarned = 3,
-                    isUnlocked = true,
-                    isCompleted = true,
-                    xpReward = 60,
-                    coinsReward = 25,
-                    missions = emptyList()
-                )
+            // E. ADVENTURE LEVELS (Dynamically loaded from currentWorld & progress)
+            val levelsList = if (currentWorld.levels.isNotEmpty()) currentWorld.levels else AdventureDataDefaults.createDefaultWorlds().first().levels
+            itemsIndexed(levelsList) { index, level ->
+                val levelNumber = level.levelNumber
+                val prevLevel = levelsList.getOrNull(index - 1)
+                val isPrevCompleted = prevLevel == null || prevLevel.isCompleted || (progress.levelStars[prevLevel.id] ?: 0) > 0
+                val isUnlocked = level.isUnlocked || levelNumber == 1 || isPrevCompleted
+                val isCompleted = level.isCompleted || (progress.levelStars[level.id] ?: 0) > 0
+                val stars = maxOf(level.starsEarned, progress.levelStars[level.id] ?: 0)
+
+                val drawableRes = when (index % 3) {
+                    0 -> R.drawable.ic_level1_market
+                    1 -> R.drawable.ic_level2_reef
+                    else -> R.drawable.ic_level3_pirate
+                }
 
                 AdventureLevelCardExact(
-                    levelNumber = 1,
-                    title = "Level 1: Tropical Bay Market",
-                    description = "Identify exotic island goods, spices, and vibrant descriptive adjectives.",
-                    drawableRes = R.drawable.ic_level1_market,
-                    hasCheckmark = true,
-                    isLocked = false,
-                    starsEarned = 3,
-                    xp = 60,
-                    coins = 25,
-                    isGlowingBorder = true,
-                    onClick = { onLaunchLevel(level1) }
-                )
-            }
-
-            // F. LEVEL 2: Coral Reef Sanctuary
-            item {
-                val level2 = currentWorld.levels.getOrNull(1) ?: AdventureLevel(
-                    id = "lvl_1_2",
-                    worldId = currentWorld.id,
-                    levelNumber = 2,
-                    title = "Coral Reef Sanctuary",
-                    description = "Explore maritime vocabulary, sea creatures, and navigation phrases.",
-                    iconEmoji = "🐠",
-                    starsEarned = 0,
-                    isUnlocked = false,
-                    isCompleted = false,
-                    xpReward = 80,
-                    coinsReward = 35,
-                    missions = emptyList()
-                )
-
-                AdventureLevelCardExact(
-                    levelNumber = 2,
-                    title = "Level 2: Coral Reef Sanctuary",
-                    description = "Explore maritime vocabulary, sea creatures, and navigation phrases.",
-                    drawableRes = R.drawable.ic_level2_reef,
-                    hasCheckmark = false,
-                    isLocked = true,
-                    starsEarned = 0,
-                    xp = 80,
-                    coins = 35,
-                    isGlowingBorder = false,
-                    onClick = { onLaunchLevel(level2) }
-                )
-            }
-
-            // G. LEVEL 3: The Pirate Captain's Vault
-            item {
-                val level3 = currentWorld.levels.getOrNull(2) ?: AdventureLevel(
-                    id = "lvl_1_3",
-                    worldId = currentWorld.id,
-                    levelNumber = 3,
-                    title = "The Pirate Captain's Vault",
-                    description = "Discover treasure words, action verbs, and adventure expressions.",
-                    iconEmoji = "🏴‍☠️",
-                    starsEarned = 0,
-                    isUnlocked = false,
-                    isCompleted = false,
-                    xpReward = 100,
-                    coinsReward = 50,
-                    missions = emptyList()
-                )
-
-                AdventureLevelCardExact(
-                    levelNumber = 3,
-                    title = "Level 3: The Pirate Captain's Vault",
-                    description = "Discover treasure words, action verbs, and adventure expressions.",
-                    drawableRes = R.drawable.ic_level3_pirate,
-                    hasCheckmark = false,
-                    isLocked = true,
-                    starsEarned = 0,
-                    xp = 100,
-                    coins = 50,
-                    isGlowingBorder = false,
-                    onClick = { onLaunchLevel(level3) }
+                    levelNumber = levelNumber,
+                    title = if (level.title.startsWith("Level", ignoreCase = true)) level.title else "Level $levelNumber: ${level.title}",
+                    description = level.description,
+                    drawableRes = drawableRes,
+                    hasCheckmark = isCompleted,
+                    isLocked = !isUnlocked,
+                    starsEarned = stars,
+                    xp = level.xpReward,
+                    coins = level.coinsReward,
+                    isGlowingBorder = isUnlocked && !isCompleted,
+                    onClick = { onLaunchLevel(level) }
                 )
             }
 
@@ -1121,6 +1075,7 @@ private fun AdventureLevelCardExact(
                             ),
                             RoundedCornerShape(16.dp)
                         )
+                        .clickable { onClick() }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -1137,7 +1092,9 @@ private fun AdventureLevelCardExact(
                     shape = RoundedCornerShape(16.dp),
                     color = Color(0xFF1E293B),
                     border = BorderStroke(1.5.dp, Color(0xFF475569)),
-                    modifier = Modifier.size(width = 52.dp, height = 46.dp)
+                    modifier = Modifier
+                        .size(width = 52.dp, height = 46.dp)
+                        .clickable { onClick() }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -1580,12 +1537,23 @@ private fun AdventureMissionPlayer(
 
     var selectedQuizOption by remember(mission.id) { mutableStateOf<String?>(null) }
     var quizSubmitted by remember(mission.id) { mutableStateOf(false) }
+    var quizFeedback by remember(mission.id) { mutableStateOf<String?>(null) }
 
-    // Word puzzle & sentence builder states
+    // Word puzzle & sentence builder states with dynamic fallback
+    val initialScrambled = remember(mission.id) {
+        if (mission.scrambledWords.isNotEmpty()) {
+            mission.scrambledWords
+        } else if (mission.type == AdventureMissionType.WORD_PUZZLE) {
+            mission.correctAnswer.map { it.toString() }.shuffled()
+        } else {
+            mission.correctAnswer.split(" ").filter { it.isNotBlank() }.shuffled()
+        }
+    }
     var selectedWords by remember(mission.id) { mutableStateOf<List<String>>(emptyList()) }
     var availableWords by remember(mission.id) {
-        mutableStateOf(mission.scrambledWords)
+        mutableStateOf(initialScrambled)
     }
+    var puzzleFeedback by remember(mission.id) { mutableStateOf<String?>(null) }
 
     var missionCompletedSuccess by remember(mission.id) { mutableStateOf(false) }
     var earnedStars by remember(mission.id) { mutableIntStateOf(0) }
@@ -1762,10 +1730,14 @@ private fun AdventureMissionPlayer(
                                 onClick = {
                                     quizSubmitted = true
                                     val isRight = selectedQuizOption == mission.correctAnswer
-                                    val score = if (isRight) 100 else 40
-                                    val result = viewModel.completeAdventureMission(world.id, level.id, mission.id, score)
-                                    earnedStars = result.first
-                                    missionCompletedSuccess = true
+                                    if (isRight) {
+                                        val result = viewModel.completeAdventureMission(world.id, level.id, mission.id, 100)
+                                        earnedStars = result.first
+                                        quizFeedback = null
+                                        missionCompletedSuccess = true
+                                    } else {
+                                        quizFeedback = "Incorrect! Give it another try."
+                                    }
                                 },
                                 enabled = selectedQuizOption != null,
                                 modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -1787,6 +1759,24 @@ private fun AdventureMissionPlayer(
                                         fontSize = 12.sp,
                                         modifier = Modifier.padding(12.dp)
                                     )
+                                }
+                            }
+
+                            if (!missionCompletedSuccess) {
+                                Spacer(Modifier.height(6.dp))
+                                Button(
+                                    onClick = {
+                                        quizSubmitted = false
+                                        selectedQuizOption = null
+                                        quizFeedback = null
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Icon(Icons.Filled.Refresh, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Try Again 🔄", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -1899,7 +1889,8 @@ private fun AdventureMissionPlayer(
                             OutlinedButton(
                                 onClick = {
                                     selectedWords = emptyList()
-                                    availableWords = mission.scrambledWords
+                                    availableWords = initialScrambled
+                                    puzzleFeedback = null
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.weight(1f)
@@ -1916,17 +1907,46 @@ private fun AdventureMissionPlayer(
                                     }
 
                                     val isMatch = constructed.trim().equals(mission.correctAnswer.trim(), ignoreCase = true)
-                                    val score = if (isMatch) 100 else 50
-                                    val result = viewModel.completeAdventureMission(world.id, level.id, mission.id, score)
-                                    earnedStars = result.first
-                                    missionCompletedSuccess = true
+                                    if (isMatch) {
+                                        val result = viewModel.completeAdventureMission(world.id, level.id, mission.id, 100)
+                                        earnedStars = result.first
+                                        puzzleFeedback = null
+                                        missionCompletedSuccess = true
+                                    } else {
+                                        puzzleFeedback = "Not quite! You formed: \"$constructed\". Rearrange or tap reset to try again!"
+                                    }
                                 },
-                                enabled = selectedWords.isNotEmpty(),
+                                enabled = selectedWords.isNotEmpty() && !missionCompletedSuccess,
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
                                 modifier = Modifier.weight(1.5f)
                             ) {
                                 Text("Verify & Claim", fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // Puzzle Feedback Warning Card
+                        puzzleFeedback?.let { feedback ->
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF3B1515),
+                                border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("💡", fontSize = 16.sp)
+                                    Text(
+                                        text = feedback,
+                                        color = Color(0xFFFECACA),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
                         }
                     }
@@ -2008,10 +2028,14 @@ private fun AdventureMissionPlayer(
                                 onClick = {
                                     quizSubmitted = true
                                     val isRight = selectedQuizOption == mission.correctAnswer
-                                    val score = if (isRight) 100 else 40
-                                    val result = viewModel.completeAdventureMission(world.id, level.id, mission.id, score)
-                                    earnedStars = result.first
-                                    missionCompletedSuccess = true
+                                    if (isRight) {
+                                        val result = viewModel.completeAdventureMission(world.id, level.id, mission.id, 100)
+                                        earnedStars = result.first
+                                        quizFeedback = null
+                                        missionCompletedSuccess = true
+                                    } else {
+                                        quizFeedback = "Incorrect option! Listen carefully to the audio and try again."
+                                    }
                                 },
                                 enabled = selectedQuizOption != null,
                                 modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -2019,6 +2043,39 @@ private fun AdventureMissionPlayer(
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
                             ) {
                                 Text("Confirm Answer", fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            if (!missionCompletedSuccess) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF3B1515),
+                                    border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = quizFeedback ?: "Try listening again!",
+                                        color = Color(0xFFFECACA),
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.padding(12.dp),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+
+                                Spacer(Modifier.height(6.dp))
+                                Button(
+                                    onClick = {
+                                        quizSubmitted = false
+                                        selectedQuizOption = null
+                                        quizFeedback = null
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(14.dp)
+                                ) {
+                                    Icon(Icons.Filled.Refresh, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Listen & Try Again 🔄", fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
@@ -2145,17 +2202,36 @@ private fun AdventureMissionPlayer(
                                 }
                             }
 
-                            Button(
-                                onClick = {
-                                    val result = viewModel.completeAdventureMission(world.id, level.id, mission.id, eval.pronunciationScore)
-                                    earnedStars = result.first
-                                    missionCompletedSuccess = true
-                                },
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
-                            ) {
-                                Text("Claim Spoken Reward ⭐", fontWeight = FontWeight.Bold)
+                            if (!missionCompletedSuccess) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            viewModel.clearEvaluation()
+                                        },
+                                        shape = RoundedCornerShape(14.dp),
+                                        modifier = Modifier.weight(1f).height(48.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Re-try 🎤", fontWeight = FontWeight.SemiBold)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            val result = viewModel.completeAdventureMission(world.id, level.id, mission.id, eval.pronunciationScore)
+                                            earnedStars = result.first
+                                            missionCompletedSuccess = true
+                                        },
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
+                                        modifier = Modifier.weight(1.5f).height(48.dp)
+                                    ) {
+                                        Text("Claim Reward ⭐", fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
                     }

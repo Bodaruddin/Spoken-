@@ -987,6 +987,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun evaluateInputSpeech(spoken: String) {
         val target: String? = when {
+            _activeAdventureMission.value != null -> _activeAdventureMission.value?.targetSentence
             _activePronunciationDrill.value != null -> _activePronunciationDrill.value?.wordOrSentence
             _activeRoleplay.value != null -> {
                 val idx = roleplayTurnIndex.value
