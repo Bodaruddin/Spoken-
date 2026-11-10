@@ -1331,14 +1331,14 @@ fun PronunciationSection(
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             // Glowing Square Mic Badge (Blue-Purple Gradient)
                             Surface(
-                                shape = RoundedCornerShape(22.dp),
+                                shape = RoundedCornerShape(18.dp),
                                 color = Color.Transparent,
                                 border = BorderStroke(1.5.dp, Color(0xFFC084FC).copy(alpha = 0.9f)),
-                                modifier = Modifier.size(72.dp)
+                                modifier = Modifier.size(56.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
@@ -1354,7 +1354,7 @@ fun PronunciationSection(
                                         imageVector = Icons.Rounded.Mic,
                                         contentDescription = null,
                                         tint = Color.White,
-                                        modifier = Modifier.size(36.dp)
+                                        modifier = Modifier.size(28.dp)
                                     )
                                 }
                             }
@@ -1371,20 +1371,22 @@ fun PronunciationSection(
                                     Text(
                                         text = res.word,
                                         fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 28.sp,
-                                        color = Color.White
+                                        fontSize = 24.sp,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     // Blue Verified Checkmark Pill
                                     Surface(
                                         shape = CircleShape,
                                         color = Color(0xFF0284C7),
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(18.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Text(
                                                 "✔",
                                                 color = Color.White,
-                                                fontSize = 11.sp,
+                                                fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
@@ -1393,9 +1395,11 @@ fun PronunciationSection(
 
                                 Text(
                                     text = res.syllables,
-                                    fontSize = 14.sp,
+                                    fontSize = 13.sp,
                                     color = Color(0xFFCBD5E1),
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
                                 )
 
                                 // Stress Rhythm Pill (Teal-green Capsule)
@@ -1423,17 +1427,19 @@ fun PronunciationSection(
 
                             // Right: High-contrast IPA Transcription Capsule
                             Surface(
-                                shape = RoundedCornerShape(18.dp),
+                                shape = RoundedCornerShape(14.dp),
                                 color = Color(0xFF4C1D95).copy(alpha = 0.75f),
                                 border = BorderStroke(1.5.dp, Color(0xFFA855F7)),
                                 modifier = Modifier.padding(start = 2.dp)
                             ) {
                                 Text(
                                     text = res.ipa,
-                                    fontSize = 17.sp,
+                                    fontSize = 14.5.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color(0xFFF3E8FF),
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                 )
                             }
                         }
@@ -1455,25 +1461,76 @@ fun PronunciationSection(
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    // Target Icon
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = Color(0xFF0284C7).copy(alpha = 0.35f),
-                                        modifier = Modifier.size(34.dp)
+                                    // Target Icon + Focus Label & Description
+                                    Row(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(end = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text("🎯", fontSize = 17.sp)
+                                        // Target Icon
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = Color(0xFF0284C7).copy(alpha = 0.35f),
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text("🎯", fontSize = 16.sp)
+                                            }
+                                        }
+
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        ) {
+                                            Text(
+                                                text = "Focus: ",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                softWrap = false
+                                            )
+                                            Text(
+                                                text = res.audioFocus,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Color(0xFF38BDF8),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                softWrap = false
+                                            )
                                         }
                                     }
 
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("Focus: ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                        Text(res.audioFocus, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF38BDF8))
-                                        Text("   |   ", fontSize = 13.5.sp, color = Color.White.copy(alpha = 0.4f))
-                                        Text("Level: ", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                        Text(res.difficulty, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF34D399))
+                                    // Dedicated Level Badge Pill (prevents vertical text wrapping)
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFF064E3B).copy(alpha = 0.85f),
+                                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.8f))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "Level:",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFFA7F3D0),
+                                                softWrap = false
+                                            )
+                                            Text(
+                                                text = res.difficulty,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF34D399),
+                                                softWrap = false
+                                            )
+                                        }
                                     }
                                 }
 
@@ -1541,7 +1598,10 @@ fun PronunciationSection(
                                     }
                                 }
 
-                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
                                     Text(
                                         "অসমীয়া অৰ্থ (Assamese Meaning):",
                                         fontSize = 12.5.sp,
