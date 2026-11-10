@@ -3044,7 +3044,6 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
     val context = LocalContext.current
     val exams by viewModel.exams.collectAsState()
     val examSubmissions by viewModel.examSubmissions.collectAsState()
-    val liveClasses by viewModel.liveClasses.collectAsState()
     val academicClasses by viewModel.academicClasses.collectAsState()
 
     var showCreateExamDialog by remember { mutableStateOf(false) }
@@ -3075,27 +3074,43 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
+                ) {
                     Text(
                         text = "MCQ Examination Management",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = Color.White
+                        fontSize = 17.sp,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = "Create timed tests, assign marks & award certificates",
-                        fontSize = 11.5.sp,
-                        color = Color(0xFF94A3B8)
+                        fontSize = 11.sp,
+                        color = Color(0xFF94A3B8),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Button(
                     onClick = { showCreateExamDialog = true },
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
                     Spacer(Modifier.width(4.dp))
-                    Text("Create Exam", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 12.sp)
+                    Text(
+                        text = "Create Exam",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
             }
         }
@@ -3326,68 +3341,6 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                             Spacer(Modifier.width(4.dp))
                             Text("View Results & Certs", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
-                    }
-                }
-            }
-        }
-
-        // Live Virtual Classes Section (Maintained for Continuity)
-        item {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Live Classroom Sessions",
-                fontWeight = FontWeight.Bold,
-                fontSize = 17.sp,
-                color = Color.White
-            )
-        }
-
-        items(liveClasses) { cls ->
-            Card(
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
-                border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.35f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (cls.status == "LIVE") Color(0xFF3B1219) else Color(0xFF131F46),
-                            border = BorderStroke(1.dp, if (cls.status == "LIVE") CoralAccent.copy(alpha = 0.6f) else RoyalBlue.copy(alpha = 0.5f))
-                        ) {
-                            Text(
-                                cls.status,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (cls.status == "LIVE") CoralAccent else Color(0xFF60A5FA),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                        Text("${cls.durationMin} mins • ${cls.participantsCount} enrolled", fontSize = 11.sp, color = Color(0xFF94A3B8))
-                    }
-
-                    Text(cls.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                    Text(cls.topicDescription, fontSize = 12.sp, color = Color(0xFFCBD5E1))
-                    Text("Time: ${cls.scheduledTime}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF38BDF8))
-
-                    Button(
-                        onClick = {
-                            viewModel.speakAudio("Starting live virtual classroom for ${cls.title}")
-                            toastMsg = "Live classroom launched for ${cls.title}!"
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
-                    ) {
-                        Text("Host Session Now 🎥", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
