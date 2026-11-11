@@ -1611,116 +1611,171 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         return true
     }
 
-    private val _sentenceBuilderChallenges = MutableStateFlow(
-        listOf(
-            SentenceBuilderChallenge("sb_1", "She speaks English with natural confidence and clarity", "Daily speaking practice", "তাই স্বাভাৱিক আত্মবিশ্বাস আৰু স্পষ্টতাৰে ইংৰাজী কয়।", "System"),
-            SentenceBuilderChallenge("sb_2", "Clear pronunciation helps listeners understand your message easily", "Pronunciation guide", "স্পষ্ট উচ্চাৰণে শ্ৰোতাসকলক আপোনাৰ বাৰ্তা সহজে বুজিবলৈ সহায় কৰে।", "Prof. Eleanor Vance"),
-            SentenceBuilderChallenge("sb_3", "We practice speaking English every day to build fluency", "Study habits", "সাবলীলতা গঢ়ি তুলিবলৈ আমি প্ৰতিদিনে ইংৰাজী কোৱা অনুশীলন কৰোঁ।", "System"),
-            SentenceBuilderChallenge("sb_4", "Collaborative conversations improve confidence in professional workplace settings", "Workplace English", "পাৰস্পৰিক কথোপকথনে পেছাদাৰী কৰ্মক্ষেত্ৰত আত্মবিশ্বাস বৃদ্ধি কৰে।", "Dean Arthur Pendelton")
-        )
+    private val defaultSentenceBuilderChallenges = listOf(
+        SentenceBuilderChallenge("sb_1", "She speaks English with natural confidence and clarity", "Daily speaking practice", "তাই স্বাভাৱিক আত্মবিশ্বাস আৰু স্পষ্টতাৰে ইংৰাজী কয়।", "System"),
+        SentenceBuilderChallenge("sb_2", "Clear pronunciation helps listeners understand your message easily", "Pronunciation guide", "স্পষ্ট উচ্চাৰণে শ্ৰোতাসকলক আপোনাৰ বাৰ্তা সহজে বুজিবলৈ সহায় কৰে।", "Prof. Eleanor Vance"),
+        SentenceBuilderChallenge("sb_3", "We practice speaking English every day to build fluency", "Study habits", "সাবলীলতা গঢ়ি তুলিবলৈ আমি প্ৰতিদিনে ইংৰাজী কোৱা অনুশীলন কৰোঁ।", "System"),
+        SentenceBuilderChallenge("sb_4", "Collaborative conversations improve confidence in professional workplace settings", "Workplace English", "পাৰস্পৰিক কথোপকথনে পেছাদাৰী কৰ্মক্ষেত্ৰত আত্মবিশ্বাস বৃদ্ধি কৰে।", "Dean Arthur Pendelton")
     )
+
+    private fun loadInitialSentenceBuilders(): List<SentenceBuilderChallenge> {
+        val saved = appPreferences?.getSentenceBuilderChallenges()
+        if (!saved.isNullOrEmpty()) {
+            val savedIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultSentenceBuilderChallenges.filter { it.id !in savedIds }
+            return saved + missingDefaults
+        }
+        appPreferences?.saveSentenceBuilderChallenges(defaultSentenceBuilderChallenges)
+        return defaultSentenceBuilderChallenges
+    }
+
+    private val _sentenceBuilderChallenges = MutableStateFlow(loadInitialSentenceBuilders())
     val sentenceBuilderChallenges: StateFlow<List<SentenceBuilderChallenge>> = _sentenceBuilderChallenges.asStateFlow()
 
-    private val _listenChooseChallenges = MutableStateFlow(
-        listOf(
-            ListenChooseChallenge(
-                id = "lc_1",
-                audioScript = "Could you please tell me how to get to the nearest subway station?",
-                question = "What is the speaker asking for directions to?",
-                options = listOf("The airport terminal", "The nearest subway station", "A nearby coffee shop", "The central library"),
-                correctIndex = 1,
-                createdBy = "System"
-            ),
-            ListenChooseChallenge(
-                id = "lc_2",
-                audioScript = "I would like a large cappuccino with oat milk and cinnamon sprinkle, please.",
-                question = "What coffee beverage did the customer request?",
-                options = listOf("Iced mocha with cream", "Hot black Americano", "Large cappuccino with oat milk", "Espresso double shot"),
-                correctIndex = 2,
-                createdBy = "System"
-            ),
-            ListenChooseChallenge(
-                id = "lc_3",
-                audioScript = "The flight to Chicago will be boarding through gate 24 in fifteen minutes.",
-                question = "What gate is the flight boarding through?",
-                options = listOf("Gate 14", "Gate 24", "Gate 42", "Gate 34"),
-                correctIndex = 1,
-                createdBy = "Prof. Eleanor Vance"
-            ),
-            ListenChooseChallenge(
-                id = "lc_4",
-                audioScript = "Our quarterly academic review will be held next Tuesday morning at nine sharp.",
-                question = "When is the team academic review scheduled?",
-                options = listOf("Next Tuesday at 9:00 AM", "This Friday at 3:00 PM", "Tomorrow at noon", "Next Monday at 10:00 AM"),
-                correctIndex = 0,
-                createdBy = "Dean Arthur Pendelton"
-            )
+    private val defaultListenChooseChallenges = listOf(
+        ListenChooseChallenge(
+            id = "lc_1",
+            audioScript = "Could you please tell me how to get to the nearest subway station?",
+            question = "What is the speaker asking for directions to?",
+            options = listOf("The airport terminal", "The nearest subway station", "A nearby coffee shop", "The central library"),
+            correctIndex = 1,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_2",
+            audioScript = "I would like a large cappuccino with oat milk and cinnamon sprinkle, please.",
+            question = "What coffee beverage did the customer request?",
+            options = listOf("Iced mocha with cream", "Hot black Americano", "Large cappuccino with oat milk", "Espresso double shot"),
+            correctIndex = 2,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_3",
+            audioScript = "The flight to Chicago will be boarding through gate 24 in fifteen minutes.",
+            question = "What gate is the flight boarding through?",
+            options = listOf("Gate 14", "Gate 24", "Gate 42", "Gate 34"),
+            correctIndex = 1,
+            createdBy = "Prof. Eleanor Vance"
+        ),
+        ListenChooseChallenge(
+            id = "lc_4",
+            audioScript = "Our quarterly academic review will be held next Tuesday morning at nine sharp.",
+            question = "When is the team academic review scheduled?",
+            options = listOf("Next Tuesday at 9:00 AM", "This Friday at 3:00 PM", "Tomorrow at noon", "Next Monday at 10:00 AM"),
+            correctIndex = 0,
+            createdBy = "Dean Arthur Pendelton"
         )
     )
+
+    private fun loadInitialListenChooses(): List<ListenChooseChallenge> {
+        val saved = appPreferences?.getListenChooseChallenges()
+        if (!saved.isNullOrEmpty()) {
+            val savedIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultListenChooseChallenges.filter { it.id !in savedIds }
+            return saved + missingDefaults
+        }
+        appPreferences?.saveListenChooseChallenges(defaultListenChooseChallenges)
+        return defaultListenChooseChallenges
+    }
+
+    private val _listenChooseChallenges = MutableStateFlow(loadInitialListenChooses())
     val listenChooseChallenges: StateFlow<List<ListenChooseChallenge>> = _listenChooseChallenges.asStateFlow()
 
-    private val _pronunciationBattleChallenges = MutableStateFlow(
-        listOf(
-            PronunciationBattleChallenge("pb_1", "The courageous astronaut explored uncharted territory", "Consonant clusters 'str', 'ch', 'pl'", "Medium", 80, "System"),
-            PronunciationBattleChallenge("pb_2", "Peter Piper picked a peck of pickled peppers", "Crisp explosive /p/ consonant rhythm", "Hard", 85, "System"),
-            PronunciationBattleChallenge("pb_3", "Thoughtful philosophers thoroughly examine their theories", "Voiced and voiceless 'th' phonemes", "Hard", 85, "Prof. Eleanor Vance"),
-            PronunciationBattleChallenge("pb_4", "She sells seashells by the shimmering seashore", "Sibilants /s/ vs /ʃ/ distinction", "Medium", 80, "System"),
-            PronunciationBattleChallenge("pb_5", "World development requires extraordinary perseverance", "Liquid 'r' and 'l' consonant blends", "Hard", 85, "Dean Arthur Pendelton")
-        )
+    private val defaultPronunciationBattleChallenges = listOf(
+        PronunciationBattleChallenge("pb_1", "The courageous astronaut explored uncharted territory", "Consonant clusters 'str', 'ch', 'pl'", "Medium", 80, "System"),
+        PronunciationBattleChallenge("pb_2", "Peter Piper picked a peck of pickled peppers", "Crisp explosive /p/ consonant rhythm", "Hard", 85, "System"),
+        PronunciationBattleChallenge("pb_3", "Thoughtful philosophers thoroughly examine their theories", "Voiced and voiceless 'th' phonemes", "Hard", 85, "Prof. Eleanor Vance"),
+        PronunciationBattleChallenge("pb_4", "She sells seashells by the shimmering seashore", "Sibilants /s/ vs /ʃ/ distinction", "Medium", 80, "System"),
+        PronunciationBattleChallenge("pb_5", "World development requires extraordinary perseverance", "Liquid 'r' and 'l' consonant blends", "Hard", 85, "Dean Arthur Pendelton")
     )
+
+    private fun loadInitialPronunciationBattles(): List<PronunciationBattleChallenge> {
+        val saved = appPreferences?.getPronunciationBattleChallenges()
+        if (!saved.isNullOrEmpty()) {
+            val savedIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultPronunciationBattleChallenges.filter { it.id !in savedIds }
+            return saved + missingDefaults
+        }
+        appPreferences?.savePronunciationBattleChallenges(defaultPronunciationBattleChallenges)
+        return defaultPronunciationBattleChallenges
+    }
+
+    private val _pronunciationBattleChallenges = MutableStateFlow(loadInitialPronunciationBattles())
     val pronunciationBattleChallenges: StateFlow<List<PronunciationBattleChallenge>> = _pronunciationBattleChallenges.asStateFlow()
 
-    private val _fastVocabularyChallenges = MutableStateFlow(
-        listOf(
-            FastVocabularyChallenge("fv_1", "Articulate", "Choose the closest synonym for 'Articulate':", listOf("Expressive & clear", "Confused & hesitant", "Quiet & shy", "Angry & rude"), 0, "System"),
-            FastVocabularyChallenge("fv_2", "Eloquent", "What does 'Eloquent' describe?", listOf("Persuasive & graceful speaking", "Very fast running", "Complicated math", "Ancient architecture"), 0, "System"),
-            FastVocabularyChallenge("fv_3", "Pragmatic", "A 'Pragmatic' solution is one that is:", listOf("Practical & realistic", "Expensive & luxurious", "Theoretical & untested", "Careless & hurried"), 0, "Prof. Eleanor Vance"),
-            FastVocabularyChallenge("fv_4", "Resilience", "What is the best definition of 'Resilience'?", listOf("Bouncing back from hardship", "Forgetting the past", "Giving up easily", "Avoiding all conflict"), 0, "System"),
-            FastVocabularyChallenge("fv_5", "Collaborate", "When two people 'Collaborate', they:", listOf("Work jointly on a task", "Argue loudly", "Compete against each other", "Work completely alone"), 0, "Dean Arthur Pendelton")
-        )
+    private val defaultFastVocabularyChallenges = listOf(
+        FastVocabularyChallenge("fv_1", "Articulate", "Choose the closest synonym for 'Articulate':", listOf("Expressive & clear", "Confused & hesitant", "Quiet & shy", "Angry & rude"), 0, "System"),
+        FastVocabularyChallenge("fv_2", "Eloquent", "What does 'Eloquent' describe?", listOf("Persuasive & graceful speaking", "Very fast running", "Complicated math", "Ancient architecture"), 0, "System"),
+        FastVocabularyChallenge("fv_3", "Pragmatic", "A 'Pragmatic' solution is one that is:", listOf("Practical & realistic", "Expensive & luxurious", "Theoretical & untested", "Careless & hurried"), 0, "Prof. Eleanor Vance"),
+        FastVocabularyChallenge("fv_4", "Resilience", "What is the best definition of 'Resilience'?", listOf("Bouncing back from hardship", "Forgetting the past", "Giving up easily", "Avoiding all conflict"), 0, "System"),
+        FastVocabularyChallenge("fv_5", "Collaborate", "When two people 'Collaborate', they:", listOf("Work jointly on a task", "Argue loudly", "Compete against each other", "Work completely alone"), 0, "Dean Arthur Pendelton")
     )
+
+    private fun loadInitialFastVocabulary(): List<FastVocabularyChallenge> {
+        val saved = appPreferences?.getFastVocabularyChallenges()
+        if (!saved.isNullOrEmpty()) {
+            val savedIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultFastVocabularyChallenges.filter { it.id !in savedIds }
+            return saved + missingDefaults
+        }
+        appPreferences?.saveFastVocabularyChallenges(defaultFastVocabularyChallenges)
+        return defaultFastVocabularyChallenges
+    }
+
+    private val _fastVocabularyChallenges = MutableStateFlow(loadInitialFastVocabulary())
     val fastVocabularyChallenges: StateFlow<List<FastVocabularyChallenge>> = _fastVocabularyChallenges.asStateFlow()
 
-    private val _grammarChallenges = MutableStateFlow(
-        listOf(
-            GrammarChallengeQuestion(
-                id = "gc_1",
-                question = "If I ___ more time, I would practice conversational English every evening.",
-                options = listOf("have", "had", "will have", "would have"),
-                correctIndex = 1,
-                explanation = "Second conditional uses past simple ('had') in the 'if' clause for hypothetical situations.",
-                category = "Conditionals",
-                createdBy = "System"
-            ),
-            GrammarChallengeQuestion(
-                id = "gc_2",
-                question = "She has been living in London ___ over three years.",
-                options = listOf("since", "for", "during", "in"),
-                correctIndex = 1,
-                explanation = "Use 'for' to express a duration of time ('over three years').",
-                category = "Prepositions",
-                createdBy = "System"
-            ),
-            GrammarChallengeQuestion(
-                id = "gc_3",
-                question = "Listen! The professor ___ the key grammar points on the board.",
-                options = listOf("explains", "is explaining", "explained", "has explained"),
-                correctIndex = 1,
-                explanation = "Present continuous is used for actions taking place right at this moment ('Listen!').",
-                category = "Tenses",
-                createdBy = "Prof. Eleanor Vance"
-            ),
-            GrammarChallengeQuestion(
-                id = "gc_4",
-                question = "Neither the teacher nor the students ___ present at yesterday's rehearsal.",
-                options = listOf("was", "were", "is", "are"),
-                correctIndex = 1,
-                explanation = "With 'neither... nor', the verb agrees with the closer subject ('the students' -> 'were').",
-                category = "Subject-Verb Agreement",
-                createdBy = "Dean Arthur Pendelton"
-            )
+    private val defaultGrammarChallenges = listOf(
+        GrammarChallengeQuestion(
+            id = "gc_1",
+            question = "If I ___ more time, I would practice conversational English every evening.",
+            options = listOf("have", "had", "will have", "would have"),
+            correctIndex = 1,
+            explanation = "Second conditional uses past simple ('had') in the 'if' clause for hypothetical situations.",
+            category = "Conditionals",
+            createdBy = "System"
+        ),
+        GrammarChallengeQuestion(
+            id = "gc_2",
+            question = "She has been living in London ___ over three years.",
+            options = listOf("since", "for", "during", "in"),
+            correctIndex = 1,
+            explanation = "Use 'for' to express a duration of time ('over three years').",
+            category = "Prepositions",
+            createdBy = "System"
+        ),
+        GrammarChallengeQuestion(
+            id = "gc_3",
+            question = "Listen! The professor ___ the key grammar points on the board.",
+            options = listOf("explains", "is explaining", "explained", "has explained"),
+            correctIndex = 1,
+            explanation = "Present continuous is used for actions taking place right at this moment ('Listen!').",
+            category = "Tenses",
+            createdBy = "Prof. Eleanor Vance"
+        ),
+        GrammarChallengeQuestion(
+            id = "gc_4",
+            question = "Neither the teacher nor the students ___ present at yesterday's rehearsal.",
+            options = listOf("was", "were", "is", "are"),
+            correctIndex = 1,
+            explanation = "With 'neither... nor', the verb agrees with the closer subject ('the students' -> 'were').",
+            category = "Subject-Verb Agreement",
+            createdBy = "Dean Arthur Pendelton"
         )
     )
+
+    private fun loadInitialGrammarChallenges(): List<GrammarChallengeQuestion> {
+        val saved = appPreferences?.getGrammarChallenges()
+        if (!saved.isNullOrEmpty()) {
+            val savedIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultGrammarChallenges.filter { it.id !in savedIds }
+            return saved + missingDefaults
+        }
+        appPreferences?.saveGrammarChallenges(defaultGrammarChallenges)
+        return defaultGrammarChallenges
+    }
+
+    private val _grammarChallenges = MutableStateFlow(loadInitialGrammarChallenges())
     val grammarChallenges: StateFlow<List<GrammarChallengeQuestion>> = _grammarChallenges.asStateFlow()
 
     init {
@@ -2244,11 +2299,12 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     }
 
     // --- GAME ADDITION & MANAGEMENT METHODS ---
-    fun addWordMatchChallenge(word: String, definition: String, category: String = "General", createdBy: String) {
+    fun addWordMatchChallenge(word: String, definition: String, category: String = "General", createdBy: String): WordMatchChallenge {
         val id = "wm_${System.currentTimeMillis()}"
         val item = WordMatchChallenge(id, word.trim(), definition.trim(), category.trim(), createdBy)
         _wordMatchChallenges.update { it + item }
         appPreferences?.saveWordMatchChallenges(_wordMatchChallenges.value)
+        return item
     }
 
     fun deleteWordMatchChallenge(id: String) {
@@ -2268,7 +2324,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         hint: String,
         category: String = "General",
         createdBy: String
-    ) {
+    ): MissingLettersChallenge {
         val id = "ml_${System.currentTimeMillis()}"
         val cleaned = fullWord.trim().uppercase()
         // Automatically choose 2-3 vowel or interior indices to mask if length permits
@@ -2284,6 +2340,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         val item = MissingLettersChallenge(id, cleaned, hint.trim(), indices, targetCat, createdBy)
         _missingLettersChallenges.update { it + item }
         appPreferences?.saveMissingLettersChallenges(_missingLettersChallenges.value)
+        return item
     }
 
     fun bulkImportMissingLetters(
@@ -2333,84 +2390,104 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         appPreferences?.saveMissingLettersChallenges(_missingLettersChallenges.value)
     }
 
-    fun addSentenceBuilderChallenge(targetSentence: String, hint: String = "Assemble syntax", assameseTranslation: String = "", createdBy: String) {
+    fun addSentenceBuilderChallenge(targetSentence: String, hint: String = "Assemble syntax", assameseTranslation: String = "", createdBy: String): SentenceBuilderChallenge {
         val id = "sb_${System.currentTimeMillis()}"
         val item = SentenceBuilderChallenge(id, targetSentence.trim(), hint.trim(), assameseTranslation.trim(), createdBy)
         _sentenceBuilderChallenges.update { it + item }
+        appPreferences?.saveSentenceBuilderChallenges(_sentenceBuilderChallenges.value)
+        return item
     }
 
     fun deleteSentenceBuilderChallenge(id: String) {
         _sentenceBuilderChallenges.update { it.filterNot { item -> item.id == id } }
+        appPreferences?.saveSentenceBuilderChallenges(_sentenceBuilderChallenges.value)
     }
 
     fun updateSentenceBuilderChallenge(updated: SentenceBuilderChallenge) {
         _sentenceBuilderChallenges.update { list ->
             list.map { if (it.id == updated.id) updated else it }
         }
+        appPreferences?.saveSentenceBuilderChallenges(_sentenceBuilderChallenges.value)
     }
 
-    fun addListenChooseChallenge(audioScript: String, question: String, options: List<String>, correctIndex: Int, createdBy: String) {
+    fun addListenChooseChallenge(audioScript: String, question: String, options: List<String>, correctIndex: Int, createdBy: String): ListenChooseChallenge {
         val id = "lc_${System.currentTimeMillis()}"
         val item = ListenChooseChallenge(id, audioScript.trim(), question.trim(), options.map { it.trim() }, correctIndex, createdBy)
         _listenChooseChallenges.update { it + item }
+        appPreferences?.saveListenChooseChallenges(_listenChooseChallenges.value)
+        return item
     }
 
     fun deleteListenChooseChallenge(id: String) {
         _listenChooseChallenges.update { it.filterNot { item -> item.id == id } }
+        appPreferences?.saveListenChooseChallenges(_listenChooseChallenges.value)
     }
 
     fun updateListenChooseChallenge(updated: ListenChooseChallenge) {
         _listenChooseChallenges.update { list ->
             list.map { if (it.id == updated.id) updated else it }
         }
+        appPreferences?.saveListenChooseChallenges(_listenChooseChallenges.value)
     }
 
-    fun addPronunciationBattleChallenge(sentence: String, phonemeFocus: String, difficulty: String = "Medium", passingScore: Int = 80, createdBy: String) {
+    fun addPronunciationBattleChallenge(sentence: String, phonemeFocus: String, difficulty: String = "Medium", passingScore: Int = 80, createdBy: String): PronunciationBattleChallenge {
         val id = "pb_${System.currentTimeMillis()}"
         val item = PronunciationBattleChallenge(id, sentence.trim(), phonemeFocus.trim(), difficulty, passingScore, createdBy)
         _pronunciationBattleChallenges.update { it + item }
+        appPreferences?.savePronunciationBattleChallenges(_pronunciationBattleChallenges.value)
+        return item
     }
 
     fun deletePronunciationBattleChallenge(id: String) {
         _pronunciationBattleChallenges.update { it.filterNot { item -> item.id == id } }
+        appPreferences?.savePronunciationBattleChallenges(_pronunciationBattleChallenges.value)
     }
 
     fun updatePronunciationBattleChallenge(updated: PronunciationBattleChallenge) {
         _pronunciationBattleChallenges.update { list ->
             list.map { if (it.id == updated.id) updated else it }
         }
+        appPreferences?.savePronunciationBattleChallenges(_pronunciationBattleChallenges.value)
     }
 
-    fun addFastVocabularyChallenge(word: String, prompt: String, options: List<String>, correctIndex: Int, createdBy: String) {
+    fun addFastVocabularyChallenge(word: String, prompt: String, options: List<String>, correctIndex: Int, createdBy: String): FastVocabularyChallenge {
         val id = "fv_${System.currentTimeMillis()}"
         val item = FastVocabularyChallenge(id, word.trim(), prompt.trim(), options.map { it.trim() }, correctIndex, createdBy)
         _fastVocabularyChallenges.update { it + item }
+        appPreferences?.saveFastVocabularyChallenges(_fastVocabularyChallenges.value)
+        return item
     }
 
     fun deleteFastVocabularyChallenge(id: String) {
         _fastVocabularyChallenges.update { it.filterNot { item -> item.id == id } }
+        appPreferences?.saveFastVocabularyChallenges(_fastVocabularyChallenges.value)
     }
 
     fun updateFastVocabularyChallenge(updated: FastVocabularyChallenge) {
         _fastVocabularyChallenges.update { list ->
             list.map { if (it.id == updated.id) updated else it }
         }
+        appPreferences?.saveFastVocabularyChallenges(_fastVocabularyChallenges.value)
     }
 
-    fun addGrammarChallenge(question: String, options: List<String>, correctIndex: Int, explanation: String, category: String = "Grammar", createdBy: String) {
+    fun addGrammarChallenge(question: String, options: List<String>, correctIndex: Int, explanation: String, category: String = "Grammar", createdBy: String): GrammarChallengeQuestion {
         val id = "gc_${System.currentTimeMillis()}"
         val item = GrammarChallengeQuestion(id, question.trim(), options.map { it.trim() }, correctIndex, explanation.trim(), category.trim(), createdBy)
         _grammarChallenges.update { it + item }
+        appPreferences?.saveGrammarChallenges(_grammarChallenges.value)
+        return item
     }
 
     fun deleteGrammarChallenge(id: String) {
         _grammarChallenges.update { it.filterNot { item -> item.id == id } }
+        appPreferences?.saveGrammarChallenges(_grammarChallenges.value)
     }
 
     fun updateGrammarChallenge(updated: GrammarChallengeQuestion) {
         _grammarChallenges.update { list ->
             list.map { if (it.id == updated.id) updated else it }
         }
+        appPreferences?.saveGrammarChallenges(_grammarChallenges.value)
     }
 
     // Admin: Add Teacher with Security PIN
@@ -2725,6 +2802,179 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (changed) {
             _assignments.value = current
             appPreferences?.saveAssignments(current)
+        }
+    }
+
+    fun mergeRemoteGameChallenges(remoteChallenges: List<SupabaseGameChallenge>) {
+        if (remoteChallenges.isEmpty()) return
+        var sbChanged = false
+        var wmChanged = false
+        var mlChanged = false
+        var lcChanged = false
+        var pbChanged = false
+        var fvChanged = false
+        var gcChanged = false
+
+        val currentSb = _sentenceBuilderChallenges.value.toMutableList()
+        val currentWm = _wordMatchChallenges.value.toMutableList()
+        val currentMl = _missingLettersChallenges.value.toMutableList()
+        val currentLc = _listenChooseChallenges.value.toMutableList()
+        val currentPb = _pronunciationBattleChallenges.value.toMutableList()
+        val currentFv = _fastVocabularyChallenges.value.toMutableList()
+        val currentGc = _grammarChallenges.value.toMutableList()
+
+        for (rc in remoteChallenges) {
+            when (rc.type.uppercase()) {
+                "SENTENCE_BUILDER" -> {
+                    val idx = currentSb.indexOfFirst { it.id == rc.id }
+                    val item = SentenceBuilderChallenge(
+                        id = rc.id,
+                        targetSentence = rc.titleOrWord,
+                        hint = rc.hintOrMeaning.ifBlank { "Form a grammatically correct sentence" },
+                        assameseTranslation = rc.extraData,
+                        createdBy = rc.createdBy
+                    )
+                    if (idx >= 0) {
+                        currentSb[idx] = item
+                    } else {
+                        currentSb.add(item)
+                    }
+                    sbChanged = true
+                }
+                "WORD_MATCH" -> {
+                    val idx = currentWm.indexOfFirst { it.id == rc.id }
+                    val item = WordMatchChallenge(
+                        id = rc.id,
+                        word = rc.titleOrWord,
+                        definition = rc.hintOrMeaning,
+                        category = rc.category,
+                        createdBy = rc.createdBy
+                    )
+                    if (idx >= 0) {
+                        currentWm[idx] = item
+                    } else {
+                        currentWm.add(item)
+                    }
+                    wmChanged = true
+                }
+                "MISSING_LETTERS" -> {
+                    val idx = currentMl.indexOfFirst { it.id == rc.id }
+                    val indices = rc.extraData.split(",").mapNotNull { it.trim().toIntOrNull() }.ifEmpty { listOf(1) }
+                    val item = MissingLettersChallenge(
+                        id = rc.id,
+                        fullWord = rc.titleOrWord,
+                        hint = rc.hintOrMeaning,
+                        missingIndices = indices,
+                        category = rc.category,
+                        createdBy = rc.createdBy
+                    )
+                    if (idx >= 0) {
+                        currentMl[idx] = item
+                    } else {
+                        currentMl.add(item)
+                    }
+                    mlChanged = true
+                }
+                "LISTEN_CHOOSE" -> {
+                    val idx = currentLc.indexOfFirst { it.id == rc.id }
+                    val item = ListenChooseChallenge(
+                        id = rc.id,
+                        audioScript = rc.titleOrWord,
+                        question = rc.hintOrMeaning,
+                        options = rc.options,
+                        correctIndex = rc.correctIndex,
+                        createdBy = rc.createdBy
+                    )
+                    if (idx >= 0) {
+                        currentLc[idx] = item
+                    } else {
+                        currentLc.add(item)
+                    }
+                    lcChanged = true
+                }
+                "PRONUNCIATION_BATTLE" -> {
+                    val idx = currentPb.indexOfFirst { it.id == rc.id }
+                    val passingScore = rc.extraData.toIntOrNull() ?: 80
+                    val item = PronunciationBattleChallenge(
+                        id = rc.id,
+                        challengeSentence = rc.titleOrWord,
+                        targetPhonemeFocus = rc.hintOrMeaning,
+                        difficulty = rc.category.ifBlank { "Medium" },
+                        passingScore = passingScore,
+                        createdBy = rc.createdBy
+                    )
+                    if (idx >= 0) {
+                        currentPb[idx] = item
+                    } else {
+                        currentPb.add(item)
+                    }
+                    pbChanged = true
+                }
+                "FAST_VOCABULARY" -> {
+                    val idx = currentFv.indexOfFirst { it.id == rc.id }
+                    val item = FastVocabularyChallenge(
+                        id = rc.id,
+                        word = rc.titleOrWord,
+                        prompt = rc.hintOrMeaning,
+                        options = rc.options,
+                        correctIndex = rc.correctIndex,
+                        createdBy = rc.createdBy
+                    )
+                    if (idx >= 0) {
+                        currentFv[idx] = item
+                    } else {
+                        currentFv.add(item)
+                    }
+                    fvChanged = true
+                }
+                "GRAMMAR_CHALLENGE" -> {
+                    val idx = currentGc.indexOfFirst { it.id == rc.id }
+                    val item = GrammarChallengeQuestion(
+                        id = rc.id,
+                        question = rc.titleOrWord,
+                        options = rc.options,
+                        correctIndex = rc.correctIndex,
+                        explanation = rc.hintOrMeaning,
+                        category = rc.category.ifBlank { "Grammar" },
+                        createdBy = rc.createdBy
+                    )
+                    if (idx >= 0) {
+                        currentGc[idx] = item
+                    } else {
+                        currentGc.add(item)
+                    }
+                    gcChanged = true
+                }
+            }
+        }
+
+        if (sbChanged) {
+            _sentenceBuilderChallenges.value = currentSb
+            appPreferences?.saveSentenceBuilderChallenges(currentSb)
+        }
+        if (wmChanged) {
+            _wordMatchChallenges.value = currentWm
+            appPreferences?.saveWordMatchChallenges(currentWm)
+        }
+        if (mlChanged) {
+            _missingLettersChallenges.value = currentMl
+            appPreferences?.saveMissingLettersChallenges(currentMl)
+        }
+        if (lcChanged) {
+            _listenChooseChallenges.value = currentLc
+            appPreferences?.saveListenChooseChallenges(currentLc)
+        }
+        if (pbChanged) {
+            _pronunciationBattleChallenges.value = currentPb
+            appPreferences?.savePronunciationBattleChallenges(currentPb)
+        }
+        if (fvChanged) {
+            _fastVocabularyChallenges.value = currentFv
+            appPreferences?.saveFastVocabularyChallenges(currentFv)
+        }
+        if (gcChanged) {
+            _grammarChallenges.value = currentGc
+            appPreferences?.saveGrammarChallenges(currentGc)
         }
     }
 

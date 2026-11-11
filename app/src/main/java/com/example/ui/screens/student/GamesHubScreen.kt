@@ -62,6 +62,18 @@ fun GamesHubScreen(
 ) {
     val activeGame by viewModel.activeGame.collectAsState()
 
+    LaunchedEffect(Unit) {
+        viewModel.refreshGameChallengesFromCloud()
+    }
+
+    val sentenceBuilders by viewModel.sentenceBuilderChallenges.collectAsState()
+    val wordMatches by viewModel.wordMatchChallenges.collectAsState()
+    val missingLetters by viewModel.missingLettersChallenges.collectAsState()
+    val listenChooses by viewModel.listenChooseChallenges.collectAsState()
+    val pronunciationBattles by viewModel.pronunciationBattleChallenges.collectAsState()
+    val fastVocabs by viewModel.fastVocabularyChallenges.collectAsState()
+    val grammarQuestions by viewModel.grammarChallenges.collectAsState()
+
     if (activeGame != null) {
         ActiveGameRunner(
             gameType = activeGame!!,
@@ -104,8 +116,19 @@ fun GamesHubScreen(
 
                 // 2. The 8 Arcade Game Cards matching screenshot in exact order
                 items(arcadeGameCatalog) { config ->
+                    val count = when (config.gameType) {
+                        ActiveGameType.WORD_MATCH -> wordMatches.size
+                        ActiveGameType.MISSING_LETTERS -> missingLetters.size
+                        ActiveGameType.SENTENCE_BUILDER -> sentenceBuilders.size
+                        ActiveGameType.LISTEN_CHOOSE -> listenChooses.size
+                        ActiveGameType.PRONUNCIATION_BATTLE -> pronunciationBattles.size
+                        ActiveGameType.FAST_VOCABULARY -> fastVocabs.size
+                        ActiveGameType.GRAMMAR_CHALLENGE -> grammarQuestions.size
+                        else -> null
+                    }
                     ArcadeGameCard(
                         config = config,
+                        challengeCount = count,
                         onClick = { viewModel.launchGame(config.gameType) }
                     )
                 }
@@ -465,6 +488,7 @@ val arcadeGameCatalog = listOf(
 @Composable
 fun ArcadeGameCard(
     config: ArcadeGameCardConfig,
+    challengeCount: Int? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -593,12 +617,30 @@ fun ArcadeGameCard(
                     )
                 }
 
-                // Bottom Row: Right-aligned circular action button
+                // Bottom Row: Drill count indicator & circular action button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (challengeCount != null) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color.Black.copy(alpha = 0.45f),
+                            border = BorderStroke(0.8.dp, config.borderColor.copy(alpha = 0.6f))
+                        ) {
+                            Text(
+                                text = "🎮 $challengeCount Drills",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                            )
+                        }
+                    } else {
+                        Spacer(Modifier.width(1.dp))
+                    }
+
                     Surface(
                         shape = CircleShape,
                         color = config.accentColor,
@@ -1600,7 +1642,26 @@ private data class SentenceWordChip(val id: Int, val text: String)
 fun SentenceBuilderGame(viewModel: MainViewModel) {
     val challenges by viewModel.sentenceBuilderChallenges.collectAsState()
     var challengeIndex by remember { mutableIntStateOf(0) }
-    val current = challenges.getOrNull(challengeIndex) ?: return
+    val safeIndex = if (challenges.isNotEmpty()) (challengeIndex % challenges.size).coerceAtLeast(0) else 0
+    val current = challenges.getOrNull(safeIndex)
+
+    if (current == null) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("📝 No Sentence Challenges Available", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Faculty instructors haven't published Sentence Builder challenges yet. Check back soon!", fontSize = 12.sp, color = MutedGray, textAlign = TextAlign.Center)
+            }
+        }
+        return
+    }
 
     // Tokenize target sentence with unique IDs to handle duplicate words cleanly
     val initialTokens = remember(current.id) {
@@ -1634,12 +1695,22 @@ fun SentenceBuilderGame(viewModel: MainViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Assemble Sentence Syntax:", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text(
-                    "Challenge ${challengeIndex + 1}/${challenges.size}",
-                    fontSize = 12.sp,
-                    color = RoyalBlue,
-                    fontWeight = FontWeight.Bold
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        "Challenge ${safeIndex + 1}/${challenges.size}",
+                        fontSize = 12.sp,
+                        color = RoyalBlue,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (current.createdBy.isNotBlank() && current.createdBy != "System") {
+                        Text(
+                            "By ${current.createdBy}",
+                            fontSize = 10.sp,
+                            color = CoralAccent,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
             }
 
             // Hint Box
@@ -1893,7 +1964,7 @@ fun SentenceBuilderGame(viewModel: MainViewModel) {
 
                 Button(
                     onClick = {
-                        challengeIndex = (challengeIndex + 1) % challenges.size
+                        challengeIndex = (safeIndex + 1) % challenges.size
                         selectedChips = emptyList()
                         isCorrect = null
                         hasAwarded = false

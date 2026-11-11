@@ -407,3 +407,15 @@ data class GrammarChallengeQuestion(
     val createdBy: String = "System"
 )
 
+data class SupabaseGameChallenge(
+    val id: String,
+    val type: String,
+    val titleOrWord: String,
+    val hintOrMeaning: String = "",
+    val category: String = "General",
+    val options: List<String> = emptyList(),
+    val correctIndex: Int = 0,
+    val extraData: String = "",
+    val createdBy: String = "Faculty"
+)
+

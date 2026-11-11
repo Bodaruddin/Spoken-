@@ -127,7 +127,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     repository.mergeRemoteVocabulary(remoteVocab)
                 }
             }
+            val remoteChallenges = supabaseService.fetchGameChallenges()
+            if (remoteChallenges.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    repository.mergeRemoteGameChallenges(remoteChallenges)
+                }
+            }
         } catch (_: Exception) { }
+    }
+
+    fun refreshGameChallengesFromCloud() {
+        if (!supabaseService.isConfigured()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val remoteChallenges = supabaseService.fetchGameChallenges()
+                if (remoteChallenges.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        repository.mergeRemoteGameChallenges(remoteChallenges)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     private val _showSupabaseModal = MutableStateFlow(false)
@@ -315,17 +335,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Game Management helpers
     fun addWordMatchChallenge(word: String, definition: String, category: String, createdBy: String) {
-        repository.addWordMatchChallenge(word, definition, category, createdBy)
+        val created = repository.addWordMatchChallenge(word, definition, category, createdBy)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = created.id,
+                    type = "WORD_MATCH",
+                    titleOrWord = created.word,
+                    hintOrMeaning = created.definition,
+                    category = created.category,
+                    createdBy = created.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun deleteWordMatchChallenge(id: String) {
         repository.deleteWordMatchChallenge(id)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteGameChallenge(id)
+            }
+        }
     }
 
     fun addMissingLettersChallenge(fullWord: String, hint: String, category: String = "General", createdBy: String) {
-        repository.addMissingLettersChallenge(fullWord, hint, category, createdBy)
+        val created = repository.addMissingLettersChallenge(fullWord, hint, category, createdBy)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = created.id,
+                    type = "MISSING_LETTERS",
+                    titleOrWord = created.fullWord,
+                    hintOrMeaning = created.hint,
+                    category = created.category,
+                    extraData = created.missingIndices.joinToString(","),
+                    createdBy = created.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun deleteMissingLettersChallenge(id: String) {
         repository.deleteMissingLettersChallenge(id)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteGameChallenge(id)
+            }
+        }
     }
     fun addMissingLettersCategory(category: String): Boolean {
         return repository.addMissingLettersCategory(category)
@@ -337,64 +394,277 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         rows: List<Triple<String, String, String>>,
         createdBy: String
     ): Int {
-        return repository.bulkImportMissingLetters(rows, createdBy)
+        val count = repository.bulkImportMissingLetters(rows, createdBy)
+        if (count > 0 && supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val currentChallenges = repository.missingLettersChallenges.value
+                val recent = currentChallenges.takeLast(count)
+                recent.forEach { c ->
+                    val sc = com.example.data.model.SupabaseGameChallenge(
+                        id = c.id,
+                        type = "MISSING_LETTERS",
+                        titleOrWord = c.fullWord,
+                        hintOrMeaning = c.hint,
+                        category = c.category,
+                        extraData = c.missingIndices.joinToString(","),
+                        createdBy = c.createdBy
+                    )
+                    supabaseService.saveGameChallenge(sc)
+                }
+            }
+        }
+        return count
     }
 
     fun addSentenceBuilderChallenge(targetSentence: String, hint: String, assameseTranslation: String = "", createdBy: String) {
-        repository.addSentenceBuilderChallenge(targetSentence, hint, assameseTranslation, createdBy)
+        val created = repository.addSentenceBuilderChallenge(targetSentence, hint, assameseTranslation, createdBy)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = created.id,
+                    type = "SENTENCE_BUILDER",
+                    titleOrWord = created.targetSentence,
+                    hintOrMeaning = created.hint,
+                    category = "Syntax",
+                    extraData = created.assameseTranslation,
+                    createdBy = created.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun deleteSentenceBuilderChallenge(id: String) {
         repository.deleteSentenceBuilderChallenge(id)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteGameChallenge(id)
+            }
+        }
     }
 
     fun addListenChooseChallenge(audioScript: String, question: String, options: List<String>, correctIndex: Int, createdBy: String) {
-        repository.addListenChooseChallenge(audioScript, question, options, correctIndex, createdBy)
+        val created = repository.addListenChooseChallenge(audioScript, question, options, correctIndex, createdBy)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = created.id,
+                    type = "LISTEN_CHOOSE",
+                    titleOrWord = created.audioScript,
+                    hintOrMeaning = created.question,
+                    options = created.options,
+                    correctIndex = created.correctIndex,
+                    createdBy = created.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun deleteListenChooseChallenge(id: String) {
         repository.deleteListenChooseChallenge(id)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteGameChallenge(id)
+            }
+        }
     }
 
     fun addPronunciationBattleChallenge(sentence: String, phonemeFocus: String, difficulty: String, passingScore: Int, createdBy: String) {
-        repository.addPronunciationBattleChallenge(sentence, phonemeFocus, difficulty, passingScore, createdBy)
+        val created = repository.addPronunciationBattleChallenge(sentence, phonemeFocus, difficulty, passingScore, createdBy)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = created.id,
+                    type = "PRONUNCIATION_BATTLE",
+                    titleOrWord = created.challengeSentence,
+                    hintOrMeaning = created.targetPhonemeFocus,
+                    category = created.difficulty,
+                    extraData = created.passingScore.toString(),
+                    createdBy = created.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun deletePronunciationBattleChallenge(id: String) {
         repository.deletePronunciationBattleChallenge(id)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteGameChallenge(id)
+            }
+        }
     }
 
     fun addFastVocabularyChallenge(word: String, prompt: String, options: List<String>, correctIndex: Int, createdBy: String) {
-        repository.addFastVocabularyChallenge(word, prompt, options, correctIndex, createdBy)
+        val created = repository.addFastVocabularyChallenge(word, prompt, options, correctIndex, createdBy)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = created.id,
+                    type = "FAST_VOCABULARY",
+                    titleOrWord = created.word,
+                    hintOrMeaning = created.prompt,
+                    options = created.options,
+                    correctIndex = created.correctIndex,
+                    createdBy = created.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun deleteFastVocabularyChallenge(id: String) {
         repository.deleteFastVocabularyChallenge(id)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteGameChallenge(id)
+            }
+        }
     }
 
     fun addGrammarChallenge(question: String, options: List<String>, correctIndex: Int, explanation: String, category: String, createdBy: String) {
-        repository.addGrammarChallenge(question, options, correctIndex, explanation, category, createdBy)
+        val created = repository.addGrammarChallenge(question, options, correctIndex, explanation, category, createdBy)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = created.id,
+                    type = "GRAMMAR_CHALLENGE",
+                    titleOrWord = created.question,
+                    hintOrMeaning = created.explanation,
+                    category = created.category,
+                    options = created.options,
+                    correctIndex = created.correctIndex,
+                    createdBy = created.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun deleteGrammarChallenge(id: String) {
         repository.deleteGrammarChallenge(id)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteGameChallenge(id)
+            }
+        }
     }
 
     fun updateWordMatchChallenge(updated: WordMatchChallenge) {
         repository.updateWordMatchChallenge(updated)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = updated.id,
+                    type = "WORD_MATCH",
+                    titleOrWord = updated.word,
+                    hintOrMeaning = updated.definition,
+                    category = updated.category,
+                    createdBy = updated.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun updateMissingLettersChallenge(updated: MissingLettersChallenge) {
         repository.updateMissingLettersChallenge(updated)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = updated.id,
+                    type = "MISSING_LETTERS",
+                    titleOrWord = updated.fullWord,
+                    hintOrMeaning = updated.hint,
+                    category = updated.category,
+                    extraData = updated.missingIndices.joinToString(","),
+                    createdBy = updated.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun updateSentenceBuilderChallenge(updated: SentenceBuilderChallenge) {
         repository.updateSentenceBuilderChallenge(updated)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = updated.id,
+                    type = "SENTENCE_BUILDER",
+                    titleOrWord = updated.targetSentence,
+                    hintOrMeaning = updated.hint,
+                    category = "Syntax",
+                    extraData = updated.assameseTranslation,
+                    createdBy = updated.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun updateListenChooseChallenge(updated: ListenChooseChallenge) {
         repository.updateListenChooseChallenge(updated)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = updated.id,
+                    type = "LISTEN_CHOOSE",
+                    titleOrWord = updated.audioScript,
+                    hintOrMeaning = updated.question,
+                    options = updated.options,
+                    correctIndex = updated.correctIndex,
+                    createdBy = updated.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun updatePronunciationBattleChallenge(updated: PronunciationBattleChallenge) {
         repository.updatePronunciationBattleChallenge(updated)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = updated.id,
+                    type = "PRONUNCIATION_BATTLE",
+                    titleOrWord = updated.challengeSentence,
+                    hintOrMeaning = updated.targetPhonemeFocus,
+                    category = updated.difficulty,
+                    extraData = updated.passingScore.toString(),
+                    createdBy = updated.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun updateFastVocabularyChallenge(updated: FastVocabularyChallenge) {
         repository.updateFastVocabularyChallenge(updated)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = updated.id,
+                    type = "FAST_VOCABULARY",
+                    titleOrWord = updated.word,
+                    hintOrMeaning = updated.prompt,
+                    options = updated.options,
+                    correctIndex = updated.correctIndex,
+                    createdBy = updated.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
     fun updateGrammarChallenge(updated: GrammarChallengeQuestion) {
         repository.updateGrammarChallenge(updated)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = updated.id,
+                    type = "GRAMMAR_CHALLENGE",
+                    titleOrWord = updated.question,
+                    hintOrMeaning = updated.explanation,
+                    category = updated.category,
+                    options = updated.options,
+                    correctIndex = updated.correctIndex,
+                    createdBy = updated.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
     }
 
     // Navigation States

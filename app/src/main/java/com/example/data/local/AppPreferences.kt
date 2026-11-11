@@ -45,6 +45,8 @@ class AppPreferences(context: Context) {
         private const val KEY_SENTENCE_BUILDER_LIST = "key_sentence_builder_list"
         private const val KEY_LISTEN_CHOOSE_LIST = "key_listen_choose_list"
         private const val KEY_PRONUNCIATION_BATTLE_LIST = "key_pronunciation_battle_list"
+        private const val KEY_FAST_VOCABULARY_LIST = "key_fast_vocabulary_list"
+        private const val KEY_GRAMMAR_CHALLENGE_LIST = "key_grammar_challenge_list"
         private const val KEY_VOCABULARY_WORDS_LIST = "key_vocabulary_words_list"
     }
 
@@ -449,6 +451,232 @@ class AppPreferences(context: Context) {
                         word = obj.optString("word", ""),
                         definition = obj.optString("definition", ""),
                         category = obj.optString("category", "General"),
+                        createdBy = obj.optString("createdBy", "System")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveSentenceBuilderChallenges(challenges: List<SentenceBuilderChallenge>) {
+        try {
+            val array = JSONArray()
+            for (c in challenges) {
+                val obj = JSONObject()
+                obj.put("id", c.id)
+                obj.put("targetSentence", c.targetSentence)
+                obj.put("hint", c.hint)
+                obj.put("assameseTranslation", c.assameseTranslation)
+                obj.put("createdBy", c.createdBy)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_SENTENCE_BUILDER_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getSentenceBuilderChallenges(): List<SentenceBuilderChallenge>? {
+        val raw = prefs.getString(KEY_SENTENCE_BUILDER_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<SentenceBuilderChallenge>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    SentenceBuilderChallenge(
+                        id = obj.optString("id", ""),
+                        targetSentence = obj.optString("targetSentence", ""),
+                        hint = obj.optString("hint", "Form a grammatically correct sentence"),
+                        assameseTranslation = obj.optString("assameseTranslation", ""),
+                        createdBy = obj.optString("createdBy", "System")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveListenChooseChallenges(challenges: List<ListenChooseChallenge>) {
+        try {
+            val array = JSONArray()
+            for (c in challenges) {
+                val obj = JSONObject()
+                obj.put("id", c.id)
+                obj.put("audioScript", c.audioScript)
+                obj.put("question", c.question)
+                val optArr = JSONArray()
+                c.options.forEach { optArr.put(it) }
+                obj.put("options", optArr)
+                obj.put("correctIndex", c.correctIndex)
+                obj.put("createdBy", c.createdBy)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_LISTEN_CHOOSE_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getListenChooseChallenges(): List<ListenChooseChallenge>? {
+        val raw = prefs.getString(KEY_LISTEN_CHOOSE_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<ListenChooseChallenge>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val optArr = obj.optJSONArray("options")
+                val options = mutableListOf<String>()
+                if (optArr != null) {
+                    for (j in 0 until optArr.length()) options.add(optArr.getString(j))
+                }
+                list.add(
+                    ListenChooseChallenge(
+                        id = obj.optString("id", ""),
+                        audioScript = obj.optString("audioScript", ""),
+                        question = obj.optString("question", ""),
+                        options = options,
+                        correctIndex = obj.optInt("correctIndex", 0),
+                        createdBy = obj.optString("createdBy", "System")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun savePronunciationBattleChallenges(challenges: List<PronunciationBattleChallenge>) {
+        try {
+            val array = JSONArray()
+            for (c in challenges) {
+                val obj = JSONObject()
+                obj.put("id", c.id)
+                obj.put("challengeSentence", c.challengeSentence)
+                obj.put("targetPhonemeFocus", c.targetPhonemeFocus)
+                obj.put("difficulty", c.difficulty)
+                obj.put("passingScore", c.passingScore)
+                obj.put("createdBy", c.createdBy)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_PRONUNCIATION_BATTLE_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getPronunciationBattleChallenges(): List<PronunciationBattleChallenge>? {
+        val raw = prefs.getString(KEY_PRONUNCIATION_BATTLE_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<PronunciationBattleChallenge>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    PronunciationBattleChallenge(
+                        id = obj.optString("id", ""),
+                        challengeSentence = obj.optString("challengeSentence", ""),
+                        targetPhonemeFocus = obj.optString("targetPhonemeFocus", ""),
+                        difficulty = obj.optString("difficulty", "Medium"),
+                        passingScore = obj.optInt("passingScore", 80),
+                        createdBy = obj.optString("createdBy", "System")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveFastVocabularyChallenges(challenges: List<FastVocabularyChallenge>) {
+        try {
+            val array = JSONArray()
+            for (c in challenges) {
+                val obj = JSONObject()
+                obj.put("id", c.id)
+                obj.put("word", c.word)
+                obj.put("prompt", c.prompt)
+                val optArr = JSONArray()
+                c.options.forEach { optArr.put(it) }
+                obj.put("options", optArr)
+                obj.put("correctIndex", c.correctIndex)
+                obj.put("createdBy", c.createdBy)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_FAST_VOCABULARY_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getFastVocabularyChallenges(): List<FastVocabularyChallenge>? {
+        val raw = prefs.getString(KEY_FAST_VOCABULARY_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<FastVocabularyChallenge>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val optArr = obj.optJSONArray("options")
+                val options = mutableListOf<String>()
+                if (optArr != null) {
+                    for (j in 0 until optArr.length()) options.add(optArr.getString(j))
+                }
+                list.add(
+                    FastVocabularyChallenge(
+                        id = obj.optString("id", ""),
+                        word = obj.optString("word", ""),
+                        prompt = obj.optString("prompt", ""),
+                        options = options,
+                        correctIndex = obj.optInt("correctIndex", 0),
+                        createdBy = obj.optString("createdBy", "System")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveGrammarChallenges(challenges: List<GrammarChallengeQuestion>) {
+        try {
+            val array = JSONArray()
+            for (c in challenges) {
+                val obj = JSONObject()
+                obj.put("id", c.id)
+                obj.put("question", c.question)
+                val optArr = JSONArray()
+                c.options.forEach { optArr.put(it) }
+                obj.put("options", optArr)
+                obj.put("correctIndex", c.correctIndex)
+                obj.put("explanation", c.explanation)
+                obj.put("category", c.category)
+                obj.put("createdBy", c.createdBy)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_GRAMMAR_CHALLENGE_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getGrammarChallenges(): List<GrammarChallengeQuestion>? {
+        val raw = prefs.getString(KEY_GRAMMAR_CHALLENGE_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<GrammarChallengeQuestion>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val optArr = obj.optJSONArray("options")
+                val options = mutableListOf<String>()
+                if (optArr != null) {
+                    for (j in 0 until optArr.length()) options.add(optArr.getString(j))
+                }
+                list.add(
+                    GrammarChallengeQuestion(
+                        id = obj.optString("id", ""),
+                        question = obj.optString("question", ""),
+                        options = options,
+                        correctIndex = obj.optInt("correctIndex", 0),
+                        explanation = obj.optString("explanation", ""),
+                        category = obj.optString("category", "Tenses"),
                         createdBy = obj.optString("createdBy", "System")
                     )
                 )

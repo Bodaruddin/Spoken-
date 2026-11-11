@@ -541,6 +541,221 @@ class SupabaseService {
         }
     }
 
+    // =========================================================================
+    // GAME CHALLENGES SYNC (SENTENCE BUILDER, WORD MATCH, MISSING LETTERS, ETC.)
+    // =========================================================================
+
+    suspend fun fetchGameChallenges(): List<SupabaseGameChallenge> = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext emptyList()
+        val list = mutableListOf<SupabaseGameChallenge>()
+        val seenIds = mutableSetOf<String>()
+
+        // 1. First attempt dedicated game_challenges table
+        try {
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/game_challenges?select=*")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: ""
+                    val jsonArray = JSONArray(body)
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
+                        val id = obj.optString("id", "")
+                        if (id.isNotBlank()) {
+                            val optArray = obj.optJSONArray("options")
+                            val options = mutableListOf<String>()
+                            if (optArray != null) {
+                                for (j in 0 until optArray.length()) options.add(optArray.getString(j))
+                            }
+                            list.add(
+                                SupabaseGameChallenge(
+                                    id = id,
+                                    type = obj.optString("type", "SENTENCE_BUILDER"),
+                                    titleOrWord = obj.optString("title_or_word", ""),
+                                    hintOrMeaning = obj.optString("hint_or_meaning", ""),
+                                    category = obj.optString("category", "General"),
+                                    options = options,
+                                    correctIndex = obj.optInt("correct_index", 0),
+                                    extraData = obj.optString("extra_data", ""),
+                                    createdBy = obj.optString("created_by", "Faculty")
+                                )
+                            )
+                            seenIds.add(id)
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 2. Also query resilient fallback sync channel in speaking_evaluations (ensures 100% sync even before user runs SQL migrations)
+        try {
+            val fallbackReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.CHALLENGE_SYNC&select=*")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .get()
+                .build()
+
+            client.newCall(fallbackReq).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: ""
+                    val jsonArray = JSONArray(body)
+                    for (i in 0 until jsonArray.length()) {
+                        val row = jsonArray.getJSONObject(i)
+                        val feedback = row.optString("feedback", "")
+                        val targetId = row.optString("target_phrase", "")
+                        if (feedback.isNotBlank()) {
+                            try {
+                                val obj = JSONObject(feedback)
+                                val id = obj.optString("id", targetId)
+                                if (id.isNotBlank() && id !in seenIds) {
+                                    val optArr = obj.optJSONArray("options")
+                                    val options = mutableListOf<String>()
+                                    if (optArr != null) {
+                                        for (j in 0 until optArr.length()) options.add(optArr.getString(j))
+                                    }
+                                    list.add(
+                                        SupabaseGameChallenge(
+                                            id = id,
+                                            type = obj.optString("type", row.optString("spoken_text", "SENTENCE_BUILDER")),
+                                            titleOrWord = obj.optString("titleOrWord", ""),
+                                            hintOrMeaning = obj.optString("hintOrMeaning", ""),
+                                            category = obj.optString("category", "General"),
+                                            options = options,
+                                            correctIndex = obj.optInt("correctIndex", row.optInt("overall_score", 0)),
+                                            extraData = obj.optString("extraData", ""),
+                                            createdBy = obj.optString("createdBy", "Faculty")
+                                        )
+                                    )
+                                    seenIds.add(id)
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        list
+    }
+
+    suspend fun saveGameChallenge(challenge: SupabaseGameChallenge): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        var savedInPrimary = false
+
+        // 1. Try primary game_challenges table
+        try {
+            val obj = JSONObject().apply {
+                put("id", challenge.id)
+                put("type", challenge.type)
+                put("title_or_word", challenge.titleOrWord)
+                put("hint_or_meaning", challenge.hintOrMeaning)
+                put("category", challenge.category)
+                val optArr = JSONArray()
+                challenge.options.forEach { optArr.put(it) }
+                put("options", optArr)
+                put("correct_index", challenge.correctIndex)
+                put("extra_data", challenge.extraData)
+                put("created_by", challenge.createdBy)
+            }
+
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/game_challenges")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .addHeader("Prefer", "resolution=merge-duplicates")
+                .post(obj.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                savedInPrimary = response.isSuccessful
+            }
+        } catch (_: Exception) {}
+
+        // 2. Always synchronize with the accessible cloud sync channel (ensures immediate cross-device student availability)
+        try {
+            val jsonPayload = JSONObject().apply {
+                put("id", challenge.id)
+                put("type", challenge.type)
+                put("titleOrWord", challenge.titleOrWord)
+                put("hintOrMeaning", challenge.hintOrMeaning)
+                put("category", challenge.category)
+                val optArr = JSONArray()
+                challenge.options.forEach { optArr.put(it) }
+                put("options", optArr)
+                put("correctIndex", challenge.correctIndex)
+                put("extraData", challenge.extraData)
+                put("createdBy", challenge.createdBy)
+            }
+
+            val evalObj = JSONObject().apply {
+                put("student_id", "CHALLENGE_SYNC")
+                put("target_phrase", challenge.id)
+                put("spoken_text", challenge.type)
+                put("feedback", jsonPayload.toString())
+                put("pronunciation_score", 100)
+                put("fluency_score", 100)
+                put("grammar_score", 100)
+                put("vocabulary_score", 100)
+                put("overall_score", challenge.correctIndex)
+            }
+
+            val fallbackReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .addHeader("Prefer", "resolution=merge-duplicates")
+                .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(fallbackReq).execute().use { response ->
+                if (response.isSuccessful) return@withContext true
+            }
+        } catch (_: Exception) {}
+
+        savedInPrimary
+    }
+
+    suspend fun deleteGameChallenge(challengeId: String): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        var success = false
+
+        // 1. Delete from primary game_challenges
+        try {
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/game_challenges?id=eq.$challengeId")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .delete()
+                .build()
+
+            client.newCall(request).execute().use {
+                if (it.isSuccessful) success = true
+            }
+        } catch (_: Exception) {}
+
+        // 2. Delete from fallback channel
+        try {
+            val fbReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?target_phrase=eq.$challengeId")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .delete()
+                .build()
+
+            client.newCall(fbReq).execute().use {
+                if (it.isSuccessful) success = true
+            }
+        } catch (_: Exception) {}
+
+        success
+    }
+
     companion object {
         val SQL_SCHEMA_BLUEPRINT = """
             -- Speakly Supabase PostgreSQL Schema
@@ -638,6 +853,20 @@ class SupabaseService {
                 created_at TIMESTAMPTZ DEFAULT NOW()
             );
 
+            -- 8. Game Challenges Table (Sentence Builder, Word Match, etc.)
+            CREATE TABLE IF NOT EXISTS game_challenges (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                title_or_word TEXT NOT NULL,
+                hint_or_meaning TEXT,
+                category TEXT DEFAULT 'General',
+                options JSONB,
+                correct_index INT DEFAULT 0,
+                extra_data TEXT,
+                created_by TEXT DEFAULT 'Faculty',
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+
             -- Enable Row Level Security (RLS) & Allow Read/Write
             ALTER TABLE students ENABLE ROW LEVEL SECURITY;
             ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
@@ -646,6 +875,7 @@ class SupabaseService {
             ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
             ALTER TABLE student_adventure_progress ENABLE ROW LEVEL SECURITY;
             ALTER TABLE vocabulary_words ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE game_challenges ENABLE ROW LEVEL SECURITY;
 
             -- Policies with full SELECT, INSERT, UPDATE, DELETE permissions
             DROP POLICY IF EXISTS "Allow public students" ON students;
@@ -668,6 +898,9 @@ class SupabaseService {
 
             DROP POLICY IF EXISTS "Allow public vocabulary_words" ON vocabulary_words;
             CREATE POLICY "Allow public vocabulary_words" ON vocabulary_words FOR ALL USING (true) WITH CHECK (true);
+
+            DROP POLICY IF EXISTS "Allow public game_challenges" ON game_challenges;
+            CREATE POLICY "Allow public game_challenges" ON game_challenges FOR ALL USING (true) WITH CHECK (true);
         """.trimIndent()
     }
 

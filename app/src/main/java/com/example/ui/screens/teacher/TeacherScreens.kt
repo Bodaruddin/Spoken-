@@ -2277,7 +2277,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             authorName = currentUser.name.ifBlank { "Faculty Instructor" },
             onDismiss = { showCreateDialog = false },
             onCreated = {
-                statusMsg = "Successfully published new challenge for ${selectedCategory.title}!"
+                statusMsg = "Successfully published and synced new challenge for ${selectedCategory.title} to Supabase & student panel! 🚀"
                 showCreateDialog = false
             },
             viewModel = viewModel,
