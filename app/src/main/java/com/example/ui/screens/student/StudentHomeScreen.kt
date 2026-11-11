@@ -1193,19 +1193,21 @@ fun ScreenshotActionCard(
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         border = BorderStroke(1.2.dp, borderColor.copy(alpha = 0.55f)),
         modifier = modifier
+            .fillMaxWidth()
+            .height(144.dp)
             .clip(RoundedCornerShape(26.dp))
             .clickable { onClick() }
             .testTag("screenshot_card_${title.lowercase().replace(" ", "_")}")
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .background(gradient)
                 .padding(16.dp)
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
                 // Top row with Icon Badge & Arrow circle button
                 Row(
@@ -1252,14 +1254,17 @@ fun ScreenshotActionCard(
                     }
                 }
 
-                // Text labels
+                // Text labels - fits on single line so all 4 cards have matching layout
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = title,
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 18.sp,
+                        fontSize = if (title.length > 14) 15.sp else 17.sp,
                         color = Color.White,
-                        letterSpacing = 0.2.sp
+                        letterSpacing = 0.1.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = subtitle,
@@ -1267,6 +1272,7 @@ fun ScreenshotActionCard(
                         fontWeight = FontWeight.Medium,
                         color = Color.White.copy(alpha = 0.85f),
                         maxLines = 1,
+                        softWrap = false,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
