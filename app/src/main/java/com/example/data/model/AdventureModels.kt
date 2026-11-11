@@ -76,7 +76,8 @@ data class AdventureProgress(
     val totalStars: Int = 0,
     val totalCoins: Int = 0,
     val totalXp: Int = 0,
-    val badges: List<String> = emptyList()
+    val badges: List<String> = emptyList(),
+    val claimedChestWorldIds: Set<String> = emptySet()
 )
 
 data class AdventureLeaderboardEntry(

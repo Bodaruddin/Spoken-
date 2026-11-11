@@ -1151,6 +1151,10 @@ class AppPreferences(context: Context) {
                 val badgesArr = JSONArray()
                 progress.badges.forEach { badgesArr.put(it) }
                 put("badges", badgesArr)
+
+                val claimedChestsArr = JSONArray()
+                progress.claimedChestWorldIds.forEach { claimedChestsArr.put(it) }
+                put("claimedChestWorldIds", claimedChestsArr)
             }
             prefs.edit().putString(KEY_ADVENTURE_PROGRESS, obj.toString()).apply()
         } catch (_: Exception) {}
@@ -1202,6 +1206,14 @@ class AppPreferences(context: Context) {
                 }
             }
 
+            val claimedChests = mutableSetOf<String>()
+            val claimedChestsArr = obj.optJSONArray("claimedChestWorldIds")
+            if (claimedChestsArr != null) {
+                for (i in 0 until claimedChestsArr.length()) {
+                    claimedChests.add(claimedChestsArr.getString(i))
+                }
+            }
+
             AdventureProgress(
                 studentId = obj.optString("studentId", "std_001"),
                 completedLevelIds = compLevels,
@@ -1211,7 +1223,8 @@ class AppPreferences(context: Context) {
                 totalStars = obj.optInt("totalStars", 0),
                 totalCoins = obj.optInt("totalCoins", 0),
                 totalXp = obj.optInt("totalXp", 0),
-                badges = badgesList
+                badges = badgesList,
+                claimedChestWorldIds = claimedChests
             )
         } catch (_: Exception) {
             null

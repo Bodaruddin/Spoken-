@@ -1520,11 +1520,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return result
     }
 
-    fun claimChestAdventureReward(xp: Int, coins: Int) {
-        repository.addRewards(xp, coins)
-        repository.addAdventureRewards(xp, coins)
-        _celebrationReward.value = xp to coins
-        syncCurrentStudentProgressToSupabase()
+    fun claimChestAdventureReward(worldId: String, xp: Int = 50, coins: Int = 25): Boolean {
+        val claimed = repository.claimAdventureChest(worldId, xp, coins)
+        if (claimed) {
+            repository.addRewards(xp, coins)
+            _celebrationReward.value = xp to coins
+            syncCurrentStudentProgressToSupabase()
+            return true
+        }
+        return false
     }
 
     fun getTeacherAdventureReports(): List<StudentAdventureProgressSummary> = repository.getTeacherAdventureReports()

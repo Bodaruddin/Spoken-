@@ -3234,6 +3234,26 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         saveAdventureStateToPreferences()
     }
 
+    fun claimAdventureChest(worldId: String, xp: Int, coins: Int): Boolean {
+        val curr = _adventureProgress.value
+        if (curr.claimedChestWorldIds.contains(worldId)) {
+            return false // Already claimed for this world
+        }
+        _adventureProgress.update { current ->
+            if (current.claimedChestWorldIds.contains(worldId)) {
+                current
+            } else {
+                current.copy(
+                    claimedChestWorldIds = current.claimedChestWorldIds + worldId,
+                    totalCoins = current.totalCoins + coins,
+                    totalXp = current.totalXp + xp
+                )
+            }
+        }
+        saveAdventureStateToPreferences()
+        return true
+    }
+
     // Admin World Management
     fun addAdventureWorld(
         name: String,

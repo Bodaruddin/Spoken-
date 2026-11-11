@@ -360,6 +360,8 @@ fun EnglishAdventureScreen(
 
         // Chest Loot Reward Dialog
         if (showChestRewardDialog) {
+            val isChestClaimed = progress.claimedChestWorldIds.contains(currentWorld.id)
+
             AlertDialog(
                 onDismissRequest = { showChestRewardDialog = false },
                 icon = {
@@ -371,7 +373,7 @@ fun EnglishAdventureScreen(
                 },
                 title = {
                     Text(
-                        "🌴 Island Treasure Unlocked!",
+                        if (isChestClaimed) "🎁 Treasure Already Claimed!" else "🌴 Island Treasure Unlocked!",
                         fontWeight = FontWeight.Black,
                         color = Color(0xFFFACC15),
                         fontSize = 18.sp
@@ -383,7 +385,10 @@ fun EnglishAdventureScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            "You discovered hidden captain's loot buried on the beach sands!",
+                            if (isChestClaimed)
+                                "You have already collected this island's treasure chest! Explore other islands on the world map to discover more loot."
+                            else
+                                "You discovered hidden captain's loot buried on the beach sands of ${currentWorld.name}!",
                             color = Color.White,
                             textAlign = TextAlign.Center,
                             fontSize = 13.sp
@@ -420,14 +425,23 @@ fun EnglishAdventureScreen(
                     }
                 },
                 confirmButton = {
-                    Button(
-                        onClick = {
-                            viewModel.claimChestAdventureReward(50, 25)
-                            showChestRewardDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
-                    ) {
-                        Text("Claim Loot!")
+                    if (isChestClaimed) {
+                        Button(
+                            onClick = { showChestRewardDialog = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                        ) {
+                            Text("Got It! 👍")
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                viewModel.claimChestAdventureReward(currentWorld.id, 50, 25)
+                                showChestRewardDialog = false
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                        ) {
+                            Text("Claim Loot!")
+                        }
                     }
                 },
                 containerColor = Color(0xFF0F172A)
@@ -797,6 +811,8 @@ private fun AdventureMainView(
 
             // H. BOTTOM OPEN GOLDEN TREASURE CHEST
             item {
+                val isChestClaimed = progress.claimedChestWorldIds.contains(currentWorld.id)
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -819,18 +835,18 @@ private fun AdventureMainView(
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = Color(0x99000000),
-                            border = BorderStroke(1.dp, Color(0xFFFBBF24)),
+                            border = BorderStroke(1.dp, if (isChestClaimed) Color(0xFF10B981) else Color(0xFFFBBF24)),
                             shadowElevation = 4.dp
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                             ) {
-                                Text("✨", fontSize = 12.sp)
+                                Text(if (isChestClaimed) "✅" else "✨", fontSize = 12.sp)
                                 Spacer(Modifier.width(4.dp))
                                 Text(
-                                    "Tap to Claim Island Rewards",
-                                    color = Color(0xFFFDE047),
+                                    if (isChestClaimed) "Island Treasure Claimed" else "Tap to Claim Island Rewards",
+                                    color = if (isChestClaimed) Color(0xFF4ADE80) else Color(0xFFFDE047),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.5.sp
                                 )
