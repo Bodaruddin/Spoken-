@@ -81,17 +81,19 @@ fun EnglishAdventureScreen(
     var showBadgesDialog by remember { mutableStateOf(false) }
     var showWorldInfoDialog by remember { mutableStateOf(false) }
     var showChestRewardDialog by remember { mutableStateOf(false) }
+    var showCreateGameDialog by remember { mutableStateOf(false) }
     var lockedSnackbarMsg by remember { mutableStateOf<String?>(null) }
 
     BackHandler {
         if (activeMission != null) {
             viewModel.exitAdventureMission()
-        } else if (showWorldMapDialog || showLeaderboardDialog || showBadgesDialog || showWorldInfoDialog || showChestRewardDialog) {
+        } else if (showWorldMapDialog || showLeaderboardDialog || showBadgesDialog || showWorldInfoDialog || showChestRewardDialog || showCreateGameDialog) {
             showWorldMapDialog = false
             showLeaderboardDialog = false
             showBadgesDialog = false
             showWorldInfoDialog = false
             showChestRewardDialog = false
+            showCreateGameDialog = false
         } else {
             viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
         }
@@ -126,6 +128,7 @@ fun EnglishAdventureScreen(
             // MAIN SCREEN MATCHING SCREENSHOT EXACTLY
             AdventureMainView(
                 currentWorld = currentWorld,
+                worlds = worlds,
                 progress = progress,
                 onBack = { viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER) },
                 onOpenWorldMap = { showWorldMapDialog = true },
@@ -133,24 +136,127 @@ fun EnglishAdventureScreen(
                 onOpenBadges = { showBadgesDialog = true },
                 onOpenWorldInfo = { showWorldInfoDialog = true },
                 onOpenChest = { showChestRewardDialog = true },
+                onSelectWorld = { world -> viewModel.selectAdventureWorld(world) },
+                onAddNewGame = { showCreateGameDialog = true },
                 onLaunchLevel = { level ->
                     val index = currentWorld.levels.indexOfFirst { it.id == level.id }
                     val prevLevel = if (index > 0) currentWorld.levels.getOrNull(index - 1) else null
-                    val isPrevCompleted = prevLevel == null || prevLevel.isCompleted || (progress.levelStars[prevLevel.id] ?: 0) > 0
+                    val isPrevCompleted = prevLevel == null || prevLevel.isCompleted || (progress.levelStars[prevLevel.id] ?: 0) > 0 || progress.completedLevelIds.contains(prevLevel.id)
                     val isUnlocked = level.isUnlocked || level.levelNumber == 1 || isPrevCompleted
 
                     if (isUnlocked) {
                         viewModel.selectAdventureWorld(currentWorld)
                         viewModel.selectAdventureLevel(level)
-                        val missionToStart = level.missions.firstOrNull { it.id !in progress.completedMissionIds }
-                            ?: level.missions.firstOrNull()
+                        val missions = if (level.missions.isNotEmpty()) level.missions else {
+                            viewModel.ensureLevelHasMissions(currentWorld.id, level.id, level.title)
+                        }
+                        val missionToStart = missions.firstOrNull { it.id !in progress.completedMissionIds }
+                            ?: missions.firstOrNull()
                         if (missionToStart != null) {
                             viewModel.startAdventureMission(missionToStart)
                         } else {
-                            level.missions.firstOrNull()?.let { viewModel.startAdventureMission(it) }
+                            missions.firstOrNull()?.let { viewModel.startAdventureMission(it) }
                         }
                     } else {
                         lockedSnackbarMsg = "Complete Level ${level.levelNumber - 1} to unlock ${level.title}!"
+                    }
+                }
+            )
+        }
+
+        // Quick Add Game / Level Dialog
+        if (showCreateGameDialog) {
+            var newTitle by remember { mutableStateOf("") }
+            var newDesc by remember { mutableStateOf("") }
+            var newSentence by remember { mutableStateOf("") }
+            var newEmoji by remember { mutableStateOf("⭐") }
+            var newXp by remember { mutableStateOf("80") }
+
+            AlertDialog(
+                onDismissRequest = { showCreateGameDialog = false },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("🎮", fontSize = 24.sp)
+                        Text("Add New Game to ${currentWorld.name}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = newTitle,
+                            onValueChange = { newTitle = it },
+                            label = { Text("Game Title (e.g. Lagoon Treasure Quest)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = newDesc,
+                            onValueChange = { newDesc = it },
+                            label = { Text("Short Description") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = newSentence,
+                            onValueChange = { newSentence = it },
+                            label = { Text("Target Speaking Sentence / Phrase") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = newEmoji,
+                                onValueChange = { newEmoji = it },
+                                label = { Text("Emoji") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = newXp,
+                                onValueChange = { newXp = it },
+                                label = { Text("XP Reward") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (newTitle.isNotBlank()) {
+                                val xp = newXp.toIntOrNull() ?: 80
+                                val lvl = viewModel.addAdventureLevel(
+                                    worldId = currentWorld.id,
+                                    title = newTitle.trim(),
+                                    description = newDesc.ifBlank { "Master this English adventure quest." },
+                                    emoji = newEmoji.ifBlank { "⭐" },
+                                    xp = xp,
+                                    coins = (xp / 2).coerceAtLeast(20)
+                                )
+                                if (lvl != null && newSentence.isNotBlank()) {
+                                    viewModel.addAdventureMission(
+                                        worldId = currentWorld.id,
+                                        levelId = lvl.id,
+                                        title = "${newTitle.trim()} Speaking Challenge",
+                                        description = "Speak this sentence with clear pronunciation.",
+                                        type = AdventureMissionType.SPEAKING_CHALLENGE,
+                                        targetSentence = newSentence.trim(),
+                                        options = emptyList(),
+                                        correctAnswer = newSentence.trim(),
+                                        clue = "Listen closely and enunciate clearly.",
+                                        xp = xp / 2,
+                                        coins = 20
+                                    )
+                                }
+                                showCreateGameDialog = false
+                            }
+                        }
+                    ) {
+                        Text("Add Game 🚀")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCreateGameDialog = false }) {
+                        Text("Cancel")
                     }
                 }
             )
@@ -481,6 +587,7 @@ fun EnglishAdventureScreen(
 @Composable
 private fun AdventureMainView(
     currentWorld: AdventureWorld,
+    worlds: List<AdventureWorld>,
     progress: AdventureProgress,
     onBack: () -> Unit,
     onOpenWorldMap: () -> Unit,
@@ -488,6 +595,8 @@ private fun AdventureMainView(
     onOpenBadges: () -> Unit,
     onOpenWorldInfo: () -> Unit,
     onOpenChest: () -> Unit,
+    onSelectWorld: (AdventureWorld) -> Unit,
+    onAddNewGame: () -> Unit,
     onLaunchLevel: (AdventureLevel) -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -686,8 +795,13 @@ private fun AdventureMainView(
                 }
             }
 
-            // D. PARCHMENT SCROLL BANNER (🌴 Vocabulary Island + ( i ) Info Button)
+            // D. PARCHMENT SCROLL BANNER (With Previous/Next Realm Navigation & + Add Game Button)
             item {
+                val sortedWorlds = worlds.sortedBy { it.order }
+                val currentWorldIndex = sortedWorlds.indexOfFirst { it.id == currentWorld.id }.coerceAtLeast(0)
+                val prevWorld = if (currentWorldIndex > 0) sortedWorlds[currentWorldIndex - 1] else null
+                val nextWorld = if (currentWorldIndex < sortedWorlds.size - 1) sortedWorlds[currentWorldIndex + 1] else null
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -699,6 +813,29 @@ private fun AdventureMainView(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
+                        // Previous Realm Button
+                        Surface(
+                            shape = CircleShape,
+                            color = if (prevWorld != null) Color(0xFF0C1736) else Color(0x330C1736),
+                            border = BorderStroke(1.5.dp, if (prevWorld != null) Color(0xFFD97706) else Color(0x3364748B)),
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clickable(enabled = prevWorld != null) {
+                                    prevWorld?.let { onSelectWorld(it) }
+                                }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = "Previous Realm",
+                                    tint = if (prevWorld != null) Color.White else Color(0x44FFFFFF),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.width(6.dp))
+
                         // Scroll Box
                         Box(
                             modifier = Modifier
@@ -715,27 +852,58 @@ private fun AdventureMainView(
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.padding(horizontal = 28.dp, vertical = 4.dp)
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
                             ) {
                                 Text(
                                     text = currentWorld.emoji,
                                     fontSize = 19.sp
                                 )
                                 Spacer(Modifier.width(6.dp))
-                                Text(
-                                    text = currentWorld.name,
-                                    color = Color(0xFF381403),
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontFamily = FontFamily(Font(R.font.cinzel, FontWeight.Bold)),
-                                    fontSize = 16.5.sp,
-                                    letterSpacing = 0.5.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = currentWorld.name,
+                                        color = Color(0xFF381403),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontFamily = FontFamily(Font(R.font.cinzel, FontWeight.Bold)),
+                                        fontSize = 15.sp,
+                                        letterSpacing = 0.5.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "Realm ${currentWorldIndex + 1} of ${sortedWorlds.size} • ${currentWorld.levels.size} Games",
+                                        color = Color(0xFF78350F),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.width(6.dp))
+
+                        // Next Realm Button
+                        Surface(
+                            shape = CircleShape,
+                            color = if (nextWorld != null) Color(0xFF0C1736) else Color(0x330C1736),
+                            border = BorderStroke(1.5.dp, if (nextWorld != null) Color(0xFFD97706) else Color(0x3364748B)),
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clickable(enabled = nextWorld != null) {
+                                    nextWorld?.let { onSelectWorld(it) }
+                                }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.ArrowForward,
+                                    contentDescription = "Next Realm",
+                                    tint = if (nextWorld != null) Color.White else Color(0x44FFFFFF),
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
 
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(6.dp))
 
                         // Blue ( i ) Info Circle Button
                         Surface(
@@ -760,20 +928,31 @@ private fun AdventureMainView(
 
                     Spacer(Modifier.height(4.dp))
 
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0x77000000),
-                        border = BorderStroke(0.8.dp, Color(0x33FFFFFF)),
-                        modifier = Modifier.padding(top = 2.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Complete missions to earn stars and unlock next realm",
-                            color = Color(0xFFE2E8F0),
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 11.5.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 3.dp)
-                        )
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0x99000000),
+                            border = BorderStroke(1.dp, Color(0x4438BDF8)),
+                            modifier = Modifier.clickable { onAddNewGame() }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Filled.AddCircle, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
+                                Text(
+                                    "+ Add Game (${currentWorld.levels.size} Showing)",
+                                    color = Color(0xFFE2E8F0),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -783,15 +962,16 @@ private fun AdventureMainView(
             itemsIndexed(levelsList) { index, level ->
                 val levelNumber = level.levelNumber
                 val prevLevel = levelsList.getOrNull(index - 1)
-                val isPrevCompleted = prevLevel == null || prevLevel.isCompleted || (progress.levelStars[prevLevel.id] ?: 0) > 0
+                val isPrevCompleted = prevLevel == null || prevLevel.isCompleted || (progress.levelStars[prevLevel.id] ?: 0) > 0 || progress.completedLevelIds.contains(prevLevel.id)
                 val isUnlocked = level.isUnlocked || levelNumber == 1 || isPrevCompleted
-                val isCompleted = level.isCompleted || (progress.levelStars[level.id] ?: 0) > 0
+                val isCompleted = level.isCompleted || (progress.levelStars[level.id] ?: 0) > 0 || progress.completedLevelIds.contains(level.id)
                 val stars = maxOf(level.starsEarned, progress.levelStars[level.id] ?: 0)
 
-                val drawableRes = when (index % 3) {
-                    0 -> R.drawable.ic_level1_market
-                    1 -> R.drawable.ic_level2_reef
-                    else -> R.drawable.ic_level3_pirate
+                val drawableRes = when (index % 4) {
+                    0 -> R.drawable.img_level1_market_clean
+                    1 -> R.drawable.img_level2_reef_clean
+                    2 -> R.drawable.img_level3_pirate_clean
+                    else -> R.drawable.img_level4_temple_clean
                 }
 
                 AdventureLevelCardExact(

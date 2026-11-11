@@ -146,6 +146,115 @@ object AdventureDataDefaults {
                                 coins = 25
                             )
                         )
+                    ),
+                    AdventureLevel(
+                        id = "lvl_vocab_4",
+                        worldId = "world_vocab",
+                        levelNumber = 4,
+                        title = "Jungle Temple Ruins",
+                        description = "Decode ancient stone inscriptions, spatial prepositions, and descriptive adjectives.",
+                        iconEmoji = "🏛️",
+                        xpReward = 140,
+                        coinsReward = 70,
+                        requiredStars = 7,
+                        isUnlocked = false,
+                        isCompleted = false,
+                        starsEarned = 0,
+                        missions = listOf(
+                            AdventureMission(
+                                id = "m_v4_1",
+                                levelId = "lvl_vocab_4",
+                                worldId = "world_vocab",
+                                title = "Temple Inscription Order",
+                                description = "Rebuild the secret archaeological chant.",
+                                type = AdventureMissionType.SENTENCE_BUILDER,
+                                targetSentence = "We climbed the mossy stone steps to reach the lost jungle temple",
+                                correctAnswer = "We climbed the mossy stone steps to reach the lost jungle temple",
+                                scrambledWords = listOf("stone", "jungle", "We", "mossy", "climbed", "the", "temple", "steps", "to", "reach", "lost"),
+                                xp = 45,
+                                coins = 20
+                            ),
+                            AdventureMission(
+                                id = "m_v4_2",
+                                levelId = "lvl_vocab_4",
+                                worldId = "world_vocab",
+                                title = "Guardian's Riddle",
+                                description = "Answer the temple guardian's question.",
+                                type = AdventureMissionType.QUIZ,
+                                options = listOf("Ancient and sacred", "Modern and electronic", "Ordinary", "Temporary"),
+                                correctAnswer = "Ancient and sacred",
+                                explanation = "Temple artifacts that have survived centuries are considered ancient and sacred.",
+                                xp = 45,
+                                coins = 20
+                            ),
+                            AdventureMission(
+                                id = "m_v4_3",
+                                levelId = "lvl_vocab_4",
+                                worldId = "world_vocab",
+                                title = "Echoes of the High Priest",
+                                description = "Speak clearly to open the heavy stone doorway.",
+                                type = AdventureMissionType.SPEAKING_CHALLENGE,
+                                targetSentence = "The golden sun shines brightly above the ancient temple towers.",
+                                audioPrompt = "The golden sun shines brightly above the ancient temple towers.",
+                                xp = 50,
+                                coins = 30
+                            )
+                        )
+                    ),
+                    AdventureLevel(
+                        id = "lvl_vocab_5",
+                        worldId = "world_vocab",
+                        levelNumber = 5,
+                        title = "Emerald Lagoon Lighthouse",
+                        description = "Master navigation directions, weather terms, and guide the ocean vessels home.",
+                        iconEmoji = "🗼",
+                        xpReward = 160,
+                        coinsReward = 80,
+                        requiredStars = 9,
+                        isUnlocked = false,
+                        isCompleted = false,
+                        starsEarned = 0,
+                        missions = listOf(
+                            AdventureMission(
+                                id = "m_v5_1",
+                                levelId = "lvl_vocab_5",
+                                worldId = "world_vocab",
+                                title = "Lighthouse Signal Call",
+                                description = "Speak the harbor captain's greeting clearly.",
+                                type = AdventureMissionType.SPEAKING_CHALLENGE,
+                                targetSentence = "The rotating lighthouse beam guided our vessel safely into the calm harbor.",
+                                audioPrompt = "The rotating lighthouse beam guided our vessel safely into the calm harbor.",
+                                xp = 50,
+                                coins = 25
+                            ),
+                            AdventureMission(
+                                id = "m_v5_2",
+                                levelId = "lvl_vocab_5",
+                                worldId = "world_vocab",
+                                title = "Maritime Navigation Word Puzzle",
+                                description = "Unscramble the letters to reveal the captain's instrument.",
+                                type = AdventureMissionType.WORD_PUZZLE,
+                                targetSentence = "COMPASS",
+                                correctAnswer = "COMPASS",
+                                scrambledWords = listOf("P", "C", "S", "O", "A", "M", "S"),
+                                clue = "A magnetic navigational instrument pointing to true north.",
+                                xp = 55,
+                                coins = 25
+                            ),
+                            AdventureMission(
+                                id = "m_v5_3",
+                                levelId = "lvl_vocab_5",
+                                worldId = "world_vocab",
+                                title = "Clear Horizon Report",
+                                description = "Choose the term that best describes serene sailing conditions.",
+                                type = AdventureMissionType.QUIZ,
+                                options = listOf("Tranquil waters", "Violent gale", "Turbulent waves", "Thick blizzard"),
+                                correctAnswer = "Tranquil waters",
+                                explanation = "'Tranquil' means calm, quiet, and peaceful ocean conditions.",
+                                xp = 55,
+                                coins = 30
+                            )
+                        )
                     )
                 )
             ),

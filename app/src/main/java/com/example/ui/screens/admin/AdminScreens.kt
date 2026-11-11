@@ -1064,10 +1064,9 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
             }
         }
 
-        // Prominent "+ Add New Question" banner card
-        if (selectedCategory != GameCategoryFilter.ENGLISH_ADVENTURE) {
-            item {
-                Card(
+        // Prominent "+ Add New Challenge / Game" banner card
+        item {
+            Card(
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
                     border = BorderStroke(1.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
@@ -1123,7 +1122,6 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                     }
                 }
             }
-        }
         }
 
         statusMsg?.let { msg ->

@@ -1703,10 +1703,9 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             }
         }
 
-        // 3. Action Banner: "+ Add New Word Match"
-        if (selectedCategory != GameCategoryFilter.ENGLISH_ADVENTURE) {
-            item {
-                Card(
+        // 3. Action Banner: "+ Add New Challenge"
+        item {
+            Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF09122C).copy(alpha = 0.92f)),
                 border = BorderStroke(1.5.dp, Color(0xFF0077B6).copy(alpha = 0.7f)),
@@ -1800,7 +1799,6 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                     }
                 }
             }
-        }
         }
 
         if (selectedCategory == GameCategoryFilter.MISSING_LETTERS) {
@@ -4977,7 +4975,38 @@ fun CreateGameChallengeDialog(
                         OutlinedTextField(value = field5, onValueChange = { field5 = it }, label = { Text("Grammar Rule Explanation") }, modifier = Modifier.fillMaxWidth())
                     }
                     GameCategoryFilter.ENGLISH_ADVENTURE -> {
-                        Text("To add English Adventure content, use the dedicated 'Add World' or 'Add Level/Mission' controls in the Adventure Hub.", color = Color.White)
+                        OutlinedTextField(
+                            value = field1,
+                            onValueChange = { field1 = it },
+                            label = { Text("Game / Level Title (e.g. Sunken Temple Explorer)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = field2,
+                            onValueChange = { field2 = it },
+                            label = { Text("Adventure Description (e.g. Master marine adjectives)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = field3,
+                            onValueChange = { field3 = it },
+                            label = { Text("Target Speaking Sentence / Phrase") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = field4,
+                                onValueChange = { field4 = it },
+                                label = { Text("Icon Emoji (e.g. 🏛️, ⚓, 🗼)") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = field5,
+                                onValueChange = { field5 = it },
+                                label = { Text("XP Reward (e.g. 80)") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
             }
@@ -5036,7 +5065,36 @@ fun CreateGameChallengeDialog(
                         }
                     }
                     GameCategoryFilter.ENGLISH_ADVENTURE -> {
-                        onCreated()
+                        if (field1.isNotBlank()) {
+                            val targetWorldId = viewModel.selectedAdventureWorld.value?.id
+                                ?: viewModel.adventureWorlds.value.firstOrNull()?.id
+                                ?: "world_vocab"
+                            val xp = field5.toIntOrNull() ?: 80
+                            val newLvl = viewModel.addAdventureLevel(
+                                worldId = targetWorldId,
+                                title = field1.trim(),
+                                description = field2.ifBlank { "Explore and conquer this spoken English quest." },
+                                emoji = field4.ifBlank { "⭐" },
+                                xp = xp,
+                                coins = (xp / 2).coerceAtLeast(20)
+                            )
+                            if (newLvl != null && field3.isNotBlank()) {
+                                viewModel.addAdventureMission(
+                                    worldId = targetWorldId,
+                                    levelId = newLvl.id,
+                                    title = "${field1.trim()} Speaking Challenge",
+                                    description = "Speak this sentence with clear pronunciation.",
+                                    type = AdventureMissionType.SPEAKING_CHALLENGE,
+                                    targetSentence = field3.trim(),
+                                    options = emptyList(),
+                                    correctAnswer = field3.trim(),
+                                    clue = "Listen closely and enunciate clearly.",
+                                    xp = xp / 2,
+                                    coins = 20
+                                )
+                            }
+                            onCreated()
+                        }
                     }
                 }
             }) {

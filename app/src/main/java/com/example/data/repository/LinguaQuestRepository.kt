@@ -225,7 +225,22 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     private val _adventureWorlds = MutableStateFlow(
         run {
             val saved = appPreferences?.getAdventureWorlds()
-            if (!saved.isNullOrEmpty()) saved else AdventureDataDefaults.createDefaultWorlds()
+            val defaults = AdventureDataDefaults.createDefaultWorlds()
+            if (!saved.isNullOrEmpty()) {
+                // Ensure default worlds also include updated levels if saved only had fewer
+                saved.map { savedWorld ->
+                    val defaultWorld = defaults.find { it.id == savedWorld.id }
+                    if (defaultWorld != null && savedWorld.levels.size < defaultWorld.levels.size) {
+                        val existingIds = savedWorld.levels.map { it.id }.toSet()
+                        val newLevels = defaultWorld.levels.filter { it.id !in existingIds }
+                        savedWorld.copy(levels = savedWorld.levels + newLevels)
+                    } else {
+                        savedWorld
+                    }
+                }
+            } else {
+                defaults
+            }
         }
     )
     val adventureWorlds: StateFlow<List<AdventureWorld>> = _adventureWorlds.asStateFlow()
@@ -3305,16 +3320,49 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         coinsReward: Int
     ): AdventureLevel? {
         val world = _adventureWorlds.value.find { it.id == worldId } ?: return null
+        val levelNum = world.levels.size + 1
+        val levelId = "lvl_${System.currentTimeMillis()}"
+
+        val defaultMissions = listOf(
+            AdventureMission(
+                id = "m_${levelId}_1",
+                levelId = levelId,
+                worldId = worldId,
+                title = "$title Speaking Quest",
+                description = "Speak this English sentence clearly to master $title.",
+                type = AdventureMissionType.SPEAKING_CHALLENGE,
+                targetSentence = "I am excited to explore $title and master English speaking.",
+                audioPrompt = "I am excited to explore $title and master English speaking.",
+                correctAnswer = "I am excited to explore $title and master English speaking.",
+                xp = (xpReward / 2).coerceAtLeast(20),
+                coins = (coinsReward / 2).coerceAtLeast(10)
+            ),
+            AdventureMission(
+                id = "m_${levelId}_2",
+                levelId = levelId,
+                worldId = worldId,
+                title = "$title Vocabulary Quiz",
+                description = "Choose the best synonym or meaning for $title.",
+                type = AdventureMissionType.QUIZ,
+                options = listOf("Fluent and confident", "Hesitant", "Silent", "Unprepared"),
+                correctAnswer = "Fluent and confident",
+                explanation = "Practicing spoken English adventure quests helps you speak fluently and confidently.",
+                xp = (xpReward / 2).coerceAtLeast(20),
+                coins = (coinsReward / 2).coerceAtLeast(10)
+            )
+        )
+
         val newLevel = AdventureLevel(
-            id = "lvl_${System.currentTimeMillis()}",
+            id = levelId,
             worldId = worldId,
-            levelNumber = world.levels.size + 1,
+            levelNumber = levelNum,
             title = title.trim(),
             description = description.trim(),
             iconEmoji = emoji.ifBlank { "⭐" },
             xpReward = xpReward,
             coinsReward = coinsReward,
-            isUnlocked = world.levels.isEmpty() || world.levels.last().isCompleted
+            isUnlocked = world.levels.isEmpty() || world.levels.all { it.isCompleted },
+            missions = defaultMissions
         )
         _adventureWorlds.update { list ->
             list.map { w ->
@@ -3325,6 +3373,52 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         }
         saveAdventureStateToPreferences()
         return newLevel
+    }
+
+    fun ensureLevelHasMissions(worldId: String, levelId: String, title: String): List<AdventureMission> {
+        val world = _adventureWorlds.value.find { it.id == worldId }
+        val lvl = world?.levels?.find { it.id == levelId }
+        if (lvl != null && lvl.missions.isNotEmpty()) return lvl.missions
+
+        val defaultMissions = listOf(
+            AdventureMission(
+                id = "m_${levelId}_1",
+                levelId = levelId,
+                worldId = worldId,
+                title = "$title Speaking Quest",
+                description = "Speak this English sentence clearly to master $title.",
+                type = AdventureMissionType.SPEAKING_CHALLENGE,
+                targetSentence = "I am excited to explore $title and master English speaking.",
+                audioPrompt = "I am excited to explore $title and master English speaking.",
+                correctAnswer = "I am excited to explore $title and master English speaking.",
+                xp = 35,
+                coins = 15
+            ),
+            AdventureMission(
+                id = "m_${levelId}_2",
+                levelId = levelId,
+                worldId = worldId,
+                title = "$title Vocabulary Quiz",
+                description = "Choose the best synonym or meaning for $title.",
+                type = AdventureMissionType.QUIZ,
+                options = listOf("Fluent and confident", "Hesitant", "Silent", "Unprepared"),
+                correctAnswer = "Fluent and confident",
+                explanation = "Practicing spoken English adventure quests helps you speak fluently and confidently.",
+                xp = 35,
+                coins = 15
+            )
+        )
+        _adventureWorlds.update { list ->
+            list.map { w ->
+                if (w.id == worldId) {
+                    w.copy(levels = w.levels.map { l ->
+                        if (l.id == levelId) l.copy(missions = defaultMissions) else l
+                    })
+                } else w
+            }
+        }
+        saveAdventureStateToPreferences()
+        return defaultMissions
     }
 
     fun deleteAdventureLevel(worldId: String, levelId: String) {

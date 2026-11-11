@@ -1533,20 +1533,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun getTeacherAdventureReports(): List<StudentAdventureProgressSummary> = repository.getTeacherAdventureReports()
 
-    fun addAdventureWorld(name: String, description: String, tagline: String, emoji: String, requiredStars: Int) =
-        repository.addAdventureWorld(name, description, tagline, emoji, requiredStars)
+    fun addAdventureWorld(name: String, description: String, tagline: String, emoji: String, requiredStars: Int): AdventureWorld {
+        val w = repository.addAdventureWorld(name, description, tagline, emoji, requiredStars)
+        _selectedAdventureWorld.value = w
+        return w
+    }
 
-    fun updateAdventureWorld(world: AdventureWorld) = repository.updateAdventureWorld(world)
+    fun updateAdventureWorld(world: AdventureWorld) {
+        repository.updateAdventureWorld(world)
+        if (_selectedAdventureWorld.value?.id == world.id) {
+            _selectedAdventureWorld.value = world
+        }
+    }
 
-    fun deleteAdventureWorld(worldId: String) = repository.deleteAdventureWorld(worldId)
+    fun deleteAdventureWorld(worldId: String) {
+        repository.deleteAdventureWorld(worldId)
+        if (_selectedAdventureWorld.value?.id == worldId) {
+            _selectedAdventureWorld.value = repository.adventureWorlds.value.firstOrNull()
+        }
+    }
 
-    fun addAdventureLevel(worldId: String, title: String, description: String, emoji: String, xp: Int, coins: Int) =
-        repository.addAdventureLevel(worldId, title, description, emoji, xp, coins)
+    fun addAdventureLevel(worldId: String, title: String, description: String, emoji: String, xp: Int, coins: Int): AdventureLevel? {
+        val lvl = repository.addAdventureLevel(worldId, title, description, emoji, xp, coins)
+        val updatedWorld = repository.adventureWorlds.value.find { it.id == worldId }
+        if (updatedWorld != null && (_selectedAdventureWorld.value?.id == worldId || _selectedAdventureWorld.value == null)) {
+            _selectedAdventureWorld.value = updatedWorld
+        }
+        return lvl
+    }
 
-    fun updateAdventureLevel(worldId: String, levelId: String, title: String, description: String, emoji: String, xp: Int, coins: Int) =
+    fun updateAdventureLevel(worldId: String, levelId: String, title: String, description: String, emoji: String, xp: Int, coins: Int) {
         repository.updateAdventureLevel(worldId, levelId, title, description, emoji, xp, coins)
+        val updatedWorld = repository.adventureWorlds.value.find { it.id == worldId }
+        if (updatedWorld != null && _selectedAdventureWorld.value?.id == worldId) {
+            _selectedAdventureWorld.value = updatedWorld
+        }
+    }
 
-    fun deleteAdventureLevel(worldId: String, levelId: String) = repository.deleteAdventureLevel(worldId, levelId)
+    fun deleteAdventureLevel(worldId: String, levelId: String) {
+        repository.deleteAdventureLevel(worldId, levelId)
+        val updatedWorld = repository.adventureWorlds.value.find { it.id == worldId }
+        if (updatedWorld != null && _selectedAdventureWorld.value?.id == worldId) {
+            _selectedAdventureWorld.value = updatedWorld
+        }
+    }
+
+    fun ensureLevelHasMissions(worldId: String, levelId: String, title: String): List<AdventureMission> {
+        val missions = repository.ensureLevelHasMissions(worldId, levelId, title)
+        val updatedWorld = repository.adventureWorlds.value.find { it.id == worldId }
+        if (updatedWorld != null && _selectedAdventureWorld.value?.id == worldId) {
+            _selectedAdventureWorld.value = updatedWorld
+        }
+        return missions
+    }
 
     fun addAdventureMission(worldId: String, levelId: String, title: String, description: String, type: AdventureMissionType, targetSentence: String, options: List<String>, correctAnswer: String, clue: String, xp: Int, coins: Int) =
         repository.addAdventureMission(worldId, levelId, title, description, type, targetSentence, options, correctAnswer, clue, xp, coins)
