@@ -256,17 +256,141 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     val pronunciationDrills: StateFlow<List<PronunciationDrill>> = _pronunciationDrills.asStateFlow()
 
     // Vocabulary Words
-    private val _vocabularyWords = MutableStateFlow(
-        listOf(
-            VocabularyWord("v1", "Eloquence", "/ˈel.ə.kwəns/", "noun", "Fluent or persuasive speaking or writing.", "Her natural eloquence held the entire audience spellbound.", "Communication", listOf("fluency", "articulateness"), isFavorite = true),
-            VocabularyWord("v2", "Resilience", "/rɪˈzɪl.jəns/", "noun", "The capacity to recover quickly from difficulties.", "Courage and resilience are key to learning any language.", "Mindset", listOf("tenacity", "strength")),
-            VocabularyWord("v3", "Collaborate", "/kəˈlæb.ə.reɪt/", "verb", "To work jointly on an activity or project.", "Students love to collaborate on speaking roleplays.", "Workplace", listOf("cooperate", "team up"), isFavorite = true),
-            VocabularyWord("v4", "Pragmatic", "/præɡˈmæt.ɪk/", "adjective", "Dealing with things sensibly and realistically.", "A pragmatic approach to speaking is to prioritize being understood over perfection.", "Academic", listOf("practical", "sensible")),
-            VocabularyWord("v5", "Articulate", "/ɑːˈtɪk.jə.lət/", "adjective", "Having or showing the ability to speak fluently and coherently.", "She gave an articulate summary of the proposal.", "Communication", listOf("expressive", "lucid")),
-            VocabularyWord("v6", "Fostering", "/ˈfɒs.tər.ɪŋ/", "verb", "Encouraging the development or growth of ideas or skills.", "Daily speaking practice is essential for fostering fluency.", "Growth", listOf("nurturing", "cultivating")),
-            VocabularyWord("v7", "Metaphor", "/ˈmet.ə.fɔːr/", "noun", "A figure of speech in which a word or phrase is applied to an object or action not literally applicable.", "Language learning is often described with the metaphor of a mountain climb.", "Literature", listOf("analogy", "symbol")),
-            VocabularyWord("v8", "Serendipity", "/ˌser.ənˈdɪp.ə.ti/", "noun", "The occurrence of events by chance in a happy or beneficial way.", "Meeting an English conversational partner at the train station was pure serendipity.", "General", listOf("chance", "fluke"))
+    val defaultVocabularyWords = listOf(
+        VocabularyWord(
+            id = "v1",
+            word = "Eloquence",
+            phonetic = "/ˈel.ə.kwəns/",
+            partOfSpeech = "noun",
+            meaning = "Fluent or persuasive speaking or writing.",
+            exampleSentence = "Her natural eloquence held the entire audience spellbound.",
+            category = "Communication",
+            synonyms = listOf("fluency", "articulateness"),
+            isFavorite = true,
+            assameseMeaning = "বাগ্মীতা / স্পষ্ট আৰু সাৱলীল কথা কোৱাৰ ক্ষমতা",
+            assameseTransliteration = "Bagmita / Sabolil kotha kowar khomota",
+            syllables = "El • o • quence",
+            coachingTip = "Emphasize the first syllable 'EL' with open vocal delivery.",
+            addedByTeacher = "Faculty Instructor"
+        ),
+        VocabularyWord(
+            id = "v2",
+            word = "Resilience",
+            phonetic = "/rɪˈzɪl.jəns/",
+            partOfSpeech = "noun",
+            meaning = "The capacity to recover quickly from difficulties.",
+            exampleSentence = "Courage and resilience are key to learning any language.",
+            category = "Mindset",
+            synonyms = listOf("tenacity", "strength"),
+            assameseMeaning = "স্থিতিস্থাপকতা / টান পৰিস্থিতিত হাৰ নমনা সাহস",
+            assameseTransliteration = "Sthitisthapakata / Sahakh",
+            syllables = "Re • sil • ience",
+            coachingTip = "Stress the second syllable 'ZIL' with a vibrating /z/ sound.",
+            addedByTeacher = "Faculty Instructor"
+        ),
+        VocabularyWord(
+            id = "v3",
+            word = "Collaborate",
+            phonetic = "/kəˈlæb.ə.reɪt/",
+            partOfSpeech = "verb",
+            meaning = "To work jointly on an activity or project.",
+            exampleSentence = "Students love to collaborate on speaking roleplays.",
+            category = "Workplace",
+            synonyms = listOf("cooperate", "team up"),
+            isFavorite = true,
+            assameseMeaning = "সহযোগিতা কৰা / একেলগে কাম কৰা",
+            assameseTransliteration = "Hohujogita kora / Ekeloge kam kora",
+            syllables = "Col • lab • o • rate",
+            coachingTip = "Link 'col' and 'lab' smoothly without pausing in between.",
+            addedByTeacher = "Faculty Instructor"
+        ),
+        VocabularyWord(
+            id = "v4",
+            word = "Pragmatic",
+            phonetic = "/præɡˈmæt.ɪk/",
+            partOfSpeech = "adjective",
+            meaning = "Dealing with things sensibly and realistically.",
+            exampleSentence = "A pragmatic approach to speaking is to prioritize being understood over perfection.",
+            category = "Academic",
+            synonyms = listOf("practical", "sensible"),
+            assameseMeaning = "বাস্তৱবাদী / ব্যৱহাৰিক",
+            assameseTransliteration = "Bastob-badi / Byoboharik",
+            syllables = "Prag • mat • ic",
+            coachingTip = "Pronounce the hard /g/ clearly before transitioning to /m/.",
+            addedByTeacher = "Faculty Instructor"
+        ),
+        VocabularyWord(
+            id = "v5",
+            word = "Articulate",
+            phonetic = "/ɑːˈtɪk.jə.lət/",
+            partOfSpeech = "adjective",
+            meaning = "Having or showing the ability to speak fluently and coherently.",
+            exampleSentence = "She gave an articulate summary of the proposal.",
+            category = "Communication",
+            synonyms = listOf("expressive", "lucid"),
+            assameseMeaning = "স্পষ্টভাষী / সাৱলীলভাৱে প্ৰকাশ কৰিব পৰা",
+            assameseTransliteration = "Spashtobhasi / Sabolil prokash",
+            syllables = "Ar • tic • u • late",
+            coachingTip = "Crisp consonants at syllable borders give this word its punch.",
+            addedByTeacher = "Faculty Instructor"
+        ),
+        VocabularyWord(
+            id = "v6",
+            word = "Fostering",
+            phonetic = "/ˈfɒs.tər.ɪŋ/",
+            partOfSpeech = "verb",
+            meaning = "Encouraging the development or growth of ideas or skills.",
+            exampleSentence = "Daily speaking practice is essential for fostering fluency.",
+            category = "Growth",
+            synonyms = listOf("nurturing", "cultivating"),
+            assameseMeaning = "উৎসাদন / বিকাশ বা বৃদ্ধিত সহায় কৰা",
+            assameseTransliteration = "Bikash ba bridhit xohai kora",
+            syllables = "Fos • ter • ing",
+            coachingTip = "Keep the vowel in 'Fos' short and open.",
+            addedByTeacher = "Faculty Instructor"
+        ),
+        VocabularyWord(
+            id = "v7",
+            word = "Metaphor",
+            phonetic = "/ˈmet.ə.fɔːr/",
+            partOfSpeech = "noun",
+            meaning = "A figure of speech in which a word or phrase is applied to an object or action.",
+            exampleSentence = "Language learning is often described with the metaphor of a mountain climb.",
+            category = "Literature",
+            synonyms = listOf("analogy", "symbol"),
+            assameseMeaning = "ৰূপক / উপমা",
+            assameseTransliteration = "Rupok / Upoma",
+            syllables = "Met • a • phor",
+            coachingTip = "Pronounce 'ph' as a soft /f/ sound, ending in /ɔːr/.",
+            addedByTeacher = "Faculty Instructor"
+        ),
+        VocabularyWord(
+            id = "v8",
+            word = "Serendipity",
+            phonetic = "/ˌser.ənˈdɪp.ə.ti/",
+            partOfSpeech = "noun",
+            meaning = "The occurrence of events by chance in a happy or beneficial way.",
+            exampleSentence = "Meeting an English conversational partner at the train station was pure serendipity.",
+            category = "General",
+            synonyms = listOf("chance", "fluke"),
+            assameseMeaning = "আকস্মিক সৌভাগ্য / হঠাৎ ঘটা সুখকৰ ঘটনা",
+            assameseTransliteration = "Akosmik soubhagya / Hothat ghota xukh",
+            syllables = "Ser • en • dip • i • ty",
+            coachingTip = "Primary accent on 'DIP'. Rhythm: ser-en-DIP-i-ty.",
+            addedByTeacher = "Faculty Instructor"
         )
+    )
+
+    private val _vocabularyWords = MutableStateFlow<List<VocabularyWord>>(
+        run {
+            val saved = appPreferences?.getVocabularyWords()
+            if (saved != null && saved.isNotEmpty()) {
+                saved
+            } else {
+                appPreferences?.saveVocabularyWords(defaultVocabularyWords)
+                defaultVocabularyWords
+            }
+        }
     )
     val vocabularyWords: StateFlow<List<VocabularyWord>> = _vocabularyWords.asStateFlow()
 
@@ -1601,6 +1725,9 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
 
     init {
         refreshLeaderboard()
+        _vocabularyWords.value.forEach { w ->
+            registerWordInEngines(w)
+        }
     }
 
     fun switchRole(newRole: Role) {
@@ -1911,6 +2038,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 if (it.id == wordId) it.copy(isFavorite = !it.isFavorite) else it
             }
         }
+        appPreferences?.saveVocabularyWords(_vocabularyWords.value)
     }
 
     // Teacher & Faculty vocabulary word addition with Assamese meaning
@@ -1923,10 +2051,25 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 listOf(word) + currentList
             }
         }
-        // Register immediately into Phonetics and Assamese translation engines
+        appPreferences?.saveVocabularyWords(_vocabularyWords.value)
+        registerWordInEngines(word)
+    }
+
+    fun deleteVocabularyWord(wordId: String) {
+        val wordToDelete = _vocabularyWords.value.find { it.id == wordId }
+        _vocabularyWords.update { list -> list.filterNot { it.id == wordId } }
+        appPreferences?.saveVocabularyWords(_vocabularyWords.value)
+        wordToDelete?.let {
+            com.example.service.PhoneticsAiEngine.removeCustomPhoneticWord(it.word)
+            com.example.util.AssameseTranslator.removeCustomWord(it.word)
+        }
+    }
+
+    fun registerWordInEngines(word: VocabularyWord) {
+        val cleanWord = word.word.trim().replaceFirstChar { it.uppercase() }
         com.example.service.PhoneticsAiEngine.addCustomPhoneticWord(
             com.example.service.PhoneticSearchResult(
-                word = word.word.trim().replaceFirstChar { it.uppercase() },
+                word = cleanWord,
                 ipa = word.phonetic.ifBlank { "/${word.word.lowercase()}/" },
                 syllables = word.syllables.ifBlank { word.word },
                 audioFocus = "Vocabulary Word",
@@ -1937,17 +2080,31 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 meaning = word.meaning,
                 assameseMeaning = word.assameseMeaning,
                 assameseTransliteration = word.assameseTransliteration,
-                soundTags = listOf(word.category, "Teacher Added")
+                soundTags = listOf(word.category, if (word.addedByTeacher.isNotBlank()) "Teacher Added" else "Core Lexicon")
             )
         )
+        if (word.assameseMeaning.isNotBlank()) {
+            com.example.util.AssameseTranslator.addCustomWord(cleanWord, word.assameseMeaning, word.assameseTransliteration)
+        }
     }
 
-    fun deleteVocabularyWord(wordId: String) {
-        val wordToDelete = _vocabularyWords.value.find { it.id == wordId }
-        _vocabularyWords.update { list -> list.filterNot { it.id == wordId } }
-        wordToDelete?.let {
-            com.example.service.PhoneticsAiEngine.removeCustomPhoneticWord(it.word)
+    fun mergeRemoteVocabulary(remoteWords: List<VocabularyWord>) {
+        if (remoteWords.isEmpty()) return
+        _vocabularyWords.update { currentList ->
+            val idMap = currentList.associateBy { it.id }.toMutableMap()
+            val textMap = currentList.associateBy { it.word.lowercase().trim() }.toMutableMap()
+            remoteWords.forEach { rw ->
+                val existing = idMap[rw.id] ?: textMap[rw.word.lowercase().trim()]
+                if (existing != null) {
+                    idMap[existing.id] = rw
+                } else {
+                    idMap[rw.id] = rw
+                }
+            }
+            idMap.values.toList()
         }
+        appPreferences?.saveVocabularyWords(_vocabularyWords.value)
+        _vocabularyWords.value.forEach { registerWordInEngines(it) }
     }
 
     // Teacher grades a submission

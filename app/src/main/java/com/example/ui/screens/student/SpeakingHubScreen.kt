@@ -207,6 +207,15 @@ fun SpeakingHubScreen(
             }
             item {
                 SpeakingTabPill(
+                    title = "Vocab & Assamese",
+                    emoji = "📖",
+                    isSelected = currentSubTab == SpeakingSubTab.VOCABULARY
+                ) {
+                    viewModel.selectSpeakingSubTab(SpeakingSubTab.VOCABULARY)
+                }
+            }
+            item {
+                SpeakingTabPill(
                     title = "English Adventure",
                     emoji = "🗺️",
                     isSelected = currentSubTab == SpeakingSubTab.ENGLISH_ADVENTURE
@@ -256,6 +265,13 @@ fun SpeakingHubScreen(
                             viewModel = viewModel,
                             speechState = speechState,
                             evaluation = lastEvaluation
+                        )
+                    }
+                }
+                SpeakingSubTab.VOCABULARY -> {
+                    item {
+                        StudentVocabularyExplorer(
+                            viewModel = viewModel
                         )
                     }
                 }
@@ -1252,15 +1268,11 @@ fun PronunciationSection(
                         )
                     }
 
-                    // Trending Words Capsules - Horizontally swipable so words NEVER wrap vertically
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("trending_words_lazy_row"),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
-                    ) {
-                        val trendingWords = listOf(
+                    // Trending & Teacher Vocabulary Words Capsules - Horizontally swipable
+                    val vocabularyWords by viewModel.vocabularyWords.collectAsState()
+                    val displayWords = remember(vocabularyWords) {
+                        val teacherWords = vocabularyWords.map { it.word }
+                        val curated = listOf(
                             "Comfortable",
                             "Thorough",
                             "Phenomenon",
@@ -1272,26 +1284,45 @@ fun PronunciationSection(
                             "Colleague",
                             "Worcestershire"
                         )
-                        items(trendingWords) { word ->
+                        (teacherWords + curated).distinct()
+                    }
+
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("trending_words_lazy_row"),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 2.dp)
+                    ) {
+                        items(displayWords) { word ->
+                            val isTeacherAdded = vocabularyWords.any { it.word.equals(word, ignoreCase = true) }
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
-                                color = Color(0xFF4C1D95).copy(alpha = 0.7f),
-                                border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.8f)),
+                                color = if (isTeacherAdded) Color(0xFF064E3B).copy(alpha = 0.85f) else Color(0xFF4C1D95).copy(alpha = 0.7f),
+                                border = BorderStroke(1.dp, if (isTeacherAdded) Color(0xFF10B981) else Color(0xFFA855F7).copy(alpha = 0.8f)),
                                 modifier = Modifier
                                     .clickable {
                                         queryInput = word
                                         viewModel.searchPhonetics(word)
                                     }
                             ) {
-                                Text(
-                                    text = word,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    softWrap = false,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    if (isTeacherAdded) {
+                                        Text("📖", fontSize = 11.sp)
+                                    }
+                                    Text(
+                                        text = word,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isTeacherAdded) Color(0xFFFEF08A) else Color.White,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             }
                         }
                     }

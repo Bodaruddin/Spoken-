@@ -57,6 +57,7 @@ enum class AdminSpeakingSection(val title: String, val emoji: String) {
 enum class SpeakingSubTab {
     AI_PARTNER,
     DAILY_CHALLENGE,
+    VOCABULARY,
     ENGLISH_ADVENTURE,
     PRONUNCIATION_COACH,
     PICTURE_DESCRIPTION
@@ -118,6 +119,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (remoteAssignments.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
                     repository.mergeRemoteAssignments(remoteAssignments)
+                }
+            }
+            val remoteVocab = supabaseService.fetchVocabularyWords()
+            if (remoteVocab.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    repository.mergeRemoteVocabulary(remoteVocab)
                 }
             }
         } catch (_: Exception) { }
@@ -1382,10 +1389,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             addedByTeacher = currentUser.value.name.ifBlank { "Faculty Instructor" }
         )
         repository.addVocabularyWord(newWord)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch {
+                supabaseService.saveVocabularyWord(newWord)
+            }
+        }
     }
 
     fun deleteTeacherVocabularyWord(wordId: String) {
         repository.deleteVocabularyWord(wordId)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch {
+                supabaseService.deleteVocabularyWord(wordId)
+            }
+        }
     }
 
     fun batchImportVocabularyWords(
@@ -1393,6 +1410,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ): Int {
         var count = 0
         val teacherName = currentUser.value.name.ifBlank { "Faculty Instructor" }
+        val newWordsList = mutableListOf<VocabularyWord>()
         words.forEach { row ->
             if (row.englishWord.isNotBlank() && row.assameseMeaning.isNotBlank()) {
                 val newWord = VocabularyWord(
@@ -1410,7 +1428,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     addedByTeacher = teacherName
                 )
                 repository.addVocabularyWord(newWord)
+                newWordsList.add(newWord)
                 count++
+            }
+        }
+        if (newWordsList.isNotEmpty() && supabaseService.isConfigured()) {
+            viewModelScope.launch {
+                newWordsList.forEach { supabaseService.saveVocabularyWord(it) }
             }
         }
         return count

@@ -859,6 +859,25 @@ fun StudentProfileScreen(
                                             )
                                         }
                                     }
+                                    if (word.assameseMeaning.isNotBlank()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFF064E3B).copy(alpha = 0.5f),
+                                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Text("অসমীয়া:", fontSize = 11.sp, color = Color(0xFF6EE7B7), fontWeight = FontWeight.Bold)
+                                                Text(word.assameseMeaning, fontSize = 11.sp, color = Color(0xFFFEF08A), fontWeight = FontWeight.Bold)
+                                                if (word.assameseTransliteration.isNotBlank()) {
+                                                    Text("(${word.assameseTransliteration})", fontSize = 10.sp, color = Color(0xFFCBD5E1), fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                                                }
+                                            }
+                                        }
+                                    }
                                     Text(
                                         text = word.meaning,
                                         fontSize = 12.sp,

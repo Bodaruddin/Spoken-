@@ -7,6 +7,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -47,6 +49,7 @@ fun StudentHomeScreen(
     val announcements by viewModel.announcements.collectAsState()
     val exams by viewModel.exams.collectAsState()
     val examSubmissions by viewModel.examSubmissions.collectAsState()
+    val vocabularyWords by viewModel.vocabularyWords.collectAsState()
 
     val studentSubmissionsMap = remember(examSubmissions, user) {
         examSubmissions.filter {
@@ -494,6 +497,154 @@ fun StudentHomeScreen(
                         viewModel.selectStudentTab(StudentTab.GAMES)
                     }
                 )
+            }
+        }
+
+        // 4b. English & Assamese Vocabulary Bank Banner
+        item {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                border = BorderStroke(1.5.dp, Color(0xFFF59E0B).copy(alpha = 0.85f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        viewModel.selectSpeakingSubTab(SpeakingSubTab.VOCABULARY)
+                        viewModel.selectStudentTab(StudentTab.PRACTICE)
+                    }
+                    .testTag("home_vocabulary_bank_card")
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    Color(0xFF261244).copy(alpha = 0.95f),
+                                    Color(0xFF131A4A).copy(alpha = 0.95f),
+                                    Color(0xFF063327).copy(alpha = 0.95f)
+                                )
+                            )
+                        )
+                        .padding(16.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(Color(0xFFF59E0B).copy(alpha = 0.2f))
+                                        .border(1.5.dp, Color(0xFFFBBF24), RoundedCornerShape(14.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("📖", fontSize = 22.sp)
+                                }
+
+                                Column(modifier = Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFF064E3B).copy(alpha = 0.6f),
+                                            border = BorderStroke(0.8.dp, Color(0xFF10B981).copy(alpha = 0.6f))
+                                        ) {
+                                            Text(
+                                                text = "অসমীয়া শব্দকোষ",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFA7F3D0),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = "${vocabularyWords.size} Words",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFFDBA74)
+                                        )
+                                    }
+
+                                    Text(
+                                        text = "English & Assamese Vocabulary",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.5.sp,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    Text(
+                                        text = "Learn teacher-added words with Assamese meaning & audio",
+                                        fontSize = 11.5.sp,
+                                        color = Color(0xFFCBD5E1),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.width(8.dp))
+
+                            Button(
+                                onClick = {
+                                    viewModel.selectSpeakingSubTab(SpeakingSubTab.VOCABULARY)
+                                    viewModel.selectStudentTab(StudentTab.PRACTICE)
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B)),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)
+                            ) {
+                                Text("Explore →", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, color = Color.Black)
+                            }
+                        }
+
+                        // Preview chips of recently added words
+                        val previewWords = remember(vocabularyWords) { vocabularyWords.take(5) }
+                        if (previewWords.isNotEmpty()) {
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(previewWords) { word ->
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFF0F172A).copy(alpha = 0.8f),
+                                        border = BorderStroke(0.8.dp, Color(0xFF38BDF8).copy(alpha = 0.5f))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(word.word, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            if (word.assameseMeaning.isNotBlank()) {
+                                                Text("•", fontSize = 10.sp, color = Color(0xFF64748B))
+                                                Text(
+                                                    word.assameseMeaning.take(16),
+                                                    fontSize = 11.sp,
+                                                    color = Color(0xFFFEF08A),
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

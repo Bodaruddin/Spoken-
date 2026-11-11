@@ -45,6 +45,7 @@ class AppPreferences(context: Context) {
         private const val KEY_SENTENCE_BUILDER_LIST = "key_sentence_builder_list"
         private const val KEY_LISTEN_CHOOSE_LIST = "key_listen_choose_list"
         private const val KEY_PRONUNCIATION_BATTLE_LIST = "key_pronunciation_battle_list"
+        private const val KEY_VOCABULARY_WORDS_LIST = "key_vocabulary_words_list"
     }
 
     fun saveMissingLettersCategories(categories: List<String>) {
@@ -712,5 +713,77 @@ class AppPreferences(context: Context) {
             completedAt = obj.optString("completedAt", "Today"),
             certificateId = obj.optString("certificateId", "SPK-EXM-2026-0000")
         )
+    }
+
+    // =========================================================================
+    // ENGLISH & ASSAMESE VOCABULARY WORDS PERSISTENCE
+    // =========================================================================
+
+    fun saveVocabularyWords(words: List<VocabularyWord>) {
+        try {
+            val array = JSONArray()
+            for (w in words) {
+                val obj = JSONObject()
+                obj.put("id", w.id)
+                obj.put("word", w.word)
+                obj.put("phonetic", w.phonetic)
+                obj.put("partOfSpeech", w.partOfSpeech)
+                obj.put("meaning", w.meaning)
+                obj.put("exampleSentence", w.exampleSentence)
+                obj.put("category", w.category)
+                obj.put("isFavorite", w.isFavorite)
+                obj.put("isMastered", w.isMastered)
+                obj.put("assameseMeaning", w.assameseMeaning)
+                obj.put("assameseTransliteration", w.assameseTransliteration)
+                obj.put("syllables", w.syllables)
+                obj.put("coachingTip", w.coachingTip)
+                obj.put("addedByTeacher", w.addedByTeacher)
+                val synArray = JSONArray()
+                w.synonyms.forEach { synArray.put(it) }
+                obj.put("synonyms", synArray)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_VOCABULARY_WORDS_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getVocabularyWords(): List<VocabularyWord>? {
+        val raw = prefs.getString(KEY_VOCABULARY_WORDS_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<VocabularyWord>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val synList = mutableListOf<String>()
+                val synArray = obj.optJSONArray("synonyms")
+                if (synArray != null) {
+                    for (j in 0 until synArray.length()) {
+                        synList.add(synArray.getString(j))
+                    }
+                }
+                list.add(
+                    VocabularyWord(
+                        id = obj.optString("id", "vocab_${System.currentTimeMillis()}_$i"),
+                        word = obj.optString("word", ""),
+                        phonetic = obj.optString("phonetic", ""),
+                        partOfSpeech = obj.optString("partOfSpeech", "noun"),
+                        meaning = obj.optString("meaning", ""),
+                        exampleSentence = obj.optString("exampleSentence", ""),
+                        category = obj.optString("category", "General"),
+                        synonyms = synList,
+                        isFavorite = obj.optBoolean("isFavorite", false),
+                        isMastered = obj.optBoolean("isMastered", false),
+                        assameseMeaning = obj.optString("assameseMeaning", ""),
+                        assameseTransliteration = obj.optString("assameseTransliteration", ""),
+                        syllables = obj.optString("syllables", ""),
+                        coachingTip = obj.optString("coachingTip", ""),
+                        addedByTeacher = obj.optString("addedByTeacher", "")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
     }
 }

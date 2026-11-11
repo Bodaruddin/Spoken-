@@ -440,6 +440,107 @@ class SupabaseService {
         }
     }
 
+    // =========================================================================
+    // VOCABULARY WORDS SYNC (ENGLISH & ASSAMESE)
+    // =========================================================================
+
+    suspend fun fetchVocabularyWords(): List<VocabularyWord> = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext emptyList()
+        val list = mutableListOf<VocabularyWord>()
+        try {
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/vocabulary_words?select=*")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .get()
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    val body = response.body?.string() ?: ""
+                    val jsonArray = JSONArray(body)
+                    for (i in 0 until jsonArray.length()) {
+                        val obj = jsonArray.getJSONObject(i)
+                        list.add(
+                            VocabularyWord(
+                                id = obj.optString("id", "vocab_${System.currentTimeMillis()}_$i"),
+                                word = obj.optString("word", ""),
+                                phonetic = obj.optString("phonetic", ""),
+                                partOfSpeech = obj.optString("part_of_speech", "noun"),
+                                meaning = obj.optString("meaning", ""),
+                                exampleSentence = obj.optString("example_sentence", ""),
+                                category = obj.optString("category", "General"),
+                                isFavorite = obj.optBoolean("is_favorite", false),
+                                isMastered = obj.optBoolean("is_mastered", false),
+                                assameseMeaning = obj.optString("assamese_meaning", ""),
+                                assameseTransliteration = obj.optString("assamese_transliteration", ""),
+                                syllables = obj.optString("syllables", ""),
+                                coachingTip = obj.optString("coaching_tip", ""),
+                                addedByTeacher = obj.optString("added_by_teacher", "Faculty Instructor")
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error fetching vocabulary words: ${e.message}")
+        }
+        list
+    }
+
+    suspend fun saveVocabularyWord(word: VocabularyWord): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        try {
+            val obj = JSONObject().apply {
+                put("id", word.id)
+                put("word", word.word)
+                put("phonetic", word.phonetic)
+                put("part_of_speech", word.partOfSpeech)
+                put("meaning", word.meaning)
+                put("example_sentence", word.exampleSentence)
+                put("category", word.category)
+                put("is_favorite", word.isFavorite)
+                put("is_mastered", word.isMastered)
+                put("assamese_meaning", word.assameseMeaning)
+                put("assamese_transliteration", word.assameseTransliteration)
+                put("syllables", word.syllables)
+                put("coaching_tip", word.coachingTip)
+                put("added_by_teacher", word.addedByTeacher)
+            }
+
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/vocabulary_words")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .addHeader("Prefer", "resolution=merge-duplicates")
+                .post(obj.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                response.isSuccessful
+            }
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error saving vocabulary word: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun deleteVocabularyWord(wordId: String): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        try {
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/vocabulary_words?id=eq.$wordId")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .delete()
+                .build()
+
+            client.newCall(request).execute().use { it.isSuccessful }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     companion object {
         val SQL_SCHEMA_BLUEPRINT = """
             -- Speakly Supabase PostgreSQL Schema
@@ -518,6 +619,25 @@ class SupabaseService {
                 last_updated TIMESTAMPTZ DEFAULT NOW()
             );
 
+            -- 7. English & Assamese Vocabulary Words Table
+            CREATE TABLE IF NOT EXISTS vocabulary_words (
+                id TEXT PRIMARY KEY,
+                word TEXT NOT NULL,
+                phonetic TEXT,
+                part_of_speech TEXT DEFAULT 'noun',
+                meaning TEXT,
+                example_sentence TEXT,
+                category TEXT DEFAULT 'General',
+                is_favorite BOOLEAN DEFAULT FALSE,
+                is_mastered BOOLEAN DEFAULT FALSE,
+                assamese_meaning TEXT,
+                assamese_transliteration TEXT,
+                syllables TEXT,
+                coaching_tip TEXT,
+                added_by_teacher TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            );
+
             -- Enable Row Level Security (RLS) & Allow Read/Write
             ALTER TABLE students ENABLE ROW LEVEL SECURITY;
             ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
@@ -525,6 +645,7 @@ class SupabaseService {
             ALTER TABLE speaking_evaluations ENABLE ROW LEVEL SECURITY;
             ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
             ALTER TABLE student_adventure_progress ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE vocabulary_words ENABLE ROW LEVEL SECURITY;
 
             -- Policies with full SELECT, INSERT, UPDATE, DELETE permissions
             DROP POLICY IF EXISTS "Allow public students" ON students;
@@ -544,6 +665,9 @@ class SupabaseService {
 
             DROP POLICY IF EXISTS "Allow public adventure" ON student_adventure_progress;
             CREATE POLICY "Allow public adventure" ON student_adventure_progress FOR ALL USING (true) WITH CHECK (true);
+
+            DROP POLICY IF EXISTS "Allow public vocabulary_words" ON vocabulary_words;
+            CREATE POLICY "Allow public vocabulary_words" ON vocabulary_words FOR ALL USING (true) WITH CHECK (true);
         """.trimIndent()
     }
 
