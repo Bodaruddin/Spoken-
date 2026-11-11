@@ -66,6 +66,10 @@ fun StudentExamsScreen(
     // Review answers state
     var selectedSubmissionForReview by remember { mutableStateOf<Pair<Exam, ExamSubmission>?>(null) }
 
+    LaunchedEffect(Unit) {
+        viewModel.refreshExamsFromCloud()
+    }
+
     val studentClass = currentUser.studentClass
 
     // Map of completed submissions for this student keyed by examId

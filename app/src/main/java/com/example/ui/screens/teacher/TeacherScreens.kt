@@ -1381,6 +1381,9 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     var activeEditingChallenge by remember { mutableStateOf<ActiveEditingChallenge?>(null) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
     val cloudNotice by viewModel.cloudSyncNotice.collectAsState()
+    LaunchedEffect(Unit) {
+        viewModel.refreshGameChallengesFromCloud()
+    }
     LaunchedEffect(cloudNotice) {
         cloudNotice?.let {
             statusMsg = it
@@ -3058,6 +3061,10 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
     var selectedSubmissionForCert by remember { mutableStateOf<ExamSubmission?>(null) }
     var toastMsg by remember { mutableStateOf<String?>(null) }
     var selectedClassFilter by remember { mutableStateOf("All Classes") }
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshExamsFromCloud()
+    }
 
     val filteredExams = remember(exams, selectedClassFilter) {
         if (selectedClassFilter == "All Classes") exams

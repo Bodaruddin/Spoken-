@@ -51,6 +51,11 @@ fun StudentHomeScreen(
     val examSubmissions by viewModel.examSubmissions.collectAsState()
     val vocabularyWords by viewModel.vocabularyWords.collectAsState()
 
+    LaunchedEffect(Unit) {
+        viewModel.refreshGameChallengesFromCloud()
+        viewModel.refreshExamsFromCloud()
+    }
+
     val studentSubmissionsMap = remember(examSubmissions, user) {
         examSubmissions.filter {
             it.studentId == user.id || it.studentName.equals(user.name, ignoreCase = true)

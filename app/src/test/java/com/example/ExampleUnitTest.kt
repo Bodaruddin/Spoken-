@@ -123,5 +123,122 @@ class ExampleUnitTest {
             assertTrue(cert.isPassed)
         }
     }
+
+    @Test
+    fun testMissingLettersAndSentenceBuilderRemoteMergeAndPersistence() {
+        val repository = LinguaQuestRepository(null)
+
+        // Test remote merge of custom Missing Letters
+        val remoteML = listOf(
+            com.example.data.model.SupabaseGameChallenge(
+                id = "ml_test_101",
+                type = "MISSING_LETTERS",
+                titleOrWord = "ELEPHANT",
+                hintOrMeaning = "A large mammal with tusks",
+                category = "Wildlife",
+                extraData = "1,3,5",
+                createdBy = "Teacher Test"
+            )
+        )
+        repository.mergeRemoteGameChallenges(remoteML)
+        val mlList = repository.missingLettersChallenges.value
+        val mergedMl = mlList.find { it.id == "ml_test_101" }
+        assertNotNull(mergedMl)
+        assertEquals("ELEPHANT", mergedMl?.fullWord)
+        assertEquals("Wildlife", mergedMl?.category)
+        assertEquals(listOf(1, 3, 5), mergedMl?.missingIndices)
+        // Verify custom category was registered
+        assertTrue(repository.missingLettersCustomCategories.value.contains("Wildlife"))
+
+        // Test update of Missing Letters
+        val updatedMl = mergedMl!!.copy(hint = "Updated hint for elephant")
+        repository.updateMissingLettersChallenge(updatedMl)
+        val refreshedMl = repository.missingLettersChallenges.value.find { it.id == "ml_test_101" }
+        assertEquals("Updated hint for elephant", refreshedMl?.hint)
+
+        // Test remote merge of Sentence Builder
+        val remoteSB = listOf(
+            com.example.data.model.SupabaseGameChallenge(
+                id = "sb_test_202",
+                type = "SENTENCE_BUILDER",
+                titleOrWord = "She sings beautifully in the choir.",
+                hintOrMeaning = "Subject + Verb + Adverbial",
+                category = "Syntax",
+                extraData = "তাই গীতগায়",
+                createdBy = "Teacher Test"
+            )
+        )
+        repository.mergeRemoteGameChallenges(remoteSB)
+        val sbList = repository.sentenceBuilderChallenges.value
+        val mergedSb = sbList.find { it.id == "sb_test_202" }
+        assertNotNull(mergedSb)
+        assertEquals("She sings beautifully in the choir.", mergedSb?.targetSentence)
+        assertEquals("Subject + Verb + Adverbial", mergedSb?.hint)
+        assertEquals("তাই গীতগায়", mergedSb?.assameseTranslation)
+
+        // Test update of Sentence Builder
+        val updatedSb = mergedSb!!.copy(targetSentence = "She sings wonderfully in the choir.")
+        repository.updateSentenceBuilderChallenge(updatedSb)
+        val refreshedSb = repository.sentenceBuilderChallenges.value.find { it.id == "sb_test_202" }
+        assertEquals("She sings wonderfully in the choir.", refreshedSb?.targetSentence)
+    }
+
+    @Test
+    fun testExamsAndSubmissionsRemoteMerge() {
+        val repository = LinguaQuestRepository(null)
+
+        val remoteExam = listOf(
+            com.example.data.model.Exam(
+                id = "exam_cloud_303",
+                title = "Midterm Vocabulary Test",
+                description = "Comprehensive vocab evaluation",
+                teacherName = "Prof. Smith",
+                targetClass = "Class 9",
+                subjectCategory = "Vocabulary",
+                durationMinutes = 20,
+                totalMarks = 50,
+                passingPercentage = 60,
+                questions = listOf(
+                    com.example.data.model.ExamQuestion("eq1", "Synonym of Benevolent?", listOf("Kind", "Cruel", "Fast", "Weak"), 0, 10)
+                ),
+                createdAt = "Nov 2026",
+                dueDate = "Next Week",
+                isPublished = true
+            )
+        )
+        repository.mergeRemoteExams(remoteExam)
+        val exams = repository.exams.value
+        val merged = exams.find { it.id == "exam_cloud_303" }
+        assertNotNull(merged)
+        assertEquals("Midterm Vocabulary Test", merged?.title)
+
+        val remoteSubmissions = listOf(
+            com.example.data.model.ExamSubmission(
+                id = "sub_cloud_404",
+                examId = "exam_cloud_303",
+                examTitle = "Midterm Vocabulary Test",
+                studentId = "stu_99",
+                studentName = "Rahul Barman",
+                studentClass = "Class 9",
+                studentAvatar = "👦",
+                scoreObtained = 45,
+                totalMarks = 50,
+                percentage = 90,
+                grade = "O",
+                performanceTitle = "Outstanding",
+                timeTakenSeconds = 750,
+                completedAt = "Nov 2026",
+                certificateId = "SPK-2026-000999",
+                isPassed = true
+            )
+        )
+        repository.mergeRemoteExamSubmissions(remoteSubmissions)
+        val submissions = repository.examSubmissions.value
+        val mergedSub = submissions.find { it.id == "sub_cloud_404" }
+        assertNotNull(mergedSub)
+        assertEquals("Rahul Barman", mergedSub?.studentName)
+        assertEquals(90, mergedSub?.percentage)
+        assertTrue(mergedSub?.isPassed == true)
+    }
 }
 

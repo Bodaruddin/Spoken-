@@ -106,8 +106,9 @@ class SupabaseService {
     // Helper to safely delete old records from speaking_evaluations sync channel before inserting
     private fun cleanSyncRows(studentId: String, targetPhrase: String) {
         try {
+            val encodedPhrase = try { java.net.URLEncoder.encode(targetPhrase, "UTF-8") } catch (_: Exception) { targetPhrase }
             val req = Request.Builder()
-                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.$studentId&target_phrase=eq.$targetPhrase")
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.$studentId&target_phrase=eq.$encodedPhrase")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
                 .delete()
@@ -688,45 +689,95 @@ class SupabaseService {
         }
 
         // 1. Try primary vocabulary_words table
+        val encodedWordId = try { java.net.URLEncoder.encode(word.id, "UTF-8") } catch (_: Exception) { word.id }
         try {
-            val request = Request.Builder()
-                .url("$supabaseUrl/rest/v1/vocabulary_words")
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/vocabulary_words?id=eq.$encodedWordId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
-                .addHeader("Prefer", "resolution=merge-duplicates")
-                .post(obj.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Prefer", "return=representation")
+                .patch(obj.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            client.newCall(request).execute().use { response ->
-                savedInPrimary = response.isSuccessful
+            var patched = false
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        patched = true
+                        savedInPrimary = true
+                    }
+                }
+            }
+
+            if (!patched) {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/vocabulary_words")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .addHeader("Prefer", "resolution=merge-duplicates")
+                    .post(obj.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    savedInPrimary = response.isSuccessful
+                }
             }
         } catch (_: Exception) {}
 
         // 2. Always sync to speaking_evaluations (universal persistent channel in Supabase)
         try {
-            cleanSyncRows("VOCABULARY_SYNC", word.id)
-
-            val evalObj = JSONObject().apply {
-                put("student_id", "VOCABULARY_SYNC")
-                put("target_phrase", word.id)
+            val patchPayload = JSONObject().apply {
                 put("spoken_text", word.word)
                 put("feedback", obj.toString())
-                put("pronunciation_score", 100)
-                put("fluency_score", 100)
-                put("grammar_score", 100)
-                put("vocabulary_score", 100)
                 put("overall_score", 100)
             }
 
-            val fallbackReq = Request.Builder()
-                .url("$supabaseUrl/rest/v1/speaking_evaluations")
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.VOCABULARY_SYNC&target_phrase=eq.$encodedWordId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
-                .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Prefer", "return=representation")
+                .patch(patchPayload.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            client.newCall(fallbackReq).execute().use { response ->
-                if (response.isSuccessful) return@withContext true
+            var patched = false
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        patched = true
+                    }
+                }
+            }
+
+            if (!patched) {
+                cleanSyncRows("VOCABULARY_SYNC", word.id)
+
+                val evalObj = JSONObject().apply {
+                    put("student_id", "VOCABULARY_SYNC")
+                    put("target_phrase", word.id)
+                    put("spoken_text", word.word)
+                    put("feedback", obj.toString())
+                    put("pronunciation_score", 100)
+                    put("fluency_score", 100)
+                    put("grammar_score", 100)
+                    put("vocabulary_score", 100)
+                    put("overall_score", 100)
+                }
+
+                val fallbackReq = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/speaking_evaluations")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                client.newCall(fallbackReq).execute().use { response ->
+                    if (response.isSuccessful) return@withContext true
+                }
+            } else {
+                return@withContext true
             }
         } catch (_: Exception) {}
 
@@ -736,11 +787,12 @@ class SupabaseService {
     suspend fun deleteVocabularyWord(wordId: String): Boolean = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext false
         var success = false
+        val encodedWordId = try { java.net.URLEncoder.encode(wordId, "UTF-8") } catch (_: Exception) { wordId }
 
         // 1. Delete from primary
         try {
             val request = Request.Builder()
-                .url("$supabaseUrl/rest/v1/vocabulary_words?id=eq.$wordId")
+                .url("$supabaseUrl/rest/v1/vocabulary_words?id=eq.$encodedWordId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
                 .delete()
@@ -772,7 +824,7 @@ class SupabaseService {
         // 1. First attempt dedicated game_challenges table
         try {
             val request = Request.Builder()
-                .url("$supabaseUrl/rest/v1/game_challenges?select=*")
+                .url("$supabaseUrl/rest/v1/game_challenges?select=*&limit=1000")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
                 .get()
@@ -795,13 +847,13 @@ class SupabaseService {
                                 SupabaseGameChallenge(
                                     id = id,
                                     type = obj.optString("type", "SENTENCE_BUILDER"),
-                                    titleOrWord = obj.optString("title_or_word", ""),
-                                    hintOrMeaning = obj.optString("hint_or_meaning", ""),
+                                    titleOrWord = obj.optString("title_or_word", obj.optString("titleOrWord", "")),
+                                    hintOrMeaning = obj.optString("hint_or_meaning", obj.optString("hintOrMeaning", "")),
                                     category = obj.optString("category", "General"),
                                     options = options,
-                                    correctIndex = obj.optInt("correct_index", 0),
-                                    extraData = obj.optString("extra_data", ""),
-                                    createdBy = obj.optString("created_by", "Faculty")
+                                    correctIndex = if (obj.has("correct_index")) obj.optInt("correct_index", 0) else obj.optInt("correctIndex", 0),
+                                    extraData = obj.optString("extra_data", obj.optString("extraData", "")),
+                                    createdBy = obj.optString("created_by", obj.optString("createdBy", "Faculty"))
                                 )
                             )
                             seenIds.add(id)
@@ -814,7 +866,7 @@ class SupabaseService {
         // 2. Query fallback channel in speaking_evaluations
         try {
             val fallbackReq = Request.Builder()
-                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.CHALLENGE_SYNC&select=*")
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.CHALLENGE_SYNC&select=*&limit=1000")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
                 .get()
@@ -842,13 +894,13 @@ class SupabaseService {
                                         SupabaseGameChallenge(
                                             id = id,
                                             type = obj.optString("type", row.optString("spoken_text", "SENTENCE_BUILDER")),
-                                            titleOrWord = obj.optString("titleOrWord", ""),
-                                            hintOrMeaning = obj.optString("hintOrMeaning", ""),
+                                            titleOrWord = obj.optString("titleOrWord", obj.optString("title_or_word", obj.optString("targetSentence", obj.optString("word", obj.optString("fullWord", ""))))),
+                                            hintOrMeaning = obj.optString("hintOrMeaning", obj.optString("hint_or_meaning", obj.optString("hint", obj.optString("meaning", obj.optString("definition", ""))))),
                                             category = obj.optString("category", "General"),
                                             options = options,
-                                            correctIndex = obj.optInt("correctIndex", row.optInt("overall_score", 0)),
-                                            extraData = obj.optString("extraData", ""),
-                                            createdBy = obj.optString("createdBy", "Faculty")
+                                            correctIndex = if (obj.has("correctIndex")) obj.optInt("correctIndex", 0) else if (obj.has("correct_index")) obj.optInt("correct_index", 0) else row.optInt("overall_score", 0),
+                                            extraData = obj.optString("extraData", obj.optString("extra_data", obj.optString("assameseTranslation", obj.optString("missingIndices", "")))),
+                                            createdBy = obj.optString("createdBy", obj.optString("created_by", "Faculty"))
                                         )
                                     )
                                     seenIds.add(id)
@@ -866,6 +918,8 @@ class SupabaseService {
     suspend fun saveGameChallenge(challenge: SupabaseGameChallenge): Boolean = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext false
         var savedInPrimary = false
+        var savedInFallback = false
+        val encodedId = try { java.net.URLEncoder.encode(challenge.id, "UTF-8") } catch (_: Exception) { challenge.id }
 
         // 1. Try primary game_challenges table
         try {
@@ -883,71 +937,128 @@ class SupabaseService {
                 put("created_by", challenge.createdBy)
             }
 
-            val request = Request.Builder()
-                .url("$supabaseUrl/rest/v1/game_challenges")
+            // In-place PATCH for existing challenge
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/game_challenges?id=eq.$encodedId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
-                .addHeader("Prefer", "resolution=merge-duplicates")
-                .post(obj.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Prefer", "return=representation")
+                .patch(obj.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            client.newCall(request).execute().use { response ->
-                savedInPrimary = response.isSuccessful
+            var patched = false
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        patched = true
+                        savedInPrimary = true
+                    }
+                }
+            }
+
+            // If not found for patch, insert/upsert
+            if (!patched) {
+                val postReq = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/game_challenges")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .addHeader("Prefer", "resolution=merge-duplicates")
+                    .post(obj.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                client.newCall(postReq).execute().use { resp ->
+                    if (resp.isSuccessful) savedInPrimary = true
+                }
             }
         } catch (_: Exception) {}
 
         // 2. Synchronize with the cloud sync channel in speaking_evaluations
         try {
-            cleanSyncRows("CHALLENGE_SYNC", challenge.id)
-
             val jsonPayload = JSONObject().apply {
                 put("id", challenge.id)
                 put("type", challenge.type)
                 put("titleOrWord", challenge.titleOrWord)
+                put("title_or_word", challenge.titleOrWord)
                 put("hintOrMeaning", challenge.hintOrMeaning)
+                put("hint_or_meaning", challenge.hintOrMeaning)
                 put("category", challenge.category)
                 val optArr = JSONArray()
                 challenge.options.forEach { optArr.put(it) }
                 put("options", optArr)
                 put("correctIndex", challenge.correctIndex)
+                put("correct_index", challenge.correctIndex)
                 put("extraData", challenge.extraData)
+                put("extra_data", challenge.extraData)
                 put("createdBy", challenge.createdBy)
+                put("created_by", challenge.createdBy)
             }
 
-            val evalObj = JSONObject().apply {
-                put("student_id", "CHALLENGE_SYNC")
-                put("target_phrase", challenge.id)
+            val patchPayload = JSONObject().apply {
                 put("spoken_text", challenge.type)
                 put("feedback", jsonPayload.toString())
-                put("pronunciation_score", 100)
-                put("fluency_score", 100)
-                put("grammar_score", 100)
-                put("vocabulary_score", 100)
                 put("overall_score", challenge.correctIndex)
             }
 
-            val fallbackReq = Request.Builder()
-                .url("$supabaseUrl/rest/v1/speaking_evaluations")
+            // In-place PATCH in speaking_evaluations
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.CHALLENGE_SYNC&target_phrase=eq.$encodedId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
-                .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Prefer", "return=representation")
+                .patch(patchPayload.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            client.newCall(fallbackReq).execute().use { response ->
-                if (response.isSuccessful) return@withContext true
+            var patched = false
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        patched = true
+                        savedInFallback = true
+                    }
+                }
+            }
+
+            if (!patched) {
+                cleanSyncRows("CHALLENGE_SYNC", challenge.id)
+
+                val evalObj = JSONObject().apply {
+                    put("student_id", "CHALLENGE_SYNC")
+                    put("target_phrase", challenge.id)
+                    put("spoken_text", challenge.type)
+                    put("feedback", jsonPayload.toString())
+                    put("pronunciation_score", 100)
+                    put("fluency_score", 100)
+                    put("grammar_score", 100)
+                    put("vocabulary_score", 100)
+                    put("overall_score", challenge.correctIndex)
+                }
+
+                val fallbackReq = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/speaking_evaluations")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                client.newCall(fallbackReq).execute().use { response ->
+                    if (response.isSuccessful) savedInFallback = true
+                }
             }
         } catch (_: Exception) {}
 
-        savedInPrimary
+        savedInPrimary || savedInFallback
     }
 
     suspend fun deleteGameChallenge(challengeId: String): Boolean = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext false
         var success = false
+        val encodedId = try { java.net.URLEncoder.encode(challengeId, "UTF-8") } catch (_: Exception) { challengeId }
 
         try {
             val request = Request.Builder()
-                .url("$supabaseUrl/rest/v1/game_challenges?id=eq.$challengeId")
+                .url("$supabaseUrl/rest/v1/game_challenges?id=eq.$encodedId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
                 .delete()
@@ -1056,78 +1167,133 @@ class SupabaseService {
     suspend fun savePronunciationDrill(drill: PronunciationDrill): Boolean = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext false
         var savedInPrimary = false
+        var savedInFallback = false
+        val encodedDrillId = try { java.net.URLEncoder.encode(drill.id, "UTF-8") } catch (_: Exception) { drill.id }
+
+        val obj = JSONObject().apply {
+            put("id", drill.id)
+            put("word_or_sentence", drill.wordOrSentence)
+            put("ipa_phonetic", drill.ipaPhonetic)
+            put("audio_focus", drill.audioFocus)
+            put("difficulty", drill.difficulty)
+            put("tips", drill.tips)
+            put("created_by", "Faculty")
+        }
 
         // 1. Try dedicated table
         try {
-            val obj = JSONObject().apply {
-                put("id", drill.id)
-                put("word_or_sentence", drill.wordOrSentence)
-                put("ipa_phonetic", drill.ipaPhonetic)
-                put("audio_focus", drill.audioFocus)
-                put("difficulty", drill.difficulty)
-                put("tips", drill.tips)
-            }
-
-            val request = Request.Builder()
-                .url("$supabaseUrl/rest/v1/pronunciation_drills")
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/pronunciation_drills?id=eq.$encodedDrillId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
-                .addHeader("Prefer", "resolution=merge-duplicates")
-                .post(obj.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Prefer", "return=representation")
+                .patch(obj.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            client.newCall(request).execute().use { response ->
-                savedInPrimary = response.isSuccessful
+            var patched = false
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        patched = true
+                        savedInPrimary = true
+                    }
+                }
+            }
+
+            if (!patched) {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/pronunciation_drills")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .addHeader("Prefer", "resolution=merge-duplicates")
+                    .post(obj.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    savedInPrimary = response.isSuccessful
+                }
             }
         } catch (_: Exception) {}
 
         // 2. Synchronize with speaking_evaluations
         try {
-            cleanSyncRows("DRILL_SYNC", drill.id)
-
             val jsonPayload = JSONObject().apply {
                 put("id", drill.id)
                 put("wordOrSentence", drill.wordOrSentence)
+                put("word_or_sentence", drill.wordOrSentence)
                 put("ipaPhonetic", drill.ipaPhonetic)
+                put("ipa_phonetic", drill.ipaPhonetic)
                 put("audioFocus", drill.audioFocus)
+                put("audio_focus", drill.audioFocus)
                 put("difficulty", drill.difficulty)
                 put("tips", drill.tips)
             }
 
-            val evalObj = JSONObject().apply {
-                put("student_id", "DRILL_SYNC")
-                put("target_phrase", drill.id)
+            val patchPayload = JSONObject().apply {
                 put("spoken_text", drill.wordOrSentence)
                 put("feedback", jsonPayload.toString())
-                put("pronunciation_score", 100)
-                put("fluency_score", 100)
-                put("grammar_score", 100)
-                put("vocabulary_score", 100)
                 put("overall_score", 100)
             }
 
-            val fallbackReq = Request.Builder()
-                .url("$supabaseUrl/rest/v1/speaking_evaluations")
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.DRILL_SYNC&target_phrase=eq.$encodedDrillId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
-                .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Prefer", "return=representation")
+                .patch(patchPayload.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            client.newCall(fallbackReq).execute().use { response ->
-                if (response.isSuccessful) return@withContext true
+            var patched = false
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        patched = true
+                        savedInFallback = true
+                    }
+                }
+            }
+
+            if (!patched) {
+                cleanSyncRows("DRILL_SYNC", drill.id)
+
+                val evalObj = JSONObject().apply {
+                    put("student_id", "DRILL_SYNC")
+                    put("target_phrase", drill.id)
+                    put("spoken_text", drill.wordOrSentence)
+                    put("feedback", jsonPayload.toString())
+                    put("pronunciation_score", 100)
+                    put("fluency_score", 100)
+                    put("grammar_score", 100)
+                    put("vocabulary_score", 100)
+                    put("overall_score", 100)
+                }
+
+                val fallbackReq = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/speaking_evaluations")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                client.newCall(fallbackReq).execute().use { response ->
+                    if (response.isSuccessful) savedInFallback = true
+                }
             }
         } catch (_: Exception) {}
 
-        savedInPrimary
+        savedInPrimary || savedInFallback
     }
 
     suspend fun deletePronunciationDrill(drillId: String): Boolean = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext false
         var success = false
+        val encodedDrillId = try { java.net.URLEncoder.encode(drillId, "UTF-8") } catch (_: Exception) { drillId }
 
         try {
             val request = Request.Builder()
-                .url("$supabaseUrl/rest/v1/pronunciation_drills?id=eq.$drillId")
+                .url("$supabaseUrl/rest/v1/pronunciation_drills?id=eq.$encodedDrillId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
                 .delete()
@@ -1158,7 +1324,7 @@ class SupabaseService {
         // 1. Try dedicated table
         try {
             val request = Request.Builder()
-                .url("$supabaseUrl/rest/v1/speaking_prompts?select=*")
+                .url("$supabaseUrl/rest/v1/speaking_prompts?select=*&limit=500")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
                 .get()
@@ -1183,9 +1349,9 @@ class SupabaseService {
                                     title = obj.optString("title", ""),
                                     category = obj.optString("category", "General"),
                                     question = obj.optString("question", ""),
-                                    followUpTip = obj.optString("follow_up_tip", ""),
+                                    followUpTip = obj.optString("follow_up_tip", obj.optString("followUpTip", "")),
                                     recommendedKeywords = kwList,
-                                    minSpeakingSeconds = obj.optInt("min_seconds", 20)
+                                    minSpeakingSeconds = if (obj.has("min_seconds")) obj.optInt("min_seconds", 20) else obj.optInt("minSeconds", 20)
                                 )
                             )
                             seenIds.add(id)
@@ -1198,7 +1364,7 @@ class SupabaseService {
         // 2. Query speaking_evaluations sync channel
         try {
             val fbReq = Request.Builder()
-                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.PROMPT_SYNC&select=*")
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.PROMPT_SYNC&select=*&limit=500")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
                 .get()
@@ -1228,9 +1394,9 @@ class SupabaseService {
                                             title = obj.optString("title", row.optString("spoken_text", "")),
                                             category = obj.optString("category", "General"),
                                             question = obj.optString("question", ""),
-                                            followUpTip = obj.optString("followUpTip", ""),
+                                            followUpTip = obj.optString("followUpTip", obj.optString("follow_up_tip", "")),
                                             recommendedKeywords = kwList,
-                                            minSpeakingSeconds = obj.optInt("minSeconds", 20)
+                                            minSpeakingSeconds = if (obj.has("minSeconds")) obj.optInt("minSeconds", 20) else obj.optInt("min_seconds", 20)
                                         )
                                     )
                                     seenIds.add(id)
@@ -1248,86 +1414,137 @@ class SupabaseService {
     suspend fun saveSpeakingPrompt(prompt: SpeakingPrompt): Boolean = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext false
         var savedInPrimary = false
+        var savedInFallback = false
+        val encodedPromptId = try { java.net.URLEncoder.encode(prompt.id, "UTF-8") } catch (_: Exception) { prompt.id }
+
+        val kwArr = JSONArray()
+        prompt.recommendedKeywords.forEach { kwArr.put(it) }
+
+        val obj = JSONObject().apply {
+            put("id", prompt.id)
+            put("title", prompt.title)
+            put("category", prompt.category)
+            put("question", prompt.question)
+            put("follow_up_tip", prompt.followUpTip)
+            put("keywords", kwArr)
+            put("min_seconds", prompt.minSpeakingSeconds)
+            put("created_by", "Faculty")
+        }
 
         // 1. Try dedicated table
         try {
-            val kwArr = JSONArray()
-            prompt.recommendedKeywords.forEach { kwArr.put(it) }
-
-            val obj = JSONObject().apply {
-                put("id", prompt.id)
-                put("title", prompt.title)
-                put("category", prompt.category)
-                put("question", prompt.question)
-                put("follow_up_tip", prompt.followUpTip)
-                put("keywords", kwArr)
-                put("min_seconds", prompt.minSpeakingSeconds)
-            }
-
-            val request = Request.Builder()
-                .url("$supabaseUrl/rest/v1/speaking_prompts")
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_prompts?id=eq.$encodedPromptId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
-                .addHeader("Prefer", "resolution=merge-duplicates")
-                .post(obj.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Prefer", "return=representation")
+                .patch(obj.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            client.newCall(request).execute().use { response ->
-                savedInPrimary = response.isSuccessful
+            var patched = false
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        patched = true
+                        savedInPrimary = true
+                    }
+                }
+            }
+
+            if (!patched) {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/speaking_prompts")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .addHeader("Prefer", "resolution=merge-duplicates")
+                    .post(obj.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    savedInPrimary = response.isSuccessful
+                }
             }
         } catch (_: Exception) {}
 
         // 2. Synchronize with speaking_evaluations
         try {
-            cleanSyncRows("PROMPT_SYNC", prompt.id)
-
-            val kwArr = JSONArray()
-            prompt.recommendedKeywords.forEach { kwArr.put(it) }
-
             val jsonPayload = JSONObject().apply {
                 put("id", prompt.id)
                 put("title", prompt.title)
                 put("category", prompt.category)
                 put("question", prompt.question)
                 put("followUpTip", prompt.followUpTip)
+                put("follow_up_tip", prompt.followUpTip)
                 put("keywords", kwArr)
                 put("minSeconds", prompt.minSpeakingSeconds)
+                put("min_seconds", prompt.minSpeakingSeconds)
             }
 
-            val evalObj = JSONObject().apply {
-                put("student_id", "PROMPT_SYNC")
-                put("target_phrase", prompt.id)
+            val patchPayload = JSONObject().apply {
                 put("spoken_text", prompt.title)
                 put("feedback", jsonPayload.toString())
-                put("pronunciation_score", 100)
-                put("fluency_score", 100)
-                put("grammar_score", 100)
-                put("vocabulary_score", 100)
                 put("overall_score", 100)
             }
 
-            val fallbackReq = Request.Builder()
-                .url("$supabaseUrl/rest/v1/speaking_evaluations")
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.PROMPT_SYNC&target_phrase=eq.$encodedPromptId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
-                .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Prefer", "return=representation")
+                .patch(patchPayload.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            client.newCall(fallbackReq).execute().use { response ->
-                if (response.isSuccessful) return@withContext true
+            var patched = false
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        patched = true
+                        savedInFallback = true
+                    }
+                }
+            }
+
+            if (!patched) {
+                cleanSyncRows("PROMPT_SYNC", prompt.id)
+
+                val evalObj = JSONObject().apply {
+                    put("student_id", "PROMPT_SYNC")
+                    put("target_phrase", prompt.id)
+                    put("spoken_text", prompt.title)
+                    put("feedback", jsonPayload.toString())
+                    put("pronunciation_score", 100)
+                    put("fluency_score", 100)
+                    put("grammar_score", 100)
+                    put("vocabulary_score", 100)
+                    put("overall_score", 100)
+                }
+
+                val fallbackReq = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/speaking_evaluations")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                client.newCall(fallbackReq).execute().use { response ->
+                    if (response.isSuccessful) savedInFallback = true
+                }
             }
         } catch (_: Exception) {}
 
-        savedInPrimary
+        savedInPrimary || savedInFallback
     }
 
     suspend fun deleteSpeakingPrompt(promptId: String): Boolean = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext false
         var success = false
+        val encodedPromptId = try { java.net.URLEncoder.encode(promptId, "UTF-8") } catch (_: Exception) { promptId }
 
         try {
             val request = Request.Builder()
-                .url("$supabaseUrl/rest/v1/speaking_prompts?id=eq.$promptId")
+                .url("$supabaseUrl/rest/v1/speaking_prompts?id=eq.$encodedPromptId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
                 .delete()
@@ -1344,6 +1561,436 @@ class SupabaseService {
         } catch (_: Exception) {}
 
         success
+    }
+
+    // =========================================================================
+    // MCQ ONLINE EXAMS & QUESTIONS SYNC
+    // =========================================================================
+
+    suspend fun saveExam(exam: Exam): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        var savedInPrimary = false
+        var savedInFallback = false
+        val encodedId = try { java.net.URLEncoder.encode(exam.id, "UTF-8") } catch (_: Exception) { exam.id }
+
+        val qArr = JSONArray()
+        for (q in exam.questions) {
+            val qObj = JSONObject().apply {
+                put("id", q.id)
+                put("question", q.question)
+                val optArr = JSONArray()
+                q.options.forEach { optArr.put(it) }
+                put("options", optArr)
+                put("correctOptionIndex", q.correctOptionIndex)
+                put("correct_option_index", q.correctOptionIndex)
+                put("marks", q.marks)
+                put("explanation", q.explanation)
+            }
+            qArr.put(qObj)
+        }
+
+        val examObj = JSONObject().apply {
+            put("id", exam.id)
+            put("title", exam.title)
+            put("description", exam.description)
+            put("teacher_name", exam.teacherName)
+            put("teacherName", exam.teacherName)
+            put("target_class", exam.targetClass)
+            put("targetClass", exam.targetClass)
+            put("subject_category", exam.subjectCategory)
+            put("subjectCategory", exam.subjectCategory)
+            put("duration_minutes", exam.durationMinutes)
+            put("durationMinutes", exam.durationMinutes)
+            put("total_marks", exam.totalMarks)
+            put("totalMarks", exam.totalMarks)
+            put("passing_percentage", exam.passingPercentage)
+            put("passingPercentage", exam.passingPercentage)
+            put("created_at", exam.createdAt)
+            put("createdAt", exam.createdAt)
+            put("due_date", exam.dueDate)
+            put("dueDate", exam.dueDate)
+            put("is_published", exam.isPublished)
+            put("isPublished", exam.isPublished)
+            put("questions", qArr)
+        }
+
+        // 1. Try primary exams table
+        try {
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/exams?id=eq.$encodedId")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .addHeader("Prefer", "return=representation")
+                .patch(examObj.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            var patched = false
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        patched = true
+                        savedInPrimary = true
+                    }
+                }
+            }
+
+            if (!patched) {
+                val postReq = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/exams")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .addHeader("Prefer", "resolution=merge-duplicates")
+                    .post(examObj.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                client.newCall(postReq).execute().use { resp ->
+                    if (resp.isSuccessful) savedInPrimary = true
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 2. Always sync to speaking_evaluations
+        try {
+            val patchPayload = JSONObject().apply {
+                put("spoken_text", exam.title)
+                put("feedback", examObj.toString())
+                put("overall_score", exam.passingPercentage)
+            }
+
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.EXAM_SYNC&target_phrase=eq.$encodedId")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .addHeader("Prefer", "return=representation")
+                .patch(patchPayload.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            var patched = false
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        patched = true
+                        savedInFallback = true
+                    }
+                }
+            }
+
+            if (!patched) {
+                cleanSyncRows("EXAM_SYNC", exam.id)
+
+                val evalObj = JSONObject().apply {
+                    put("student_id", "EXAM_SYNC")
+                    put("target_phrase", exam.id)
+                    put("spoken_text", exam.title)
+                    put("feedback", examObj.toString())
+                    put("pronunciation_score", 100)
+                    put("fluency_score", 100)
+                    put("grammar_score", 100)
+                    put("vocabulary_score", 100)
+                    put("overall_score", exam.passingPercentage)
+                }
+
+                val postReq = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/speaking_evaluations")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                client.newCall(postReq).execute().use { resp ->
+                    if (resp.isSuccessful) savedInFallback = true
+                }
+            }
+        } catch (_: Exception) {}
+
+        savedInPrimary || savedInFallback
+    }
+
+    suspend fun deleteExam(examId: String): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        var success = false
+        val encodedId = try { java.net.URLEncoder.encode(examId, "UTF-8") } catch (_: Exception) { examId }
+
+        try {
+            val req = Request.Builder()
+                .url("$supabaseUrl/rest/v1/exams?id=eq.$encodedId")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .delete()
+                .build()
+            client.newCall(req).execute().use {
+                if (it.isSuccessful) success = true
+            }
+        } catch (_: Exception) {}
+
+        try {
+            cleanSyncRows("EXAM_SYNC", examId)
+            success = true
+        } catch (_: Exception) {}
+
+        success
+    }
+
+    suspend fun fetchExams(): List<Exam> = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext emptyList()
+        val list = mutableListOf<Exam>()
+        val seenIds = mutableSetOf<String>()
+
+        fun parseExamJson(obj: JSONObject, fallbackId: String = ""): Exam? {
+            val id = obj.optString("id", fallbackId).ifBlank { return null }
+            val qArr = obj.optJSONArray("questions")
+            val questions = mutableListOf<ExamQuestion>()
+            if (qArr != null) {
+                for (j in 0 until qArr.length()) {
+                    val qObj = qArr.getJSONObject(j)
+                    val optArr = qObj.optJSONArray("options")
+                    val options = mutableListOf<String>()
+                    if (optArr != null) {
+                        for (k in 0 until optArr.length()) options.add(optArr.getString(k))
+                    }
+                    questions.add(
+                        ExamQuestion(
+                            id = qObj.optString("id", "q_$j"),
+                            question = qObj.optString("question", ""),
+                            options = options,
+                            correctOptionIndex = if (qObj.has("correctOptionIndex")) qObj.optInt("correctOptionIndex", 0) else qObj.optInt("correct_option_index", 0),
+                            marks = qObj.optInt("marks", 5),
+                            explanation = qObj.optString("explanation", "")
+                        )
+                    )
+                }
+            }
+            return Exam(
+                id = id,
+                title = obj.optString("title", "Exam"),
+                description = obj.optString("description", ""),
+                teacherName = obj.optString("teacherName", obj.optString("teacher_name", "Faculty")),
+                targetClass = obj.optString("targetClass", obj.optString("target_class", AcademicClasses.DEFAULT_CLASS)),
+                subjectCategory = obj.optString("subjectCategory", obj.optString("subject_category", "English Grammar")),
+                durationMinutes = if (obj.has("durationMinutes")) obj.optInt("durationMinutes", 15) else obj.optInt("duration_minutes", 15),
+                totalMarks = if (obj.has("totalMarks")) obj.optInt("totalMarks", 50) else obj.optInt("total_marks", 50),
+                passingPercentage = if (obj.has("passingPercentage")) obj.optInt("passingPercentage", 60) else obj.optInt("passing_percentage", 60),
+                questions = questions,
+                createdAt = obj.optString("createdAt", obj.optString("created_at", "Nov 2026")),
+                dueDate = obj.optString("dueDate", obj.optString("due_date", "Tomorrow, 6 PM")),
+                isPublished = if (obj.has("isPublished")) obj.optBoolean("isPublished", true) else obj.optBoolean("is_published", true)
+            )
+        }
+
+        // 1. Try primary exams table
+        try {
+            val req = Request.Builder()
+                .url("$supabaseUrl/rest/v1/exams?select=*&limit=500")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .get()
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    val array = JSONArray(body)
+                    for (i in 0 until array.length()) {
+                        val exam = parseExamJson(array.getJSONObject(i))
+                        if (exam != null && seenIds.add(exam.id)) {
+                            list.add(exam)
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 2. Query fallback channel in speaking_evaluations
+        try {
+            val req = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.EXAM_SYNC&select=*&limit=500")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .get()
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    val array = JSONArray(body)
+                    for (i in 0 until array.length()) {
+                        val row = array.getJSONObject(i)
+                        val feedback = row.optString("feedback", "")
+                        val targetId = row.optString("target_phrase", "")
+                        if (feedback.isNotBlank()) {
+                            try {
+                                val obj = JSONObject(feedback)
+                                val exam = parseExamJson(obj, targetId)
+                                if (exam != null && seenIds.add(exam.id)) {
+                                    list.add(exam)
+                                }
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        list
+    }
+
+    suspend fun saveExamSubmission(submission: ExamSubmission): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        var saved = false
+
+        val answersObj = JSONObject()
+        submission.selectedAnswers.forEach { (k, v) -> answersObj.put(k, v) }
+
+        val subObj = JSONObject().apply {
+            put("id", submission.id)
+            put("exam_id", submission.examId)
+            put("examId", submission.examId)
+            put("exam_title", submission.examTitle)
+            put("examTitle", submission.examTitle)
+            put("student_id", submission.studentId)
+            put("studentId", submission.studentId)
+            put("student_name", submission.studentName)
+            put("studentName", submission.studentName)
+            put("student_class", submission.studentClass)
+            put("studentClass", submission.studentClass)
+            put("student_avatar", submission.studentAvatar)
+            put("studentAvatar", submission.studentAvatar)
+            put("selected_answers", answersObj)
+            put("selectedAnswers", answersObj)
+            put("score_obtained", submission.scoreObtained)
+            put("scoreObtained", submission.scoreObtained)
+            put("total_marks", submission.totalMarks)
+            put("totalMarks", submission.totalMarks)
+            put("percentage", submission.percentage)
+            put("is_passed", submission.isPassed)
+            put("isPassed", submission.isPassed)
+            put("grade", submission.grade)
+            put("performance_title", submission.performanceTitle)
+            put("performanceTitle", submission.performanceTitle)
+            put("time_taken_seconds", submission.timeTakenSeconds)
+            put("timeTakenSeconds", submission.timeTakenSeconds)
+            put("completed_at", submission.completedAt)
+            put("completedAt", submission.completedAt)
+            put("certificate_id", submission.certificateId)
+            put("certificateId", submission.certificateId)
+        }
+
+        try {
+            val postReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/exam_submissions")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .addHeader("Prefer", "resolution=merge-duplicates")
+                .post(subObj.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(postReq).execute().use { resp ->
+                if (resp.isSuccessful) saved = true
+            }
+        } catch (_: Exception) {}
+
+        try {
+            val evalObj = JSONObject().apply {
+                put("student_id", "SUBMISSION_SYNC")
+                put("target_phrase", submission.id)
+                put("spoken_text", submission.examId)
+                put("feedback", subObj.toString())
+                put("overall_score", submission.percentage)
+            }
+            val postReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(postReq).execute().use { resp ->
+                if (resp.isSuccessful) saved = true
+            }
+        } catch (_: Exception) {}
+
+        saved
+    }
+
+    suspend fun fetchExamSubmissions(): List<ExamSubmission> = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext emptyList()
+        val list = mutableListOf<ExamSubmission>()
+        val seenIds = mutableSetOf<String>()
+
+        fun parseSubJson(obj: JSONObject, fallbackId: String = ""): ExamSubmission? {
+            val id = obj.optString("id", fallbackId).ifBlank { return null }
+            val ansObj = obj.optJSONObject("selected_answers") ?: obj.optJSONObject("selectedAnswers")
+            val answers = mutableMapOf<String, Int>()
+            if (ansObj != null) {
+                ansObj.keys().forEach { k -> answers[k] = ansObj.optInt(k, 0) }
+            }
+            return ExamSubmission(
+                id = id,
+                examId = obj.optString("examId", obj.optString("exam_id", "")),
+                examTitle = obj.optString("examTitle", obj.optString("exam_title", "")),
+                studentId = obj.optString("studentId", obj.optString("student_id", "")),
+                studentName = obj.optString("studentName", obj.optString("student_name", "")),
+                studentClass = obj.optString("studentClass", obj.optString("student_class", "Class 10")),
+                studentAvatar = obj.optString("studentAvatar", obj.optString("student_avatar", "🎓")),
+                selectedAnswers = answers,
+                scoreObtained = if (obj.has("scoreObtained")) obj.optInt("scoreObtained", 0) else obj.optInt("score_obtained", 0),
+                totalMarks = if (obj.has("totalMarks")) obj.optInt("totalMarks", 50) else obj.optInt("total_marks", 50),
+                percentage = obj.optInt("percentage", 0),
+                isPassed = if (obj.has("isPassed")) obj.optBoolean("isPassed", false) else obj.optBoolean("is_passed", false),
+                grade = obj.optString("grade", "B"),
+                performanceTitle = obj.optString("performanceTitle", obj.optString("performance_title", "Academic Distinction")),
+                timeTakenSeconds = if (obj.has("timeTakenSeconds")) obj.optInt("timeTakenSeconds", 0) else obj.optInt("time_taken_seconds", 0),
+                completedAt = obj.optString("completedAt", obj.optString("completed_at", "Today")),
+                certificateId = obj.optString("certificateId", obj.optString("certificate_id", "SPK-EXM-0000"))
+            )
+        }
+
+        try {
+            val req = Request.Builder()
+                .url("$supabaseUrl/rest/v1/exam_submissions?select=*&limit=500")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .get()
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val array = JSONArray(resp.body?.string() ?: "")
+                    for (i in 0 until array.length()) {
+                        val sub = parseSubJson(array.getJSONObject(i))
+                        if (sub != null && seenIds.add(sub.id)) list.add(sub)
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        try {
+            val req = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.SUBMISSION_SYNC&select=*&limit=500")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .get()
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val array = JSONArray(resp.body?.string() ?: "")
+                    for (i in 0 until array.length()) {
+                        val row = array.getJSONObject(i)
+                        val feedback = row.optString("feedback", "")
+                        val targetId = row.optString("target_phrase", "")
+                        if (feedback.isNotBlank()) {
+                            try {
+                                val obj = JSONObject(feedback)
+                                val sub = parseSubJson(obj, targetId)
+                                if (sub != null && seenIds.add(sub.id)) list.add(sub)
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        list
     }
 
     // =========================================================================

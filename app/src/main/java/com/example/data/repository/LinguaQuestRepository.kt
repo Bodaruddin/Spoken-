@@ -2840,7 +2840,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         for (rc in remoteChallenges) {
             when (rc.type.uppercase()) {
                 "SENTENCE_BUILDER" -> {
-                    val idx = currentSb.indexOfFirst { it.id == rc.id }
+                    val idx = currentSb.indexOfFirst { it.id == rc.id || (it.targetSentence.isNotBlank() && it.targetSentence.equals(rc.titleOrWord, ignoreCase = true)) }
                     val item = SentenceBuilderChallenge(
                         id = rc.id,
                         targetSentence = rc.titleOrWord,
@@ -2856,7 +2856,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                     sbChanged = true
                 }
                 "WORD_MATCH" -> {
-                    val idx = currentWm.indexOfFirst { it.id == rc.id }
+                    val idx = currentWm.indexOfFirst { it.id == rc.id || (it.word.isNotBlank() && it.word.equals(rc.titleOrWord, ignoreCase = true)) }
                     val item = WordMatchChallenge(
                         id = rc.id,
                         word = rc.titleOrWord,
@@ -2872,16 +2872,25 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                     wmChanged = true
                 }
                 "MISSING_LETTERS" -> {
-                    val idx = currentMl.indexOfFirst { it.id == rc.id }
-                    val indices = rc.extraData.split(",").mapNotNull { it.trim().toIntOrNull() }.ifEmpty { listOf(1) }
+                    val idx = currentMl.indexOfFirst { it.id == rc.id || (it.fullWord.isNotBlank() && it.fullWord.equals(rc.titleOrWord, ignoreCase = true) && it.category.equals(rc.category, ignoreCase = true)) }
+                    val parsedIndices = rc.extraData.split(",").mapNotNull { it.trim().toIntOrNull() }
+                    val wordLen = rc.titleOrWord.length
+                    val indices = if (parsedIndices.isNotEmpty()) {
+                        parsedIndices.filter { it in 0 until wordLen }.ifEmpty { if (wordLen > 1) listOf(1) else listOf(0) }
+                    } else {
+                        if (wordLen > 3) listOf(1, wordLen - 2) else if (wordLen > 1) listOf(1) else listOf(0)
+                    }
                     val item = MissingLettersChallenge(
                         id = rc.id,
                         fullWord = rc.titleOrWord,
                         hint = rc.hintOrMeaning,
                         missingIndices = indices,
-                        category = rc.category,
+                        category = rc.category.ifBlank { "General" },
                         createdBy = rc.createdBy
                     )
+                    if (rc.category.isNotBlank()) {
+                        addMissingLettersCategory(rc.category)
+                    }
                     if (idx >= 0) {
                         currentMl[idx] = item
                     } else {
@@ -3029,6 +3038,46 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (changed) {
             _speakingPrompts.value = current
             appPreferences?.saveSpeakingPrompts(current)
+        }
+    }
+
+    fun mergeRemoteExams(remoteExams: List<Exam>) {
+        if (remoteExams.isEmpty()) return
+        val current = _exams.value.toMutableList()
+        var changed = false
+        for (item in remoteExams) {
+            val idx = current.indexOfFirst { it.id == item.id || it.title.equals(item.title, ignoreCase = true) }
+            if (idx >= 0) {
+                current[idx] = item
+                changed = true
+            } else {
+                current.add(item)
+                changed = true
+            }
+        }
+        if (changed) {
+            _exams.value = current
+            appPreferences?.saveExams(current)
+        }
+    }
+
+    fun mergeRemoteExamSubmissions(remoteSubmissions: List<ExamSubmission>) {
+        if (remoteSubmissions.isEmpty()) return
+        val current = _examSubmissions.value.toMutableList()
+        var changed = false
+        for (item in remoteSubmissions) {
+            val idx = current.indexOfFirst { it.id == item.id }
+            if (idx >= 0) {
+                current[idx] = item
+                changed = true
+            } else {
+                current.add(item)
+                changed = true
+            }
+        }
+        if (changed) {
+            _examSubmissions.value = current
+            appPreferences?.saveExamSubmissions(current)
         }
     }
 

@@ -109,40 +109,68 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     repository.mergeRemoteTeachers(remoteTeachers)
                 }
             }
+        } catch (_: Exception) { }
+        try {
             val remoteStudents = supabaseService.fetchStudents()
             if (remoteStudents.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
                     repository.mergeRemoteStudents(remoteStudents)
                 }
             }
+        } catch (_: Exception) { }
+        try {
             val remoteAssignments = supabaseService.fetchAssignments()
             if (remoteAssignments.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
                     repository.mergeRemoteAssignments(remoteAssignments)
                 }
             }
+        } catch (_: Exception) { }
+        try {
             val remoteVocab = supabaseService.fetchVocabularyWords()
             if (remoteVocab.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
                     repository.mergeRemoteVocabulary(remoteVocab)
                 }
             }
+        } catch (_: Exception) { }
+        try {
             val remoteChallenges = supabaseService.fetchGameChallenges()
             if (remoteChallenges.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
                     repository.mergeRemoteGameChallenges(remoteChallenges)
                 }
             }
+        } catch (_: Exception) { }
+        try {
             val remoteDrills = supabaseService.fetchPronunciationDrills()
             if (remoteDrills.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
                     repository.mergeRemotePronunciationDrills(remoteDrills)
                 }
             }
+        } catch (_: Exception) { }
+        try {
             val remotePrompts = supabaseService.fetchSpeakingPrompts()
             if (remotePrompts.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
                     repository.mergeRemoteSpeakingPrompts(remotePrompts)
+                }
+            }
+        } catch (_: Exception) { }
+        try {
+            val remoteExams = supabaseService.fetchExams()
+            if (remoteExams.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    repository.mergeRemoteExams(remoteExams)
+                }
+            }
+        } catch (_: Exception) { }
+        try {
+            val remoteSubmissions = supabaseService.fetchExamSubmissions()
+            if (remoteSubmissions.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    repository.mergeRemoteExamSubmissions(remoteSubmissions)
                 }
             }
         } catch (_: Exception) { }
@@ -156,6 +184,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (remoteChallenges.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
                         repository.mergeRemoteGameChallenges(remoteChallenges)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun refreshExamsFromCloud() {
+        if (!supabaseService.isConfigured()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val remoteExams = supabaseService.fetchExams()
+                if (remoteExams.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        repository.mergeRemoteExams(remoteExams)
+                    }
+                }
+            } catch (_: Exception) {}
+            try {
+                val remoteSubmissions = supabaseService.fetchExamSubmissions()
+                if (remoteSubmissions.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        repository.mergeRemoteExamSubmissions(remoteSubmissions)
                     }
                 }
             } catch (_: Exception) {}
@@ -300,7 +350,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         questions: List<ExamQuestion>
     ): Exam {
         val teacherName = currentUser.value.name.ifBlank { "Prof. Eleanor Vance" }
-        return repository.createExam(
+        val created = repository.createExam(
             title = title,
             description = description,
             teacherName = teacherName,
@@ -310,10 +360,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             passingPercentage = passingPercentage,
             questions = questions
         )
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    supabaseService.saveExam(created)
+                } catch (_: Exception) {}
+            }
+        }
+        return created
     }
 
     fun deleteExam(examId: String) {
         repository.deleteExam(examId)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    supabaseService.deleteExam(examId)
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     fun updateCurrentStudentClass(newClass: String) {
@@ -334,7 +399,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         timeTakenSeconds: Int
     ): ExamSubmission {
         val student = currentUser.value
-        return repository.submitExam(
+        val submission = repository.submitExam(
             examId = examId,
             studentId = student.id,
             studentName = student.name,
@@ -343,6 +408,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             selectedAnswers = selectedAnswers,
             timeTakenSeconds = timeTakenSeconds
         )
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    supabaseService.saveExamSubmission(submission)
+                } catch (_: Exception) {}
+            }
+        }
+        return submission
     }
 
     // Game Management helpers

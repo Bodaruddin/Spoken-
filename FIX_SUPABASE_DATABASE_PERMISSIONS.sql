@@ -48,7 +48,7 @@ ALTER TABLE vocabulary_words ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow public vocabulary_words" ON vocabulary_words;
 CREATE POLICY "Allow public vocabulary_words" ON vocabulary_words FOR ALL USING (true) WITH CHECK (true);
 
--- 3. Game Challenges Table (Sentence Builder, Word Match, Missing Letters, etc.)
+-- 3. Game Challenges Table (Sentence Builder, Word Match, Missing Letters, Listen & Choose, Grammar Challenge, Fast Vocab, Pronunciation Battle)
 CREATE TABLE IF NOT EXISTS game_challenges (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,
@@ -109,3 +109,47 @@ CREATE TABLE IF NOT EXISTS student_adventure_progress (
 ALTER TABLE student_adventure_progress ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow public adventure" ON student_adventure_progress;
 CREATE POLICY "Allow public adventure" ON student_adventure_progress FOR ALL USING (true) WITH CHECK (true);
+
+-- 7. MCQ Online Exams & Tests Table
+CREATE TABLE IF NOT EXISTS exams (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    teacher_name TEXT DEFAULT 'Faculty',
+    target_class TEXT DEFAULT 'Class 10',
+    subject_category TEXT DEFAULT 'English Grammar',
+    duration_minutes INT DEFAULT 15,
+    total_marks INT DEFAULT 50,
+    passing_percentage INT DEFAULT 60,
+    questions JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    due_date TEXT DEFAULT 'Tomorrow, 6 PM',
+    is_published BOOLEAN DEFAULT TRUE
+);
+ALTER TABLE exams ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow public exams" ON exams;
+CREATE POLICY "Allow public exams" ON exams FOR ALL USING (true) WITH CHECK (true);
+
+-- 8. Exam Submissions & Student Results Table
+CREATE TABLE IF NOT EXISTS exam_submissions (
+    id TEXT PRIMARY KEY,
+    exam_id TEXT NOT NULL,
+    exam_title TEXT NOT NULL,
+    student_id TEXT NOT NULL,
+    student_name TEXT NOT NULL,
+    student_class TEXT DEFAULT 'Class 10',
+    student_avatar TEXT DEFAULT '🎓',
+    selected_answers JSONB,
+    score_obtained INT DEFAULT 0,
+    total_marks INT DEFAULT 50,
+    percentage INT DEFAULT 0,
+    is_passed BOOLEAN DEFAULT FALSE,
+    grade TEXT DEFAULT 'B',
+    performance_title TEXT DEFAULT 'Academic Distinction',
+    time_taken_seconds INT DEFAULT 0,
+    completed_at TIMESTAMPTZ DEFAULT NOW(),
+    certificate_id TEXT
+);
+ALTER TABLE exam_submissions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow public exam_submissions" ON exam_submissions;
+CREATE POLICY "Allow public exam_submissions" ON exam_submissions FOR ALL USING (true) WITH CHECK (true);
