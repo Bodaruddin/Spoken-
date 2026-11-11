@@ -1380,6 +1380,13 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     var showManageCategoriesDialog by remember { mutableStateOf(false) }
     var activeEditingChallenge by remember { mutableStateOf<ActiveEditingChallenge?>(null) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
+    val cloudNotice by viewModel.cloudSyncNotice.collectAsState()
+    LaunchedEffect(cloudNotice) {
+        cloudNotice?.let {
+            statusMsg = it
+            viewModel.clearCloudSyncNotice()
+        }
+    }
     var isSearchVisible by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val currentUser by viewModel.currentUser.collectAsState()

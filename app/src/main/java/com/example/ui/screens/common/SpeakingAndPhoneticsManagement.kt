@@ -79,6 +79,14 @@ fun SpeakingAndPhoneticsManagement(
     val roleplays by viewModel.roleplays.collectAsState()
     val adventureWorlds by viewModel.adventureWorlds.collectAsState()
     val vocabularyWords by viewModel.vocabularyWords.collectAsState()
+    val cloudNotice by viewModel.cloudSyncNotice.collectAsState()
+
+    LaunchedEffect(cloudNotice) {
+        cloudNotice?.let {
+            toastMessage = it
+            viewModel.clearCloudSyncNotice()
+        }
+    }
 
     Column(
         modifier = modifier

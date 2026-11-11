@@ -123,41 +123,45 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     val stages: StateFlow<List<LessonStage>> = _stages.asStateFlow()
 
     // Speaking Challenges & Prompts
-    private val _speakingPrompts = MutableStateFlow(
-        listOf(
-            SpeakingPrompt(
-                id = "p1",
-                title = "Introduce Yourself",
-                category = "Daily Life",
-                question = "Tell us about yourself, what you do, and why you want to master English.",
-                followUpTip = "Use phrases like 'I'm passionate about...', 'Currently, I am working on...'",
-                recommendedKeywords = listOf("passionate", "experience", "learning", "goal")
-            ),
-            SpeakingPrompt(
-                id = "p2",
-                title = "Describe Your Morning Routine",
-                category = "Daily Habits",
-                question = "Walk us through what you do from the moment you wake up until you start your day.",
-                followUpTip = "Use sequence markers: 'First', 'Next', 'After that', 'Finally'.",
-                recommendedKeywords = listOf("wake up", "breakfast", "commute", "routine")
-            ),
-            SpeakingPrompt(
-                id = "p3",
-                title = "My Favorite Dish & How It's Made",
-                category = "Food & Culture",
-                question = "Describe your favorite meal. What ingredients are used, and why is it special to you?",
-                followUpTip = "Use sensory adjectives: 'savory', 'crispy', 'aromatic', 'spicy'.",
-                recommendedKeywords = listOf("delicious", "flavor", "ingredients", "traditional")
-            ),
-            SpeakingPrompt(
-                id = "p4",
-                title = "A Memorable Journey",
-                category = "Storytelling",
-                question = "Talk about a trip or vacation that left a lasting impression on you.",
-                followUpTip = "Describe the setting, the people you met, and how the experience felt.",
-                recommendedKeywords = listOf("journey", "scenery", "unforgettable", "discovered")
-            )
+    private val defaultSpeakingPrompts = listOf(
+        SpeakingPrompt(
+            id = "p1",
+            title = "Introduce Yourself",
+            category = "Daily Life",
+            question = "Tell us about yourself, what you do, and why you want to master English.",
+            followUpTip = "Use phrases like 'I'm passionate about...', 'Currently, I am working on...'",
+            recommendedKeywords = listOf("passionate", "experience", "learning", "goal")
+        ),
+        SpeakingPrompt(
+            id = "p2",
+            title = "Describe Your Morning Routine",
+            category = "Daily Habits",
+            question = "Walk us through what you do from the moment you wake up until you start your day.",
+            followUpTip = "Use sequence markers: 'First', 'Next', 'After that', 'Finally'.",
+            recommendedKeywords = listOf("wake up", "breakfast", "commute", "routine")
+        ),
+        SpeakingPrompt(
+            id = "p3",
+            title = "My Favorite Dish & How It's Made",
+            category = "Food & Culture",
+            question = "Describe your favorite meal. What ingredients are used, and why is it special to you?",
+            followUpTip = "Use sensory adjectives: 'savory', 'crispy', 'aromatic', 'spicy'.",
+            recommendedKeywords = listOf("delicious", "flavor", "ingredients", "traditional")
+        ),
+        SpeakingPrompt(
+            id = "p4",
+            title = "A Memorable Journey",
+            category = "Storytelling",
+            question = "Talk about a trip or vacation that left a lasting impression on you.",
+            followUpTip = "Describe the setting, the people you met, and how the experience felt.",
+            recommendedKeywords = listOf("journey", "scenery", "unforgettable", "discovered")
         )
+    )
+    private val _speakingPrompts = MutableStateFlow(
+        run {
+            val saved = appPreferences?.getSpeakingPrompts()
+            if (!saved.isNullOrEmpty()) saved else defaultSpeakingPrompts
+        }
     )
     val speakingPrompts: StateFlow<List<SpeakingPrompt>> = _speakingPrompts.asStateFlow()
 
@@ -242,16 +246,20 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     val adventureLeaderboard: StateFlow<List<AdventureLeaderboardEntry>> = _adventureLeaderboard.asStateFlow()
 
     // Pronunciation Drills
+    private val defaultPronunciationDrills = listOf(
+        PronunciationDrill("pd1", "Comfortable", "/ˈkʌmftəbl/", "Silent 'or'", "Medium", "Native speakers drop the middle syllables: say 'KUMF-tuh-bl'."),
+        PronunciationDrill("pd2", "Specifically", "/spəˈsɪfɪkli/", "Consonant cluster", "Hard", "Start with a crisp 'spuh', stress 'SIF', end quickly with 'ik-lee'."),
+        PronunciationDrill("pd3", "Thoughtful", "/θɔːtful/", "Soft 'th' sound", "Medium", "Place tongue gently between teeth with breath for the 'th' sound."),
+        PronunciationDrill("pd4", "Phenomenon", "/fəˈnɒmɪnən/", "Vowel reduction", "Hard", "Stress the second syllable: 'fuh-NAH-muh-non'."),
+        PronunciationDrill("pd5", "Entrepreneur", "/ˌɒntrəprəˈnɜːr/", "Stress placement", "Hard", "Stress the final syllable: 'on-truh-pruh-NUR'."),
+        PronunciationDrill("pd6", "World", "/wɜːld/", "r + l blend", "Hard", "Curl your tongue slightly for 'er', then glide smoothly to 'ld'."),
+        PronunciationDrill("pd7", "Schedule", "/ˈskedʒuːl/", "Soft 'dge'", "Easy", "In American English, it starts with 'sked' like 'skeleton'.")
+    )
     private val _pronunciationDrills = MutableStateFlow(
-        listOf(
-            PronunciationDrill("pd1", "Comfortable", "/ˈkʌmftəbl/", "Silent 'or'", "Medium", "Native speakers drop the middle syllables: say 'KUMF-tuh-bl'."),
-            PronunciationDrill("pd2", "Specifically", "/spəˈsɪfɪkli/", "Consonant cluster", "Hard", "Start with a crisp 'spuh', stress 'SIF', end quickly with 'ik-lee'."),
-            PronunciationDrill("pd3", "Thoughtful", "/θɔːtful/", "Soft 'th' sound", "Medium", "Place tongue gently between teeth with breath for the 'th' sound."),
-            PronunciationDrill("pd4", "Phenomenon", "/fəˈnɒmɪnən/", "Vowel reduction", "Hard", "Stress the second syllable: 'fuh-NAH-muh-non'."),
-            PronunciationDrill("pd5", "Entrepreneur", "/ˌɒntrəprəˈnɜːr/", "Stress placement", "Hard", "Stress the final syllable: 'on-truh-pruh-NUR'."),
-            PronunciationDrill("pd6", "World", "/wɜːld/", "r + l blend", "Hard", "Curl your tongue slightly for 'er', then glide smoothly to 'ld'."),
-            PronunciationDrill("pd7", "Schedule", "/ˈskedʒuːl/", "Soft 'dge'", "Easy", "In American English, it starts with 'sked' like 'skeleton'.")
-        )
+        run {
+            val saved = appPreferences?.getPronunciationDrills()
+            if (!saved.isNullOrEmpty()) saved else defaultPronunciationDrills
+        }
     )
     val pronunciationDrills: StateFlow<List<PronunciationDrill>> = _pronunciationDrills.asStateFlow()
 
@@ -2651,6 +2659,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             minSpeakingSeconds = minSpeakingSeconds
         )
         _speakingPrompts.update { it + newPrompt }
+        appPreferences?.saveSpeakingPrompts(_speakingPrompts.value)
         return newPrompt
     }
 
@@ -2658,12 +2667,14 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         _speakingPrompts.update { list ->
             list.map { if (it.id == prompt.id) prompt else it }
         }
+        appPreferences?.saveSpeakingPrompts(_speakingPrompts.value)
     }
 
     fun deleteSpeakingPrompt(promptId: String) {
         _speakingPrompts.update { list ->
             list.filterNot { it.id == promptId }
         }
+        appPreferences?.saveSpeakingPrompts(_speakingPrompts.value)
     }
 
     fun addPronunciationDrill(
@@ -2682,6 +2693,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             tips = tips.trim()
         )
         _pronunciationDrills.update { it + newDrill }
+        appPreferences?.savePronunciationDrills(_pronunciationDrills.value)
         return newDrill
     }
 
@@ -2689,12 +2701,14 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         _pronunciationDrills.update { list ->
             list.map { if (it.id == drill.id) drill else it }
         }
+        appPreferences?.savePronunciationDrills(_pronunciationDrills.value)
     }
 
     fun deletePronunciationDrill(drillId: String) {
         _pronunciationDrills.update { list ->
             list.filterNot { it.id == drillId }
         }
+        appPreferences?.savePronunciationDrills(_pronunciationDrills.value)
     }
 
     fun addRoleplayScenario(
@@ -2975,6 +2989,46 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (gcChanged) {
             _grammarChallenges.value = currentGc
             appPreferences?.saveGrammarChallenges(currentGc)
+        }
+    }
+
+    fun mergeRemotePronunciationDrills(remoteDrills: List<PronunciationDrill>) {
+        if (remoteDrills.isEmpty()) return
+        val current = _pronunciationDrills.value.toMutableList()
+        var changed = false
+        for (item in remoteDrills) {
+            val idx = current.indexOfFirst { it.id == item.id || it.wordOrSentence.equals(item.wordOrSentence, ignoreCase = true) }
+            if (idx >= 0) {
+                current[idx] = item
+                changed = true
+            } else {
+                current.add(item)
+                changed = true
+            }
+        }
+        if (changed) {
+            _pronunciationDrills.value = current
+            appPreferences?.savePronunciationDrills(current)
+        }
+    }
+
+    fun mergeRemoteSpeakingPrompts(remotePrompts: List<SpeakingPrompt>) {
+        if (remotePrompts.isEmpty()) return
+        val current = _speakingPrompts.value.toMutableList()
+        var changed = false
+        for (item in remotePrompts) {
+            val idx = current.indexOfFirst { it.id == item.id || it.title.equals(item.title, ignoreCase = true) }
+            if (idx >= 0) {
+                current[idx] = item
+                changed = true
+            } else {
+                current.add(item)
+                changed = true
+            }
+        }
+        if (changed) {
+            _speakingPrompts.value = current
+            appPreferences?.saveSpeakingPrompts(current)
         }
     }
 

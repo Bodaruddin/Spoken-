@@ -48,6 +48,8 @@ class AppPreferences(context: Context) {
         private const val KEY_FAST_VOCABULARY_LIST = "key_fast_vocabulary_list"
         private const val KEY_GRAMMAR_CHALLENGE_LIST = "key_grammar_challenge_list"
         private const val KEY_VOCABULARY_WORDS_LIST = "key_vocabulary_words_list"
+        private const val KEY_PRONUNCIATION_DRILLS_LIST = "key_pronunciation_drills_list"
+        private const val KEY_SPEAKING_PROMPTS_LIST = "key_speaking_prompts_list"
     }
 
     fun saveMissingLettersCategories(categories: List<String>) {
@@ -1006,6 +1008,107 @@ class AppPreferences(context: Context) {
                         syllables = obj.optString("syllables", ""),
                         coachingTip = obj.optString("coachingTip", ""),
                         addedByTeacher = obj.optString("addedByTeacher", "")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // =========================================================================
+    // PRONUNCIATION DRILLS PERSISTENCE
+    // =========================================================================
+    fun savePronunciationDrills(drills: List<PronunciationDrill>) {
+        try {
+            val array = JSONArray()
+            for (d in drills) {
+                val obj = JSONObject().apply {
+                    put("id", d.id)
+                    put("wordOrSentence", d.wordOrSentence)
+                    put("ipaPhonetic", d.ipaPhonetic)
+                    put("audioFocus", d.audioFocus)
+                    put("difficulty", d.difficulty)
+                    put("tips", d.tips)
+                }
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_PRONUNCIATION_DRILLS_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getPronunciationDrills(): List<PronunciationDrill>? {
+        val raw = prefs.getString(KEY_PRONUNCIATION_DRILLS_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<PronunciationDrill>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    PronunciationDrill(
+                        id = obj.optString("id", "drill_${System.currentTimeMillis()}_$i"),
+                        wordOrSentence = obj.optString("wordOrSentence", ""),
+                        ipaPhonetic = obj.optString("ipaPhonetic", ""),
+                        audioFocus = obj.optString("audioFocus", "Clarity"),
+                        difficulty = obj.optString("difficulty", "Medium"),
+                        tips = obj.optString("tips", "")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // =========================================================================
+    // AI SPEAKING PROMPTS PERSISTENCE
+    // =========================================================================
+    fun saveSpeakingPrompts(prompts: List<SpeakingPrompt>) {
+        try {
+            val array = JSONArray()
+            for (p in prompts) {
+                val obj = JSONObject().apply {
+                    put("id", p.id)
+                    put("title", p.title)
+                    put("category", p.category)
+                    put("question", p.question)
+                    put("followUpTip", p.followUpTip)
+                    val kwArr = JSONArray()
+                    p.recommendedKeywords.forEach { kwArr.put(it) }
+                    put("keywords", kwArr)
+                    put("minSeconds", p.minSpeakingSeconds)
+                }
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_SPEAKING_PROMPTS_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getSpeakingPrompts(): List<SpeakingPrompt>? {
+        val raw = prefs.getString(KEY_SPEAKING_PROMPTS_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<SpeakingPrompt>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val kwList = mutableListOf<String>()
+                val kwArr = obj.optJSONArray("keywords")
+                if (kwArr != null) {
+                    for (j in 0 until kwArr.length()) {
+                        kwList.add(kwArr.getString(j))
+                    }
+                }
+                list.add(
+                    SpeakingPrompt(
+                        id = obj.optString("id", "prompt_${System.currentTimeMillis()}_$i"),
+                        title = obj.optString("title", ""),
+                        category = obj.optString("category", "General"),
+                        question = obj.optString("question", ""),
+                        followUpTip = obj.optString("followUpTip", ""),
+                        recommendedKeywords = kwList,
+                        minSpeakingSeconds = obj.optInt("minSeconds", 20)
                     )
                 )
             }

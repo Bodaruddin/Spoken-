@@ -133,6 +133,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     repository.mergeRemoteGameChallenges(remoteChallenges)
                 }
             }
+            val remoteDrills = supabaseService.fetchPronunciationDrills()
+            if (remoteDrills.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    repository.mergeRemotePronunciationDrills(remoteDrills)
+                }
+            }
+            val remotePrompts = supabaseService.fetchSpeakingPrompts()
+            if (remotePrompts.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    repository.mergeRemoteSpeakingPrompts(remotePrompts)
+                }
+            }
         } catch (_: Exception) { }
     }
 
@@ -1568,6 +1580,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             difficulty = result.difficulty,
             tips = result.coachingTip
         )
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val ok = supabaseService.savePronunciationDrill(drill)
+                if (ok) _cloudSyncNotice.value = "Synced '${result.word}' to Supabase cloud!"
+            }
+        }
         return drill
     }
 
@@ -1580,15 +1598,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         keywords: List<String>,
         minSeconds: Int = 20
     ): SpeakingPrompt {
-        return repository.addSpeakingPrompt(title, category, question, followUpTip, keywords, minSeconds)
+        val prompt = repository.addSpeakingPrompt(title, category, question, followUpTip, keywords, minSeconds)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val ok = supabaseService.saveSpeakingPrompt(prompt)
+                if (ok) _cloudSyncNotice.value = "Published prompt to Supabase cloud & student panel!"
+            }
+        }
+        return prompt
     }
 
     fun updateSpeakingPrompt(prompt: SpeakingPrompt) {
         repository.updateSpeakingPrompt(prompt)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val ok = supabaseService.saveSpeakingPrompt(prompt)
+                if (ok) _cloudSyncNotice.value = "Updated prompt in Supabase database!"
+            }
+        }
     }
 
     fun deleteSpeakingPrompt(promptId: String) {
         repository.deleteSpeakingPrompt(promptId)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteSpeakingPrompt(promptId)
+            }
+        }
     }
 
     // Pronunciation Drills CRUD (Teacher & Admin)
@@ -1599,17 +1635,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         difficulty: String,
         tips: String
     ): PronunciationDrill {
-        return repository.addPronunciationDrill(wordOrSentence, ipaPhonetic, audioFocus, difficulty, tips)
+        val drill = repository.addPronunciationDrill(wordOrSentence, ipaPhonetic, audioFocus, difficulty, tips)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val ok = supabaseService.savePronunciationDrill(drill)
+                if (ok) _cloudSyncNotice.value = "Saved drill to Supabase cloud & student panel!"
+            }
+        }
+        return drill
     }
 
     fun updatePronunciationDrill(drill: PronunciationDrill) {
         repository.updatePronunciationDrill(drill)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val ok = supabaseService.savePronunciationDrill(drill)
+                if (ok) _cloudSyncNotice.value = "Updated drill in Supabase database!"
+            }
+        }
     }
 
     fun deletePronunciationDrill(drillId: String) {
         repository.deletePronunciationDrill(drillId)
         if (_activePronunciationDrill.value?.id == drillId) {
             _activePronunciationDrill.value = null
+        }
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deletePronunciationDrill(drillId)
+            }
         }
     }
 
@@ -1629,6 +1683,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteRoleplayScenario(id: String) {
         repository.deleteRoleplayScenario(id)
     }
+
+    // Cloud sync feedback for Teacher & Student panels
+    private val _cloudSyncNotice = MutableStateFlow<String?>(null)
+    val cloudSyncNotice: StateFlow<String?> = _cloudSyncNotice.asStateFlow()
+    fun clearCloudSyncNotice() { _cloudSyncNotice.value = null }
 
     // Vocabulary & Assamese Translation Management (Teacher & Admin)
     fun addTeacherVocabularyWord(
@@ -1660,8 +1719,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         repository.addVocabularyWord(newWord)
         if (supabaseService.isConfigured()) {
-            viewModelScope.launch {
-                supabaseService.saveVocabularyWord(newWord)
+            viewModelScope.launch(Dispatchers.IO) {
+                val ok = supabaseService.saveVocabularyWord(newWord)
+                withContext(Dispatchers.Main) {
+                    if (ok) {
+                        _cloudSyncNotice.value = "Synced '${newWord.word}' to Supabase database!"
+                    } else {
+                        _cloudSyncNotice.value = "Saved locally. Syncing to database in background..."
+                    }
+                }
             }
         }
     }
@@ -1669,7 +1735,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteTeacherVocabularyWord(wordId: String) {
         repository.deleteVocabularyWord(wordId)
         if (supabaseService.isConfigured()) {
-            viewModelScope.launch {
+            viewModelScope.launch(Dispatchers.IO) {
                 supabaseService.deleteVocabularyWord(wordId)
             }
         }
@@ -1703,8 +1769,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         if (newWordsList.isNotEmpty() && supabaseService.isConfigured()) {
-            viewModelScope.launch {
-                newWordsList.forEach { supabaseService.saveVocabularyWord(it) }
+            viewModelScope.launch(Dispatchers.IO) {
+                var syncedCount = 0
+                newWordsList.forEach {
+                    if (supabaseService.saveVocabularyWord(it)) syncedCount++
+                }
+                withContext(Dispatchers.Main) {
+                    _cloudSyncNotice.value = "Synced $syncedCount / $count words to Supabase database!"
+                }
             }
         }
         return count
