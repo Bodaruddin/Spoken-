@@ -314,7 +314,7 @@ object AdventureDataDefaults {
                                 type = AdventureMissionType.WORD_PUZZLE,
                                 targetSentence = "NIGHTINGALE",
                                 correctAnswer = "NIGHTINGALE",
-                                scrambledWords = listOf("N", "I", "G", "H", "T", "I", "N", "G", "A", "L", "E"),
+                                scrambledWords = listOf("G", "A", "N", "T", "I", "L", "E", "I", "H", "N", "G"),
                                 clue = "A famous woodland songbird celebrated for its melodic night melodies.",
                                 xp = 30,
                                 coins = 15

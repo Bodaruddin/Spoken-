@@ -2,7 +2,12 @@
 
 package com.example.ui.screens.student
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -29,7 +34,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -96,17 +103,18 @@ fun EnglishAdventureScreen(
             .testTag("english_adventure_screen")
     ) {
         // If an active quest is running, show the Interactive Mission Player
-        if (activeMission != null && activeLevel != null && selectedWorld != null) {
+        val resolvedWorld = selectedWorld ?: currentWorld
+        if (activeMission != null && activeLevel != null) {
             AdventureMissionPlayer(
-                world = selectedWorld!!,
+                world = resolvedWorld,
                 level = activeLevel!!,
                 mission = activeMission!!,
                 viewModel = viewModel,
                 onClose = { viewModel.exitAdventureMission() },
                 onNextMission = {
-                    val nextM = activeLevel!!.missions.getOrNull(
-                        activeLevel!!.missions.indexOfFirst { it.id == activeMission!!.id } + 1
-                    )
+                    val missions = activeLevel!!.missions
+                    val currentIndex = missions.indexOfFirst { it.id == activeMission!!.id }
+                    val nextM = if (currentIndex >= 0) missions.getOrNull(currentIndex + 1) else null
                     if (nextM != null) {
                         viewModel.startAdventureMission(nextM)
                     } else {
@@ -414,7 +422,7 @@ fun EnglishAdventureScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.rewardGameWin(50, 25)
+                            viewModel.claimChestAdventureReward(50, 25)
                             showChestRewardDialog = false
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
@@ -533,19 +541,19 @@ private fun AdventureMainView(
                         // Stars Capsule
                         AdventureStatCapsule(
                             icon = "⭐",
-                            value = "${progress.totalStars.coerceAtLeast(3)}",
+                            value = "${progress.totalStars}",
                             iconColor = Color(0xFFFACC15)
                         )
                         // Coins Capsule
                         AdventureStatCapsule(
                             icon = "🪙",
-                            value = "${progress.totalCoins.coerceAtLeast(60)}",
+                            value = "${progress.totalCoins}",
                             iconColor = Color(0xFFF59E0B)
                         )
                         // Energy / XP Capsule
                         AdventureStatCapsule(
                             icon = "⚡",
-                            value = "${progress.totalXp.coerceAtLeast(120)}",
+                            value = "${progress.totalXp}",
                             iconColor = Color(0xFF38BDF8)
                         )
                     }
@@ -1075,7 +1083,6 @@ private fun AdventureLevelCardExact(
                             ),
                             RoundedCornerShape(16.dp)
                         )
-                        .clickable { onClick() }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -1094,7 +1101,6 @@ private fun AdventureLevelCardExact(
                     border = BorderStroke(1.5.dp, Color(0xFF475569)),
                     modifier = Modifier
                         .size(width = 52.dp, height = 46.dp)
-                        .clickable { onClick() }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -1197,6 +1203,7 @@ private fun WorldCardItem(
         )
     )
 
+    val context = LocalContext.current
     Surface(
         shape = RoundedCornerShape(24.dp),
         color = Color(0xFF101435),
@@ -1207,7 +1214,13 @@ private fun WorldCardItem(
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = isUnlocked) { onClick() }
+            .clickable {
+                if (isUnlocked) {
+                    onClick()
+                } else {
+                    Toast.makeText(context, "Earn ${world.requiredTotalStars} stars to unlock ${world.name}!", Toast.LENGTH_SHORT).show()
+                }
+            }
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Header Color Strip with World Emoji & Stars
@@ -1522,6 +1535,8 @@ private fun AdventureLevelMapView(
 // -------------------------------------------------------------
 // 4. ADVENTURE MISSION PLAYER (Interactive Quests)
 // -------------------------------------------------------------
+private data class AdventurePuzzleChip(val id: Int, val text: String)
+
 @Composable
 private fun AdventureMissionPlayer(
     world: AdventureWorld,
@@ -1531,32 +1546,56 @@ private fun AdventureMissionPlayer(
     onClose: () -> Unit,
     onNextMission: () -> Unit
 ) {
+    val context = LocalContext.current
     val speechState by viewModel.speechManager.speechState.collectAsState()
     val isListening = speechState is com.example.service.SpeechState.Listening
     val lastEval by viewModel.lastEvaluation.collectAsState()
+
+    DisposableEffect(mission.id) {
+        onDispose {
+            viewModel.clearEvaluation()
+        }
+    }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.startSpeakingPractice()
+        } else {
+            Toast.makeText(context, "Microphone permission is required to speak", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     var selectedQuizOption by remember(mission.id) { mutableStateOf<String?>(null) }
     var quizSubmitted by remember(mission.id) { mutableStateOf(false) }
     var quizFeedback by remember(mission.id) { mutableStateOf<String?>(null) }
 
-    // Word puzzle & sentence builder states with dynamic fallback
-    val initialScrambled = remember(mission.id) {
-        if (mission.scrambledWords.isNotEmpty()) {
+    // Word puzzle & sentence builder states with dynamic fallback and unique chips
+    val initialChips = remember(mission.id) {
+        val rawPieces = if (mission.scrambledWords.isNotEmpty()) {
             mission.scrambledWords
         } else if (mission.type == AdventureMissionType.WORD_PUZZLE) {
-            mission.correctAnswer.map { it.toString() }.shuffled()
+            mission.correctAnswer.map { it.toString() }
         } else {
-            mission.correctAnswer.split(" ").filter { it.isNotBlank() }.shuffled()
+            mission.correctAnswer.split(" ").filter { it.isNotBlank() }
         }
+        val indexed = rawPieces.mapIndexed { index, text -> AdventurePuzzleChip(id = index, text = text) }
+        var shuffled = indexed.shuffled()
+        if (shuffled.size > 1 && shuffled.map { it.text } == rawPieces) {
+            shuffled = shuffled.reversed()
+        }
+        shuffled
     }
-    var selectedWords by remember(mission.id) { mutableStateOf<List<String>>(emptyList()) }
-    var availableWords by remember(mission.id) {
-        mutableStateOf(initialScrambled)
-    }
+    var selectedChips by remember(mission.id) { mutableStateOf<List<AdventurePuzzleChip>>(emptyList()) }
+    var availableChips by remember(mission.id) { mutableStateOf(initialChips) }
     var puzzleFeedback by remember(mission.id) { mutableStateOf<String?>(null) }
 
     var missionCompletedSuccess by remember(mission.id) { mutableStateOf(false) }
     var earnedStars by remember(mission.id) { mutableIntStateOf(0) }
+    val isLastMissionInLevel = remember(level.missions, mission.id) {
+        level.missions.lastOrNull()?.id == mission.id
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -1813,7 +1852,7 @@ private fun AdventureMissionPlayer(
                                     color = Color(0xFF94A3B8)
                                 )
 
-                                if (selectedWords.isEmpty()) {
+                                if (selectedChips.isEmpty()) {
                                     Text(
                                         "--- [ Tap items below to place here ] ---",
                                         color = Color(0xFF64748B),
@@ -1825,20 +1864,20 @@ private fun AdventureMissionPlayer(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.Center
                                     ) {
-                                        selectedWords.forEachIndexed { idx, word ->
+                                        selectedChips.forEachIndexed { idx, chip ->
                                             Surface(
                                                 shape = RoundedCornerShape(10.dp),
                                                 color = Color(0xFF7C3AED),
                                                 modifier = Modifier
                                                     .padding(4.dp)
                                                     .clickable {
-                                                        // Return to available words
-                                                        selectedWords = selectedWords.filterIndexed { i, _ -> i != idx }
-                                                        availableWords = availableWords + word
+                                                        // Return to available chips
+                                                        selectedChips = selectedChips.filterIndexed { i, _ -> i != idx }
+                                                        availableChips = availableChips + chip
                                                     }
                                             ) {
                                                 Text(
-                                                    text = word,
+                                                    text = chip.text,
                                                     color = Color.White,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 14.sp,
@@ -1858,7 +1897,7 @@ private fun AdventureMissionPlayer(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            availableWords.forEachIndexed { idx, word ->
+                            availableChips.forEachIndexed { idx, chip ->
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = Color(0xFF1E2652),
@@ -1866,12 +1905,12 @@ private fun AdventureMissionPlayer(
                                     modifier = Modifier
                                         .padding(4.dp)
                                         .clickable {
-                                            selectedWords = selectedWords + word
-                                            availableWords = availableWords.filterIndexed { i, _ -> i != idx }
+                                            selectedChips = selectedChips + chip
+                                            availableChips = availableChips.filterIndexed { i, _ -> i != idx }
                                         }
                                 ) {
                                     Text(
-                                        text = word,
+                                        text = chip.text,
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
@@ -1888,8 +1927,8 @@ private fun AdventureMissionPlayer(
                         ) {
                             OutlinedButton(
                                 onClick = {
-                                    selectedWords = emptyList()
-                                    availableWords = initialScrambled
+                                    selectedChips = emptyList()
+                                    availableChips = initialChips
                                     puzzleFeedback = null
                                 },
                                 shape = RoundedCornerShape(12.dp),
@@ -1901,9 +1940,9 @@ private fun AdventureMissionPlayer(
                             Button(
                                 onClick = {
                                     val constructed = if (mission.type == AdventureMissionType.WORD_PUZZLE) {
-                                        selectedWords.joinToString("")
+                                        selectedChips.joinToString("") { it.text }
                                     } else {
-                                        selectedWords.joinToString(" ")
+                                        selectedChips.joinToString(" ") { it.text }
                                     }
 
                                     val isMatch = constructed.trim().equals(mission.correctAnswer.trim(), ignoreCase = true)
@@ -1916,7 +1955,7 @@ private fun AdventureMissionPlayer(
                                         puzzleFeedback = "Not quite! You formed: \"$constructed\". Rearrange or tap reset to try again!"
                                     }
                                 },
-                                enabled = selectedWords.isNotEmpty() && !missionCompletedSuccess,
+                                enabled = selectedChips.isNotEmpty() && !missionCompletedSuccess,
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
                                 modifier = Modifier.weight(1.5f)
@@ -2137,8 +2176,20 @@ private fun AdventureMissionPlayer(
                             modifier = Modifier
                                 .size(100.dp)
                                 .clickable {
-                                    if (isListening) viewModel.stopSpeakingPractice()
-                                    else viewModel.startSpeakingPractice()
+                                    if (isListening) {
+                                        viewModel.stopSpeakingPractice()
+                                    } else {
+                                        val hasMicPermission = ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.RECORD_AUDIO
+                                        ) == PackageManager.PERMISSION_GRANTED
+
+                                        if (hasMicPermission) {
+                                            viewModel.startSpeakingPractice()
+                                        } else {
+                                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                        }
+                                    }
                                 }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -2269,7 +2320,11 @@ private fun AdventureMissionPlayer(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Next Quest ➡️", fontWeight = FontWeight.Bold)
+                            Text(
+                                if (isLastMissionInLevel) "🏆 Level ${level.levelNumber} Completed! Return to Island Map 🗺️"
+                                else "Next Quest ➡️",
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }

@@ -1489,6 +1489,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val world = repository.adventureWorlds.value.find { it.id == worldId }
         val worldName = world?.name ?: "Vocabulary Island"
 
+        // Keep ViewModel state strictly in sync with latest world and level!
+        _selectedAdventureWorld.value = world
+        val updatedLevel = world?.levels?.find { it.id == levelId }
+        _activeAdventureLevel.value = updatedLevel
+
         // Trigger celebratory reward popup
         _celebrationReward.value = Pair(40 + result.first * 10, 20 + result.first * 5)
 
@@ -1513,6 +1518,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         return result
+    }
+
+    fun claimChestAdventureReward(xp: Int, coins: Int) {
+        repository.addRewards(xp, coins)
+        repository.addAdventureRewards(xp, coins)
+        _celebrationReward.value = xp to coins
+        syncCurrentStudentProgressToSupabase()
     }
 
     fun getTeacherAdventureReports(): List<StudentAdventureProgressSummary> = repository.getTeacherAdventureReports()

@@ -50,6 +50,8 @@ class AppPreferences(context: Context) {
         private const val KEY_VOCABULARY_WORDS_LIST = "key_vocabulary_words_list"
         private const val KEY_PRONUNCIATION_DRILLS_LIST = "key_pronunciation_drills_list"
         private const val KEY_SPEAKING_PROMPTS_LIST = "key_speaking_prompts_list"
+        private const val KEY_ADVENTURE_PROGRESS = "key_adventure_progress"
+        private const val KEY_ADVENTURE_WORLDS = "key_adventure_worlds"
     }
 
     fun saveMissingLettersCategories(categories: List<String>) {
@@ -1113,6 +1115,275 @@ class AppPreferences(context: Context) {
                 )
             }
             list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // =========================================================================
+    // ENGLISH ADVENTURE PROGRESS & WORLDS PERSISTENCE
+    // =========================================================================
+
+    fun saveAdventureProgress(progress: AdventureProgress) {
+        try {
+            val obj = JSONObject().apply {
+                put("studentId", progress.studentId)
+                put("totalStars", progress.totalStars)
+                put("totalCoins", progress.totalCoins)
+                put("totalXp", progress.totalXp)
+
+                val compLevelsArr = JSONArray()
+                progress.completedLevelIds.forEach { compLevelsArr.put(it) }
+                put("completedLevelIds", compLevelsArr)
+
+                val compMissionsArr = JSONArray()
+                progress.completedMissionIds.forEach { compMissionsArr.put(it) }
+                put("completedMissionIds", compMissionsArr)
+
+                val unlockedWorldsArr = JSONArray()
+                progress.unlockedWorldIds.forEach { unlockedWorldsArr.put(it) }
+                put("unlockedWorldIds", unlockedWorldsArr)
+
+                val starsObj = JSONObject()
+                progress.levelStars.forEach { (k, v) -> starsObj.put(k, v) }
+                put("levelStars", starsObj)
+
+                val badgesArr = JSONArray()
+                progress.badges.forEach { badgesArr.put(it) }
+                put("badges", badgesArr)
+            }
+            prefs.edit().putString(KEY_ADVENTURE_PROGRESS, obj.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getAdventureProgress(): AdventureProgress? {
+        val raw = prefs.getString(KEY_ADVENTURE_PROGRESS, null) ?: return null
+        return try {
+            val obj = JSONObject(raw)
+            val compLevels = mutableSetOf<String>()
+            val compLevelsArr = obj.optJSONArray("completedLevelIds")
+            if (compLevelsArr != null) {
+                for (i in 0 until compLevelsArr.length()) {
+                    compLevels.add(compLevelsArr.getString(i))
+                }
+            }
+
+            val compMissions = mutableSetOf<String>()
+            val compMissionsArr = obj.optJSONArray("completedMissionIds")
+            if (compMissionsArr != null) {
+                for (i in 0 until compMissionsArr.length()) {
+                    compMissions.add(compMissionsArr.getString(i))
+                }
+            }
+
+            val unlockedWorlds = mutableSetOf<String>()
+            val unlockedWorldsArr = obj.optJSONArray("unlockedWorldIds")
+            if (unlockedWorldsArr != null) {
+                for (i in 0 until unlockedWorldsArr.length()) {
+                    unlockedWorlds.add(unlockedWorldsArr.getString(i))
+                }
+            }
+
+            val starsMap = mutableMapOf<String, Int>()
+            val starsObj = obj.optJSONObject("levelStars")
+            if (starsObj != null) {
+                val keys = starsObj.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    starsMap[key] = starsObj.optInt(key, 0)
+                }
+            }
+
+            val badgesList = mutableListOf<String>()
+            val badgesArr = obj.optJSONArray("badges")
+            if (badgesArr != null) {
+                for (i in 0 until badgesArr.length()) {
+                    badgesList.add(badgesArr.getString(i))
+                }
+            }
+
+            AdventureProgress(
+                studentId = obj.optString("studentId", "std_001"),
+                completedLevelIds = compLevels,
+                completedMissionIds = compMissions,
+                unlockedWorldIds = if (unlockedWorlds.isNotEmpty()) unlockedWorlds else setOf("world_vocab"),
+                levelStars = starsMap,
+                totalStars = obj.optInt("totalStars", 0),
+                totalCoins = obj.optInt("totalCoins", 0),
+                totalXp = obj.optInt("totalXp", 0),
+                badges = badgesList
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveAdventureWorlds(worlds: List<AdventureWorld>) {
+        try {
+            val worldsArr = JSONArray()
+            worlds.forEach { world ->
+                val wObj = JSONObject().apply {
+                    put("id", world.id)
+                    put("name", world.name)
+                    put("order", world.order)
+                    put("description", world.description)
+                    put("tagline", world.tagline)
+                    put("emoji", world.emoji)
+                    put("themeColorHex", world.themeColorHex)
+                    put("gradientStartHex", world.gradientStartHex)
+                    put("gradientEndHex", world.gradientEndHex)
+                    put("requiredTotalStars", world.requiredTotalStars)
+                    put("isUnlocked", world.isUnlocked)
+
+                    val levelsArr = JSONArray()
+                    world.levels.forEach { lvl ->
+                        val lObj = JSONObject().apply {
+                            put("id", lvl.id)
+                            put("worldId", lvl.worldId)
+                            put("levelNumber", lvl.levelNumber)
+                            put("title", lvl.title)
+                            put("description", lvl.description)
+                            put("iconEmoji", lvl.iconEmoji)
+                            put("xpReward", lvl.xpReward)
+                            put("coinsReward", lvl.coinsReward)
+                            put("requiredStars", lvl.requiredStars)
+                            put("isUnlocked", lvl.isUnlocked)
+                            put("isCompleted", lvl.isCompleted)
+                            put("starsEarned", lvl.starsEarned)
+
+                            val missionsArr = JSONArray()
+                            lvl.missions.forEach { m ->
+                                val mObj = JSONObject().apply {
+                                    put("id", m.id)
+                                    put("levelId", m.levelId)
+                                    put("worldId", m.worldId)
+                                    put("title", m.title)
+                                    put("description", m.description)
+                                    put("type", m.type.name)
+                                    put("targetSentence", m.targetSentence)
+                                    put("correctAnswer", m.correctAnswer)
+                                    put("clue", m.clue)
+                                    put("xp", m.xp)
+                                    put("coins", m.coins)
+                                    put("audioPrompt", m.audioPrompt)
+                                    put("explanation", m.explanation)
+
+                                    val optsArr = JSONArray()
+                                    m.options.forEach { optsArr.put(it) }
+                                    put("options", optsArr)
+
+                                    val scrArr = JSONArray()
+                                    m.scrambledWords.forEach { scrArr.put(it) }
+                                    put("scrambledWords", scrArr)
+                                }
+                                missionsArr.put(mObj)
+                            }
+                            put("missions", missionsArr)
+                        }
+                        levelsArr.put(lObj)
+                    }
+                    put("levels", levelsArr)
+                }
+                worldsArr.put(wObj)
+            }
+            prefs.edit().putString(KEY_ADVENTURE_WORLDS, worldsArr.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getAdventureWorlds(): List<AdventureWorld>? {
+        val raw = prefs.getString(KEY_ADVENTURE_WORLDS, null) ?: return null
+        return try {
+            val worldsArr = JSONArray(raw)
+            val worlds = mutableListOf<AdventureWorld>()
+            for (i in 0 until worldsArr.length()) {
+                val wObj = worldsArr.getJSONObject(i)
+                val levelsArr = wObj.optJSONArray("levels")
+                val levels = mutableListOf<AdventureLevel>()
+                if (levelsArr != null) {
+                    for (j in 0 until levelsArr.length()) {
+                        val lObj = levelsArr.getJSONObject(j)
+                        val missionsArr = lObj.optJSONArray("missions")
+                        val missions = mutableListOf<AdventureMission>()
+                        if (missionsArr != null) {
+                            for (k in 0 until missionsArr.length()) {
+                                val mObj = missionsArr.getJSONObject(k)
+                                val opts = mutableListOf<String>()
+                                val optsArr = mObj.optJSONArray("options")
+                                if (optsArr != null) {
+                                    for (o in 0 until optsArr.length()) {
+                                        opts.add(optsArr.getString(o))
+                                    }
+                                }
+                                val scr = mutableListOf<String>()
+                                val scrArr = mObj.optJSONArray("scrambledWords")
+                                if (scrArr != null) {
+                                    for (s in 0 until scrArr.length()) {
+                                        scr.add(scrArr.getString(s))
+                                    }
+                                }
+                                val typeName = mObj.optString("type", AdventureMissionType.QUIZ.name)
+                                val type = try { AdventureMissionType.valueOf(typeName) } catch (_: Exception) { AdventureMissionType.QUIZ }
+
+                                missions.add(
+                                    AdventureMission(
+                                        id = mObj.optString("id", ""),
+                                        levelId = mObj.optString("levelId", ""),
+                                        worldId = mObj.optString("worldId", ""),
+                                        title = mObj.optString("title", ""),
+                                        description = mObj.optString("description", ""),
+                                        type = type,
+                                        targetSentence = mObj.optString("targetSentence", ""),
+                                        options = opts,
+                                        correctAnswer = mObj.optString("correctAnswer", ""),
+                                        clue = mObj.optString("clue", ""),
+                                        xp = mObj.optInt("xp", 20),
+                                        coins = mObj.optInt("coins", 10),
+                                        scrambledWords = scr,
+                                        audioPrompt = mObj.optString("audioPrompt", ""),
+                                        explanation = mObj.optString("explanation", "")
+                                    )
+                                )
+                            }
+                        }
+
+                        levels.add(
+                            AdventureLevel(
+                                id = lObj.optString("id", ""),
+                                worldId = lObj.optString("worldId", ""),
+                                levelNumber = lObj.optInt("levelNumber", j + 1),
+                                title = lObj.optString("title", ""),
+                                description = lObj.optString("description", ""),
+                                iconEmoji = lObj.optString("iconEmoji", "⭐"),
+                                missions = missions,
+                                xpReward = lObj.optInt("xpReward", 60),
+                                coinsReward = lObj.optInt("coinsReward", 25),
+                                requiredStars = lObj.optInt("requiredStars", 0),
+                                isUnlocked = lObj.optBoolean("isUnlocked", j == 0),
+                                isCompleted = lObj.optBoolean("isCompleted", false),
+                                starsEarned = lObj.optInt("starsEarned", 0)
+                            )
+                        )
+                    }
+                }
+
+                worlds.add(
+                    AdventureWorld(
+                        id = wObj.optString("id", ""),
+                        name = wObj.optString("name", ""),
+                        order = wObj.optInt("order", i + 1),
+                        description = wObj.optString("description", ""),
+                        tagline = wObj.optString("tagline", ""),
+                        emoji = wObj.optString("emoji", "🗺️"),
+                        themeColorHex = wObj.optLong("themeColorHex", 0xFF10B981),
+                        gradientStartHex = wObj.optLong("gradientStartHex", 0xFF059669),
+                        gradientEndHex = wObj.optLong("gradientEndHex", 0xFF06B6D4),
+                        requiredTotalStars = wObj.optInt("requiredTotalStars", 0),
+                        isUnlocked = wObj.optBoolean("isUnlocked", i == 0),
+                        levels = levels
+                    )
+                )
+            }
+            if (worlds.isNotEmpty()) worlds else null
         } catch (_: Exception) {
             null
         }

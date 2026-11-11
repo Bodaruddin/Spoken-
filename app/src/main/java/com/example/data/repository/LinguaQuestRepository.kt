@@ -222,20 +222,28 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     val roleplays: StateFlow<List<RoleplayScenario>> = _roleplays.asStateFlow()
 
     // English Adventure Worlds & Progress
-    private val _adventureWorlds = MutableStateFlow(AdventureDataDefaults.createDefaultWorlds())
+    private val _adventureWorlds = MutableStateFlow(
+        run {
+            val saved = appPreferences?.getAdventureWorlds()
+            if (!saved.isNullOrEmpty()) saved else AdventureDataDefaults.createDefaultWorlds()
+        }
+    )
     val adventureWorlds: StateFlow<List<AdventureWorld>> = _adventureWorlds.asStateFlow()
 
     private val _adventureProgress = MutableStateFlow(
-        AdventureProgress(
-            studentId = "std_001",
-            completedLevelIds = emptySet(),
-            completedMissionIds = emptySet(),
-            unlockedWorldIds = setOf("world_vocab"),
-            levelStars = emptyMap(),
-            totalStars = 0,
-            totalCoins = 0,
-            totalXp = 0
-        )
+        run {
+            val saved = appPreferences?.getAdventureProgress()
+            saved ?: AdventureProgress(
+                studentId = "std_001",
+                completedLevelIds = emptySet(),
+                completedMissionIds = emptySet(),
+                unlockedWorldIds = setOf("world_vocab"),
+                levelStars = emptyMap(),
+                totalStars = 0,
+                totalCoins = 0,
+                totalXp = 0
+            )
+        }
     )
     val adventureProgress: StateFlow<AdventureProgress> = _adventureProgress.asStateFlow()
 
@@ -3188,6 +3196,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             totalXp = currentProgress.totalXp + earnedXp
         )
         _adventureProgress.value = updatedProgress
+        saveAdventureStateToPreferences()
 
         // Update current user in leaderboard
         _adventureLeaderboard.update { list ->
@@ -3208,6 +3217,21 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         }
 
         return Pair(stars, levelJustCompleted)
+    }
+
+    fun saveAdventureStateToPreferences() {
+        appPreferences?.saveAdventureProgress(_adventureProgress.value)
+        appPreferences?.saveAdventureWorlds(_adventureWorlds.value)
+    }
+
+    fun addAdventureRewards(xp: Int, coins: Int) {
+        _adventureProgress.update { curr ->
+            curr.copy(
+                totalCoins = curr.totalCoins + coins,
+                totalXp = curr.totalXp + xp
+            )
+        }
+        saveAdventureStateToPreferences()
     }
 
     // Admin World Management
@@ -3233,6 +3257,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             levels = emptyList()
         )
         _adventureWorlds.update { it + newWorld }
+        saveAdventureStateToPreferences()
         return newWorld
     }
 
@@ -3240,12 +3265,14 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         _adventureWorlds.update { list ->
             list.map { if (it.id == updated.id) updated else it }
         }
+        saveAdventureStateToPreferences()
     }
 
     fun deleteAdventureWorld(worldId: String) {
         _adventureWorlds.update { list ->
             list.filterNot { it.id == worldId }
         }
+        saveAdventureStateToPreferences()
     }
 
     // Admin Level Management
@@ -3276,6 +3303,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 } else w
             }
         }
+        saveAdventureStateToPreferences()
         return newLevel
     }
 
@@ -3287,6 +3315,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 } else w
             }
         }
+        saveAdventureStateToPreferences()
     }
 
     // Admin Mission Management
@@ -3336,6 +3365,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 } else w
             }
         }
+        saveAdventureStateToPreferences()
         return newMission
     }
 
@@ -3353,6 +3383,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 } else w
             }
         }
+        saveAdventureStateToPreferences()
     }
 
     fun updateAdventureLevel(
@@ -3383,6 +3414,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 } else w
             }
         }
+        saveAdventureStateToPreferences()
     }
 
     fun updateAdventureMission(
@@ -3433,10 +3465,12 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 } else w
             }
         }
+        saveAdventureStateToPreferences()
     }
 
     fun resetAdventureWorldsToDefault() {
         _adventureWorlds.value = AdventureDataDefaults.createDefaultWorlds()
+        saveAdventureStateToPreferences()
     }
 
     // Teacher Student Adventure Monitoring Reports
