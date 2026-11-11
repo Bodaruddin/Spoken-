@@ -227,17 +227,35 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             val saved = appPreferences?.getAdventureWorlds()
             val defaults = AdventureDataDefaults.createDefaultWorlds()
             if (!saved.isNullOrEmpty()) {
-                // Ensure default worlds also include updated levels if saved only had fewer
-                saved.map { savedWorld ->
-                    val defaultWorld = defaults.find { it.id == savedWorld.id }
-                    if (defaultWorld != null && savedWorld.levels.size < defaultWorld.levels.size) {
-                        val existingIds = savedWorld.levels.map { it.id }.toSet()
-                        val newLevels = defaultWorld.levels.filter { it.id !in existingIds }
-                        savedWorld.copy(levels = savedWorld.levels + newLevels)
-                    } else {
-                        savedWorld
-                    }
+                val defaultVocab = defaults.find { it.id == "world_vocab" } ?: defaults.first()
+                val savedVocab = saved.find { it.id == "world_vocab" } ?: defaultVocab
+
+                // Gather default 5 levels
+                val defaultIds = defaultVocab.levels.map { it.id }.toSet()
+                val existingSavedVocabLevels = savedVocab.levels
+
+                // Levels in savedVocab that match defaults (preserving completed status)
+                val defaultLevelsInVocab = defaultVocab.levels.map { defLvl ->
+                    existingSavedVocabLevels.find { it.id == defLvl.id } ?: defLvl
                 }
+
+                // Custom teacher-added levels already in savedVocab
+                val customLevelsInVocab = existingSavedVocabLevels.filter { it.id !in defaultIds }
+
+                // Any custom levels added in other worlds (e.g. from user testing in other realms)
+                val customLevelsFromOtherWorlds = saved.filter { it.id != "world_vocab" }
+                    .flatMap { it.levels }
+                    .filter { lvl -> lvl.id !in defaultIds && existingSavedVocabLevels.none { it.id == lvl.id } }
+
+                // Combine: Default 1..5 FIRST, followed by all teacher-added games BELOW THEM!
+                val allCombinedLevels = (defaultLevelsInVocab + customLevelsInVocab + customLevelsFromOtherWorlds)
+                    .mapIndexed { idx, lvl ->
+                        lvl.copy(levelNumber = idx + 1, worldId = "world_vocab")
+                    }
+
+                val mergedVocabWorld = savedVocab.copy(levels = allCombinedLevels)
+
+                listOf(mergedVocabWorld) + saved.filter { it.id != "world_vocab" }
             } else {
                 defaults
             }

@@ -1535,7 +1535,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addAdventureWorld(name: String, description: String, tagline: String, emoji: String, requiredStars: Int): AdventureWorld {
         val w = repository.addAdventureWorld(name, description, tagline, emoji, requiredStars)
-        _selectedAdventureWorld.value = w
+        val vocab = repository.adventureWorlds.value.find { it.id == "world_vocab" }
+        _selectedAdventureWorld.value = vocab ?: repository.adventureWorlds.value.firstOrNull() ?: w
         return w
     }
 
@@ -1549,14 +1550,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteAdventureWorld(worldId: String) {
         repository.deleteAdventureWorld(worldId)
         if (_selectedAdventureWorld.value?.id == worldId) {
-            _selectedAdventureWorld.value = repository.adventureWorlds.value.firstOrNull()
+            _selectedAdventureWorld.value = repository.adventureWorlds.value.find { it.id == "world_vocab" }
+                ?: repository.adventureWorlds.value.firstOrNull()
         }
     }
 
     fun addAdventureLevel(worldId: String, title: String, description: String, emoji: String, xp: Int, coins: Int): AdventureLevel? {
         val lvl = repository.addAdventureLevel(worldId, title, description, emoji, xp, coins)
         val updatedWorld = repository.adventureWorlds.value.find { it.id == worldId }
-        if (updatedWorld != null && (_selectedAdventureWorld.value?.id == worldId || _selectedAdventureWorld.value == null)) {
+        if (updatedWorld != null) {
             _selectedAdventureWorld.value = updatedWorld
         }
         return lvl

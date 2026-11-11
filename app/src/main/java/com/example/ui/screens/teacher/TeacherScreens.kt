@@ -5066,9 +5066,7 @@ fun CreateGameChallengeDialog(
                     }
                     GameCategoryFilter.ENGLISH_ADVENTURE -> {
                         if (field1.isNotBlank()) {
-                            val targetWorldId = viewModel.selectedAdventureWorld.value?.id
-                                ?: viewModel.adventureWorlds.value.firstOrNull()?.id
-                                ?: "world_vocab"
+                            val targetWorldId = "world_vocab"
                             val xp = field5.toIntOrNull() ?: 80
                             val newLvl = viewModel.addAdventureLevel(
                                 worldId = targetWorldId,

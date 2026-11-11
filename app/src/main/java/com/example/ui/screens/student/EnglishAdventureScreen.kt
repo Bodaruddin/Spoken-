@@ -68,12 +68,17 @@ fun EnglishAdventureScreen(
     val activeLevel by viewModel.activeAdventureLevel.collectAsState()
     val activeMission by viewModel.activeAdventureMission.collectAsState()
 
-    // Resolve the active world dynamically from the latest `worlds` state to capture unlocked levels & completed stars
-    val currentWorld = worlds.find { it.id == selectedWorld?.id }
-        ?: selectedWorld
-        ?: worlds.firstOrNull { it.id == "world_vocab" }
+    val mainVocabWorld = worlds.find { it.id == "world_vocab" }
         ?: worlds.firstOrNull()
         ?: AdventureDataDefaults.createDefaultWorlds().first()
+
+    // The student adventure screen defaults to the primary realm containing all existing games and teacher additions
+    val currentWorld = if (selectedWorld != null && worlds.any { it.id == selectedWorld?.id }) {
+        val matched = worlds.first { it.id == selectedWorld?.id }
+        if (matched.levels.isNotEmpty()) matched else mainVocabWorld
+    } else {
+        mainVocabWorld
+    }
 
     // Modal dialog controls
     var showWorldMapDialog by remember { mutableStateOf(false) }
@@ -81,19 +86,17 @@ fun EnglishAdventureScreen(
     var showBadgesDialog by remember { mutableStateOf(false) }
     var showWorldInfoDialog by remember { mutableStateOf(false) }
     var showChestRewardDialog by remember { mutableStateOf(false) }
-    var showCreateGameDialog by remember { mutableStateOf(false) }
     var lockedSnackbarMsg by remember { mutableStateOf<String?>(null) }
 
     BackHandler {
         if (activeMission != null) {
             viewModel.exitAdventureMission()
-        } else if (showWorldMapDialog || showLeaderboardDialog || showBadgesDialog || showWorldInfoDialog || showChestRewardDialog || showCreateGameDialog) {
+        } else if (showWorldMapDialog || showLeaderboardDialog || showBadgesDialog || showWorldInfoDialog || showChestRewardDialog) {
             showWorldMapDialog = false
             showLeaderboardDialog = false
             showBadgesDialog = false
             showWorldInfoDialog = false
             showChestRewardDialog = false
-            showCreateGameDialog = false
         } else {
             viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
         }
@@ -137,7 +140,6 @@ fun EnglishAdventureScreen(
                 onOpenWorldInfo = { showWorldInfoDialog = true },
                 onOpenChest = { showChestRewardDialog = true },
                 onSelectWorld = { world -> viewModel.selectAdventureWorld(world) },
-                onAddNewGame = { showCreateGameDialog = true },
                 onLaunchLevel = { level ->
                     val index = currentWorld.levels.indexOfFirst { it.id == level.id }
                     val prevLevel = if (index > 0) currentWorld.levels.getOrNull(index - 1) else null
@@ -159,104 +161,6 @@ fun EnglishAdventureScreen(
                         }
                     } else {
                         lockedSnackbarMsg = "Complete Level ${level.levelNumber - 1} to unlock ${level.title}!"
-                    }
-                }
-            )
-        }
-
-        // Quick Add Game / Level Dialog
-        if (showCreateGameDialog) {
-            var newTitle by remember { mutableStateOf("") }
-            var newDesc by remember { mutableStateOf("") }
-            var newSentence by remember { mutableStateOf("") }
-            var newEmoji by remember { mutableStateOf("⭐") }
-            var newXp by remember { mutableStateOf("80") }
-
-            AlertDialog(
-                onDismissRequest = { showCreateGameDialog = false },
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("🎮", fontSize = 24.sp)
-                        Text("Add New Game to ${currentWorld.name}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    }
-                },
-                text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = newTitle,
-                            onValueChange = { newTitle = it },
-                            label = { Text("Game Title (e.g. Lagoon Treasure Quest)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = newDesc,
-                            onValueChange = { newDesc = it },
-                            label = { Text("Short Description") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = newSentence,
-                            onValueChange = { newSentence = it },
-                            label = { Text("Target Speaking Sentence / Phrase") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = newEmoji,
-                                onValueChange = { newEmoji = it },
-                                label = { Text("Emoji") },
-                                modifier = Modifier.weight(1f)
-                            )
-                            OutlinedTextField(
-                                value = newXp,
-                                onValueChange = { newXp = it },
-                                label = { Text("XP Reward") },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (newTitle.isNotBlank()) {
-                                val xp = newXp.toIntOrNull() ?: 80
-                                val lvl = viewModel.addAdventureLevel(
-                                    worldId = currentWorld.id,
-                                    title = newTitle.trim(),
-                                    description = newDesc.ifBlank { "Master this English adventure quest." },
-                                    emoji = newEmoji.ifBlank { "⭐" },
-                                    xp = xp,
-                                    coins = (xp / 2).coerceAtLeast(20)
-                                )
-                                if (lvl != null && newSentence.isNotBlank()) {
-                                    viewModel.addAdventureMission(
-                                        worldId = currentWorld.id,
-                                        levelId = lvl.id,
-                                        title = "${newTitle.trim()} Speaking Challenge",
-                                        description = "Speak this sentence with clear pronunciation.",
-                                        type = AdventureMissionType.SPEAKING_CHALLENGE,
-                                        targetSentence = newSentence.trim(),
-                                        options = emptyList(),
-                                        correctAnswer = newSentence.trim(),
-                                        clue = "Listen closely and enunciate clearly.",
-                                        xp = xp / 2,
-                                        coins = 20
-                                    )
-                                }
-                                showCreateGameDialog = false
-                            }
-                        }
-                    ) {
-                        Text("Add Game 🚀")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showCreateGameDialog = false }) {
-                        Text("Cancel")
                     }
                 }
             )
@@ -596,7 +500,6 @@ private fun AdventureMainView(
     onOpenWorldInfo: () -> Unit,
     onOpenChest: () -> Unit,
     onSelectWorld: (AdventureWorld) -> Unit,
-    onAddNewGame: () -> Unit,
     onLaunchLevel: (AdventureLevel) -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -928,31 +831,20 @@ private fun AdventureMainView(
 
                     Spacer(Modifier.height(4.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0x77000000),
+                        border = BorderStroke(0.8.dp, Color(0x33FFFFFF)),
+                        modifier = Modifier.padding(top = 2.dp)
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0x99000000),
-                            border = BorderStroke(1.dp, Color(0x4438BDF8)),
-                            modifier = Modifier.clickable { onAddNewGame() }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(Icons.Filled.AddCircle, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
-                                Text(
-                                    "+ Add Game (${currentWorld.levels.size} Showing)",
-                                    color = Color(0xFFE2E8F0),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp
-                                )
-                            }
-                        }
+                        Text(
+                            text = "Complete missions to earn stars and unlock next realm",
+                            color = Color(0xFFE2E8F0),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 11.5.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                        )
                     }
                 }
             }
