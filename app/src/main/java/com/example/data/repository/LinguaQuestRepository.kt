@@ -1434,7 +1434,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         return sorted.mapIndexed { index, draft ->
             LeaderboardUser(
                 rank = index + 1,
-                name = if (draft.isCurrentUser) "${draft.name} (You)" else draft.name,
+                name = draft.name,
                 avatarEmoji = draft.avatarEmoji,
                 xp = draft.xp,
                 streak = draft.streak,

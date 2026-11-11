@@ -112,7 +112,8 @@ fun StudentLeaderboardScreen(
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = Color(0xFF2E1065).copy(alpha = 0.85f),
-                            border = BorderStroke(1.dp, Color(0xFFFACC15).copy(alpha = 0.6f))
+                            border = BorderStroke(1.dp, Color(0xFFFACC15).copy(alpha = 0.6f)),
+                            modifier = Modifier.weight(1f, fill = false)
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -122,13 +123,18 @@ fun StudentLeaderboardScreen(
                                 Text("🏆", fontSize = 14.sp)
                                 Text(
                                     "ACADEMY FLUENCY LEADERBOARD",
-                                    fontSize = 11.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color(0xFFFEF08A),
-                                    letterSpacing = 1.sp
+                                    letterSpacing = 0.5.sp,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
+
+                        Spacer(Modifier.width(8.dp))
 
                         Surface(
                             shape = RoundedCornerShape(10.dp),
@@ -145,7 +151,9 @@ fun StudentLeaderboardScreen(
                                     "${filteredLeaderboard.size} Scholars",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF38BDF8)
+                                    color = Color(0xFF38BDF8),
+                                    softWrap = false,
+                                    maxLines = 1
                                 )
                             }
                         }
@@ -429,7 +437,10 @@ fun StudentLeaderboardScreen(
                 text = "All Academy Ranks (${filteredLeaderboard.size} scholars)",
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                softWrap = false,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
 
@@ -500,18 +511,22 @@ fun StudentLeaderboardScreen(
                         }
 
                         // Info
-                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
+                                val cleanName = student.name.replace(" (You)", "").replace("(You)", "").trim()
                                 Text(
-                                    text = student.name,
+                                    text = cleanName,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
                                     color = if (isUser) RoyalBlue else MaterialTheme.colorScheme.onSurface,
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
                                 if (isUser) {
                                     Surface(
@@ -523,7 +538,9 @@ fun StudentLeaderboardScreen(
                                             fontSize = 9.sp,
                                             fontWeight = FontWeight.Black,
                                             color = RoyalBlue,
-                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                            softWrap = false,
+                                            maxLines = 1,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
                                 }
@@ -533,6 +550,7 @@ fun StudentLeaderboardScreen(
                                 fontSize = 11.sp,
                                 color = MutedGray,
                                 maxLines = 1,
+                                softWrap = false,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
@@ -614,13 +632,15 @@ fun LeaderboardPodiumPillar(
             }
 
             // Name
+            val cleanName = name.replace(" (You)", "").replace("(You)", "").trim()
             Text(
-                text = name,
+                text = if (isCurrentUser) "$cleanName (You)" else cleanName,
                 fontSize = if (isFirst) 12.sp else 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = if (isCurrentUser) Color(0xFF93C5FD) else Color.White,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
+                softWrap = false,
                 overflow = TextOverflow.Ellipsis
             )
 

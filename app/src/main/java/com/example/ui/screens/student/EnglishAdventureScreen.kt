@@ -2365,15 +2365,22 @@ private fun AdventureLeaderboardView(
                     Spacer(Modifier.width(10.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val cleanName = entry.studentName.replace(" (You)", "").replace("(You)", "").trim()
                             Text(
-                                text = entry.studentName,
+                                text = cleanName,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             if (entry.isCurrentUser) {
-                                Spacer(Modifier.width(6.dp))
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = Color(0xFF7C3AED)
@@ -2383,6 +2390,8 @@ private fun AdventureLeaderboardView(
                                         color = Color.White,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
+                                        softWrap = false,
+                                        maxLines = 1,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
