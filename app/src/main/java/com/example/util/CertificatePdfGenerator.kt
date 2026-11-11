@@ -153,14 +153,17 @@ object CertificatePdfGenerator {
             "27 Nov 2026"
         }
 
-        // Test Title
-        if (leftCardPaint.measureText(submission.examTitle) > 265f) {
-            leftCardPaint.textSize = 17f
+        // Test Title: dynamically adjust size to avoid overflowing card right border (divider at x=649)
+        while (leftCardPaint.measureText(submission.examTitle) > 255f && leftCardPaint.textSize > 11f) {
+            leftCardPaint.textSize -= 1f
         }
         canvas.drawText(submission.examTitle, 382f, 638f, leftCardPaint)
 
-        // Subject
-        leftCardPaint.textSize = if (leftCardPaint.measureText(subject) > 265f) 18f else 21f
+        // Subject: reset text size and adjust if needed
+        leftCardPaint.textSize = 21f
+        while (leftCardPaint.measureText(subject) > 255f && leftCardPaint.textSize > 11f) {
+            leftCardPaint.textSize -= 1f
+        }
         canvas.drawText(subject, 382f, 677f, leftCardPaint)
 
         // Class

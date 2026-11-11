@@ -483,6 +483,102 @@ fun LoginScreen(
                             }
                         }
 
+                        // Quick Demo Fill Chips
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "⚡ Quick Demo One-Tap",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF38BDF8)
+                                )
+                                Text(
+                                    text = "Tap to Fill & Test",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF0F1E4A),
+                                    border = BorderStroke(1.dp, Color(0xFF38BDF8)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            email = "alex.morgan@linguaquest.edu"
+                                            securityPin = "1234"
+                                            selectedRole = com.example.data.model.Role.STUDENT
+                                            loginError = null
+                                        }
+                                        .testTag("quick_fill_student")
+                                ) {
+                                    Text(
+                                        "🎓 Student",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 7.dp, horizontal = 2.dp)
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF1E1446),
+                                    border = BorderStroke(1.dp, Color(0xFFA855F7)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            email = "e.vance@linguaquest.edu"
+                                            securityPin = "7321"
+                                            selectedRole = com.example.data.model.Role.TEACHER
+                                            loginError = null
+                                        }
+                                        .testTag("quick_fill_teacher")
+                                ) {
+                                    Text(
+                                        "👩‍🏫 Faculty",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 7.dp, horizontal = 2.dp)
+                                    )
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF2E1C0A),
+                                    border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            email = "admin@linguaquest.edu"
+                                            securityPin = "1234"
+                                            selectedRole = com.example.data.model.Role.ADMIN
+                                            loginError = null
+                                        }
+                                        .testTag("quick_fill_admin")
+                                ) {
+                                    Text(
+                                        "🛡️ Admin",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 7.dp, horizontal = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+
                         // Email or User ID Field
                         OutlinedTextField(
                             value = email,

@@ -1,6 +1,6 @@
 {
   "name": "Speakly",
-  "description": "Spoken English learning and academic test portal with MCQ exams, English adventure games, and verified certificates",
+  "description": "Spoken English Learning & Academic Portal with online tests, automated grading, and authentic certificates.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
