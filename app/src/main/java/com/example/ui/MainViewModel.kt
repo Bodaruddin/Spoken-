@@ -880,6 +880,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _activeCoachQuestion = MutableStateFlow("Hi Alex! How was your weekend? Did you do anything fun or exciting?")
     val activeCoachQuestion: StateFlow<String> = _activeCoachQuestion.asStateFlow()
 
+    private val _activeConversationTopic = MutableStateFlow<SpeakingPrompt?>(null)
+    val activeConversationTopic: StateFlow<SpeakingPrompt?> = _activeConversationTopic.asStateFlow()
+
     // Celebration modal state
     private val _celebrationReward = MutableStateFlow<Pair<Int, Int>?>(null) // XP, Coins
     val celebrationReward: StateFlow<Pair<Int, Int>?> = _celebrationReward.asStateFlow()
@@ -1612,6 +1615,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _activeCoachQuestion.value = question
     }
 
+    fun selectConversationTopic(topic: SpeakingPrompt) {
+        _activeConversationTopic.value = topic
+        _activeCoachQuestion.value = topic.question
+        speakAudio(topic.question)
+    }
+
+    fun selectRandomConversationTopic(): SpeakingPrompt? {
+        val list = speakingPrompts.value
+        if (list.isNotEmpty()) {
+            val candidates = if (list.size > 1 && _activeConversationTopic.value != null) {
+                list.filter { it.id != _activeConversationTopic.value?.id }
+            } else list
+            val randomTopic = candidates.random()
+            selectConversationTopic(randomTopic)
+            return randomTopic
+        }
+        return null
+    }
+
+    fun clearActiveConversationTopic() {
+        _activeConversationTopic.value = null
+        _activeCoachQuestion.value = "Hi Alex! How was your weekend? Did you do anything fun or exciting?"
+    }
+
     fun evaluateInputSpeech(spoken: String) {
         val target: String? = when {
             _activeAdventureMission.value != null -> _activeAdventureMission.value?.targetSentence
@@ -1631,7 +1658,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             val eval = if (isGeminiApiKeyConfigured()) {
                 val contextPrompt = if (_speakingSubTab.value == SpeakingSubTab.AI_PARTNER) {
-                    _activeCoachQuestion.value
+                    val topic = _activeConversationTopic.value
+                    if (topic != null) {
+                        "Active Conversation Topic: ${topic.title} (Category: ${topic.category}, Difficulty: ${topic.difficultyLevel})\nPrompt Question: ${topic.question}\nKeywords to Encourage: ${topic.recommendedKeywords.joinToString(", ")}\nFollow-up Coaching Tip: ${topic.followUpTip}\nLatest Question Spoken by Coach: ${_activeCoachQuestion.value}"
+                    } else {
+                        _activeCoachQuestion.value
+                    }
                 } else null
 
                 val aiResult = if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
@@ -2044,13 +2076,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         question: String,
         followUpTip: String,
         keywords: List<String>,
-        minSeconds: Int = 20
+        minSeconds: Int = 20,
+        emoji: String = "💬",
+        difficultyLevel: String = "Intermediate",
+        createdBy: String = "Faculty"
     ): SpeakingPrompt {
-        val prompt = repository.addSpeakingPrompt(title, category, question, followUpTip, keywords, minSeconds)
+        val prompt = repository.addSpeakingPrompt(
+            title = title,
+            category = category,
+            question = question,
+            followUpTip = followUpTip,
+            recommendedKeywords = keywords,
+            minSpeakingSeconds = minSeconds,
+            emoji = emoji,
+            difficultyLevel = difficultyLevel,
+            createdBy = createdBy
+        )
         if (supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
                 val ok = supabaseService.saveSpeakingPrompt(prompt)
-                if (ok) _cloudSyncNotice.value = "Published prompt to Supabase cloud & student panel!"
+                if (ok) _cloudSyncNotice.value = "Published conversation topic to Supabase cloud & student panel!"
             }
         }
         return prompt

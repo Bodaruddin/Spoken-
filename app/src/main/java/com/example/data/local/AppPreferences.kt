@@ -1141,6 +1141,9 @@ class AppPreferences(context: Context) {
                     p.recommendedKeywords.forEach { kwArr.put(it) }
                     put("keywords", kwArr)
                     put("minSeconds", p.minSpeakingSeconds)
+                    put("emoji", p.emoji)
+                    put("difficultyLevel", p.difficultyLevel)
+                    put("createdBy", p.createdBy)
                 }
                 array.put(obj)
             }
@@ -1170,7 +1173,10 @@ class AppPreferences(context: Context) {
                         question = obj.optString("question", ""),
                         followUpTip = obj.optString("followUpTip", ""),
                         recommendedKeywords = kwList,
-                        minSpeakingSeconds = obj.optInt("minSeconds", 20)
+                        minSpeakingSeconds = obj.optInt("minSeconds", 20),
+                        emoji = obj.optString("emoji", "💬"),
+                        difficultyLevel = obj.optString("difficultyLevel", "Intermediate"),
+                        createdBy = obj.optString("createdBy", "Faculty")
                     )
                 )
             }

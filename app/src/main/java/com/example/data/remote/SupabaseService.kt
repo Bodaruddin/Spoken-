@@ -1351,7 +1351,10 @@ class SupabaseService {
                                     question = obj.optString("question", ""),
                                     followUpTip = obj.optString("follow_up_tip", obj.optString("followUpTip", "")),
                                     recommendedKeywords = kwList,
-                                    minSpeakingSeconds = if (obj.has("min_seconds")) obj.optInt("min_seconds", 20) else obj.optInt("minSeconds", 20)
+                                    minSpeakingSeconds = if (obj.has("min_seconds")) obj.optInt("min_seconds", 20) else obj.optInt("minSeconds", 20),
+                                    emoji = obj.optString("emoji", "💬"),
+                                    difficultyLevel = obj.optString("difficulty_level", obj.optString("difficultyLevel", "Intermediate")),
+                                    createdBy = obj.optString("created_by", obj.optString("createdBy", "Faculty"))
                                 )
                             )
                             seenIds.add(id)
@@ -1396,7 +1399,10 @@ class SupabaseService {
                                             question = obj.optString("question", ""),
                                             followUpTip = obj.optString("followUpTip", obj.optString("follow_up_tip", "")),
                                             recommendedKeywords = kwList,
-                                            minSpeakingSeconds = if (obj.has("minSeconds")) obj.optInt("minSeconds", 20) else obj.optInt("min_seconds", 20)
+                                            minSpeakingSeconds = if (obj.has("minSeconds")) obj.optInt("minSeconds", 20) else obj.optInt("min_seconds", 20),
+                                            emoji = obj.optString("emoji", "💬"),
+                                            difficultyLevel = obj.optString("difficultyLevel", obj.optString("difficulty_level", "Intermediate")),
+                                            createdBy = obj.optString("createdBy", obj.optString("created_by", "Faculty"))
                                         )
                                     )
                                     seenIds.add(id)
@@ -1428,7 +1434,9 @@ class SupabaseService {
             put("follow_up_tip", prompt.followUpTip)
             put("keywords", kwArr)
             put("min_seconds", prompt.minSpeakingSeconds)
-            put("created_by", "Faculty")
+            put("emoji", prompt.emoji)
+            put("difficulty_level", prompt.difficultyLevel)
+            put("created_by", prompt.createdBy)
         }
 
         // 1. Try dedicated table
@@ -1479,6 +1487,11 @@ class SupabaseService {
                 put("keywords", kwArr)
                 put("minSeconds", prompt.minSpeakingSeconds)
                 put("min_seconds", prompt.minSpeakingSeconds)
+                put("emoji", prompt.emoji)
+                put("difficultyLevel", prompt.difficultyLevel)
+                put("difficulty_level", prompt.difficultyLevel)
+                put("createdBy", prompt.createdBy)
+                put("created_by", prompt.createdBy)
             }
 
             val patchPayload = JSONObject().apply {

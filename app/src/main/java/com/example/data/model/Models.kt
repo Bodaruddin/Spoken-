@@ -152,11 +152,14 @@ data class RoleplayScenario(
 data class SpeakingPrompt(
     val id: String,
     val title: String,
-    val category: String, // Daily, Business, Travel, Story
+    val category: String, // Daily, Business, Travel, Story, Hobbies, College, Technology, Culture
     val question: String,
     val followUpTip: String,
     val recommendedKeywords: List<String>,
-    val minSpeakingSeconds: Int = 20
+    val minSpeakingSeconds: Int = 20,
+    val emoji: String = "💬",
+    val difficultyLevel: String = "Intermediate", // Beginner, Intermediate, Advanced
+    val createdBy: String = "Faculty"
 )
 
 data class PronunciationDrill(

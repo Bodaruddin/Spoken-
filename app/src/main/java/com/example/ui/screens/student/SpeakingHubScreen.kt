@@ -383,6 +383,9 @@ fun AiPartnerExactScreen(
     val isAiEvaluating by viewModel.isAiEvaluating.collectAsState()
     val isGeminiActive by viewModel.isGeminiConfigured.collectAsState()
     val activeModel by viewModel.activeAiModel.collectAsState()
+    val activeTopic by viewModel.activeConversationTopic.collectAsState()
+    val allTopics by viewModel.speakingPrompts.collectAsState()
+    var showAllTopicsDialog by remember { mutableStateOf(false) }
 
 
     Column(
@@ -483,6 +486,74 @@ fun AiPartnerExactScreen(
                         }
                     }
 
+                    // Active Conversation Topic Banner (if a topic is selected)
+                    if (activeTopic != null) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFF581C87).copy(alpha = 0.35f),
+                            border = BorderStroke(1.2.dp, Color(0xFFC084FC).copy(alpha = 0.8f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(activeTopic?.emoji ?: "💬", fontSize = 18.sp)
+                                    Column {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(
+                                                text = activeTopic?.title ?: "",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFF3E8FF)
+                                            )
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFF7C3AED).copy(alpha = 0.5f)
+                                            ) {
+                                                Text(
+                                                    text = activeTopic?.difficultyLevel ?: "Intermediate",
+                                                    fontSize = 9.5.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = Color(0xFFE9D5FF),
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = "Topic: ${activeTopic?.category} • Nova will guide this subject",
+                                            fontSize = 11.sp,
+                                            color = Color(0xFFCBD5E1)
+                                        )
+                                    }
+                                }
+
+                                IconButton(
+                                    onClick = { viewModel.clearActiveConversationTopic() },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Close,
+                                        contentDescription = "Clear Topic",
+                                        tint = Color(0xFFCBD5E1),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Inner Speech Dialogue Container with quote badge
                     Surface(
                         shape = RoundedCornerShape(20.dp),
@@ -524,33 +595,61 @@ fun AiPartnerExactScreen(
                         }
                     }
 
-                    // Topic Suggestion Buttons Row
+                    // Active Topic Keywords / Tip Hint
+                    if (activeTopic != null && (activeTopic?.recommendedKeywords?.isNotEmpty() == true || !activeTopic?.followUpTip.isNullOrBlank())) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (activeTopic?.recommendedKeywords?.isNotEmpty() == true) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Text("💡 Try using:", fontSize = 11.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.SemiBold)
+                                    activeTopic?.recommendedKeywords?.take(4)?.forEach { kw ->
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFF1E293B),
+                                            border = BorderStroke(0.6.dp, Color(0xFF475569))
+                                        ) {
+                                            Text(
+                                                kw,
+                                                fontSize = 10.5.sp,
+                                                color = Color(0xFF38BDF8),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Topic Action Buttons Row: Random Conversation & All Topics
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // Hobbies Topic Button
+                        // 🎲 Random Conversation Button
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = Color(0xFF131D4A).copy(alpha = 0.85f),
-                            border = BorderStroke(1.2.dp, Color(0xFFEC4899)),
+                            color = Color(0xFF2E1065).copy(alpha = 0.85f),
+                            border = BorderStroke(1.4.dp, Color(0xFFA855F7)),
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable {
-                                    val q = "Could you tell me about your favorite hobbies and why you enjoy them?"
-                                    viewModel.setActiveCoachQuestion(q)
-                                    viewModel.speakAudio(q)
+                                    viewModel.selectRandomConversationTopic()
                                 }
+                                .testTag("random_topic_button")
                         ) {
                             Row(
                                 modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("💖", fontSize = 14.sp)
+                                Text("🎲", fontSize = 15.sp)
                                 Spacer(Modifier.width(6.dp))
                                 Text(
-                                    "Hobbies Topic",
+                                    "Random Topic",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
@@ -558,33 +657,95 @@ fun AiPartnerExactScreen(
                             }
                         }
 
-                        // Career Topic Button
+                        // 📚 All Topics Button
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = Color(0xFF131D4A).copy(alpha = 0.85f),
-                            border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+                            color = Color(0xFF0F2942).copy(alpha = 0.85f),
+                            border = BorderStroke(1.4.dp, Color(0xFF38BDF8)),
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable {
-                                    val q = "What kind of job do you do, and what do you like most about your work?"
-                                    viewModel.setActiveCoachQuestion(q)
-                                    viewModel.speakAudio(q)
+                                    showAllTopicsDialog = true
                                 }
+                                .testTag("all_topics_button")
                         ) {
-
                             Row(
                                 modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("💼", fontSize = 14.sp)
+                                Text("📚", fontSize = 14.sp)
                                 Spacer(Modifier.width(6.dp))
                                 Text(
-                                    "Career Topic",
+                                    "All Topics (${allTopics.size})",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
                                 )
+                            }
+                        }
+                    }
+
+                    // Horizontal Quick Topic Selector Chips
+                    if (allTopics.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "CHOOSE A CONVERSATION TOPIC",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    letterSpacing = 0.8.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
+                                Text(
+                                    "Tap to switch",
+                                    fontSize = 10.5.sp,
+                                    color = Color(0xFF38BDF8)
+                                )
+                            }
+
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                items(allTopics, key = { it.id }) { topic ->
+                                    val isSelected = activeTopic?.id == topic.id
+                                    Surface(
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = if (isSelected) Color(0xFF6B21A8) else Color(0xFF131D4A).copy(alpha = 0.85f),
+                                        border = BorderStroke(
+                                            if (isSelected) 1.6.dp else 1.dp,
+                                            if (isSelected) Color(0xFFC084FC) else Color(0xFF334155)
+                                        ),
+                                        modifier = Modifier.clickable {
+                                            viewModel.selectConversationTopic(topic)
+                                        }
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Text(topic.emoji, fontSize = 13.sp)
+                                            Text(
+                                                topic.title,
+                                                fontSize = 12.sp,
+                                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                                color = if (isSelected) Color.White else Color(0xFFCBD5E1)
+                                            )
+                                            if (isSelected) {
+                                                Text("✓", fontSize = 11.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -878,6 +1039,23 @@ fun AiPartnerExactScreen(
                 },
                 onAudioPlayAiResponse = { reply ->
                     viewModel.speakAudio(reply)
+                }
+            )
+        }
+
+        // All Topics Dialog Sheet
+        if (showAllTopicsDialog) {
+            StudentTopicSelectionDialog(
+                topics = allTopics,
+                activeTopicId = activeTopic?.id,
+                onSelectTopic = { topic ->
+                    viewModel.selectConversationTopic(topic)
+                },
+                onRandomTopic = {
+                    viewModel.selectRandomConversationTopic()
+                },
+                onDismiss = {
+                    showAllTopicsDialog = false
                 }
             )
         }
@@ -3019,4 +3197,327 @@ fun PictureDescriptionSection(
             )
         }
     }
+}
+
+// -------------------------------------------------------------
+// STUDENT TOPIC SELECTION DIALOG
+// -------------------------------------------------------------
+@Composable
+fun StudentTopicSelectionDialog(
+    topics: List<SpeakingPrompt>,
+    activeTopicId: String?,
+    onSelectTopic: (SpeakingPrompt) -> Unit,
+    onRandomTopic: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("All") }
+    var selectedDifficulty by remember { mutableStateOf("All") }
+
+    val categories = remember(topics) {
+        listOf("All") + topics.map { it.category }.distinct()
+    }
+    val difficulties = listOf("All", "Beginner", "Intermediate", "Advanced")
+
+    val filtered = remember(topics, searchQuery, selectedCategory, selectedDifficulty) {
+        topics.filter { topic ->
+            val matchQuery = searchQuery.isBlank() ||
+                    topic.title.contains(searchQuery, ignoreCase = true) ||
+                    topic.category.contains(searchQuery, ignoreCase = true) ||
+                    topic.question.contains(searchQuery, ignoreCase = true) ||
+                    topic.recommendedKeywords.any { it.contains(searchQuery, ignoreCase = true) }
+
+            val matchCat = selectedCategory == "All" || topic.category.equals(selectedCategory, ignoreCase = true)
+            val matchDiff = selectedDifficulty == "All" || topic.difficultyLevel.equals(selectedDifficulty, ignoreCase = true)
+
+            matchQuery && matchCat && matchDiff
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
+            }
+        },
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("💬", fontSize = 22.sp)
+                    Column {
+                        Text(
+                            "Conversation Topics",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 18.sp,
+                            color = Color.White
+                        )
+                        Text(
+                            "${topics.size} topics available for AI practice",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+
+                // Random Topic Quick Button in Header
+                FilledTonalButton(
+                    onClick = {
+                        onRandomTopic()
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Color(0xFF7C3AED),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text("🎲 Random", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Search Input
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search topics, keywords...", fontSize = 12.5.sp, color = Color(0xFF64748B)) },
+                    leadingIcon = {
+                        Icon(Icons.Rounded.Search, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(20.dp)) {
+                                Icon(Icons.Rounded.Clear, contentDescription = "Clear", tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedBorderColor = Color(0xFF38BDF8),
+                        unfocusedBorderColor = Color(0xFF334155),
+                        focusedContainerColor = Color(0xFF0F172A),
+                        unfocusedContainerColor = Color(0xFF0F172A)
+                    ),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                )
+
+                // Category Filter Pills
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(categories) { cat ->
+                        val isSelected = selectedCategory == cat
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) Color(0xFF2563EB) else Color(0xFF1E293B),
+                            border = BorderStroke(1.dp, if (isSelected) Color(0xFF60A5FA) else Color(0xFF334155)),
+                            modifier = Modifier.clickable { selectedCategory = cat }
+                        ) {
+                            Text(
+                                cat,
+                                fontSize = 11.5.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) Color.White else Color(0xFFCBD5E1),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Difficulty Filter Pills
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Level:", fontSize = 11.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
+                    difficulties.forEach { diff ->
+                        val isSelected = selectedDifficulty == diff
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) Color(0xFF7C3AED) else Color(0xFF0F172A),
+                            border = BorderStroke(0.8.dp, if (isSelected) Color(0xFFC084FC) else Color(0xFF334155)),
+                            modifier = Modifier.clickable { selectedDifficulty = diff }
+                        ) {
+                            Text(
+                                diff,
+                                fontSize = 10.5.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Topics List
+                if (filtered.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "No topics found matching your filters.",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 12.5.sp
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(filtered, key = { it.id }) { topic ->
+                            val isActive = activeTopicId == topic.id
+                            Card(
+                                shape = RoundedCornerShape(18.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isActive) Color(0xFF1E1B4B) else Color(0xFF0F1B3E)
+                                ),
+                                border = BorderStroke(
+                                    if (isActive) 1.5.dp else 1.dp,
+                                    if (isActive) Color(0xFFC084FC) else Color(0xFF1E293B)
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text(topic.emoji, fontSize = 20.sp)
+                                            Column {
+                                                Text(
+                                                    topic.title,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 14.sp,
+                                                    color = Color.White
+                                                )
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = Color(0xFF1E293B)
+                                                    ) {
+                                                        Text(
+                                                            topic.category,
+                                                            fontSize = 10.sp,
+                                                            color = Color(0xFF38BDF8),
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                    val levelColor = when (topic.difficultyLevel) {
+                                                        "Beginner" -> Color(0xFF10B981)
+                                                        "Advanced" -> Color(0xFFEC4899)
+                                                        else -> Color(0xFFA855F7)
+                                                    }
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = levelColor.copy(alpha = 0.2f),
+                                                        border = BorderStroke(0.6.dp, levelColor)
+                                                    ) {
+                                                        Text(
+                                                            topic.difficultyLevel,
+                                                            fontSize = 10.sp,
+                                                            color = levelColor,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Start Button
+                                        Button(
+                                            onClick = {
+                                                onSelectTopic(topic)
+                                                onDismiss()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (isActive) Color(0xFF10B981) else Color(0xFF2563EB)
+                                            ),
+                                            shape = RoundedCornerShape(12.dp),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(
+                                                if (isActive) "✓ Active" else "Practice",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
+
+                                    // Question text
+                                    Text(
+                                        text = "“${topic.question}”",
+                                        fontSize = 12.5.sp,
+                                        color = Color(0xFFE2E8F0),
+                                        lineHeight = 17.sp
+                                    )
+
+                                    // Keywords
+                                    if (topic.recommendedKeywords.isNotEmpty()) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Keywords:", fontSize = 10.sp, color = Color(0xFF94A3B8))
+                                            topic.recommendedKeywords.take(4).forEach { kw ->
+                                                Text(
+                                                    "#$kw",
+                                                    fontSize = 10.sp,
+                                                    color = Color(0xFF67E8F9),
+                                                    modifier = Modifier.padding(horizontal = 3.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        containerColor = Color(0xFF0A0F29),
+        shape = RoundedCornerShape(26.dp)
+    )
 }

@@ -122,39 +122,127 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     )
     val stages: StateFlow<List<LessonStage>> = _stages.asStateFlow()
 
-    // Speaking Challenges & Prompts
+    // Speaking Challenges & Conversation Topics
     private val defaultSpeakingPrompts = listOf(
         SpeakingPrompt(
-            id = "p1",
-            title = "Introduce Yourself",
-            category = "Daily Life",
-            question = "Tell us about yourself, what you do, and why you want to master English.",
-            followUpTip = "Use phrases like 'I'm passionate about...', 'Currently, I am working on...'",
-            recommendedKeywords = listOf("passionate", "experience", "learning", "goal")
+            id = "topic_hobbies",
+            title = "Hobbies & Passions",
+            category = "Personal Life",
+            question = "Could you tell me about your favorite hobbies and why you enjoy spending time on them?",
+            followUpTip = "Talk about how you got started, how often you do it, and how it makes you feel.",
+            recommendedKeywords = listOf("relaxing", "creative", "passion", "weekend", "enjoyment"),
+            minSpeakingSeconds = 25,
+            emoji = "💖",
+            difficultyLevel = "Beginner",
+            createdBy = "Faculty"
         ),
         SpeakingPrompt(
-            id = "p2",
-            title = "Describe Your Morning Routine",
-            category = "Daily Habits",
-            question = "Walk us through what you do from the moment you wake up until you start your day.",
-            followUpTip = "Use sequence markers: 'First', 'Next', 'After that', 'Finally'.",
-            recommendedKeywords = listOf("wake up", "breakfast", "commute", "routine")
+            id = "topic_career",
+            title = "Career & Ambitions",
+            category = "Professional",
+            question = "What kind of job or profession do you do, and what do you like most about your work or studies?",
+            followUpTip = "Mention your goals, skills you are developing, and your dream project.",
+            recommendedKeywords = listOf("profession", "ambition", "collaborate", "milestone", "career"),
+            minSpeakingSeconds = 30,
+            emoji = "💼",
+            difficultyLevel = "Intermediate",
+            createdBy = "Faculty"
         ),
         SpeakingPrompt(
-            id = "p3",
-            title = "My Favorite Dish & How It's Made",
+            id = "topic_travel",
+            title = "Dream Travel & Vacation",
+            category = "Travel & Culture",
+            question = "If you could travel anywhere in the world tomorrow with all expenses paid, where would you go and why?",
+            followUpTip = "Describe the sights you would visit, local foods you want to try, and who you would take along.",
+            recommendedKeywords = listOf("destination", "breathtaking", "culture", "explore", "scenery"),
+            minSpeakingSeconds = 25,
+            emoji = "✈️",
+            difficultyLevel = "Beginner",
+            createdBy = "Faculty"
+        ),
+        SpeakingPrompt(
+            id = "topic_food",
+            title = "Favorite Cuisine & Dining",
             category = "Food & Culture",
-            question = "Describe your favorite meal. What ingredients are used, and why is it special to you?",
-            followUpTip = "Use sensory adjectives: 'savory', 'crispy', 'aromatic', 'spicy'.",
-            recommendedKeywords = listOf("delicious", "flavor", "ingredients", "traditional")
+            question = "What is your all-time favorite meal, and how is it traditionally prepared in your home or culture?",
+            followUpTip = "Use descriptive sensory words like savory, aromatic, crispy, flavorful, or seasoned.",
+            recommendedKeywords = listOf("ingredients", "aromatic", "flavorful", "traditional", "recipe"),
+            minSpeakingSeconds = 25,
+            emoji = "🍕",
+            difficultyLevel = "Beginner",
+            createdBy = "Faculty"
         ),
         SpeakingPrompt(
-            id = "p4",
-            title = "A Memorable Journey",
-            category = "Storytelling",
-            question = "Talk about a trip or vacation that left a lasting impression on you.",
-            followUpTip = "Describe the setting, the people you met, and how the experience felt.",
-            recommendedKeywords = listOf("journey", "scenery", "unforgettable", "discovered")
+            id = "topic_ai_tech",
+            title = "AI & Future of Technology",
+            category = "Technology",
+            question = "How do you think Artificial Intelligence and modern smartphones will change our daily lives in the next five years?",
+            followUpTip = "Give specific examples: education, transportation, communication, or creative hobbies.",
+            recommendedKeywords = listOf("artificial intelligence", "innovation", "automation", "future", "convenient"),
+            minSpeakingSeconds = 35,
+            emoji = "🤖",
+            difficultyLevel = "Advanced",
+            createdBy = "Faculty"
+        ),
+        SpeakingPrompt(
+            id = "topic_movies",
+            title = "Movies & Storytelling",
+            category = "Entertainment",
+            question = "Tell me about a memorable movie or book that left a strong impression on you. What was the core message?",
+            followUpTip = "Explain the plot briefly, highlight the main character's dilemma, and share your takeaway.",
+            recommendedKeywords = listOf("character", "inspiring", "plot twist", "cinematography", "emotion"),
+            minSpeakingSeconds = 30,
+            emoji = "🎬",
+            difficultyLevel = "Intermediate",
+            createdBy = "Faculty"
+        ),
+        SpeakingPrompt(
+            id = "topic_routine",
+            title = "Daily Routine & Productivity",
+            category = "Daily Habits",
+            question = "Walk me through your ideal morning and evening routine. How do you stay organized and motivated?",
+            followUpTip = "Use time transitions: 'First thing in the morning', 'Following that', 'Towards the evening'.",
+            recommendedKeywords = listOf("routine", "habits", "productive", "discipline", "schedule"),
+            minSpeakingSeconds = 25,
+            emoji = "⏰",
+            difficultyLevel = "Beginner",
+            createdBy = "Faculty"
+        ),
+        SpeakingPrompt(
+            id = "topic_festivals",
+            title = "Festivals & Celebrations",
+            category = "Culture",
+            question = "Describe the most colorful holiday or festival celebrated in your region. How do families come together?",
+            followUpTip = "Describe the music, traditional clothing, special dishes, and festive decorations.",
+            recommendedKeywords = listOf("celebration", "gathering", "tradition", "fireworks", "joyful"),
+            minSpeakingSeconds = 30,
+            emoji = "🎆",
+            difficultyLevel = "Intermediate",
+            createdBy = "Faculty"
+        ),
+        SpeakingPrompt(
+            id = "topic_nature",
+            title = "Nature & Environment",
+            category = "Environment",
+            question = "What simple everyday habits can people adopt to help protect the environment and keep our cities clean?",
+            followUpTip = "Discuss recycling, saving electricity, walking more, or reducing plastic waste.",
+            recommendedKeywords = listOf("sustainability", "conservation", "eco-friendly", "renewable", "protect"),
+            minSpeakingSeconds = 30,
+            emoji = "🌿",
+            difficultyLevel = "Intermediate",
+            createdBy = "Faculty"
+        ),
+        SpeakingPrompt(
+            id = "topic_challenges",
+            title = "Overcoming Obstacles",
+            category = "Personal Growth",
+            question = "Can you share a time when you faced a difficult challenge and how you managed to overcome it?",
+            followUpTip = "Reflect on what you learned from the experience and what advice you would give others.",
+            recommendedKeywords = listOf("perseverance", "resilience", "overcome", "valuable lesson", "growth"),
+            minSpeakingSeconds = 35,
+            emoji = "💡",
+            difficultyLevel = "Advanced",
+            createdBy = "Faculty"
         )
     )
     private val _speakingPrompts = MutableStateFlow(
@@ -2746,7 +2834,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         question: String,
         followUpTip: String,
         recommendedKeywords: List<String>,
-        minSpeakingSeconds: Int = 20
+        minSpeakingSeconds: Int = 20,
+        emoji: String = "💬",
+        difficultyLevel: String = "Intermediate",
+        createdBy: String = "Faculty"
     ): SpeakingPrompt {
         val newPrompt = SpeakingPrompt(
             id = "sp_${System.currentTimeMillis()}",
@@ -2755,7 +2846,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             question = question.trim(),
             followUpTip = followUpTip.trim(),
             recommendedKeywords = recommendedKeywords.map { it.trim() }.filter { it.isNotBlank() },
-            minSpeakingSeconds = minSpeakingSeconds
+            minSpeakingSeconds = minSpeakingSeconds,
+            emoji = emoji.trim().ifBlank { "💬" },
+            difficultyLevel = difficultyLevel.trim().ifBlank { "Intermediate" },
+            createdBy = createdBy.trim().ifBlank { "Faculty" }
         )
         _speakingPrompts.update { it + newPrompt }
         appPreferences?.saveSpeakingPrompts(_speakingPrompts.value)

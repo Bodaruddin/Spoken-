@@ -8,6 +8,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -42,7 +43,7 @@ import com.example.ui.MainViewModel
 import com.example.ui.theme.*
 
 enum class SpeakingManageTab(val title: String, val emoji: String) {
-    SPEAKING_PROMPTS("AI Speaking", "🎙️"),
+    SPEAKING_PROMPTS("Conversation Topics", "💬"),
     PHONETICS_DRILLS("Phonetics & Drills", "🎯"),
     VOCAB_ASSAMESE("Assamese Words", "📖"),
     ENGLISH_ADVENTURE("Adventure Worlds", "🗺️")
@@ -171,7 +172,7 @@ fun SpeakingAndPhoneticsManagement(
                             Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
                             Text(
                                 text = when (currentTab) {
-                                    SpeakingManageTab.SPEAKING_PROMPTS -> "New Prompt"
+                                    SpeakingManageTab.SPEAKING_PROMPTS -> "New Topic"
                                     SpeakingManageTab.PHONETICS_DRILLS -> "New Drill"
                                     SpeakingManageTab.VOCAB_ASSAMESE -> "Add Word"
                                     SpeakingManageTab.ENGLISH_ADVENTURE -> "Adventure"
@@ -393,10 +394,19 @@ fun SpeakingAndPhoneticsManagement(
     if (showCreatePromptDialog) {
         CreateSpeakingPromptDialog(
             onDismiss = { showCreatePromptDialog = false },
-            onCreate = { title, cat, q, tip, kw, sec ->
-                viewModel.addSpeakingPrompt(title, cat, q, tip, kw, sec)
+            onCreate = { title, cat, q, tip, kw, sec, emoji, diff ->
+                viewModel.addSpeakingPrompt(
+                    title = title,
+                    category = cat,
+                    question = q,
+                    followUpTip = tip,
+                    keywords = kw,
+                    minSeconds = sec,
+                    emoji = emoji,
+                    difficultyLevel = diff
+                )
                 showCreatePromptDialog = false
-                toastMessage = "New Speaking Prompt '$title' published!"
+                toastMessage = "New Conversation Topic '$title' published for students!"
             }
         )
     }
@@ -613,17 +623,40 @@ fun PromptsManagementList(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = RoyalBlue.copy(alpha = 0.12f)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                prompt.category,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = RoyalBlue,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = RoyalBlue.copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    prompt.category,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = RoyalBlue,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            val levelColor = when (prompt.difficultyLevel) {
+                                "Beginner" -> EmeraldSuccess
+                                "Advanced" -> CoralAccent
+                                else -> PurpleAccent
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = levelColor.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    prompt.difficultyLevel,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = levelColor,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                )
+                            }
                         }
 
                         Surface(
@@ -641,7 +674,13 @@ fun PromptsManagementList(
                         }
                     }
 
-                    Text(prompt.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(prompt.emoji, fontSize = 22.sp)
+                        Text(prompt.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
                     Text(prompt.question, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                     if (prompt.recommendedKeywords.isNotEmpty()) {
@@ -1032,27 +1071,86 @@ fun RoleplayManagementList(
 @Composable
 fun CreateSpeakingPromptDialog(
     onDismiss: () -> Unit,
-    onCreate: (title: String, category: String, question: String, tip: String, keywords: List<String>, minSeconds: Int) -> Unit
+    onCreate: (title: String, category: String, question: String, tip: String, keywords: List<String>, minSeconds: Int, emoji: String, difficultyLevel: String) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("Daily Life") }
+    var category by remember { mutableStateOf("Personal Life") }
     var question by remember { mutableStateOf("") }
     var tip by remember { mutableStateOf("") }
     var keywordsInput by remember { mutableStateOf("") }
-    var minSeconds by remember { mutableIntStateOf(20) }
+    var minSeconds by remember { mutableIntStateOf(25) }
+    var emoji by remember { mutableStateOf("💬") }
+    var difficultyLevel by remember { mutableStateOf("Intermediate") }
+
+    val quickEmojis = listOf("💬", "💖", "💼", "✈️", "🍕", "🤖", "🎬", "⏰", "🎆", "🌿", "⚽", "💡", "📚", "☕", "🌟")
+    val difficultyLevels = listOf("Beginner", "Intermediate", "Advanced")
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create AI Speaking Prompt", fontWeight = FontWeight.Bold) },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(emoji, fontSize = 22.sp)
+                Text("New Conversation Topic", fontWeight = FontWeight.Bold)
+            }
+        },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Quick Emoji Selector
+                Text("Select Topic Icon / Emoji:", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = MutedGray)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(quickEmojis) { emo ->
+                        val isSelected = emoji == emo
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isSelected) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, if (isSelected) Color.White else Color.Transparent),
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clickable { emoji = emo }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(emo, fontSize = 16.sp)
+                            }
+                        }
+                    }
+                }
+
+                // Difficulty Level Chips
+                Text("Difficulty Level:", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = MutedGray)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    difficultyLevels.forEach { lvl ->
+                        val isSelected = difficultyLevel == lvl
+                        val color = when (lvl) {
+                            "Beginner" -> EmeraldSuccess
+                            "Advanced" -> CoralAccent
+                            else -> PurpleAccent
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) color.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, if (isSelected) color else Color.Transparent),
+                            modifier = Modifier.clickable { difficultyLevel = lvl }
+                        ) {
+                            Text(
+                                lvl,
+                                fontSize = 11.5.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Prompt Title *") },
+                    label = { Text("Topic Title * (e.g. Dream Travel)") },
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1060,7 +1158,7 @@ fun CreateSpeakingPromptDialog(
                 OutlinedTextField(
                     value = category,
                     onValueChange = { category = it },
-                    label = { Text("Category (e.g. Daily Life, Business, Travel)") },
+                    label = { Text("Category (e.g. Travel, Career, Tech)") },
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1068,7 +1166,7 @@ fun CreateSpeakingPromptDialog(
                 OutlinedTextField(
                     value = question,
                     onValueChange = { question = it },
-                    label = { Text("Speaking Question / Prompt *") },
+                    label = { Text("Starter Question for Nova AI *") },
                     shape = RoundedCornerShape(12.dp),
                     minLines = 3,
                     modifier = Modifier.fillMaxWidth()
@@ -1077,7 +1175,7 @@ fun CreateSpeakingPromptDialog(
                 OutlinedTextField(
                     value = keywordsInput,
                     onValueChange = { keywordsInput = it },
-                    label = { Text("Recommended Keywords (comma separated)") },
+                    label = { Text("Keywords to Encourage (comma separated)") },
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1085,7 +1183,7 @@ fun CreateSpeakingPromptDialog(
                 OutlinedTextField(
                     value = tip,
                     onValueChange = { tip = it },
-                    label = { Text("Coaching Tip / Connectors") },
+                    label = { Text("Follow-up Coaching Tip for Student") },
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1112,12 +1210,12 @@ fun CreateSpeakingPromptDialog(
                 onClick = {
                     if (title.isNotBlank() && question.isNotBlank()) {
                         val kwList = keywordsInput.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                        onCreate(title, category, question, tip, kwList, minSeconds)
+                        onCreate(title, category, question, tip, kwList, minSeconds, emoji, difficultyLevel)
                     }
                 },
                 enabled = title.isNotBlank() && question.isNotBlank()
             ) {
-                Text("Publish")
+                Text("Publish Topic")
             }
         },
         dismissButton = {
@@ -1138,19 +1236,78 @@ fun EditSpeakingPromptDialog(
     var tip by remember { mutableStateOf(prompt.followUpTip) }
     var keywordsInput by remember { mutableStateOf(prompt.recommendedKeywords.joinToString(", ")) }
     var minSeconds by remember { mutableIntStateOf(prompt.minSpeakingSeconds) }
+    var emoji by remember { mutableStateOf(prompt.emoji) }
+    var difficultyLevel by remember { mutableStateOf(prompt.difficultyLevel) }
+
+    val quickEmojis = listOf("💬", "💖", "💼", "✈️", "🍕", "🤖", "🎬", "⏰", "🎆", "🌿", "⚽", "💡", "📚", "☕", "🌟")
+    val difficultyLevels = listOf("Beginner", "Intermediate", "Advanced")
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Edit Speaking Prompt", fontWeight = FontWeight.Bold) },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(emoji, fontSize = 22.sp)
+                Text("Edit Conversation Topic", fontWeight = FontWeight.Bold)
+            }
+        },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Quick Emoji Selector
+                Text("Topic Icon / Emoji:", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = MutedGray)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(quickEmojis) { emo ->
+                        val isSelected = emoji == emo
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isSelected) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, if (isSelected) Color.White else Color.Transparent),
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clickable { emoji = emo }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(emo, fontSize = 16.sp)
+                            }
+                        }
+                    }
+                }
+
+                // Difficulty Level Chips
+                Text("Difficulty Level:", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = MutedGray)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    difficultyLevels.forEach { lvl ->
+                        val isSelected = difficultyLevel == lvl
+                        val color = when (lvl) {
+                            "Beginner" -> EmeraldSuccess
+                            "Advanced" -> CoralAccent
+                            else -> PurpleAccent
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) color.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, if (isSelected) color else Color.Transparent),
+                            modifier = Modifier.clickable { difficultyLevel = lvl }
+                        ) {
+                            Text(
+                                lvl,
+                                fontSize = 11.5.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Prompt Title") },
+                    label = { Text("Topic Title") },
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -1164,7 +1321,7 @@ fun EditSpeakingPromptDialog(
                 OutlinedTextField(
                     value = question,
                     onValueChange = { question = it },
-                    label = { Text("Speaking Question") },
+                    label = { Text("Speaking Question / Starter") },
                     shape = RoundedCornerShape(12.dp),
                     minLines = 3,
                     modifier = Modifier.fillMaxWidth()
@@ -1195,7 +1352,9 @@ fun EditSpeakingPromptDialog(
                         question = question,
                         followUpTip = tip,
                         recommendedKeywords = kwList,
-                        minSpeakingSeconds = minSeconds
+                        minSpeakingSeconds = minSeconds,
+                        emoji = emoji,
+                        difficultyLevel = difficultyLevel
                     ))
                 }
             ) {
