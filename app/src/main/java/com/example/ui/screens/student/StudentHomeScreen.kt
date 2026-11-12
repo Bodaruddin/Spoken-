@@ -452,7 +452,6 @@ fun StudentHomeScreen(
                     modifier = Modifier.weight(1f),
                     onClick = {
                         viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
-                        viewModel.selectStudentTab(StudentTab.PRACTICE)
                     }
                 )
 
@@ -465,7 +464,6 @@ fun StudentHomeScreen(
                     modifier = Modifier.weight(1f),
                     onClick = {
                         viewModel.selectSpeakingSubTab(SpeakingSubTab.ENGLISH_ADVENTURE)
-                        viewModel.selectStudentTab(StudentTab.PRACTICE)
                     }
                 )
             }
@@ -486,7 +484,6 @@ fun StudentHomeScreen(
                     modifier = Modifier.weight(1f),
                     onClick = {
                         viewModel.selectSpeakingSubTab(SpeakingSubTab.PRONUNCIATION_COACH)
-                        viewModel.selectStudentTab(StudentTab.PRACTICE)
                     }
                 )
 

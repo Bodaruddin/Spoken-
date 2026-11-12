@@ -31,10 +31,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.SpeakingPrompt
 import com.example.ui.MainViewModel
+import com.example.ui.SpeakingSubTab
 import com.example.ui.StudentTab
 
 /**
@@ -189,7 +192,49 @@ fun ConversationTopicsRoadmapScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(10.dp))
+
+            // Quick Speaking Navigation Pills (Direct switch to Adventure, Phonetics, AI Chat)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RoadmapModePill(
+                    title = "Topics Path",
+                    emoji = "🗺️",
+                    isSelected = true,
+                    onClick = {}
+                )
+                RoadmapModePill(
+                    title = "English Adventure",
+                    emoji = "🏝️",
+                    isSelected = false,
+                    onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.ENGLISH_ADVENTURE) }
+                )
+                RoadmapModePill(
+                    title = "Phonetics & Drills",
+                    emoji = "🎯",
+                    isSelected = false,
+                    onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.PRONUNCIATION_COACH) }
+                )
+                RoadmapModePill(
+                    title = "Nova AI Chat",
+                    emoji = "🤖",
+                    isSelected = false,
+                    onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER) }
+                )
+                RoadmapModePill(
+                    title = "Daily Challenge",
+                    emoji = "⚡",
+                    isSelected = false,
+                    onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.DAILY_CHALLENGE) }
+                )
+            }
+
+            Spacer(Modifier.height(10.dp))
 
             // 3. Winding Path of Conversation Topics
             LazyColumn(
@@ -442,6 +487,38 @@ fun FloatingCoachAvatar(
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun RoadmapModePill(
+    title: String,
+    emoji: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = if (isSelected) Color(0xFF3B1F70) else Color(0xFF13192B),
+        border = BorderStroke(
+            1.2.dp,
+            if (isSelected) Color(0xFFA855F7) else Color(0xFF222C42)
+        ),
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(text = emoji, fontSize = 13.sp)
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSelected) Color(0xFFF3E8FF) else Color(0xFF94A3B8)
+            )
         }
     }
 }

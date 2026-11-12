@@ -124,24 +124,22 @@ fun NovaAiChatScreen(
         getQuestionsForTopic(currentTopic)
     }
 
+    val totalQuestions = 5
     var questionIndex by remember(currentTopic.id) { mutableIntStateOf(0) }
+    val initialQuestion = remember(currentTopic.id) {
+        questionBank.firstOrNull()?.questionText ?: currentTopic.question.ifBlank { "When do you usually wake up on weekdays?" }
+    }
     val currentQuestion = questionBank.getOrElse(questionIndex) { questionBank.first() }
 
-    // Chat history state
+    // Chat history state starting with opening question
     var chatMessages by remember(currentTopic.id) {
         mutableStateOf(
             listOf(
                 ChatMessage(
-                    id = "msg_greet_${currentTopic.id}",
-                    isNova = true,
-                    text = "Hi! I'm Nova 😊\nLet's practice “${currentTopic.title}”. I'll ask questions and you answer by speaking.",
-                    isQuestion = false
-                ),
-                ChatMessage(
                     id = "msg_q1_${currentTopic.id}",
                     isNova = true,
-                    text = "Great! 🎯\nQuestion 1:\n🕒 ${questionBank.first().questionText}",
-                    audioPrompt = questionBank.first().questionText,
+                    text = "Hi! I'm Nova 😊\nLet's practice “${currentTopic.title}”.\n\nQuestion 1:\n🕒 $initialQuestion",
+                    audioPrompt = "Hi! I'm Nova. Let's practice ${currentTopic.title}. Question 1: $initialQuestion",
                     isQuestion = true,
                     questionNumber = 1
                 )
@@ -149,69 +147,75 @@ fun NovaAiChatScreen(
         )
     }
 
+    // Greet and speak initial question on opening
+    LaunchedEffect(currentTopic.id) {
+        viewModel.setActiveCoachQuestion(initialQuestion)
+        delay(400)
+        viewModel.speakAudio("Hi! I'm Nova. Let's practice ${currentTopic.title}. Question 1: $initialQuestion")
+    }
+
     // Listen to speech recognition results
     LaunchedEffect(speechState) {
         if (speechState is SpeechState.Success && speechState.spokenText.isNotBlank()) {
-            val spoken = speechState.spokenText
-            // Append student message
-            val studentMsg = ChatMessage(
-                id = "student_${System.currentTimeMillis()}",
-                isNova = false,
-                text = spoken,
-                isQuestion = false
-            )
-            chatMessages = chatMessages + studentMsg
+            val spoken = speechState.spokenText.trim()
+            if (chatMessages.lastOrNull()?.text != spoken) {
+                val studentMsg = ChatMessage(
+                    id = "student_${System.currentTimeMillis()}",
+                    isNova = false,
+                    text = spoken,
+                    isQuestion = false
+                )
+                chatMessages = chatMessages + studentMsg
+            }
         }
     }
 
-    // Listen to AI evaluation updates and automatically ask the next question
+    // Listen to AI evaluation updates and formulate the contextual next turn
+    var lastProcessedSpoken by remember { mutableStateOf("") }
+
     LaunchedEffect(evaluation) {
-        if (evaluation != null && evaluation.spokenText.isNotBlank()) {
-            // Append Nova's coaching response
+        if (evaluation != null && evaluation.spokenText.isNotBlank() && evaluation.spokenText != lastProcessedSpoken) {
+            lastProcessedSpoken = evaluation.spokenText
+
             val coachReply = evaluation.aiCoachResponse?.ifBlank { null }
                 ?: if (evaluation.overallScore >= 75) {
-                    "Brilliant! 🌟 You spoke with clear pronunciation and natural rhythm."
+                    "Great job! That was spoken with natural clarity. What is another activity you do during that time?"
                 } else {
-                    "Good effort! 👏 Keep focusing on your time prepositions. You're doing great!"
+                    "Good practice! Try speaking in a complete sentence. What time do you usually finish your routine?"
                 }
 
-            val novaReply = ChatMessage(
-                id = "nova_reply_${System.currentTimeMillis()}",
-                isNova = true,
-                text = coachReply,
-                audioPrompt = coachReply,
-                evaluation = evaluation,
-                isQuestion = false
-            )
-            chatMessages = chatMessages + novaReply
-
-            // Automatically advance and ask the next question after a natural pause
-            delay(1700L)
-            if (questionIndex < questionBank.size - 1) {
+            if (questionIndex < totalQuestions - 1) {
                 questionIndex++
-                val nextQ = questionBank[questionIndex]
-                val nextQMsg = ChatMessage(
-                    id = "msg_q_${questionIndex + 1}_${System.currentTimeMillis()}",
+                val nextQNum = questionIndex + 1
+
+                val novaReply = ChatMessage(
+                    id = "nova_reply_${System.currentTimeMillis()}",
                     isNova = true,
-                    text = "Question ${questionIndex + 1}:\n🕒 ${nextQ.questionText}",
-                    audioPrompt = nextQ.questionText,
+                    text = coachReply,
+                    audioPrompt = coachReply,
+                    evaluation = evaluation,
                     isQuestion = true,
-                    questionNumber = questionIndex + 1
+                    questionNumber = nextQNum
                 )
-                chatMessages = chatMessages + nextQMsg
-                viewModel.setActiveCoachQuestion(nextQ.questionText)
-                viewModel.speakAudio(nextQ.questionText)
+                chatMessages = chatMessages + novaReply
+                viewModel.setActiveCoachQuestion(coachReply)
             } else {
-                // Completed all 5 questions!
-                delay(300L)
+                questionIndex = totalQuestions - 1
+                val novaReply = ChatMessage(
+                    id = "nova_reply_${System.currentTimeMillis()}",
+                    isNova = true,
+                    text = coachReply,
+                    audioPrompt = coachReply,
+                    evaluation = evaluation,
+                    isQuestion = false
+                )
                 val completeMsg = ChatMessage(
                     id = "msg_complete_${System.currentTimeMillis()}",
                     isNova = true,
-                    text = "🎉 Outstanding job! You completed all 5 questions for \"${currentTopic.title}\"!\n\nYou earned +50 XP and +20 Fluency Coins! 🏆",
+                    text = "🎉 Outstanding conversation! You completed all 5 practice turns for \"${currentTopic.title}\"!\n\nYou earned +50 XP and +20 Fluency Coins! 🏆",
                     isQuestion = false
                 )
-                chatMessages = chatMessages + completeMsg
-                viewModel.speakAudio("Outstanding job! You completed all questions for ${currentTopic.title}.")
+                chatMessages = chatMessages + novaReply + completeMsg
                 Toast.makeText(context, "Lesson Completed! +50 XP & +20 Coins", Toast.LENGTH_SHORT).show()
             }
         }
@@ -225,7 +229,9 @@ fun NovaAiChatScreen(
     var showTopicFilterSheet by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
     var bottomInputText by remember { mutableStateOf("") }
-    var isTtsPlaying by remember { mutableStateOf(false) }
+    val isTtsEngineSpeaking by viewModel.ttsManager.isSpeaking.collectAsState()
+    var manualTtsPlaying by remember { mutableStateOf(false) }
+    val isTtsPlaying = isTtsEngineSpeaking || manualTtsPlaying
 
     val listState = rememberLazyListState()
 
@@ -386,109 +392,15 @@ fun NovaAiChatScreen(
 
             Spacer(Modifier.height(10.dp))
 
+            val currentQDisplay = (questionIndex + 1).coerceIn(1, totalQuestions)
+            val percentVal = (currentQDisplay * 100) / totalQuestions
+
             // =========================================================================
-            // 2. SEARCH & FILTER BAR
+            // 2. COMPACT TOPIC & PROGRESS BANNER (Space-optimized for chat visibility)
             // =========================================================================
             Surface(
-                shape = RoundedCornerShape(26.dp),
-                color = Color(0xFF160D33).copy(alpha = 0.9f),
-                border = BorderStroke(
-                    1.5.dp,
-                    Brush.horizontalGradient(
-                        listOf(
-                            Color(0xFF8B5CF6),
-                            Color(0xFFC084FC),
-                            Color(0xFF6366F1)
-                        )
-                    )
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .testTag("nova_search_bar")
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = "Search",
-                        tint = Color(0xFFC4B5FD),
-                        modifier = Modifier.size(22.dp)
-                    )
-
-                    Spacer(Modifier.width(10.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { showTopicPickerDialog = true }
-                    ) {
-                        if (searchText.isEmpty()) {
-                            Text(
-                                text = "Search lessons, topics or practice...",
-                                color = Color(0xFF948BB5),
-                                fontSize = 13.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        BasicTextField(
-                            value = searchText,
-                            onValueChange = {
-                                searchText = it
-                                if (it.isNotBlank()) showTopicPickerDialog = true
-                            },
-                            textStyle = TextStyle(
-                                color = Color.White,
-                                fontSize = 13.5.sp
-                            ),
-                            singleLine = true,
-                            cursorBrush = SolidColor(Color(0xFFC084FC)),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    Spacer(Modifier.width(8.dp))
-
-                    // Filter Button with Purple Glowing Circle
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(
-                                        Color(0xFF8B5CF6),
-                                        Color(0xFF6366F1)
-                                    )
-                                )
-                            )
-                            .clickable { showTopicPickerDialog = true }
-                            .testTag("nova_filter_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Tune,
-                            contentDescription = "Filter Topics",
-                            tint = Color.White,
-                            modifier = Modifier.size(17.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // =========================================================================
-            // 3. LESSON / TOPIC CARD
-            // =========================================================================
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                shape = RoundedCornerShape(18.dp),
+                color = Color(0xFF1B113B).copy(alpha = 0.95f),
                 border = BorderStroke(
                     1.2.dp,
                     Brush.horizontalGradient(
@@ -503,174 +415,107 @@ fun NovaAiChatScreen(
                     .fillMaxWidth()
                     .testTag("nova_active_lesson_card")
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(
-                                    Color(0xFF2E1065),
-                                    Color(0xFF1E174E),
-                                    Color(0xFF120B35)
-                                )
-                            )
-                        )
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Circular Avatar/Topic Image
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(50.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.radialGradient(
-                                        listOf(
-                                            Color(0xFF38BDF8),
-                                            Color(0xFF1E3A8A)
-                                        )
-                                    )
-                                )
-                                .border(1.5.dp, Color(0xFF60A5FA), CircleShape)
-                        ) {
-                            Text(
-                                text = currentTopic.emoji.ifBlank { "⏰" },
-                                fontSize = 24.sp
-                            )
-                        }
-
-                        Spacer(Modifier.width(12.dp))
-
-                        // Lesson Title and Subtitle
+                        Text(
+                            text = currentTopic.emoji.ifBlank { "⏰" },
+                            fontSize = 20.sp
+                        )
+                        Spacer(Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Learn: ${currentTopic.title}",
-                                fontSize = 15.sp,
+                                text = "Topic: ${currentTopic.title}",
+                                fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(Modifier.height(2.dp))
                             Text(
-                                text = "Practice real conversations with AI",
-                                fontSize = 12.sp,
-                                color = Color(0xFFDDD6FE)
+                                text = "Interactive Spoken Conversation",
+                                fontSize = 11.sp,
+                                color = Color(0xFFC4B5FD)
                             )
                         }
-
-                        Spacer(Modifier.width(8.dp))
-
-                        // Glowing Target/Bullseye Button
-                        Box(
-                            contentAlignment = Alignment.Center,
+                        // Change Topic Button
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF2E1B5B),
+                            border = BorderStroke(1.dp, Color(0xFF818CF8)),
                             modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.radialGradient(
-                                        listOf(
-                                            Color(0xFF8B5CF6).copy(alpha = 0.4f),
-                                            Color(0xFF4C1D95).copy(alpha = 0.15f)
-                                        )
-                                    )
-                                )
-                                .border(1.2.dp, Color(0xFFC084FC), CircleShape)
                                 .clickable { showTopicPickerDialog = true }
                                 .testTag("topic_bullseye_btn")
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Adjust,
-                                contentDescription = "Topic Details & Switch",
-                                tint = Color(0xFFC084FC),
-                                modifier = Modifier.size(24.dp)
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text("Topics", fontSize = 11.sp, color = Color(0xFFE0E7FF), fontWeight = FontWeight.SemiBold)
+                                Icon(
+                                    imageVector = Icons.Rounded.Tune,
+                                    contentDescription = "Change Topic",
+                                    tint = Color(0xFFC084FC),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
                         }
                     }
-                }
-            }
 
-            Spacer(Modifier.height(14.dp))
-
-            // =========================================================================
-            // 4. PROGRESS ROW: "Question 1 of 5", 5-bar Segmented Progress, "20%" Badge
-            // =========================================================================
-            val totalQuestions = 5
-            val currentQDisplay = (questionIndex + 1).coerceIn(1, totalQuestions)
-            val percentVal = (currentQDisplay * 100) / totalQuestions
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Question $currentQDisplay of $totalQuestions",
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-
-                Spacer(Modifier.width(12.dp))
-
-                // 5-bar Segmented Progress Bar
-                Row(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    for (i in 0 until totalQuestions) {
-                        val isFilled = i < currentQDisplay
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(7.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(
-                                    if (isFilled) {
-                                        Brush.horizontalGradient(
-                                            listOf(
-                                                Color(0xFFC084FC),
-                                                Color(0xFFA855F7)
-                                            )
-                                        )
-                                    } else {
-                                        SolidColor(Color(0xFF2C1F50))
-                                    }
-                                )
-                        )
-                    }
-                }
-
-                Spacer(Modifier.width(12.dp))
-
-                // Percentage Badge
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF1B1238),
-                    border = BorderStroke(1.dp, Color(0xFF4A3477)),
-                    modifier = Modifier.height(26.dp)
-                ) {
-                    Box(
-                        modifier = Modifier.padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.Center
+                    // Progress row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
+                            text = "Question $currentQDisplay of $totalQuestions",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFE2E8F0)
+                        )
+                        // 5 segmented bars
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            for (i in 0 until totalQuestions) {
+                                val isFilled = i < currentQDisplay
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(5.dp)
+                                        .clip(RoundedCornerShape(3.dp))
+                                        .background(
+                                            if (isFilled) {
+                                                Brush.horizontalGradient(
+                                                    listOf(Color(0xFFC084FC), Color(0xFFA855F7))
+                                                )
+                                            } else {
+                                                SolidColor(Color(0xFF332060))
+                                            }
+                                        )
+                                )
+                            }
+                        }
+                        Text(
                             text = "$percentVal%",
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = Color(0xFFA7F3D0)
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(8.dp))
 
             // =========================================================================
             // 5. CHAT MESSAGES AREA (Scrollable)
@@ -689,11 +534,11 @@ fun NovaAiChatScreen(
                             message = msg,
                             isPlayingAudio = isTtsPlaying,
                             onPlayAudio = { text ->
-                                isTtsPlaying = true
+                                manualTtsPlaying = true
                                 viewModel.speakAudio(text)
                                 coroutineScope.launch {
-                                    delay(4000)
-                                    isTtsPlaying = false
+                                    delay(700)
+                                    manualTtsPlaying = false
                                 }
                             }
                         )
@@ -893,8 +738,8 @@ fun NovaAiChatScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = "Search / Type",
+                        imageVector = Icons.Rounded.ChatBubbleOutline,
+                        contentDescription = "Type response",
                         tint = Color(0xFFC4B5FD),
                         modifier = Modifier.size(20.dp)
                     )
@@ -904,7 +749,7 @@ fun NovaAiChatScreen(
                     Box(modifier = Modifier.weight(1f)) {
                         if (bottomInputText.isEmpty()) {
                             Text(
-                                text = "Search here...",
+                                text = "Type your response or tap mic...",
                                 color = Color(0xFF8B7FA8),
                                 fontSize = 13.sp
                             )
@@ -994,18 +839,18 @@ fun NovaAiChatScreen(
                     borderColor = Color(0xFF7C3AED),
                     modifier = Modifier.weight(1f),
                     onClick = {
-                        // Advance question index
                         if (questionIndex < totalQuestions - 1) {
                             questionIndex++
-                            val nextQ = questionBank[questionIndex]
-                            chatMessages = chatMessages + ChatMessage(
+                            val nextQ = questionBank.getOrElse(questionIndex) { questionBank.first() }
+                            val nextQMsg = ChatMessage(
                                 id = "msg_q_${questionIndex + 1}_${System.currentTimeMillis()}",
                                 isNova = true,
                                 text = "Question ${questionIndex + 1}:\n🕒 ${nextQ.questionText}",
-                                audioPrompt = nextQ.questionText,
+                                audioPrompt = "Question ${questionIndex + 1}: ${nextQ.questionText}",
                                 isQuestion = true,
                                 questionNumber = questionIndex + 1
                             )
+                            chatMessages = chatMessages + nextQMsg
                             viewModel.setActiveCoachQuestion(nextQ.questionText)
                             viewModel.speakAudio(nextQ.questionText)
                         } else {
@@ -1422,37 +1267,56 @@ fun NovaChatBubble(
             ),
             color = Color(0xFF1C133B),
             border = BorderStroke(1.2.dp, Color(0xFF4C2A85)),
-            modifier = Modifier.widthIn(max = 300.dp)
+            modifier = Modifier.weight(1f, fill = false)
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
             ) {
+                if (message.evaluation != null) {
+                    val eval = message.evaluation
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF311A60),
+                        border = BorderStroke(1.dp, Color(0xFF6D28D9)),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Text(
+                            text = "Score: ${eval.overallScore}/100 • CEFR ${eval.cefrLevel} • Fluency ${eval.fluencyScore}%",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF67E8F9),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
                 Text(
                     text = message.text,
                     fontSize = 14.5.sp,
                     color = Color.White,
-                    lineHeight = 22.sp
+                    lineHeight = 22.sp,
+                    fontWeight = if (message.isQuestion) FontWeight.Medium else FontWeight.Normal
                 )
 
-                // If this is a question, render the Audio Player Row at bottom of bubble
-                if (message.isQuestion && !message.audioPrompt.isNullOrBlank()) {
-                    Spacer(Modifier.height(10.dp))
+                // If audio prompt is available, render clean audio button
+                if (!message.audioPrompt.isNullOrBlank()) {
+                    Spacer(Modifier.height(8.dp))
                     Surface(
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(12.dp),
                         color = Color(0xFF26194E),
+                        border = BorderStroke(1.dp, Color(0xFF5B21B6)),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onPlayAudio(message.audioPrompt) }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Circular play button
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
-                                    .size(28.dp)
+                                    .size(26.dp)
                                     .clip(CircleShape)
                                     .background(
                                         Brush.linearGradient(
@@ -1464,17 +1328,17 @@ fun NovaChatBubble(
                                     )
                             ) {
                                 Icon(
-                                    imageVector = if (isPlayingAudio) Icons.Rounded.GraphicEq else Icons.Rounded.PlayArrow,
+                                    imageVector = if (isPlayingAudio) Icons.Rounded.GraphicEq else Icons.Rounded.VolumeUp,
                                     contentDescription = "Tap to listen",
                                     tint = Color.White,
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
 
                             Spacer(Modifier.width(8.dp))
 
                             Text(
-                                text = if (isPlayingAudio) "Speaking..." else "Tap to listen",
+                                text = if (isPlayingAudio) "Nova is speaking..." else "Tap to hear Nova speak",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = Color(0xFFC4B5FD)
@@ -1482,7 +1346,6 @@ fun NovaChatBubble(
 
                             Spacer(Modifier.weight(1f))
 
-                            // Mini waveform lines
                             AudioBarWaveformMini(isActive = isPlayingAudio)
                         }
                     }
@@ -1511,13 +1374,14 @@ fun StudentChatBubble(message: ChatMessage) {
             ),
             color = Color(0xFF4338CA),
             border = BorderStroke(1.dp, Color(0xFF818CF8)),
-            modifier = Modifier.widthIn(max = 280.dp)
+            modifier = Modifier.weight(1f, fill = false)
         ) {
             Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                 Text(
                     text = message.text,
                     fontSize = 14.sp,
-                    color = Color.White
+                    color = Color.White,
+                    lineHeight = 20.sp
                 )
                 if (message.evaluation != null) {
                     Spacer(Modifier.height(4.dp))

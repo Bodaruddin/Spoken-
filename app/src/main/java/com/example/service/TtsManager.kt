@@ -40,12 +40,32 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
+    /**
+     * Cleans text for natural speech synthesis:
+     * - Strips emojis and decorative symbols that break Android TTS
+     * - Strips markdown symbols (*, _, #, ~, `)
+     * - Normalizes whitespace
+     */
+    fun cleanTextForSpeech(raw: String): String {
+        return raw
+            // Remove emojis & pictographs
+            .replace(Regex("[\\p{So}\\p{Cn}\\uD83C-\\uDBFF\\uDC00-\\uDFFF]+"), " ")
+            // Remove markdown bold/italic/headers
+            .replace(Regex("[*#_~`]+"), "")
+            // Remove bullet points / dashes at start of lines
+            .replace(Regex("^[\\s*•-]+", RegexOption.MULTILINE), "")
+            // Normalize spaces
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
     fun speak(text: String, slowSpeed: Boolean = false) {
         if (!isInitialized || tts == null) return
-        tts?.setSpeechRate(if (slowSpeed) 0.72f else 0.95f)
-        val params = HashMap<String, String>()
-        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = "SpeaklyUtterance"
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "SpeaklyUtterance")
+        val clean = cleanTextForSpeech(text)
+        if (clean.isBlank()) return
+        tts?.setSpeechRate(if (slowSpeed) 0.75f else 0.92f)
+        val utteranceId = "Speakly_${System.currentTimeMillis()}"
+        tts?.speak(clean, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
     }
 
     fun stop() {

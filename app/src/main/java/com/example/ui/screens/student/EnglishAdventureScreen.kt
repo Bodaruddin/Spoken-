@@ -101,7 +101,7 @@ fun EnglishAdventureScreen(
             showWorldInfoDialog = false
             showChestRewardDialog = false
         } else {
-            viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
+            viewModel.selectSpeakingSubTab(SpeakingSubTab.TOPICS_ROADMAP)
         }
     }
 
@@ -136,7 +136,7 @@ fun EnglishAdventureScreen(
                 currentWorld = currentWorld,
                 worlds = worlds,
                 progress = progress,
-                onBack = { viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER) },
+                onBack = { viewModel.selectSpeakingSubTab(SpeakingSubTab.TOPICS_ROADMAP) },
                 onOpenWorldMap = { showWorldMapDialog = true },
                 onOpenLeaderboard = { showLeaderboardDialog = true },
                 onOpenBadges = { showBadgesDialog = true },

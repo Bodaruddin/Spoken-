@@ -948,9 +948,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectStudentTab(tab: StudentTab) {
         _currentStudentTab.value = tab
-        if (tab == StudentTab.PRACTICE) {
-            _speakingSubTab.value = SpeakingSubTab.TOPICS_ROADMAP
-        }
     }
 
     fun startTopicConversation(topic: SpeakingPrompt) {
@@ -968,6 +965,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectSpeakingSubTab(subTab: SpeakingSubTab) {
         _speakingSubTab.value = subTab
+        _currentStudentTab.value = StudentTab.PRACTICE
         _lastEvaluation.value = null
         speechManager.reset()
     }
@@ -1684,7 +1682,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } else null
 
-                val aiResult = kotlinx.coroutines.withTimeoutOrNull(4500L) {
+                val aiResult = kotlinx.coroutines.withTimeoutOrNull(12000L) {
                     if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
                         GeminiSpeechEvaluator.evaluateSpeechCustomEndpoint(
                             endpointUrl = _customEndpointUrl.value,
