@@ -53,7 +53,13 @@ class AppPreferences(context: Context) {
         private const val KEY_SPEAKING_PROMPTS_LIST = "key_speaking_prompts_list"
         private const val KEY_ADVENTURE_PROGRESS = "key_adventure_progress"
         private const val KEY_ADVENTURE_WORLDS = "key_adventure_worlds"
+
+        // Gemini AI Integration Keys
+        private const val KEY_GEMINI_API_KEY = "key_gemini_api_key"
+        private const val KEY_AI_VOICE_REPLY_ENABLED = "key_ai_voice_reply_enabled"
+        private const val KEY_AI_MODEL_NAME = "key_ai_model_name"
     }
+
 
     fun saveMissingLettersCategories(categories: List<String>) {
         val jsonArray = JSONArray()
@@ -1452,4 +1458,37 @@ class AppPreferences(context: Context) {
             null
         }
     }
+
+    // =========================================================================
+    // GEMINI AI SPEECH EVALUATION PREFERENCES
+    // =========================================================================
+
+    fun saveGeminiApiKey(key: String) {
+        prefs.edit().putString(KEY_GEMINI_API_KEY, key.trim()).apply()
+    }
+
+    fun getCustomGeminiApiKey(): String? {
+        return prefs.getString(KEY_GEMINI_API_KEY, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun clearCustomGeminiApiKey() {
+        prefs.edit().remove(KEY_GEMINI_API_KEY).apply()
+    }
+
+    fun isAiVoiceReplyEnabled(): Boolean {
+        return prefs.getBoolean(KEY_AI_VOICE_REPLY_ENABLED, true)
+    }
+
+    fun setAiVoiceReplyEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AI_VOICE_REPLY_ENABLED, enabled).apply()
+    }
+
+    fun getSelectedAiModel(): String {
+        return prefs.getString(KEY_AI_MODEL_NAME, "gemini-2.5-flash") ?: "gemini-2.5-flash"
+    }
+
+    fun setSelectedAiModel(model: String) {
+        prefs.edit().putString(KEY_AI_MODEL_NAME, model.trim()).apply()
+    }
 }
+

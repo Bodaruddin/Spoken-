@@ -123,7 +123,12 @@ data class SpeakingEvaluation(
     val vocabularyScore: Int,
     val feedback: String,
     val suggestedImprovement: String,
-    val phonemeAccuracy: List<Pair<String, Boolean>> = emptyList()
+    val phonemeAccuracy: List<Pair<String, Boolean>> = emptyList(),
+    val isAiEvaluated: Boolean = false,
+    val aiModelUsed: String = "",
+    val aiCoachResponse: String? = null,
+    val cefrLevel: String = "",
+    val detectedWeakWords: List<String> = emptyList()
 )
 
 data class DialogueTurn(

@@ -61,6 +61,13 @@ fun AdminMainScreen(
     modifier: Modifier = Modifier
 ) {
     val currentTab by viewModel.currentAdminTab.collectAsState()
+    val showAiKeyDialog by viewModel.showAiKeyDialog.collectAsState()
+    if (showAiKeyDialog) {
+        com.example.ui.components.AiApiKeyIntegrationDialog(
+            viewModel = viewModel,
+            onDismiss = { viewModel.closeAiKeyDialog() }
+        )
+    }
 
     when (currentTab) {
         AdminTab.DASHBOARD -> AdminDashboard(viewModel, modifier)
@@ -70,6 +77,7 @@ fun AdminMainScreen(
         AdminTab.CURRICULUM -> AdminCurriculumManagement(viewModel, modifier)
     }
 }
+
 
 // -------------------------------------------------------------
 // ADMIN DASHBOARD
@@ -503,6 +511,23 @@ fun AdminDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
                             ) {
                                 Text("🎯 Phonetics", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
+                        }
+
+                        // Gemini AI Key Integration Settings Button
+                        val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
+                        Button(
+                            onClick = { viewModel.openAiKeyDialog() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("admin_gemini_api_key_btn"),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5))
+                        ) {
+                            Text(
+                                text = if (isGeminiConfigured) "⚡ Gemini AI Active • Manage API Key" else "🔑 Configure Gemini AI Speech Evaluation Key",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
 
                         // Direct switch to Teacher Panel for Admin without Security PIN

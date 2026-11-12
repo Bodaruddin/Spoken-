@@ -59,6 +59,7 @@ import com.example.ui.MainViewModel
 import com.example.ui.SpeakingSubTab
 import com.example.ui.StudentTab
 import com.example.ui.components.SpeakingEvaluationCard
+import com.example.ui.components.AiApiKeyIntegrationDialog
 import com.example.ui.theme.*
 
 @Composable
@@ -75,6 +76,14 @@ fun SpeakingHubScreen(
     val pronunciationDrills by viewModel.pronunciationDrills.collectAsState()
     val activeDrill by viewModel.activePronunciationDrill.collectAsState()
     val speakingPrompts by viewModel.speakingPrompts.collectAsState()
+    val showAiKeyDialog by viewModel.showAiKeyDialog.collectAsState()
+
+    if (showAiKeyDialog) {
+        AiApiKeyIntegrationDialog(
+            viewModel = viewModel,
+            onDismiss = { viewModel.closeAiKeyDialog() }
+        )
+    }
 
     BackHandler {
         if (currentSubTab == SpeakingSubTab.ENGLISH_ADVENTURE) {
@@ -165,7 +174,7 @@ fun SpeakingHubScreen(
                 modifier = Modifier.padding(start = 4.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
@@ -178,7 +187,34 @@ fun SpeakingHubScreen(
                     )
                 }
             }
+
+            // Gemini AI Key Integration Button / Badge
+            val isAiConfigured by viewModel.isGeminiConfigured.collectAsState()
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = if (isAiConfigured) Color(0xFF0369A1).copy(alpha = 0.85f) else Color(0xFF78350F).copy(alpha = 0.85f),
+                border = BorderStroke(1.2.dp, if (isAiConfigured) Color(0xFF38BDF8) else Color(0xFFF59E0B)),
+                modifier = Modifier
+                    .padding(start = 5.dp)
+                    .clickable { viewModel.openAiKeyDialog() }
+                    .testTag("ai_key_settings_btn")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(if (isAiConfigured) "⚡" else "🔑", fontSize = 11.sp)
+                    Text(
+                        text = if (isAiConfigured) "AI Active" else "AI Key",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 10.5.sp,
+                        color = if (isAiConfigured) Color(0xFFE0F2FE) else Color(0xFFFEF3C7)
+                    )
+                }
+            }
         }
+
 
         // 2. Sub-tabs Pill Row
         LazyRow(
@@ -352,9 +388,11 @@ fun AiPartnerExactScreen(
     speechState: SpeechState,
     evaluation: com.example.data.model.SpeakingEvaluation?
 ) {
-    var aiQuestion by remember {
-        mutableStateOf("Hi Alex! How was your weekend? Did you do anything fun or exciting?")
-    }
+    val aiQuestion by viewModel.activeCoachQuestion.collectAsState()
+    val isAiEvaluating by viewModel.isAiEvaluating.collectAsState()
+    val isGeminiActive by viewModel.isGeminiConfigured.collectAsState()
+    val activeModel by viewModel.activeAiModel.collectAsState()
+
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -508,8 +546,9 @@ fun AiPartnerExactScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable {
-                                    aiQuestion = "Could you tell me about your favorite hobbies and why you enjoy them?"
-                                    viewModel.speakAudio(aiQuestion)
+                                    val q = "Could you tell me about your favorite hobbies and why you enjoy them?"
+                                    viewModel.setActiveCoachQuestion(q)
+                                    viewModel.speakAudio(q)
                                 }
                         ) {
                             Row(
@@ -536,10 +575,12 @@ fun AiPartnerExactScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable {
-                                    aiQuestion = "What kind of job do you do, and what do you like most about your work?"
-                                    viewModel.speakAudio(aiQuestion)
+                                    val q = "What kind of job do you do, and what do you like most about your work?"
+                                    viewModel.setActiveCoachQuestion(q)
+                                    viewModel.speakAudio(q)
                                 }
                         ) {
+
                             Row(
                                 modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
                                 horizontalArrangement = Arrangement.Center,
@@ -656,19 +697,21 @@ fun AiPartnerExactScreen(
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
-                text = when (speechState) {
-                    is SpeechState.Idle -> "Tap to Speak"
-                    is SpeechState.Listening -> "Listening... Speak now"
-                    is SpeechState.Processing -> "Evaluating your speech..."
-                    is SpeechState.Success -> "Great job! Processing feedback"
-                    is SpeechState.Error -> "Please try speaking again"
+                text = when {
+                    isAiEvaluating -> "Evaluating with Gemini AI..."
+                    speechState is SpeechState.Idle -> "Tap to Speak"
+                    speechState is SpeechState.Listening -> "Listening... Speak now"
+                    speechState is SpeechState.Processing -> "Processing speech..."
+                    speechState is SpeechState.Success -> "Great job! Processing feedback"
+                    speechState is SpeechState.Error -> "Please try speaking again"
+                    else -> "Tap to Speak"
                 },
                 fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = Color.White
             )
             Text(
-                text = "Start a conversation with Nova",
+                text = if (isAiEvaluating) "Analyzing pronunciation & fluency with $activeModel" else "Start a conversation with Nova",
                 fontSize = 12.5.sp,
                 color = Color(0xFF94A3B8)
             )
@@ -706,6 +749,37 @@ fun AiPartnerExactScreen(
                 )
             }
         }
+
+        // Gemini AI Real-Time Status Pill
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = if (isGeminiActive) Color(0xFF0C4A6E).copy(alpha = 0.7f) else Color(0xFF451A03).copy(alpha = 0.7f),
+            border = BorderStroke(1.2.dp, if (isGeminiActive) Color(0xFF38BDF8) else Color(0xFFF59E0B)),
+            modifier = Modifier
+                .clickable { viewModel.openAiKeyDialog() }
+                .testTag("gemini_status_pill")
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(if (isGeminiActive) "✨" else "🔑", fontSize = 13.sp)
+                Text(
+                    text = if (isGeminiActive) "Real-Time Gemini AI Active ($activeModel) • Settings" else "Tap to Integrate Gemini API Key for Real-Time AI",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isGeminiActive) Color(0xFFE0F2FE) else Color(0xFFFEF3C7)
+                )
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = if (isGeminiActive) Color(0xFF38BDF8) else Color(0xFFF59E0B),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+
 
         Spacer(Modifier.height(4.dp))
 
@@ -771,6 +845,42 @@ fun AiPartnerExactScreen(
             }
         }
 
+        // Real-Time Evaluation Loading Indicator
+        if (isAiEvaluating) {
+            Spacer(Modifier.height(10.dp))
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = Color(0xFF1E1B4B).copy(alpha = 0.9f),
+                border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF38BDF8),
+                        strokeWidth = 2.5.dp,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column {
+                        Text(
+                            text = "Nova AI is evaluating your speech...",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Analyzing pronunciation, rhythm, grammar & CEFR level",
+                            fontSize = 11.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+            }
+        }
+
         // Live Evaluation Display if speech evaluated
         evaluation?.let { eval ->
             Spacer(Modifier.height(10.dp))
@@ -778,11 +888,15 @@ fun AiPartnerExactScreen(
                 evaluation = eval,
                 onAudioPlayExpected = {
                     viewModel.speakAudio(
-                        "My weekend was very relaxing. I went hiking with my friends and we cooked a delicious meal together."
+                        eval.expectedText ?: "My weekend was very relaxing. I went hiking with my friends and we cooked a delicious meal together."
                     )
+                },
+                onAudioPlayAiResponse = { reply ->
+                    viewModel.speakAudio(reply)
                 }
             )
         }
+
     }
 }
 

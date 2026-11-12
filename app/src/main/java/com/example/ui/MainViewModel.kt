@@ -11,6 +11,7 @@ import com.example.service.SpeechState
 import com.example.service.TtsManager
 import com.example.service.PhoneticsAiEngine
 import com.example.service.PhoneticSearchResult
+import com.example.service.GeminiSpeechEvaluator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -839,6 +840,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _lastEvaluation = MutableStateFlow<SpeakingEvaluation?>(null)
     val lastEvaluation: StateFlow<SpeakingEvaluation?> = _lastEvaluation.asStateFlow()
 
+    // Real-Time Gemini AI Speech Evaluation State
+    private val _isAiEvaluating = MutableStateFlow(false)
+    val isAiEvaluating: StateFlow<Boolean> = _isAiEvaluating.asStateFlow()
+
+    private val _geminiApiKey = MutableStateFlow(appPreferences.getCustomGeminiApiKey() ?: "")
+    val geminiApiKey: StateFlow<String> = _geminiApiKey.asStateFlow()
+
+    private val _isGeminiConfigured = MutableStateFlow(false)
+    val isGeminiConfigured: StateFlow<Boolean> = _isGeminiConfigured.asStateFlow()
+
+    private val _apiKeySource = MutableStateFlow("")
+    val apiKeySource: StateFlow<String> = _apiKeySource.asStateFlow()
+
+    private val _activeAiModel = MutableStateFlow(appPreferences.getSelectedAiModel())
+    val activeAiModel: StateFlow<String> = _activeAiModel.asStateFlow()
+
+    private val _aiVoiceReplyEnabled = MutableStateFlow(appPreferences.isAiVoiceReplyEnabled())
+    val aiVoiceReplyEnabled: StateFlow<Boolean> = _aiVoiceReplyEnabled.asStateFlow()
+
+    private val _showAiKeyDialog = MutableStateFlow(false)
+    val showAiKeyDialog: StateFlow<Boolean> = _showAiKeyDialog.asStateFlow()
+
+    private val _isTestingKey = MutableStateFlow(false)
+    val isTestingKey: StateFlow<Boolean> = _isTestingKey.asStateFlow()
+
+    private val _aiKeyTestResult = MutableStateFlow<String?>(null)
+    val aiKeyTestResult: StateFlow<String?> = _aiKeyTestResult.asStateFlow()
+
+    private val _activeCoachQuestion = MutableStateFlow("Hi Alex! How was your weekend? Did you do anything fun or exciting?")
+    val activeCoachQuestion: StateFlow<String> = _activeCoachQuestion.asStateFlow()
+
     // Celebration modal state
     private val _celebrationReward = MutableStateFlow<Pair<Int, Int>?>(null) // XP, Coins
     val celebrationReward: StateFlow<Pair<Int, Int>?> = _celebrationReward.asStateFlow()
@@ -887,7 +919,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+
+        // 4. Initialize Gemini AI Key status
+        _isGeminiConfigured.value = isGeminiApiKeyConfigured()
+        _apiKeySource.value = getApiKeySourceDescription()
     }
+
 
     fun selectStudentTab(tab: StudentTab) {
         _currentStudentTab.value = tab
@@ -1394,6 +1431,108 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ttsManager.speak(text, slow)
     }
 
+    // =========================================================================
+    // GEMINI AI API KEY INTEGRATION & REAL-TIME SPEECH EVALUATION
+    // =========================================================================
+
+    fun getEffectiveGeminiApiKey(): String {
+        val custom = appPreferences.getCustomGeminiApiKey()
+        if (!custom.isNullOrBlank()) {
+            return custom.trim()
+        }
+        val buildConfigKey = try {
+            com.example.BuildConfig.GEMINI_API_KEY
+        } catch (_: Throwable) {
+            ""
+        }
+        if (buildConfigKey.isNotBlank() && buildConfigKey != "MY_GEMINI_API_KEY" && buildConfigKey != "your_api_key_here") {
+            return buildConfigKey.trim()
+        }
+        return ""
+    }
+
+    fun isGeminiApiKeyConfigured(): Boolean {
+        return getEffectiveGeminiApiKey().isNotBlank()
+    }
+
+    fun getApiKeySourceDescription(): String {
+        val custom = appPreferences.getCustomGeminiApiKey()
+        if (!custom.isNullOrBlank()) {
+            return "Custom Key (Saved in App)"
+        }
+        val buildConfigKey = try {
+            com.example.BuildConfig.GEMINI_API_KEY
+        } catch (_: Throwable) {
+            ""
+        }
+        if (buildConfigKey.isNotBlank() && buildConfigKey != "MY_GEMINI_API_KEY" && buildConfigKey != "your_api_key_here") {
+            return "Injected via AI Studio Secrets Panel"
+        }
+        return "Not Configured (Using Local AI Engine)"
+    }
+
+    fun openAiKeyDialog() {
+        _aiKeyTestResult.value = null
+        _geminiApiKey.value = appPreferences.getCustomGeminiApiKey() ?: ""
+        _isGeminiConfigured.value = isGeminiApiKeyConfigured()
+        _apiKeySource.value = getApiKeySourceDescription()
+        _showAiKeyDialog.value = true
+    }
+
+    fun closeAiKeyDialog() {
+        _showAiKeyDialog.value = false
+        _aiKeyTestResult.value = null
+    }
+
+    fun saveCustomGeminiApiKey(key: String) {
+        val clean = key.trim()
+        appPreferences.saveGeminiApiKey(clean)
+        _geminiApiKey.value = clean
+        _isGeminiConfigured.value = isGeminiApiKeyConfigured()
+        _apiKeySource.value = getApiKeySourceDescription()
+    }
+
+    fun clearCustomGeminiApiKey() {
+        appPreferences.clearCustomGeminiApiKey()
+        _geminiApiKey.value = ""
+        _isGeminiConfigured.value = isGeminiApiKeyConfigured()
+        _apiKeySource.value = getApiKeySourceDescription()
+        _aiKeyTestResult.value = null
+    }
+
+    fun testGeminiApiKey(keyToTest: String) {
+        val key = keyToTest.trim().ifEmpty { getEffectiveGeminiApiKey() }
+        if (key.isEmpty()) {
+            _aiKeyTestResult.value = "⚠️ Please enter an API key or configure GEMINI_API_KEY in the Secrets panel."
+            return
+        }
+        viewModelScope.launch {
+            _isTestingKey.value = true
+            _aiKeyTestResult.value = "Connecting to Google Gemini API..."
+            val result = GeminiSpeechEvaluator.testApiKey(key, _activeAiModel.value)
+            _isTestingKey.value = false
+            _aiKeyTestResult.value = if (result.isSuccess) {
+                "✅ " + result.getOrThrow()
+            } else {
+                "❌ Connection Failed: " + (result.exceptionOrNull()?.message ?: "Check your API key and network connection.")
+            }
+        }
+    }
+
+    fun setAiModel(model: String) {
+        appPreferences.setSelectedAiModel(model)
+        _activeAiModel.value = model
+    }
+
+    fun setAiVoiceReplyEnabled(enabled: Boolean) {
+        appPreferences.setAiVoiceReplyEnabled(enabled)
+        _aiVoiceReplyEnabled.value = enabled
+    }
+
+    fun setActiveCoachQuestion(question: String) {
+        _activeCoachQuestion.value = question
+    }
+
     fun evaluateInputSpeech(spoken: String) {
         val target: String? = when {
             _activeAdventureMission.value != null -> _activeAdventureMission.value?.targetSentence
@@ -1403,29 +1542,72 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val turn = _activeRoleplay.value?.turns?.getOrNull(idx)
                 turn?.text
             }
-            _speakingSubTab.value == SpeakingSubTab.AI_PARTNER -> "I would like to order a flat white coffee with oat milk please"
+            _speakingSubTab.value == SpeakingSubTab.AI_PARTNER -> null
             else -> null
         }
 
-        val eval = EvaluationEngine.evaluateSpeech(
-            spokenText = spoken,
-            targetPhrase = target
-        )
-        _lastEvaluation.value = eval
+        viewModelScope.launch {
+            _isAiEvaluating.value = true
+            val effectiveKey = getEffectiveGeminiApiKey()
 
-        if (eval.overallScore > 0) {
-            // Dynamically update CEFR spoken proficiency, streaks, and practice metrics according to student's speech
-            repository.recordSpeakingPracticeResult(eval, practiceMinutesToAdd = 2)
+            val eval = if (effectiveKey.isNotBlank()) {
+                val contextPrompt = if (_speakingSubTab.value == SpeakingSubTab.AI_PARTNER) {
+                    _activeCoachQuestion.value
+                } else null
 
-            // If score is good, reward XP and coins
-            if (eval.overallScore >= 60) {
-                val xpEarned = (eval.overallScore * 0.4).toInt().coerceAtLeast(10)
-                val coinsEarned = 10
-                repository.addRewards(xpEarned, coinsEarned)
+                val aiResult = GeminiSpeechEvaluator.evaluateSpeech(
+                    apiKey = effectiveKey,
+                    spokenText = spoken,
+                    targetPhrase = target,
+                    conversationContext = contextPrompt,
+                    model = _activeAiModel.value
+                )
+
+                if (aiResult.isSuccess) {
+                    val aiEval = aiResult.getOrThrow()
+                    // If voice reply is enabled, Nova automatically speaks her response!
+                    if (_aiVoiceReplyEnabled.value && !aiEval.aiCoachResponse.isNullOrBlank()) {
+                        speakAudio(aiEval.aiCoachResponse)
+                        _activeCoachQuestion.value = aiEval.aiCoachResponse
+                    }
+                    aiEval
+                } else {
+                    // Graceful fallback to on-device linguistic evaluation engine
+                    val baseEval = EvaluationEngine.evaluateSpeech(
+                        spokenText = spoken,
+                        targetPhrase = target ?: if (_speakingSubTab.value == SpeakingSubTab.AI_PARTNER) "My weekend was relaxing and productive" else null
+                    )
+                    val errMsg = aiResult.exceptionOrNull()?.message ?: "Network error"
+                    baseEval.copy(
+                        feedback = "⚡ Cloud Gemini Notice ($errMsg). Showing on-device smart evaluation:\n${baseEval.feedback}"
+                    )
+                }
+            } else {
+                // No key configured: on-device evaluation engine
+                EvaluationEngine.evaluateSpeech(
+                    spokenText = spoken,
+                    targetPhrase = target ?: if (_speakingSubTab.value == SpeakingSubTab.AI_PARTNER) "My weekend was relaxing and productive" else null
+                )
             }
-            syncCurrentStudentProgressToSupabase()
+
+            _lastEvaluation.value = eval
+            _isAiEvaluating.value = false
+
+            if (eval.overallScore > 0) {
+                // Dynamically update CEFR spoken proficiency, streaks, and practice metrics according to student's speech
+                repository.recordSpeakingPracticeResult(eval, practiceMinutesToAdd = 2)
+
+                // If score is good, reward XP and coins
+                if (eval.overallScore >= 60) {
+                    val xpEarned = (eval.overallScore * 0.4).toInt().coerceAtLeast(10)
+                    val coinsEarned = 10
+                    repository.addRewards(xpEarned, coinsEarned)
+                }
+                syncCurrentStudentProgressToSupabase()
+            }
         }
     }
+
 
     fun incrementDailyPracticeStreak() {
         repository.incrementDailyStreak()

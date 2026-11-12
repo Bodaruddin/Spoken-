@@ -423,12 +423,17 @@ fun MicrophoneButton(
 fun SpeakingEvaluationCard(
     evaluation: SpeakingEvaluation,
     onAudioPlayExpected: (() -> Unit)? = null,
+    onAudioPlayAiResponse: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Card(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+            containerColor = Color(0xFF0F172A).copy(alpha = 0.95f)
+        ),
+        border = BorderStroke(
+            1.5.dp,
+            if (evaluation.isAiEvaluated) Color(0xFF38BDF8) else Color(0xFF6366F1).copy(alpha = 0.7f)
         ),
         modifier = modifier
             .fillMaxWidth()
@@ -438,6 +443,49 @@ fun SpeakingEvaluationCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // AI Evaluation Tag / Mode Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (evaluation.isAiEvaluated) Color(0xFF0369A1).copy(alpha = 0.4f) else Color(0xFF334155).copy(alpha = 0.4f),
+                    border = BorderStroke(1.dp, if (evaluation.isAiEvaluated) Color(0xFF38BDF8) else Color(0xFF64748B))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(if (evaluation.isAiEvaluated) "✨" else "📱", fontSize = 11.sp)
+                        Text(
+                            text = if (evaluation.isAiEvaluated) "Gemini AI Live Evaluation (${evaluation.aiModelUsed})" else "On-Device Smart Evaluation",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (evaluation.isAiEvaluated) Color(0xFF7DD3FC) else Color(0xFFCBD5E1)
+                        )
+                    }
+                }
+
+                if (evaluation.cefrLevel.isNotBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF4C1D95).copy(alpha = 0.8f),
+                        border = BorderStroke(1.dp, Color(0xFFA78BFA))
+                    ) {
+                        Text(
+                            text = "CEFR ${evaluation.cefrLevel}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFFDDD6FE),
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+
             // Header with score badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -446,14 +494,21 @@ fun SpeakingEvaluationCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(46.dp)
                             .clip(CircleShape)
                             .background(
-                                if (evaluation.overallScore >= 80) EmeraldSuccess else AmberGold
+                                Brush.verticalGradient(
+                                    if (evaluation.overallScore >= 80)
+                                        listOf(Color(0xFF10B981), Color(0xFF059669))
+                                    else if (evaluation.overallScore >= 60)
+                                        listOf(Color(0xFFF59E0B), Color(0xFFD97706))
+                                    else
+                                        listOf(Color(0xFFEF4444), Color(0xFFDC2626))
+                                )
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -468,12 +523,13 @@ fun SpeakingEvaluationCard(
                         Text(
                             "Speaking Assessment",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
+                            fontSize = 15.sp,
+                            color = Color.White
                         )
                         Text(
-                            if (evaluation.overallScore >= 85) "Excellent Fluency!" else "Good Effort, Keep Practicing!",
+                            if (evaluation.overallScore >= 85) "Excellent Fluency!" else if (evaluation.overallScore >= 70) "Good Effort, Keep Practicing!" else "Needs More Practice",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = Color(0xFF94A3B8)
                         )
                     }
                 }
@@ -482,15 +538,16 @@ fun SpeakingEvaluationCard(
                     IconButton(
                         onClick = onAudioPlayExpected,
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(38.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .background(Color(0xFF1E3A8A))
                             .testTag("play_expected_audio_button")
                     ) {
                         Icon(
                             Icons.Rounded.VolumeUp,
                             contentDescription = "Listen to Native Audio",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            tint = Color(0xFF60A5FA),
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -507,24 +564,71 @@ fun SpeakingEvaluationCard(
                 ScoreChip("Vocabulary", evaluation.vocabularyScore)
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            HorizontalDivider(color = Color(0xFF334155))
 
             // What you said
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("What we heard:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MutedGray)
+                Text("What we heard:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
                 Text(
                     "\"${evaluation.spokenText}\"",
-                    fontSize = 14.sp,
+                    fontSize = 13.5.sp,
                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color.White
                 )
             }
 
-            // Coach suggestion
+            // Nova Conversational Response (if present)
+            if (!evaluation.aiCoachResponse.isNullOrBlank()) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF1E1B4B).copy(alpha = 0.9f),
+                    border = BorderStroke(1.2.dp, Color(0xFF818CF8)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("🤖", fontSize = 18.sp)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Nova's Conversational Reply:",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.5.sp,
+                                color = Color(0xFFC084FC)
+                            )
+                            Text(
+                                "\"${evaluation.aiCoachResponse}\"",
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                        }
+                        if (onAudioPlayAiResponse != null) {
+                            IconButton(
+                                onClick = { onAudioPlayAiResponse(evaluation.aiCoachResponse) },
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF4338CA))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.VolumeUp,
+                                    contentDescription = "Listen to Nova Reply",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Coach Feedback & Recommendation
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = Color(0xFF0F1E42),
-                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
+                border = BorderStroke(1.dp, Color(0xFF2563EB).copy(alpha = 0.5f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -533,18 +637,58 @@ fun SpeakingEvaluationCard(
                     verticalAlignment = Alignment.Top
                 ) {
                     Text("💡", fontSize = 16.sp)
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
-                            "Coach Recommendation:",
+                            "Nova AI Feedback:",
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
                             color = Color(0xFF60A5FA)
                         )
                         Text(
-                            evaluation.suggestedImprovement,
+                            evaluation.feedback,
                             fontSize = 12.sp,
                             color = Color(0xFFE2E8F0)
                         )
+                        if (evaluation.suggestedImprovement.isNotBlank()) {
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                "Tip: ${evaluation.suggestedImprovement}",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFFFDE047)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Tricky words detected for practice
+            if (evaluation.detectedWeakWords.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        "Words to Practice Pronouncing:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFCBD5E1)
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        evaluation.detectedWeakWords.forEach { word ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF334155),
+                                border = BorderStroke(1.dp, Color(0xFF64748B))
+                            ) {
+                                Text(
+                                    text = word,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFF1F5F9),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
