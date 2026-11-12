@@ -63,6 +63,14 @@ fun TeacherMainScreen(
     modifier: Modifier = Modifier
 ) {
     val currentTab by viewModel.currentTeacherTab.collectAsState()
+    val showAiKeyDialog by viewModel.showAiKeyDialog.collectAsState()
+
+    if (showAiKeyDialog) {
+        com.example.ui.components.AiApiKeyIntegrationDialog(
+            viewModel = viewModel,
+            onDismiss = { viewModel.closeAiKeyDialog() }
+        )
+    }
 
     when (currentTab) {
         TeacherTab.DASHBOARD -> TeacherDashboard(viewModel, modifier)
@@ -72,6 +80,7 @@ fun TeacherMainScreen(
         TeacherTab.EXAMS -> TeacherExamsManagementScreen(viewModel, modifier)
     }
 }
+
 
 // -------------------------------------------------------------
 // TEACHER DASHBOARD
@@ -259,8 +268,127 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
             }
         }
 
+        // Gemini AI Real-time Speech API Connection Card for Faculty
+        item {
+            val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
+            val apiKeySource by viewModel.apiKeySource.collectAsState()
+            val activeModel by viewModel.activeAiModel.collectAsState()
+
+            Card(
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                border = BorderStroke(
+                    1.5.dp,
+                    if (isGeminiConfigured) Color(0xFF38BDF8) else Color(0xFFF59E0B)
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.openAiKeyDialog() }
+                    .testTag("teacher_gemini_api_card")
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.linearGradient(
+                                if (isGeminiConfigured)
+                                    listOf(Color(0xFF0F2B48), Color(0xFF131D4A), Color(0xFF0C1938))
+                                else
+                                    listOf(Color(0xFF3B1F08), Color(0xFF2E1505), Color(0xFF1A0D04))
+                            )
+                        )
+                        .padding(16.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (isGeminiConfigured) Color(0xFF0284C7).copy(alpha = 0.5f) else Color(0xFFD97706).copy(alpha = 0.5f),
+                                    border = BorderStroke(1.5.dp, if (isGeminiConfigured) Color(0xFF38BDF8) else Color(0xFFFBBF24)),
+                                    modifier = Modifier.size(42.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(if (isGeminiConfigured) "⚡" else "🔑", fontSize = 18.sp)
+                                    }
+                                }
+                                Column {
+                                    Text(
+                                        text = "Gemini AI Speech Evaluation API",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 15.sp,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = if (isGeminiConfigured) "Active for all students • $activeModel" else "Connect key for students to chat with AI",
+                                        fontSize = 11.5.sp,
+                                        color = if (isGeminiConfigured) Color(0xFF7DD3FC) else Color(0xFFFDE68A)
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isGeminiConfigured) Color(0xFF065F46) else Color(0xFF78350F),
+                                border = BorderStroke(1.dp, if (isGeminiConfigured) Color(0xFF34D399) else Color(0xFFF59E0B))
+                            ) {
+                                Text(
+                                    text = if (isGeminiConfigured) "CONNECTED" else "CONNECT API",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = if (isGeminiConfigured)
+                                "Students can now speak and practice conversation with Nova AI in real time. Status: $apiKeySource ($activeModel)."
+                            else
+                                "Connect your Gemini API Key here so students can practice speaking in real-time with Nova AI and receive automated CEFR scoring.",
+                            fontSize = 12.sp,
+                            color = Color(0xFFCBD5E1),
+                            lineHeight = 16.sp
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Button(
+                                onClick = { viewModel.openAiKeyDialog() },
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isGeminiConfigured) Color(0xFF0284C7) else Color(0xFFD97706)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                            ) {
+                                Icon(Icons.Rounded.Settings, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = if (isGeminiConfigured) "Manage API Connection" else "Connect Gemini API Key",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Section: Classroom Overview & Metrics (Matching Screenshot 2x2 Grid)
         item {
+
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

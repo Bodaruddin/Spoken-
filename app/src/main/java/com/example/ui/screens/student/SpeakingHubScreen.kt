@@ -76,14 +76,6 @@ fun SpeakingHubScreen(
     val pronunciationDrills by viewModel.pronunciationDrills.collectAsState()
     val activeDrill by viewModel.activePronunciationDrill.collectAsState()
     val speakingPrompts by viewModel.speakingPrompts.collectAsState()
-    val showAiKeyDialog by viewModel.showAiKeyDialog.collectAsState()
-
-    if (showAiKeyDialog) {
-        AiApiKeyIntegrationDialog(
-            viewModel = viewModel,
-            onDismiss = { viewModel.closeAiKeyDialog() }
-        )
-    }
 
     BackHandler {
         if (currentSubTab == SpeakingSubTab.ENGLISH_ADVENTURE) {
@@ -188,32 +180,31 @@ fun SpeakingHubScreen(
                 }
             }
 
-            // Gemini AI Key Integration Button / Badge
             val isAiConfigured by viewModel.isGeminiConfigured.collectAsState()
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = if (isAiConfigured) Color(0xFF0369A1).copy(alpha = 0.85f) else Color(0xFF78350F).copy(alpha = 0.85f),
-                border = BorderStroke(1.2.dp, if (isAiConfigured) Color(0xFF38BDF8) else Color(0xFFF59E0B)),
-                modifier = Modifier
-                    .padding(start = 5.dp)
-                    .clickable { viewModel.openAiKeyDialog() }
-                    .testTag("ai_key_settings_btn")
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+            if (isAiConfigured) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF0369A1).copy(alpha = 0.85f),
+                    border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+                    modifier = Modifier.padding(start = 5.dp)
                 ) {
-                    Text(if (isAiConfigured) "⚡" else "🔑", fontSize = 11.sp)
-                    Text(
-                        text = if (isAiConfigured) "AI Active" else "AI Key",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 10.5.sp,
-                        color = if (isAiConfigured) Color(0xFFE0F2FE) else Color(0xFFFEF3C7)
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Text("⚡", fontSize = 11.sp)
+                        Text(
+                            text = "AI Online",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 10.5.sp,
+                            color = Color(0xFFE0F2FE)
+                        )
+                    }
                 }
             }
         }
+
 
 
         // 2. Sub-tabs Pill Row
@@ -750,35 +741,29 @@ fun AiPartnerExactScreen(
             }
         }
 
-        // Gemini AI Real-Time Status Pill
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = if (isGeminiActive) Color(0xFF0C4A6E).copy(alpha = 0.7f) else Color(0xFF451A03).copy(alpha = 0.7f),
-            border = BorderStroke(1.2.dp, if (isGeminiActive) Color(0xFF38BDF8) else Color(0xFFF59E0B)),
-            modifier = Modifier
-                .clickable { viewModel.openAiKeyDialog() }
-                .testTag("gemini_status_pill")
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // AI Speaking Status Indicator (Informational only for student)
+        if (isGeminiActive) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF0C4A6E).copy(alpha = 0.5f),
+                border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.7f))
             ) {
-                Text(if (isGeminiActive) "✨" else "🔑", fontSize = 13.sp)
-                Text(
-                    text = if (isGeminiActive) "Real-Time Gemini AI Active ($activeModel) • Settings" else "Tap to Integrate Gemini API Key for Real-Time AI",
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isGeminiActive) Color(0xFFE0F2FE) else Color(0xFFFEF3C7)
-                )
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = if (isGeminiActive) Color(0xFF38BDF8) else Color(0xFFF59E0B),
-                    modifier = Modifier.size(16.dp)
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("✨", fontSize = 12.sp)
+                    Text(
+                        text = "Nova Real-Time AI Coach Active",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE0F2FE)
+                    )
+                }
             }
         }
+
 
 
         Spacer(Modifier.height(4.dp))
