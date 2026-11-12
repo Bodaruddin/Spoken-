@@ -419,3 +419,13 @@ data class SupabaseGameChallenge(
     val createdBy: String = "Faculty"
 )
 
+data class PictureVocabChallenge(
+    val id: String,
+    val emoji: String,
+    val word: String,
+    val phonetic: String,
+    val clue: String,
+    val options: List<String>,
+    val createdBy: String = "System"
+)
+

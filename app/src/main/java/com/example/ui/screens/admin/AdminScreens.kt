@@ -959,6 +959,7 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
     val pronunciationBattles by viewModel.pronunciationBattleChallenges.collectAsState()
     val fastVocabs by viewModel.fastVocabularyChallenges.collectAsState()
     val grammarChallenges by viewModel.grammarChallenges.collectAsState()
+    val pictureVocabs by viewModel.pictureVocabChallenges.collectAsState()
 
     LazyColumn(
         modifier = modifier
@@ -1326,6 +1327,35 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                             )
                         },
                         onDelete = { viewModel.deleteGrammarChallenge(item.id) }
+                    )
+                }
+            }
+            GameCategoryFilter.PICTURE_VOCAB -> {
+                item { Text("Picture Vocabulary (${pictureVocabs.size} items)", fontWeight = FontWeight.Bold, fontSize = 14.sp) }
+                items(pictureVocabs) { item ->
+                    GameItemCard(
+                        title = "${item.emoji} ${item.word}",
+                        subtitle = "${item.phonetic} • ${item.clue}",
+                        tag = "Options: ${item.options.joinToString(", ")}",
+                        createdBy = item.createdBy,
+                        onPlayAudio = { viewModel.speakAudio(item.word) },
+                        onEdit = {
+                            activeEditingChallenge = ActiveEditingChallenge(
+                                category = GameCategoryFilter.PICTURE_VOCAB,
+                                id = item.id,
+                                field1 = item.word,
+                                field2 = item.emoji,
+                                field3 = item.phonetic,
+                                field4 = item.clue,
+                                field5 = item.options.joinToString(", "),
+                                onSave = { f1, f2, f3, f4, f5 ->
+                                    val opts = f5.split(",").map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { listOf(f1) }
+                                    viewModel.updatePictureVocabChallenge(item.copy(word = f1, emoji = f2, phonetic = f3, clue = f4, options = opts))
+                                    statusMsg = "Dean Arthur Pendelton updated '${f1}' visual challenge!"
+                                }
+                            )
+                        },
+                        onDelete = { viewModel.deletePictureVocabChallenge(item.id) }
                     )
                 }
             }

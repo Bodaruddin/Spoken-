@@ -1827,6 +1827,29 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     private val _grammarChallenges = MutableStateFlow(loadInitialGrammarChallenges())
     val grammarChallenges: StateFlow<List<GrammarChallengeQuestion>> = _grammarChallenges.asStateFlow()
 
+    private val defaultPictureVocabChallenges = listOf(
+        PictureVocabChallenge("pv_1", "🩺", "Stethoscope", "/ˈsteθ.ə.skəʊp/", "An instrument used by medical doctors to listen to heart and lungs", listOf("Stethoscope", "Microscope", "Thermometer", "Telescope"), "System"),
+        PictureVocabChallenge("pv_2", "✈️", "Airplane", "/ˈeə.pleɪn/", "A powered flying vehicle with fixed wings", listOf("Airplane", "Helicopter", "Submarine", "Spaceship"), "System"),
+        PictureVocabChallenge("pv_3", "📚", "Library", "/ˈlaɪ.brər.i/", "A quiet room or building containing books for reading or study", listOf("Library", "Bakery", "Auditorium", "Laboratory"), "System"),
+        PictureVocabChallenge("pv_4", "🍳", "Cooking", "/ˈkʊk.ɪŋ/", "The practice or skill of preparing food by combining ingredients", listOf("Cooking", "Gardening", "Sewing", "Painting"), "System"),
+        PictureVocabChallenge("pv_5", "🎸", "Guitar", "/ɡɪˈtɑːr/", "A musical instrument having six strings played with fingers or pick", listOf("Guitar", "Violin", "Drum", "Saxophone"), "System"),
+        PictureVocabChallenge("pv_6", "🏃", "Sprinting", "/ˈsprɪn.tɪŋ/", "Running at full speed over a short distance", listOf("Sprinting", "Swimming", "Jumping", "Climbing"), "System")
+    )
+
+    private fun loadInitialPictureVocabChallenges(): List<PictureVocabChallenge> {
+        val saved = appPreferences?.getPictureVocabChallenges()
+        if (!saved.isNullOrEmpty()) {
+            val savedIds = saved.map { it.id }.toSet()
+            val missingDefaults = defaultPictureVocabChallenges.filter { it.id !in savedIds }
+            return saved + missingDefaults
+        }
+        appPreferences?.savePictureVocabChallenges(defaultPictureVocabChallenges)
+        return defaultPictureVocabChallenges
+    }
+
+    private val _pictureVocabChallenges = MutableStateFlow(loadInitialPictureVocabChallenges())
+    val pictureVocabChallenges: StateFlow<List<PictureVocabChallenge>> = _pictureVocabChallenges.asStateFlow()
+
     init {
         refreshLeaderboard()
         _vocabularyWords.value.forEach { w ->
@@ -2539,6 +2562,41 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         appPreferences?.saveGrammarChallenges(_grammarChallenges.value)
     }
 
+    fun addPictureVocabChallenge(
+        emoji: String,
+        word: String,
+        phonetic: String,
+        clue: String,
+        options: List<String>,
+        createdBy: String
+    ): PictureVocabChallenge {
+        val id = "pv_${System.currentTimeMillis()}"
+        val item = PictureVocabChallenge(
+            id = id,
+            emoji = emoji.trim().ifBlank { "🖼️" },
+            word = word.trim(),
+            phonetic = phonetic.trim().ifBlank { "/${word.trim().lowercase()}/" },
+            clue = clue.trim(),
+            options = options.map { it.trim() }.filter { it.isNotBlank() },
+            createdBy = createdBy
+        )
+        _pictureVocabChallenges.update { it + item }
+        appPreferences?.savePictureVocabChallenges(_pictureVocabChallenges.value)
+        return item
+    }
+
+    fun deletePictureVocabChallenge(id: String) {
+        _pictureVocabChallenges.update { it.filterNot { item -> item.id == id } }
+        appPreferences?.savePictureVocabChallenges(_pictureVocabChallenges.value)
+    }
+
+    fun updatePictureVocabChallenge(updated: PictureVocabChallenge) {
+        _pictureVocabChallenges.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
+        }
+        appPreferences?.savePictureVocabChallenges(_pictureVocabChallenges.value)
+    }
+
     // Admin: Add Teacher with Security PIN
     fun addTeacher(name: String, email: String, department: String, securityPin: String = "7321"): User {
         val newId = "tch_${System.currentTimeMillis() % 10000}"
@@ -2869,6 +2927,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         var pbChanged = false
         var fvChanged = false
         var gcChanged = false
+        var pvChanged = false
 
         val currentSb = _sentenceBuilderChallenges.value.toMutableList()
         val currentWm = _wordMatchChallenges.value.toMutableList()
@@ -2877,6 +2936,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         val currentPb = _pronunciationBattleChallenges.value.toMutableList()
         val currentFv = _fastVocabularyChallenges.value.toMutableList()
         val currentGc = _grammarChallenges.value.toMutableList()
+        val currentPv = _pictureVocabChallenges.value.toMutableList()
 
         for (rc in remoteChallenges) {
             when (rc.type.uppercase()) {
@@ -3009,6 +3069,24 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                     }
                     gcChanged = true
                 }
+                "PICTURE_VOCAB" -> {
+                    val idx = currentPv.indexOfFirst { it.id == rc.id || (it.word.isNotBlank() && it.word.equals(rc.titleOrWord, ignoreCase = true)) }
+                    val item = PictureVocabChallenge(
+                        id = rc.id,
+                        emoji = if (rc.category.isNotBlank() && rc.category != "General") rc.category else "🖼️",
+                        word = rc.titleOrWord,
+                        phonetic = rc.extraData.ifBlank { "/${rc.titleOrWord.lowercase()}/" },
+                        clue = rc.hintOrMeaning,
+                        options = if (rc.options.isNotEmpty()) rc.options else listOf(rc.titleOrWord),
+                        createdBy = rc.createdBy
+                    )
+                    if (idx >= 0) {
+                        currentPv[idx] = item
+                    } else {
+                        currentPv.add(item)
+                    }
+                    pvChanged = true
+                }
             }
         }
 
@@ -3039,6 +3117,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (gcChanged) {
             _grammarChallenges.value = currentGc
             appPreferences?.saveGrammarChallenges(currentGc)
+        }
+        if (pvChanged) {
+            _pictureVocabChallenges.value = currentPv
+            appPreferences?.savePictureVocabChallenges(currentPv)
         }
     }
 

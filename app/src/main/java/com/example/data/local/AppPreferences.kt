@@ -47,6 +47,7 @@ class AppPreferences(context: Context) {
         private const val KEY_PRONUNCIATION_BATTLE_LIST = "key_pronunciation_battle_list"
         private const val KEY_FAST_VOCABULARY_LIST = "key_fast_vocabulary_list"
         private const val KEY_GRAMMAR_CHALLENGE_LIST = "key_grammar_challenge_list"
+        private const val KEY_PICTURE_VOCAB_LIST = "key_picture_vocab_list"
         private const val KEY_VOCABULARY_WORDS_LIST = "key_vocabulary_words_list"
         private const val KEY_PRONUNCIATION_DRILLS_LIST = "key_pronunciation_drills_list"
         private const val KEY_SPEAKING_PROMPTS_LIST = "key_speaking_prompts_list"
@@ -681,6 +682,56 @@ class AppPreferences(context: Context) {
                         correctIndex = obj.optInt("correctIndex", 0),
                         explanation = obj.optString("explanation", ""),
                         category = obj.optString("category", "Tenses"),
+                        createdBy = obj.optString("createdBy", "System")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun savePictureVocabChallenges(challenges: List<PictureVocabChallenge>) {
+        try {
+            val array = JSONArray()
+            for (c in challenges) {
+                val obj = JSONObject()
+                obj.put("id", c.id)
+                obj.put("emoji", c.emoji)
+                obj.put("word", c.word)
+                obj.put("phonetic", c.phonetic)
+                obj.put("clue", c.clue)
+                val optArr = JSONArray()
+                c.options.forEach { optArr.put(it) }
+                obj.put("options", optArr)
+                obj.put("createdBy", c.createdBy)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_PICTURE_VOCAB_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getPictureVocabChallenges(): List<PictureVocabChallenge>? {
+        val raw = prefs.getString(KEY_PICTURE_VOCAB_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<PictureVocabChallenge>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val optArr = obj.optJSONArray("options")
+                val options = mutableListOf<String>()
+                if (optArr != null) {
+                    for (j in 0 until optArr.length()) options.add(optArr.getString(j))
+                }
+                list.add(
+                    PictureVocabChallenge(
+                        id = obj.optString("id", ""),
+                        emoji = obj.optString("emoji", "🖼️"),
+                        word = obj.optString("word", ""),
+                        phonetic = obj.optString("phonetic", ""),
+                        clue = obj.optString("clue", ""),
+                        options = options,
                         createdBy = obj.optString("createdBy", "System")
                     )
                 )

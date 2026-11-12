@@ -297,6 +297,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val pronunciationBattleChallenges = repository.pronunciationBattleChallenges
     val fastVocabularyChallenges = repository.fastVocabularyChallenges
     val grammarChallenges = repository.grammarChallenges
+    val pictureVocabChallenges = repository.pictureVocabChallenges
 
     // Student Management helpers
     fun addStudent(
@@ -745,6 +746,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     category = updated.category,
                     options = updated.options,
                     correctIndex = updated.correctIndex,
+                    createdBy = updated.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
+    }
+
+    fun addPictureVocabChallenge(emoji: String, word: String, phonetic: String, clue: String, options: List<String>, createdBy: String) {
+        val created = repository.addPictureVocabChallenge(emoji, word, phonetic, clue, options, createdBy)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = created.id,
+                    type = "PICTURE_VOCAB",
+                    titleOrWord = created.word,
+                    hintOrMeaning = created.clue,
+                    category = created.emoji,
+                    options = created.options,
+                    extraData = created.phonetic,
+                    createdBy = created.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
+    }
+    fun deletePictureVocabChallenge(id: String) {
+        repository.deletePictureVocabChallenge(id)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteGameChallenge(id)
+            }
+        }
+    }
+    fun updatePictureVocabChallenge(updated: com.example.data.model.PictureVocabChallenge) {
+        repository.updatePictureVocabChallenge(updated)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = updated.id,
+                    type = "PICTURE_VOCAB",
+                    titleOrWord = updated.word,
+                    hintOrMeaning = updated.clue,
+                    category = updated.emoji,
+                    options = updated.options,
+                    extraData = updated.phonetic,
                     createdBy = updated.createdBy
                 )
                 supabaseService.saveGameChallenge(challenge)

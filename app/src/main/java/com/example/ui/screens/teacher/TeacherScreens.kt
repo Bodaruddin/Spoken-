@@ -1356,6 +1356,7 @@ enum class GameCategoryFilter(val title: String, val emoji: String) {
     LISTEN_CHOOSE("Listen & Choose", "🎧"),
     PRONUNCIATION_BATTLE("Pronunciation Battle", "⚔️"),
     FAST_VOCABULARY("Fast Vocabulary", "⏱️"),
+    PICTURE_VOCAB("Picture Vocabulary", "🖼️"),
     GRAMMAR_CHALLENGE("Grammar Challenge", "⚡"),
     ENGLISH_ADVENTURE("English Adventure", "🗺️")
 }
@@ -1402,6 +1403,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     val listenChooses by viewModel.listenChooseChallenges.collectAsState()
     val pronunciationBattles by viewModel.pronunciationBattleChallenges.collectAsState()
     val fastVocabs by viewModel.fastVocabularyChallenges.collectAsState()
+    val pictureVocabs by viewModel.pictureVocabChallenges.collectAsState()
     val grammarChallenges by viewModel.grammarChallenges.collectAsState()
 
     val filteredWordMatches = remember(wordMatches, searchQuery) {
@@ -1434,6 +1436,14 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     val filteredFastVocabs = remember(fastVocabs, searchQuery) {
         if (searchQuery.isBlank()) fastVocabs
         else fastVocabs.filter { it.word.contains(searchQuery.trim(), ignoreCase = true) || it.prompt.contains(searchQuery.trim(), ignoreCase = true) }
+    }
+    val filteredPictureVocabs = remember(pictureVocabs, searchQuery) {
+        if (searchQuery.isBlank()) pictureVocabs
+        else pictureVocabs.filter {
+            it.word.contains(searchQuery.trim(), ignoreCase = true) ||
+            it.clue.contains(searchQuery.trim(), ignoreCase = true) ||
+            it.phonetic.contains(searchQuery.trim(), ignoreCase = true)
+        }
     }
     val filteredGrammarChallenges = remember(grammarChallenges, searchQuery) {
         if (searchQuery.isBlank()) grammarChallenges
@@ -1682,6 +1692,9 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                                 }
                                 GameCategoryFilter.FAST_VOCABULARY -> {
                                     Text("⚡", fontSize = 15.sp)
+                                }
+                                GameCategoryFilter.PICTURE_VOCAB -> {
+                                    Text("🖼️", fontSize = 15.sp)
                                 }
                                 GameCategoryFilter.GRAMMAR_CHALLENGE -> {
                                     Text("📚", fontSize = 15.sp)
@@ -1993,6 +2006,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             GameCategoryFilter.PRONUNCIATION_BATTLE -> "Existing Pronunciation Battles" to filteredPronunciationBattles.size
             GameCategoryFilter.FAST_VOCABULARY -> "Existing Fast Vocabulary Blitzes" to filteredFastVocabs.size
             GameCategoryFilter.GRAMMAR_CHALLENGE -> "Existing Grammar Challenges" to filteredGrammarChallenges.size
+            GameCategoryFilter.PICTURE_VOCAB -> "Existing Picture Vocabulary Items" to filteredPictureVocabs.size
             GameCategoryFilter.ENGLISH_ADVENTURE -> "English Adventure Worlds" to viewModel.adventureWorlds.value.size
         }
 
@@ -2263,6 +2277,35 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                             )
                         },
                         onDelete = { viewModel.deleteGrammarChallenge(item.id) }
+                    )
+                }
+            }
+            GameCategoryFilter.PICTURE_VOCAB -> {
+                itemsIndexed(filteredPictureVocabs) { index, item ->
+                    GameItemCard(
+                        title = "${item.emoji} ${item.word}",
+                        subtitle = "${item.phonetic} • ${item.clue}",
+                        tag = "Options: ${item.options.joinToString(", ")}",
+                        createdBy = item.createdBy,
+                        index = index,
+                        onPlayAudio = { viewModel.speakAudio(item.word) },
+                        onEdit = {
+                            activeEditingChallenge = ActiveEditingChallenge(
+                                category = GameCategoryFilter.PICTURE_VOCAB,
+                                id = item.id,
+                                field1 = item.word,
+                                field2 = item.emoji,
+                                field3 = item.phonetic,
+                                field4 = item.clue,
+                                field5 = item.options.joinToString(", "),
+                                onSave = { f1, f2, f3, f4, f5 ->
+                                    val opts = f5.split(",").map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { listOf(f1) }
+                                    viewModel.updatePictureVocabChallenge(item.copy(word = f1, emoji = f2, phonetic = f3, clue = f4, options = opts))
+                                    statusMsg = "Updated picture vocabulary item '${f1}'!"
+                                }
+                            )
+                        },
+                        onDelete = { viewModel.deletePictureVocabChallenge(item.id) }
                     )
                 }
             }
@@ -2734,6 +2777,13 @@ fun EditGameChallengeDialog(
                         OutlinedTextField(value = f3, onValueChange = { f3 = it }, label = { Text("Distractor Option 1") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = f4, onValueChange = { f4 = it }, label = { Text("Distractor Option 2") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = f5, onValueChange = { f5 = it }, label = { Text("Grammar Rule Explanation") }, modifier = Modifier.fillMaxWidth())
+                    }
+                    GameCategoryFilter.PICTURE_VOCAB -> {
+                        OutlinedTextField(value = f1, onValueChange = { f1 = it }, label = { Text("Target Word (e.g. Telescope)") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = f2, onValueChange = { f2 = it }, label = { Text("Emoji / Visual (e.g. 🔭)") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = f3, onValueChange = { f3 = it }, label = { Text("Phonetic Guide (e.g. /ˈtel.ɪ.skəʊp/)") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = f4, onValueChange = { f4 = it }, label = { Text("Clue / Definition") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = f5, onValueChange = { f5 = it }, label = { Text("Options (comma separated, must include target word)") }, modifier = Modifier.fillMaxWidth())
                     }
                     GameCategoryFilter.ENGLISH_ADVENTURE -> {
                         Text("Manage English Adventure missions directly from the world cards.", color = Color.White)
@@ -4974,6 +5024,40 @@ fun CreateGameChallengeDialog(
                         OutlinedTextField(value = field4, onValueChange = { field4 = it }, label = { Text("Distractor Option 2") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = field5, onValueChange = { field5 = it }, label = { Text("Grammar Rule Explanation") }, modifier = Modifier.fillMaxWidth())
                     }
+                    GameCategoryFilter.PICTURE_VOCAB -> {
+                        OutlinedTextField(
+                            value = field1,
+                            onValueChange = { field1 = it },
+                            label = { Text("Target Word (e.g. Microscope, Satellite)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = field2,
+                                onValueChange = { field2 = it },
+                                label = { Text("Visual Emoji (e.g. 🔬, 🛰️)") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = field3,
+                                onValueChange = { field3 = it },
+                                label = { Text("Phonetic (e.g. /ˈmaɪ.krə.skəʊp/)") },
+                                modifier = Modifier.weight(1.5f)
+                            )
+                        }
+                        OutlinedTextField(
+                            value = field4,
+                            onValueChange = { field4 = it },
+                            label = { Text("Clue / Hint (Definition for student)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = field5,
+                            onValueChange = { field5 = it },
+                            label = { Text("Quiz Options (comma-separated, e.g. Microscope, Telescope, Lens, Camera)") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     GameCategoryFilter.ENGLISH_ADVENTURE -> {
                         OutlinedTextField(
                             value = field1,
@@ -5061,6 +5145,26 @@ fun CreateGameChallengeDialog(
                         if (field1.isNotBlank()) {
                             val opts = listOf(field2.ifBlank { "Correct form" }, field3.ifBlank { "Incorrect 1" }, field4.ifBlank { "Incorrect 2" })
                             viewModel.addGrammarChallenge(field1, opts, 0, field5.ifBlank { "Standard grammatical syntax rule." }, "Grammar", authorName)
+                            onCreated()
+                        }
+                    }
+                    GameCategoryFilter.PICTURE_VOCAB -> {
+                        if (field1.isNotBlank()) {
+                            val opts = field5.split(",")
+                                .map { it.trim() }
+                                .filter { it.isNotEmpty() }
+                                .let { list ->
+                                    if (!list.contains(field1.trim())) (list + field1.trim()) else list
+                                }
+                                .ifEmpty { listOf(field1.trim(), "Option B", "Option C", "Option D") }
+                            viewModel.addPictureVocabChallenge(
+                                word = field1.trim(),
+                                emoji = field2.ifBlank { "🖼️" }.trim(),
+                                phonetic = field3.ifBlank { "/${field1.trim().lowercase()}/" }.trim(),
+                                clue = field4.ifBlank { "Visual object recognition challenge" }.trim(),
+                                options = opts,
+                                createdBy = authorName
+                            )
                             onCreated()
                         }
                     }

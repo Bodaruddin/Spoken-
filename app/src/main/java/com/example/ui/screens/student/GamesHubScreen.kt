@@ -3220,18 +3220,42 @@ private data class PictureItem(
 
 @Composable
 fun PictureVocabGame(viewModel: MainViewModel) {
-    val items = remember {
-        listOf(
-            PictureItem("pv_1", "🩺", "Stethoscope", "/ˈsteθ.ə.skəʊp/", "An instrument used by medical doctors to listen to heart and lungs", listOf("Stethoscope", "Microscope", "Thermometer", "Telescope")),
-            PictureItem("pv_2", "✈️", "Airplane", "/ˈeə.pleɪn/", "A powered flying vehicle with fixed wings", listOf("Airplane", "Helicopter", "Submarine", "Spaceship")),
-            PictureItem("pv_3", "📚", "Library", "/ˈlaɪ.brər.i/", "A quiet room or building containing books for reading or study", listOf("Library", "Bakery", "Auditorium", "Laboratory")),
-            PictureItem("pv_4", "🍳", "Cooking", "/ˈkʊk.ɪŋ/", "The practice or skill of preparing food by combining ingredients", listOf("Cooking", "Gardening", "Sewing", "Painting")),
-            PictureItem("pv_5", "🎸", "Guitar", "/ɡɪˈtɑːr/", "A musical instrument having six strings played with fingers or pick", listOf("Guitar", "Violin", "Drum", "Saxophone")),
-            PictureItem("pv_6", "🏃", "Sprinting", "/ˈsprɪn.tɪŋ/", "Running at full speed over a short distance", listOf("Sprinting", "Swimming", "Jumping", "Climbing"))
-        )
+    val dynamicChallenges by viewModel.pictureVocabChallenges.collectAsState()
+    val items = remember(dynamicChallenges) {
+        if (dynamicChallenges.isNotEmpty()) {
+            dynamicChallenges.map {
+                PictureItem(
+                    id = it.id,
+                    emoji = it.emoji,
+                    correctWord = it.word,
+                    phonetic = it.phonetic,
+                    clue = it.clue,
+                    options = if (it.options.contains(it.word)) it.options else (it.options + it.word)
+                )
+            }
+        } else {
+            listOf(
+                PictureItem("pv_1", "🩺", "Stethoscope", "/ˈsteθ.ə.skəʊp/", "An instrument used by medical doctors to listen to heart and lungs", listOf("Stethoscope", "Microscope", "Thermometer", "Telescope")),
+                PictureItem("pv_2", "✈️", "Airplane", "/ˈeə.pleɪn/", "A powered flying vehicle with fixed wings", listOf("Airplane", "Helicopter", "Submarine", "Spaceship")),
+                PictureItem("pv_3", "📚", "Library", "/ˈlaɪ.brər.i/", "A quiet room or building containing books for reading or study", listOf("Library", "Bakery", "Auditorium", "Laboratory")),
+                PictureItem("pv_4", "🍳", "Cooking", "/ˈkʊk.ɪŋ/", "The practice or skill of preparing food by combining ingredients", listOf("Cooking", "Gardening", "Sewing", "Painting")),
+                PictureItem("pv_5", "🎸", "Guitar", "/ɡɪˈtɑːr/", "A musical instrument having six strings played with fingers or pick", listOf("Guitar", "Violin", "Drum", "Saxophone")),
+                PictureItem("pv_6", "🏃", "Sprinting", "/ˈsprɪn.tɪŋ/", "Running at full speed over a short distance", listOf("Sprinting", "Swimming", "Jumping", "Climbing"))
+            )
+        }
     }
 
     var itemIndex by remember { mutableIntStateOf(0) }
+    if (items.isEmpty()) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("No Picture Vocabulary challenges found.", modifier = Modifier.padding(24.dp), color = MutedGray)
+        }
+        return
+    }
     val current = items[itemIndex % items.size]
     var selectedOption by remember(current.id) { mutableStateOf<String?>(null) }
     var hasAwarded by remember(current.id) { mutableStateOf(false) }
