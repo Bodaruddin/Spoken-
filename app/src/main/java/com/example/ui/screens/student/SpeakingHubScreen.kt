@@ -423,8 +423,12 @@ fun AiPartnerExactScreen(
     val isAiEvaluating by viewModel.isAiEvaluating.collectAsState()
     val isGeminiActive by viewModel.isGeminiConfigured.collectAsState()
     val activeModel by viewModel.activeAiModel.collectAsState()
-    val activeTopic by viewModel.activeConversationTopic.collectAsState()
+    val rawActiveTopic by viewModel.activeConversationTopic.collectAsState()
     val allTopics by viewModel.speakingPrompts.collectAsState()
+    val activeTopic = remember(rawActiveTopic, allTopics) {
+        val targetId = rawActiveTopic?.id ?: allTopics.firstOrNull()?.id
+        allTopics.firstOrNull { it.id == targetId } ?: rawActiveTopic ?: allTopics.firstOrNull()
+    }
     var showAllTopicsDialog by remember { mutableStateOf(false) }
 
 
@@ -1219,18 +1223,32 @@ fun DailyChallengeSection(
     speechState: SpeechState,
     evaluation: com.example.data.model.SpeakingEvaluation?
 ) {
-    var selectedPrompt by remember { mutableStateOf(prompts.first()) }
+    var selectedPromptId by remember { mutableStateOf(prompts.firstOrNull()?.id ?: "") }
+    val selectedPrompt = remember(prompts, selectedPromptId) {
+        prompts.firstOrNull { it.id == selectedPromptId } ?: prompts.firstOrNull() ?: SpeakingPrompt(
+            id = "default_prompt",
+            title = "Introduction",
+            category = "General",
+            question = "Tell me about yourself.",
+            followUpTip = "",
+            recommendedKeywords = emptyList(),
+            minSpeakingSeconds = 15,
+            emoji = "💬",
+            difficultyLevel = "Beginner",
+            createdBy = "Faculty"
+        )
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Select Speaking Topic", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(prompts) { p ->
+            items(prompts, key = { "${it.id}_${it.title}_${it.question}" }) { p ->
                 val isSel = p.id == selectedPrompt.id
                 Surface(
                     shape = RoundedCornerShape(14.dp),
                     color = if (isSel) RoyalBlue else Color(0xFF1E293B),
                     border = BorderStroke(1.dp, if (isSel) Color.White else Color(0xFF334155)),
-                    modifier = Modifier.clickable { selectedPrompt = p }
+                    modifier = Modifier.clickable { selectedPromptId = p.id }
                 ) {
                     Text(
                         p.title,

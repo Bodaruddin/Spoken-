@@ -2121,6 +2121,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSpeakingPrompt(prompt: SpeakingPrompt) {
         repository.updateSpeakingPrompt(prompt)
+        // Refresh active topic and question immediately so student panel reflects changes in real-time
+        if (_activeConversationTopic.value?.id == prompt.id) {
+            _activeConversationTopic.value = prompt
+            _activeCoachQuestion.value = prompt.question
+        }
         if (supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
                 val ok = supabaseService.saveSpeakingPrompt(prompt)
@@ -2131,6 +2136,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteSpeakingPrompt(promptId: String) {
         repository.deleteSpeakingPrompt(promptId)
+        if (_activeConversationTopic.value?.id == promptId) {
+            val fallback = repository.speakingPrompts.value.firstOrNull()
+            _activeConversationTopic.value = fallback
+            _activeCoachQuestion.value = fallback?.question ?: "When do you usually wake up on weekdays?"
+        }
         if (supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
                 supabaseService.deleteSpeakingPrompt(promptId)

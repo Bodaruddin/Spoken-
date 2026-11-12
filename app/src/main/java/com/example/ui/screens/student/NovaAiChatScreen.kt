@@ -106,37 +106,43 @@ fun NovaAiChatScreen(
         }
     }
 
-    // Curated 5 progressive questions for topics
-    val currentTopic = activeTopic ?: allTopics.firstOrNull() ?: SpeakingPrompt(
-        id = "topic_time_words",
-        title = "Time Words (In, On, At)",
-        category = "Grammar & Speaking",
-        question = "When do you usually go to school?",
-        followUpTip = "Practice using time prepositions: 'at 8 o'clock', 'in the morning', or 'on weekdays'.",
-        recommendedKeywords = listOf("in the morning", "at 8:00 AM", "on weekdays", "usually", "schedule"),
-        minSpeakingSeconds = 20,
-        emoji = "🕒",
-        difficultyLevel = "Beginner",
-        createdBy = "Faculty"
-    )
+    // Always resolve the freshest SpeakingPrompt from allTopics matching activeTopic.id
+    val currentTopic = remember(activeTopic, allTopics) {
+        val targetId = activeTopic?.id ?: allTopics.firstOrNull()?.id
+        allTopics.firstOrNull { it.id == targetId }
+            ?: activeTopic
+            ?: allTopics.firstOrNull()
+            ?: SpeakingPrompt(
+                id = "topic_time_words",
+                title = "Time Words (In, On, At)",
+                category = "Grammar & Speaking",
+                question = "When do you usually go to school?",
+                followUpTip = "Practice using time prepositions: 'at 8 o'clock', 'in the morning', or 'on weekdays'.",
+                recommendedKeywords = listOf("in the morning", "at 8:00 AM", "on weekdays", "usually", "schedule"),
+                minSpeakingSeconds = 20,
+                emoji = "🕒",
+                difficultyLevel = "Beginner",
+                createdBy = "Faculty"
+            )
+    }
 
-    val questionBank = remember(currentTopic.id) {
+    val questionBank = remember(currentTopic) {
         getQuestionsForTopic(currentTopic)
     }
 
     val totalQuestions = 5
     var questionIndex by remember(currentTopic.id) { mutableIntStateOf(0) }
-    val initialQuestion = remember(currentTopic.id) {
+    val initialQuestion = remember(currentTopic) {
         questionBank.firstOrNull()?.questionText ?: currentTopic.question.ifBlank { "When do you usually wake up on weekdays?" }
     }
     val currentQuestion = questionBank.getOrElse(questionIndex) { questionBank.first() }
 
-    // Chat history state starting with opening question
-    var chatMessages by remember(currentTopic.id) {
+    // Chat history state starting with opening question - recomputed whenever teacher updates topic title or question
+    var chatMessages by remember(currentTopic.id, currentTopic.title, currentTopic.question) {
         mutableStateOf(
             listOf(
                 ChatMessage(
-                    id = "msg_q1_${currentTopic.id}",
+                    id = "msg_q1_${currentTopic.id}_${currentTopic.title.hashCode()}_${currentTopic.question.hashCode()}",
                     isNova = true,
                     text = "Hi! I'm Nova 😊\nLet's practice “${currentTopic.title}”.\n\nQuestion 1:\n🕒 $initialQuestion",
                     audioPrompt = "Hi! I'm Nova. Let's practice ${currentTopic.title}. Question 1: $initialQuestion",
@@ -147,8 +153,8 @@ fun NovaAiChatScreen(
         )
     }
 
-    // Greet and speak initial question on opening
-    LaunchedEffect(currentTopic.id) {
+    // Greet and speak initial question on opening or when updated by teacher
+    LaunchedEffect(currentTopic.id, currentTopic.title, currentTopic.question) {
         viewModel.setActiveCoachQuestion(initialQuestion)
         delay(400)
         viewModel.speakAudio("Hi! I'm Nova. Let's practice ${currentTopic.title}. Question 1: $initialQuestion")
@@ -1536,13 +1542,15 @@ data class TopicLessonQuestion(
 )
 
 fun getQuestionsForTopic(topic: SpeakingPrompt): List<TopicLessonQuestion> {
+    val q1Text = topic.question.ifBlank { "When do you usually go to school?" }
+    val q1Tip = topic.followUpTip.ifBlank { "Use 'at' for clock times and 'in the morning' or 'on weekdays'." }
     return when {
         topic.title.contains("Time Words", ignoreCase = true) || topic.id == "topic_time_words" -> {
             listOf(
                 TopicLessonQuestion(
                     questionNumber = 1,
-                    questionText = "When do you usually go to school?",
-                    hintText = "Use 'at' for clock times and 'in the morning' or 'on weekdays'.",
+                    questionText = q1Text,
+                    hintText = q1Tip,
                     exampleAnswers = listOf(
                         "I usually go to school at 8:00 AM on weekdays.",
                         "I leave for school at 8:30 in the morning."

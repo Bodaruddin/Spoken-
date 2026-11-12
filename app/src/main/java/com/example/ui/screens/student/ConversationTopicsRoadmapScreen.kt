@@ -244,7 +244,7 @@ fun ConversationTopicsRoadmapScreen(
                 contentPadding = PaddingValues(bottom = 90.dp),
                 verticalArrangement = Arrangement.spacedBy(32.dp)
             ) {
-                itemsIndexed(prompts, key = { _, item -> item.id }) { index, topic ->
+                itemsIndexed(prompts, key = { _, item -> "${item.id}_${item.title}_${item.question}" }) { index, topic ->
                     val isFirstNode = index == 0
                     val isCurrentActive = activeTopic?.id == topic.id || (activeTopic == null && isFirstNode)
 
