@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -86,6 +87,8 @@ fun EnglishAdventureScreen(
     var showBadgesDialog by remember { mutableStateOf(false) }
     var showWorldInfoDialog by remember { mutableStateOf(false) }
     var showChestRewardDialog by remember { mutableStateOf(false) }
+    var activeInfoWorld by remember { mutableStateOf<AdventureWorld?>(null) }
+    var activeChestWorld by remember { mutableStateOf<AdventureWorld?>(null) }
     var lockedSnackbarMsg by remember { mutableStateOf<String?>(null) }
 
     BackHandler {
@@ -128,7 +131,7 @@ fun EnglishAdventureScreen(
                 }
             )
         } else {
-            // MAIN SCREEN MATCHING SCREENSHOT EXACTLY
+            // MAIN SCREEN MATCHING SCREENSHOT EXACTLY (All challenges placed below one by one)
             AdventureMainView(
                 currentWorld = currentWorld,
                 worlds = worlds,
@@ -137,20 +140,34 @@ fun EnglishAdventureScreen(
                 onOpenWorldMap = { showWorldMapDialog = true },
                 onOpenLeaderboard = { showLeaderboardDialog = true },
                 onOpenBadges = { showBadgesDialog = true },
-                onOpenWorldInfo = { showWorldInfoDialog = true },
-                onOpenChest = { showChestRewardDialog = true },
+                onOpenWorldInfo = { world ->
+                    activeInfoWorld = world
+                    showWorldInfoDialog = true
+                },
+                onOpenChest = { world ->
+                    activeChestWorld = world
+                    showChestRewardDialog = true
+                },
                 onSelectWorld = { world -> viewModel.selectAdventureWorld(world) },
-                onLaunchLevel = { level ->
-                    val index = currentWorld.levels.indexOfFirst { it.id == level.id }
-                    val prevLevel = if (index > 0) currentWorld.levels.getOrNull(index - 1) else null
+                onLaunchLevel = { world, level ->
+                    val sortedWorlds = if (worlds.isNotEmpty()) worlds.sortedBy { it.order } else AdventureDataDefaults.createDefaultWorlds()
+                    val worldIndex = sortedWorlds.indexOfFirst { it.id == world.id }
+                    val prevWorld = if (worldIndex > 0) sortedWorlds.getOrNull(worldIndex - 1) else null
+                    val isPrevWorldCompleted = prevWorld == null || prevWorld.levels.all { lvl ->
+                        lvl.isCompleted || (progress.levelStars[lvl.id] ?: 0) > 0 || progress.completedLevelIds.contains(lvl.id)
+                    }
+                    val isWorldUnlocked = world.isUnlocked || worldIndex == 0 || progress.unlockedWorldIds.contains(world.id) || progress.totalStars >= world.requiredTotalStars || isPrevWorldCompleted
+
+                    val index = world.levels.indexOfFirst { it.id == level.id }
+                    val prevLevel = if (index > 0) world.levels.getOrNull(index - 1) else null
                     val isPrevCompleted = prevLevel == null || prevLevel.isCompleted || (progress.levelStars[prevLevel.id] ?: 0) > 0 || progress.completedLevelIds.contains(prevLevel.id)
-                    val isUnlocked = level.isUnlocked || level.levelNumber == 1 || isPrevCompleted
+                    val isUnlocked = isWorldUnlocked && (level.isUnlocked || level.levelNumber == 1 || index == 0 || isPrevCompleted)
 
                     if (isUnlocked) {
-                        viewModel.selectAdventureWorld(currentWorld)
+                        viewModel.selectAdventureWorld(world)
                         viewModel.selectAdventureLevel(level)
                         val missions = if (level.missions.isNotEmpty()) level.missions else {
-                            viewModel.ensureLevelHasMissions(currentWorld.id, level.id, level.title)
+                            viewModel.ensureLevelHasMissions(world.id, level.id, level.title)
                         }
                         val missionToStart = missions.firstOrNull { it.id !in progress.completedMissionIds }
                             ?: missions.firstOrNull()
@@ -160,7 +177,11 @@ fun EnglishAdventureScreen(
                             missions.firstOrNull()?.let { viewModel.startAdventureMission(it) }
                         }
                     } else {
-                        lockedSnackbarMsg = "Complete Level ${level.levelNumber - 1} to unlock ${level.title}!"
+                        if (!isWorldUnlocked) {
+                            lockedSnackbarMsg = "Unlock ${world.name} by earning ${world.requiredTotalStars} stars!"
+                        } else {
+                            lockedSnackbarMsg = "Complete Level ${level.levelNumber - 1} to unlock ${level.title}!"
+                        }
                     }
                 }
             )
@@ -323,12 +344,13 @@ fun EnglishAdventureScreen(
 
         // World Info Dialog
         if (showWorldInfoDialog) {
+            val targetInfoWorld = activeInfoWorld ?: currentWorld
             AlertDialog(
                 onDismissRequest = { showWorldInfoDialog = false },
-                icon = { Text(currentWorld.emoji, fontSize = 36.sp) },
+                icon = { Text(targetInfoWorld.emoji, fontSize = 36.sp) },
                 title = {
                     Text(
-                        currentWorld.name,
+                        targetInfoWorld.name,
                         fontWeight = FontWeight.Black,
                         color = Color.White,
                         fontSize = 18.sp
@@ -337,7 +359,7 @@ fun EnglishAdventureScreen(
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            currentWorld.description,
+                            targetInfoWorld.description,
                             color = Color(0xFFCBD5E1),
                             fontSize = 13.sp,
                             lineHeight = 18.sp
@@ -350,7 +372,7 @@ fun EnglishAdventureScreen(
                             fontSize = 13.sp
                         )
                         Text(
-                            "Master all levels to earn 9 stars, win exclusive badges, and unlock the next gaming realm!",
+                            "Master all ${targetInfoWorld.levels.size} challenges to earn stars, win exclusive badges, and unlock the next realm!",
                             color = Color(0xFF94A3B8),
                             fontSize = 12.sp
                         )
@@ -370,7 +392,8 @@ fun EnglishAdventureScreen(
 
         // Chest Loot Reward Dialog
         if (showChestRewardDialog) {
-            val isChestClaimed = progress.claimedChestWorldIds.contains(currentWorld.id)
+            val targetChestWorld = activeChestWorld ?: currentWorld
+            val isChestClaimed = progress.claimedChestWorldIds.contains(targetChestWorld.id)
 
             AlertDialog(
                 onDismissRequest = { showChestRewardDialog = false },
@@ -396,9 +419,9 @@ fun EnglishAdventureScreen(
                     ) {
                         Text(
                             if (isChestClaimed)
-                                "You have already collected this island's treasure chest! Explore other islands on the world map to discover more loot."
+                                "You have already collected this realm's treasure chest! Explore more challenges to discover more loot."
                             else
-                                "You discovered hidden captain's loot buried on the beach sands of ${currentWorld.name}!",
+                                "You discovered hidden captain's loot buried on the sands of ${targetChestWorld.name}!",
                             color = Color.White,
                             textAlign = TextAlign.Center,
                             fontSize = 13.sp
@@ -445,7 +468,7 @@ fun EnglishAdventureScreen(
                     } else {
                         Button(
                             onClick = {
-                                viewModel.claimChestAdventureReward(currentWorld.id, 50, 25)
+                                viewModel.claimChestAdventureReward(targetChestWorld.id, 50, 25)
                                 showChestRewardDialog = false
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
@@ -497,11 +520,28 @@ private fun AdventureMainView(
     onOpenWorldMap: () -> Unit,
     onOpenLeaderboard: () -> Unit,
     onOpenBadges: () -> Unit,
-    onOpenWorldInfo: () -> Unit,
-    onOpenChest: () -> Unit,
+    onOpenWorldInfo: (AdventureWorld) -> Unit,
+    onOpenChest: (AdventureWorld) -> Unit,
     onSelectWorld: (AdventureWorld) -> Unit,
-    onLaunchLevel: (AdventureLevel) -> Unit
+    onLaunchLevel: (AdventureWorld, AdventureLevel) -> Unit
 ) {
+    val listState = rememberLazyListState()
+    val sortedWorlds = remember(worlds) {
+        if (worlds.isNotEmpty()) worlds.sortedBy { it.order }
+        else AdventureDataDefaults.createDefaultWorlds()
+    }
+
+    LaunchedEffect(currentWorld.id) {
+        val worldIndex = sortedWorlds.indexOfFirst { it.id == currentWorld.id }
+        if (worldIndex > 0) {
+            var targetIndex = 3
+            for (i in 0 until worldIndex) {
+                targetIndex += 1 + sortedWorlds[i].levels.size + 1
+            }
+            listState.animateScrollToItem(targetIndex.coerceAtLeast(0))
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. FULL BACKGROUND IMAGE (Tropical Island, Lagoon, Palms, Beach)
         Image(
@@ -530,6 +570,7 @@ private fun AdventureMainView(
 
         // 3. SCROLLABLE ADVENTURE CONTENT
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -698,230 +739,198 @@ private fun AdventureMainView(
                 }
             }
 
-            // D. PARCHMENT SCROLL BANNER (With Previous/Next Realm Navigation & + Add Game Button)
-            item {
-                val sortedWorlds = worlds.sortedBy { it.order }
-                val currentWorldIndex = sortedWorlds.indexOfFirst { it.id == currentWorld.id }.coerceAtLeast(0)
-                val prevWorld = if (currentWorldIndex > 0) sortedWorlds[currentWorldIndex - 1] else null
-                val nextWorld = if (currentWorldIndex < sortedWorlds.size - 1) sortedWorlds[currentWorldIndex + 1] else null
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        // Previous Realm Button
-                        Surface(
-                            shape = CircleShape,
-                            color = if (prevWorld != null) Color(0xFF0C1736) else Color(0x330C1736),
-                            border = BorderStroke(1.5.dp, if (prevWorld != null) Color(0xFFD97706) else Color(0x3364748B)),
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clickable(enabled = prevWorld != null) {
-                                    prevWorld?.let { onSelectWorld(it) }
-                                }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.AutoMirrored.Rounded.ArrowBack,
-                                    contentDescription = "Previous Realm",
-                                    tint = if (prevWorld != null) Color.White else Color(0x44FFFFFF),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.width(6.dp))
-
-                        // Scroll Box
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(62.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_parchment_scroll),
-                                contentDescription = null,
-                                contentScale = ContentScale.FillBounds,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = currentWorld.emoji,
-                                    fontSize = 19.sp
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = currentWorld.name,
-                                        color = Color(0xFF381403),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontFamily = FontFamily(Font(R.font.cinzel, FontWeight.Bold)),
-                                        fontSize = 15.sp,
-                                        letterSpacing = 0.5.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = "Realm ${currentWorldIndex + 1} of ${sortedWorlds.size} • ${currentWorld.levels.size} Games",
-                                        color = Color(0xFF78350F),
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(Modifier.width(6.dp))
-
-                        // Next Realm Button
-                        Surface(
-                            shape = CircleShape,
-                            color = if (nextWorld != null) Color(0xFF0C1736) else Color(0x330C1736),
-                            border = BorderStroke(1.5.dp, if (nextWorld != null) Color(0xFFD97706) else Color(0x3364748B)),
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clickable(enabled = nextWorld != null) {
-                                    nextWorld?.let { onSelectWorld(it) }
-                                }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.AutoMirrored.Rounded.ArrowForward,
-                                    contentDescription = "Next Realm",
-                                    tint = if (nextWorld != null) Color.White else Color(0x44FFFFFF),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.width(6.dp))
-
-                        // Blue ( i ) Info Circle Button
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0xFF2563EB),
-                            border = BorderStroke(1.5.dp, Color(0xFF60A5FA)),
-                            shadowElevation = 4.dp,
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clickable { onOpenWorldInfo() }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    "i",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 17.sp
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(4.dp))
-
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0x77000000),
-                        border = BorderStroke(0.8.dp, Color(0x33FFFFFF)),
-                        modifier = Modifier.padding(top = 2.dp)
-                    ) {
-                        Text(
-                            text = "Complete missions to earn stars and unlock next realm",
-                            color = Color(0xFFE2E8F0),
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 11.5.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
-                        )
-                    }
+            // D. ALL REALMS AND EVERY CHALLENGE PLACED BELOW ONE BY ONE (Arrow buttons removed!)
+            sortedWorlds.forEachIndexed { worldIndex, world ->
+                val prevWorld = if (worldIndex > 0) sortedWorlds[worldIndex - 1] else null
+                val isPrevWorldCompleted = prevWorld == null || prevWorld.levels.all { lvl ->
+                    lvl.isCompleted || (progress.levelStars[lvl.id] ?: 0) > 0 || progress.completedLevelIds.contains(lvl.id)
                 }
-            }
+                val isWorldUnlocked = world.isUnlocked ||
+                        worldIndex == 0 ||
+                        progress.unlockedWorldIds.contains(world.id) ||
+                        progress.totalStars >= world.requiredTotalStars ||
+                        isPrevWorldCompleted
 
-            // E. ADVENTURE LEVELS (Dynamically loaded from currentWorld & progress)
-            val levelsList = if (currentWorld.levels.isNotEmpty()) currentWorld.levels else AdventureDataDefaults.createDefaultWorlds().first().levels
-            itemsIndexed(levelsList) { index, level ->
-                val levelNumber = level.levelNumber
-                val prevLevel = levelsList.getOrNull(index - 1)
-                val isPrevCompleted = prevLevel == null || prevLevel.isCompleted || (progress.levelStars[prevLevel.id] ?: 0) > 0 || progress.completedLevelIds.contains(prevLevel.id)
-                val isUnlocked = level.isUnlocked || levelNumber == 1 || isPrevCompleted
-                val isCompleted = level.isCompleted || (progress.levelStars[level.id] ?: 0) > 0 || progress.completedLevelIds.contains(level.id)
-                val stars = maxOf(level.starsEarned, progress.levelStars[level.id] ?: 0)
-
-                val drawableRes = when (index % 4) {
-                    0 -> R.drawable.img_level1_market_clean
-                    1 -> R.drawable.img_level2_reef_clean
-                    2 -> R.drawable.img_level3_pirate_clean
-                    else -> R.drawable.img_level4_temple_clean
-                }
-
-                AdventureLevelCardExact(
-                    levelNumber = levelNumber,
-                    title = if (level.title.startsWith("Level", ignoreCase = true)) level.title else "Level $levelNumber: ${level.title}",
-                    description = level.description,
-                    drawableRes = drawableRes,
-                    hasCheckmark = isCompleted,
-                    isLocked = !isUnlocked,
-                    starsEarned = stars,
-                    xp = level.xpReward,
-                    coins = level.coinsReward,
-                    isGlowingBorder = isUnlocked && !isCompleted,
-                    onClick = { onLaunchLevel(level) }
-                )
-            }
-
-            // H. BOTTOM OPEN GOLDEN TREASURE CHEST
-            item {
-                val isChestClaimed = progress.claimedChestWorldIds.contains(currentWorld.id)
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp, bottom = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+                // D1. Realm Parchment Scroll Banner (ARROW BUTTONS REMOVED)
+                item(key = "realm_banner_${world.id}") {
                     Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
-                            .clickable { onOpenChest() }
-                            .padding(8.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_adventure_chest),
-                            contentDescription = "Golden Treasure Chest with Gems",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.size(width = 175.dp, height = 115.dp)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            // Parchment Scroll Box
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(64.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.ic_parchment_scroll),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.FillBounds,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = world.emoji,
+                                        fontSize = 20.sp
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            text = world.name,
+                                            color = Color(0xFF381403),
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontFamily = FontFamily(Font(R.font.cinzel, FontWeight.Bold)),
+                                            fontSize = 15.sp,
+                                            letterSpacing = 0.5.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = "Realm ${worldIndex + 1} of ${sortedWorlds.size} • ${world.levels.size} Challenges",
+                                            color = Color(0xFF78350F),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 10.5.sp
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(Modifier.width(8.dp))
+
+                            // Blue ( i ) Info Circle Button
+                            Surface(
+                                shape = CircleShape,
+                                color = Color(0xFF2563EB),
+                                border = BorderStroke(1.5.dp, Color(0xFF60A5FA)),
+                                shadowElevation = 4.dp,
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clickable { onOpenWorldInfo(world) }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        "i",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 17.sp
+                                    )
+                                }
+                            }
+                        }
+
                         Spacer(Modifier.height(4.dp))
+
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = Color(0x99000000),
-                            border = BorderStroke(1.dp, if (isChestClaimed) Color(0xFF10B981) else Color(0xFFFBBF24)),
-                            shadowElevation = 4.dp
+                            color = Color(0x77000000),
+                            border = BorderStroke(0.8.dp, Color(0x33FFFFFF)),
+                            modifier = Modifier.padding(top = 2.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            Text(
+                                text = if (isWorldUnlocked) world.tagline.ifBlank { "Complete missions to earn stars and unlock next realm" }
+                                else "Earn ${world.requiredTotalStars} stars to unlock this realm",
+                                color = if (isWorldUnlocked) Color(0xFFE2E8F0) else Color(0xFFFBBF24),
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                // D2. Every challenge placed below one by one
+                val levelsList = if (world.levels.isNotEmpty()) world.levels
+                else AdventureDataDefaults.createDefaultWorlds().find { it.id == world.id }?.levels ?: emptyList()
+
+                itemsIndexed(levelsList, key = { _, lvl -> "level_${world.id}_${lvl.id}" }) { index, level ->
+                    val levelNumber = level.levelNumber
+                    val prevLevel = levelsList.getOrNull(index - 1)
+                    val isPrevCompleted = prevLevel == null ||
+                            prevLevel.isCompleted ||
+                            (progress.levelStars[prevLevel.id] ?: 0) > 0 ||
+                            progress.completedLevelIds.contains(prevLevel.id)
+                    val isUnlocked = isWorldUnlocked && (level.isUnlocked || levelNumber == 1 || index == 0 || isPrevCompleted)
+                    val isCompleted = level.isCompleted || (progress.levelStars[level.id] ?: 0) > 0 || progress.completedLevelIds.contains(level.id)
+                    val stars = maxOf(level.starsEarned, progress.levelStars[level.id] ?: 0)
+
+                    val drawableRes = when (index % 4) {
+                        0 -> R.drawable.img_level1_market_clean
+                        1 -> R.drawable.img_level2_reef_clean
+                        2 -> R.drawable.img_level3_pirate_clean
+                        else -> R.drawable.img_level4_temple_clean
+                    }
+
+                    AdventureLevelCardExact(
+                        levelNumber = levelNumber,
+                        title = if (level.title.startsWith("Level", ignoreCase = true)) level.title else "Level $levelNumber: ${level.title}",
+                        description = level.description,
+                        drawableRes = drawableRes,
+                        hasCheckmark = isCompleted,
+                        isLocked = !isUnlocked,
+                        starsEarned = stars,
+                        xp = level.xpReward,
+                        coins = level.coinsReward,
+                        isGlowingBorder = isUnlocked && !isCompleted,
+                        onClick = { onLaunchLevel(world, level) }
+                    )
+                }
+
+                // D3. Bottom Treasure Chest for this Realm
+                item(key = "realm_chest_${world.id}") {
+                    val isChestClaimed = progress.claimedChestWorldIds.contains(world.id)
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp, bottom = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clickable { onOpenChest(world) }
+                                .padding(8.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_adventure_chest),
+                                contentDescription = "Golden Treasure Chest with Gems",
+                                contentScale = ContentScale.Fit,
+                                modifier = Modifier.size(width = 160.dp, height = 105.dp)
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0x99000000),
+                                border = BorderStroke(1.dp, if (isChestClaimed) Color(0xFF10B981) else Color(0xFFFBBF24)),
+                                shadowElevation = 4.dp
                             ) {
-                                Text(if (isChestClaimed) "✅" else "✨", fontSize = 12.sp)
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    if (isChestClaimed) "Island Treasure Claimed" else "Tap to Claim Island Rewards",
-                                    color = if (isChestClaimed) Color(0xFF4ADE80) else Color(0xFFFDE047),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.5.sp
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                ) {
+                                    Text(if (isChestClaimed) "✅" else "✨", fontSize = 12.sp)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        if (isChestClaimed) "${world.name} Treasure Claimed" else "Tap to Claim ${world.name} Loot",
+                                        color = if (isChestClaimed) Color(0xFF4ADE80) else Color(0xFFFDE047),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.5.sp
+                                    )
+                                }
                             }
                         }
                     }
