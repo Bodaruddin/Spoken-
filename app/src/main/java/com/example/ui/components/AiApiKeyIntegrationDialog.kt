@@ -198,7 +198,7 @@ fun AiApiKeyIntegrationDialog(
                     if (selectedTab == 0) {
                         // --- GOOGLE GEMINI MODE ---
                         Text(
-                            text = "Connect Google Gemini to power real-time conversational speaking practice with Nova. Free API keys can be generated at https://aistudio.google.com/app/apikey (starts with 'AIzaSy...').",
+                            text = "Connect Google Gemini to power real-time conversational speaking practice with Nova. API keys can be generated at https://aistudio.google.com/app/apikey (e.g. AIzaSy... or AQ...).",
                             fontSize = 11.5.sp,
                             color = Color(0xFF94A3B8),
                             lineHeight = 16.sp
@@ -225,13 +225,13 @@ fun AiApiKeyIntegrationDialog(
                                     )
                                     Column {
                                         Text(
-                                            text = "Non-Gemini Key Format Detected",
+                                            text = "Proxy Key Format Detected",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFFFEF3C7)
                                         )
                                         Text(
-                                            text = "Your key starts with 'cc_'. Google Gemini API keys start with 'AIzaSy...'. If this key is for an OpenAI-compatible proxy, switch to the 'Custom / Proxy Endpoint' tab above.",
+                                            text = "Your key starts with 'cc_'. If this key is for an OpenAI-compatible proxy, switch to the 'Custom / Proxy Endpoint' tab above.",
                                             fontSize = 11.sp,
                                             color = Color(0xFFFDE68A),
                                             lineHeight = 15.sp
@@ -253,7 +253,7 @@ fun AiApiKeyIntegrationDialog(
                                 value = inputKey,
                                 onValueChange = { inputKey = it },
                                 placeholder = {
-                                    Text("AIzaSy...", color = Color(0xFF64748B), fontSize = 13.sp)
+                                    Text("Enter Gemini API key (e.g. AIzaSy... or AQ...)", color = Color(0xFF64748B), fontSize = 13.sp)
                                 },
                                 singleLine = true,
                                 visualTransformation = if (isKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),

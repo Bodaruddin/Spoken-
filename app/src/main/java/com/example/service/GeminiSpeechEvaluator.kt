@@ -14,18 +14,18 @@ import java.util.concurrent.TimeUnit
 object GeminiSpeechEvaluator {
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(4, TimeUnit.SECONDS)
-        .readTimeout(6, TimeUnit.SECONDS)
-        .writeTimeout(4, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    const val DEFAULT_MODEL = "gemini-2.5-flash"
+    const val DEFAULT_MODEL = "gemini-3.5-flash-lite"
 
     val AVAILABLE_MODELS = listOf(
-        "gemini-2.5-flash" to "Gemini 2.5 Flash (Ultra Fast & Intelligent - Recommended)",
-        "gemini-2.0-flash" to "Gemini 2.0 Flash (Real-time Low Latency)",
-        "gemini-2.0-flash-lite" to "Gemini 2.0 Flash Lite (Fastest)",
-        "gemini-1.5-flash" to "Gemini 1.5 Flash (Standard Fallback)"
+        "gemini-3.5-flash-lite" to "Gemini 3.5 Flash Lite (Ultra Fast & Recommended)",
+        "gemini-3.5-flash" to "Gemini 3.5 Flash (High Intelligence)",
+        "gemini-3.8-flash" to "Gemini 3.8 Flash (Latest Next-Gen)",
+        "gemini-flash-latest" to "Gemini Flash Latest"
     )
 
     data class ApiKeyTestResult(
@@ -47,11 +47,9 @@ object GeminiSpeechEvaluator {
         if (cleanKey.startsWith("cc_")) {
             return@withContext Result.failure(
                 IllegalArgumentException(
-                    "This key starts with 'cc_', which is not a Google Gemini API key. Google Gemini API keys start with 'AIzaSy...'.\n\n" +
-                    "To use Google Gemini:\n" +
-                    "1. Go to https://aistudio.google.com/app/apikey to get a free Gemini API key.\n" +
-                    "2. Paste your 'AIzaSy...' key here.\n\n" +
-                    "If your 'cc_' key is for an OpenAI-compatible proxy or custom server, switch to Custom Endpoint mode."
+                    "This key starts with 'cc_', which is for an OpenAI-compatible proxy, not direct Google Gemini.\n\n" +
+                    "To use Google Gemini, enter your Gemini API key from Google AI Studio.\n" +
+                    "If your 'cc_' key is for an OpenAI-compatible proxy, switch to Custom Endpoint mode."
                 )
             )
         }
@@ -62,7 +60,12 @@ object GeminiSpeechEvaluator {
         if (cleanPreferred.isNotEmpty()) {
             modelsToTry.add(cleanPreferred)
         }
-        val fallbackCandidates = listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite")
+        val fallbackCandidates = listOf(
+            "gemini-3.5-flash-lite",
+            "gemini-3.5-flash",
+            "gemini-3.8-flash",
+            "gemini-flash-latest"
+        )
         for (candidate in fallbackCandidates) {
             if (!modelsToTry.contains(candidate)) {
                 modelsToTry.add(candidate)
@@ -88,7 +91,7 @@ object GeminiSpeechEvaluator {
                     put("contents", contents)
                     put("generationConfig", JSONObject().apply {
                         put("temperature", 0.0)
-                        put("maxOutputTokens", 10)
+                        put("maxOutputTokens", 60)
                     })
                 }
 
@@ -104,7 +107,7 @@ object GeminiSpeechEvaluator {
                     val msg = if (candidateModel == cleanPreferred) {
                         "Connection Successful! Model $candidateModel is verified and ready for real-time speech evaluation."
                     } else {
-                        "Connection Successful! Connected with $candidateModel (updated from retired $cleanPreferred)."
+                        "Connection Successful! Connected with $candidateModel (updated from $cleanPreferred)."
                     }
                     return@withContext Result.success(ApiKeyTestResult(msg, candidateModel))
                 } else {
@@ -130,7 +133,6 @@ object GeminiSpeechEvaluator {
                         isAuthError = true
                         break
                     }
-                    // If it was a 404 (model deprecated) or 400 (no longer available), loop continues to try gemini-3.8-flash!
                 }
             } catch (e: Exception) {
                 lastErrorMessage = e.message ?: "Network error"
@@ -232,7 +234,7 @@ object GeminiSpeechEvaluator {
         val modelsToTry = mutableListOf<String>()
         val cleanModel = model.trim().ifEmpty { DEFAULT_MODEL }
         modelsToTry.add(cleanModel)
-        listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash").forEach { fallback ->
+        listOf("gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-latest").forEach { fallback ->
             if (!modelsToTry.contains(fallback)) modelsToTry.add(fallback)
         }
 
@@ -393,7 +395,7 @@ object GeminiSpeechEvaluator {
                 put("contents", contents)
                 put("generationConfig", JSONObject().apply {
                     put("temperature", 0.2)
-                    put("maxOutputTokens", 300)
+                    put("maxOutputTokens", 600)
                     put("responseMimeType", "application/json")
                 })
             }

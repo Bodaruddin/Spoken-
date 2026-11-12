@@ -1469,7 +1469,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return custom.trim()
         }
         val buildConfigKey = try {
-            com.example.BuildConfig.GEMINI_API_KEY
+            val field = Class.forName("com.example.BuildConfig").getField("GEMINI_API_KEY")
+            (field.get(null) as? String)?.trim() ?: ""
         } catch (_: Throwable) {
             ""
         }
@@ -1497,13 +1498,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val custom = appPreferences.getCustomGeminiApiKey()
         if (!custom.isNullOrBlank()) {
             return if (custom.startsWith("cc_")) {
-                "Custom Key ('cc_' format - Gemini needs 'AIzaSy...')"
+                "Custom Key ('cc_' proxy format)"
             } else {
-                "Custom Key (Saved in App)"
+                "Google Gemini Key (Saved in App)"
             }
         }
         val buildConfigKey = try {
-            com.example.BuildConfig.GEMINI_API_KEY
+            val field = Class.forName("com.example.BuildConfig").getField("GEMINI_API_KEY")
+            (field.get(null) as? String)?.trim() ?: ""
         } catch (_: Throwable) {
             ""
         }

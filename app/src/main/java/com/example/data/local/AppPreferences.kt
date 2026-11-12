@@ -1493,9 +1493,9 @@ class AppPreferences(context: Context) {
     }
 
     fun getSelectedAiModel(): String {
-        val stored = prefs.getString(KEY_AI_MODEL_NAME, "gemini-3.8-flash") ?: "gemini-3.8-flash"
+        val stored = prefs.getString(KEY_AI_MODEL_NAME, "gemini-3.5-flash-lite") ?: "gemini-3.5-flash-lite"
         return if (stored.startsWith("gemini-1.") || stored.startsWith("gemini-2.")) {
-            "gemini-3.8-flash"
+            "gemini-3.5-flash-lite"
         } else {
             stored
         }
