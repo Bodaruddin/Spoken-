@@ -1484,7 +1484,12 @@ class AppPreferences(context: Context) {
     }
 
     fun getSelectedAiModel(): String {
-        return prefs.getString(KEY_AI_MODEL_NAME, "gemini-2.5-flash") ?: "gemini-2.5-flash"
+        val stored = prefs.getString(KEY_AI_MODEL_NAME, "gemini-3.5-flash-lite") ?: "gemini-3.5-flash-lite"
+        return if (stored == "gemini-2.0-flash" || stored == "gemini-2.5-flash" || stored == "gemini-1.5-flash") {
+            "gemini-3.5-flash-lite"
+        } else {
+            stored
+        }
     }
 
     fun setSelectedAiModel(model: String) {

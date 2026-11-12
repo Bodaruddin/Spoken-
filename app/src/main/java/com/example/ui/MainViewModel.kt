@@ -1512,7 +1512,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val result = GeminiSpeechEvaluator.testApiKey(key, _activeAiModel.value)
             _isTestingKey.value = false
             _aiKeyTestResult.value = if (result.isSuccess) {
-                "✅ " + result.getOrThrow()
+                val outcome = result.getOrThrow()
+                if (outcome.workingModel != _activeAiModel.value) {
+                    setAiModel(outcome.workingModel)
+                }
+                "✅ " + outcome.message
             } else {
                 "❌ Connection Failed: " + (result.exceptionOrNull()?.message ?: "Check your API key and network connection.")
             }

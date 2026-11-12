@@ -19,66 +19,108 @@ object GeminiSpeechEvaluator {
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    const val DEFAULT_MODEL = "gemini-2.5-flash"
+    const val DEFAULT_MODEL = "gemini-3.5-flash-lite"
 
     val AVAILABLE_MODELS = listOf(
-        "gemini-2.5-flash" to "Gemini 2.5 Flash (Recommended - Ultra Fast)",
-        "gemini-2.0-flash" to "Gemini 2.0 Flash (Fast & Balanced)",
-        "gemini-1.5-flash" to "Gemini 1.5 Flash (Standard)"
+        "gemini-3.5-flash-lite" to "Gemini 3.5 Flash Lite (Recommended - Ultra Fast & Stable)",
+        "gemini-3.5-flash" to "Gemini 3.5 Flash (High Intelligence)",
+        "gemini-3.8-flash" to "Gemini 3.8 Flash (Latest Flagship)",
+        "gemini-3.1-flash-lite" to "Gemini 3.1 Flash Lite (Fast Fallback)"
+    )
+
+    data class ApiKeyTestResult(
+        val message: String,
+        val workingModel: String
     )
 
     /**
      * Verifies whether an API key is valid by making a lightweight test ping to the Gemini API.
+     * Automatically attempts fallback models if the preferred model is retired or overloaded.
      */
-    suspend fun testApiKey(apiKey: String, model: String = DEFAULT_MODEL): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun testApiKey(apiKey: String, preferredModel: String = DEFAULT_MODEL): Result<ApiKeyTestResult> = withContext(Dispatchers.IO) {
         val cleanKey = apiKey.trim()
         if (cleanKey.isEmpty()) {
             return@withContext Result.failure(IllegalArgumentException("API Key cannot be empty."))
         }
 
-        try {
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$cleanKey"
-
-            val jsonBody = JSONObject().apply {
-                val contents = JSONArray().apply {
-                    val contentObj = JSONObject().apply {
-                        val parts = JSONArray().apply {
-                            put(JSONObject().apply { put("text", "Reply with only 'READY'") })
-                        }
-                        put("parts", parts)
-                    }
-                    put(contentObj)
-                }
-                put("contents", contents)
-                put("generationConfig", JSONObject().apply {
-                    put("temperature", 0.0)
-                    put("maxOutputTokens", 10)
-                })
-            }
-
-            val request = Request.Builder()
-                .url(url)
-                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = httpClient.newCall(request).execute()
-            val responseBody = response.body?.string() ?: ""
-
-            if (response.isSuccessful) {
-                Result.success("Connection Successful! Model $model is active and ready for real-time speech evaluation.")
-            } else {
-                val errorMsg = try {
-                    val errJson = JSONObject(responseBody)
-                    val errorObj = errJson.optJSONObject("error")
-                    errorObj?.optString("message") ?: "HTTP error ${response.code}: ${response.message}"
-                } catch (_: Exception) {
-                    "HTTP error ${response.code}: ${response.message}"
-                }
-                Result.failure(Exception(errorMsg))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
+        // Models to try in order of preference
+        val modelsToTry = mutableListOf<String>()
+        val cleanPreferred = preferredModel.trim()
+        if (cleanPreferred.isNotEmpty()) {
+            modelsToTry.add(cleanPreferred)
         }
+        val fallbackCandidates = listOf("gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite")
+        for (candidate in fallbackCandidates) {
+            if (!modelsToTry.contains(candidate)) {
+                modelsToTry.add(candidate)
+            }
+        }
+
+        var lastErrorMessage = ""
+        var isAuthError = false
+
+        for (candidateModel in modelsToTry) {
+            try {
+                val url = "https://generativelanguage.googleapis.com/v1beta/models/$candidateModel:generateContent?key=$cleanKey"
+                val jsonBody = JSONObject().apply {
+                    val contents = JSONArray().apply {
+                        val contentObj = JSONObject().apply {
+                            val parts = JSONArray().apply {
+                                put(JSONObject().apply { put("text", "Reply with only 'READY'") })
+                            }
+                            put("parts", parts)
+                        }
+                        put(contentObj)
+                    }
+                    put("contents", contents)
+                    put("generationConfig", JSONObject().apply {
+                        put("temperature", 0.0)
+                        put("maxOutputTokens", 10)
+                    })
+                }
+
+                val request = Request.Builder()
+                    .url(url)
+                    .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+
+                if (response.isSuccessful) {
+                    val msg = if (candidateModel == cleanPreferred) {
+                        "Connection Successful! Model $candidateModel is verified and ready for real-time speech evaluation."
+                    } else {
+                        "Connection Successful! Connected with $candidateModel (updated from $cleanPreferred)."
+                    }
+                    return@withContext Result.success(ApiKeyTestResult(msg, candidateModel))
+                } else {
+                    val errorMsg = try {
+                        val errJson = JSONObject(responseBody)
+                        val errorObj = errJson.optJSONObject("error")
+                        errorObj?.optString("message") ?: "HTTP error ${response.code}: ${response.message}"
+                    } catch (_: Exception) {
+                        "HTTP error ${response.code}: ${response.message}"
+                    }
+                    lastErrorMessage = errorMsg
+
+                    // If API key is invalid or permission denied, stop trying other models
+                    if (response.code == 400 && (errorMsg.contains("API_KEY_INVALID", true) || errorMsg.contains("key", true))) {
+                        isAuthError = true
+                        break
+                    }
+                    if (response.code == 403) {
+                        isAuthError = true
+                        break
+                    }
+                    // If it was a 404 (model deprecated) or 503 (high demand), continue loop to next model
+                }
+            } catch (e: Exception) {
+                lastErrorMessage = e.message ?: "Network error"
+            }
+        }
+
+        Result.failure(Exception(if (isAuthError) lastErrorMessage else "Connection failed: $lastErrorMessage"))
     }
 
     /**
@@ -102,6 +144,45 @@ object GeminiSpeechEvaluator {
             return@withContext Result.failure(IllegalArgumentException("No speech input was detected."))
         }
 
+        // Try primary model, then fall back to gemini-3.5-flash-lite / gemini-3.5-flash if unavailable
+        val modelsToTry = mutableListOf<String>()
+        val cleanModel = model.trim().ifEmpty { DEFAULT_MODEL }
+        modelsToTry.add(cleanModel)
+        listOf("gemini-3.5-flash-lite", "gemini-3.5-flash").forEach { fallback ->
+            if (!modelsToTry.contains(fallback)) modelsToTry.add(fallback)
+        }
+
+        var lastError: Exception? = null
+
+        for (activeModel in modelsToTry) {
+            try {
+                val evalResult = executeSingleEvaluation(
+                    cleanKey = cleanKey,
+                    cleanSpoken = cleanSpoken,
+                    targetPhrase = targetPhrase,
+                    conversationContext = conversationContext,
+                    model = activeModel
+                )
+                if (evalResult.isSuccess) {
+                    return@withContext evalResult
+                } else {
+                    lastError = evalResult.exceptionOrNull() as? Exception
+                }
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+
+        Result.failure(lastError ?: Exception("Speech evaluation failed."))
+    }
+
+    private fun executeSingleEvaluation(
+        cleanKey: String,
+        cleanSpoken: String,
+        targetPhrase: String?,
+        conversationContext: String?,
+        model: String
+    ): Result<SpeakingEvaluation> {
         try {
             val systemInstructions = buildString {
                 append("You are 'Nova', an expert AI Spoken English Coach and CEFR-certified speech assessor. ")
@@ -168,7 +249,7 @@ object GeminiSpeechEvaluator {
                 } catch (_: Exception) {
                     "Gemini API HTTP ${response.code}"
                 }
-                return@withContext Result.failure(Exception(errorMsg))
+                return Result.failure(Exception(errorMsg))
             }
 
             val rootJson = JSONObject(responseBody)
@@ -179,7 +260,7 @@ object GeminiSpeechEvaluator {
             val textOutput = parts?.optJSONObject(0)?.optString("text") ?: ""
 
             if (textOutput.isBlank()) {
-                return@withContext Result.failure(Exception("Gemini returned an empty response."))
+                return Result.failure(Exception("Gemini returned an empty response."))
             }
 
             val parsedJson = JSONObject(textOutput)
@@ -231,9 +312,9 @@ object GeminiSpeechEvaluator {
                 detectedWeakWords = weakWords
             )
 
-            Result.success(evaluation)
+            return Result.success(evaluation)
         } catch (e: Exception) {
-            Result.failure(e)
+            return Result.failure(e)
         }
     }
 }
