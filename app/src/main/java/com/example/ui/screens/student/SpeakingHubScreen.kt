@@ -78,14 +78,26 @@ fun SpeakingHubScreen(
     val speakingPrompts by viewModel.speakingPrompts.collectAsState()
 
     BackHandler {
-        if (currentSubTab == SpeakingSubTab.ENGLISH_ADVENTURE) {
-            viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
-        } else {
-            viewModel.selectStudentTab(StudentTab.HOME)
+        when (currentSubTab) {
+            SpeakingSubTab.TOPICS_ROADMAP -> viewModel.selectStudentTab(StudentTab.HOME)
+            SpeakingSubTab.AI_PARTNER -> viewModel.selectSpeakingSubTab(SpeakingSubTab.TOPICS_ROADMAP)
+            SpeakingSubTab.ENGLISH_ADVENTURE -> viewModel.selectSpeakingSubTab(SpeakingSubTab.TOPICS_ROADMAP)
+            else -> viewModel.selectSpeakingSubTab(SpeakingSubTab.TOPICS_ROADMAP)
         }
     }
 
-    if (currentSubTab == SpeakingSubTab.ENGLISH_ADVENTURE) {
+    if (currentSubTab == SpeakingSubTab.TOPICS_ROADMAP) {
+        ConversationTopicsRoadmapScreen(
+            viewModel = viewModel,
+            onTopicSelected = { topic ->
+                viewModel.startTopicConversation(topic)
+            },
+            onOpenCoachDirectly = {
+                viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
+            },
+            modifier = modifier.fillMaxSize()
+        )
+    } else if (currentSubTab == SpeakingSubTab.ENGLISH_ADVENTURE) {
         EnglishAdventureScreen(
             viewModel = viewModel,
             modifier = modifier.fillMaxSize()
@@ -104,7 +116,13 @@ fun SpeakingHubScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
-                onClick = { viewModel.selectStudentTab(StudentTab.HOME) },
+                onClick = {
+                    if (currentSubTab != SpeakingSubTab.TOPICS_ROADMAP) {
+                        viewModel.selectSpeakingSubTab(SpeakingSubTab.TOPICS_ROADMAP)
+                    } else {
+                        viewModel.selectStudentTab(StudentTab.HOME)
+                    }
+                },
                 modifier = Modifier
                     .size(38.dp)
                     .testTag("speaking_hub_back_btn")
@@ -216,7 +234,16 @@ fun SpeakingHubScreen(
         ) {
             item {
                 SpeakingTabPill(
-                    title = "AI Partner",
+                    title = "Topics Path",
+                    emoji = "🗺️",
+                    isSelected = currentSubTab == SpeakingSubTab.TOPICS_ROADMAP
+                ) {
+                    viewModel.selectSpeakingSubTab(SpeakingSubTab.TOPICS_ROADMAP)
+                }
+            }
+            item {
+                SpeakingTabPill(
+                    title = "AI Coach",
                     emoji = "🤖",
                     isSelected = currentSubTab == SpeakingSubTab.AI_PARTNER
                 ) {
@@ -276,6 +303,9 @@ fun SpeakingHubScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             when (currentSubTab) {
+                SpeakingSubTab.TOPICS_ROADMAP -> {
+                    // Handled at root level
+                }
                 SpeakingSubTab.AI_PARTNER -> {
                     item {
                         AiPartnerExactScreen(
@@ -393,6 +423,48 @@ fun AiPartnerExactScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Quick Navigation back to Topics Roadmap Learning Path
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF13192B),
+            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { viewModel.selectSpeakingSubTab(SpeakingSubTab.TOPICS_ROADMAP) }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("🗺️", fontSize = 16.sp)
+                    Column {
+                        Text(
+                            "Conversation Topics Learning Path",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "Tap to view roadmap & choose from all topics",
+                            fontSize = 10.5.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = "Open Roadmap",
+                    tint = Color(0xFF38BDF8),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
         // 1. Nova AI Coach Outer Glass Card
         Card(
             shape = RoundedCornerShape(28.dp),

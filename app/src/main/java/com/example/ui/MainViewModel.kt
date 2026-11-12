@@ -56,6 +56,7 @@ enum class AdminSpeakingSection(val title: String, val emoji: String) {
 }
 
 enum class SpeakingSubTab {
+    TOPICS_ROADMAP,
     AI_PARTNER,
     DAILY_CHALLENGE,
     VOCABULARY,
@@ -809,7 +810,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentAdminTab = MutableStateFlow(AdminTab.DASHBOARD)
     val currentAdminTab: StateFlow<AdminTab> = _currentAdminTab.asStateFlow()
 
-    private val _speakingSubTab = MutableStateFlow(SpeakingSubTab.AI_PARTNER)
+    private val _speakingSubTab = MutableStateFlow(SpeakingSubTab.TOPICS_ROADMAP)
     val speakingSubTab: StateFlow<SpeakingSubTab> = _speakingSubTab.asStateFlow()
 
     // Active Interactive States
@@ -940,6 +941,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectStudentTab(tab: StudentTab) {
         _currentStudentTab.value = tab
+        if (tab == StudentTab.PRACTICE) {
+            _speakingSubTab.value = SpeakingSubTab.TOPICS_ROADMAP
+        }
+    }
+
+    fun startTopicConversation(topic: SpeakingPrompt) {
+        selectConversationTopic(topic)
+        selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
     }
 
     fun selectTeacherTab(tab: TeacherTab) {
