@@ -19,13 +19,13 @@ object GeminiSpeechEvaluator {
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    const val DEFAULT_MODEL = "gemini-2.5-flash"
+    const val DEFAULT_MODEL = "gemini-3.8-flash"
 
     val AVAILABLE_MODELS = listOf(
-        "gemini-2.5-flash" to "Gemini 2.5 Flash (Recommended - Ultra Fast & Multimodal)",
-        "gemini-2.0-flash" to "Gemini 2.0 Flash (Fast & Low Latency)",
-        "gemini-1.5-flash" to "Gemini 1.5 Flash (Reliable & Stable)",
-        "gemini-1.5-pro" to "Gemini 1.5 Pro (Deep Linguistic Reasoning)"
+        "gemini-3.8-flash" to "Gemini 3.8 Flash (Latest Flagship - Recommended)",
+        "gemini-3.5-flash" to "Gemini 3.5 Flash (High Intelligence)",
+        "gemini-3.5-flash-lite" to "Gemini 3.5 Flash Lite (Ultra Fast & Lightweight)",
+        "gemini-3.1-flash-lite" to "Gemini 3.1 Flash Lite (Fast Fallback)"
     )
 
     data class ApiKeyTestResult(
@@ -59,12 +59,16 @@ object GeminiSpeechEvaluator {
         // Models to try in order of preference
         val modelsToTry = mutableListOf<String>()
         val cleanPreferred = preferredModel.trim().let {
-            if (it.startsWith("gemini-3.")) DEFAULT_MODEL else it
+            if (it.startsWith("gemini-1.") || it.startsWith("gemini-2.") || it.isEmpty()) {
+                DEFAULT_MODEL
+            } else {
+                it
+            }
         }
         if (cleanPreferred.isNotEmpty()) {
             modelsToTry.add(cleanPreferred)
         }
-        val fallbackCandidates = listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro")
+        val fallbackCandidates = listOf("gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite")
         for (candidate in fallbackCandidates) {
             if (!modelsToTry.contains(candidate)) {
                 modelsToTry.add(candidate)
@@ -106,7 +110,7 @@ object GeminiSpeechEvaluator {
                     val msg = if (candidateModel == cleanPreferred) {
                         "Connection Successful! Model $candidateModel is verified and ready for real-time speech evaluation."
                     } else {
-                        "Connection Successful! Connected with $candidateModel (updated from $cleanPreferred)."
+                        "Connection Successful! Connected with $candidateModel (updated from retired $cleanPreferred)."
                     }
                     return@withContext Result.success(ApiKeyTestResult(msg, candidateModel))
                 } else {
@@ -119,16 +123,20 @@ object GeminiSpeechEvaluator {
                     }
                     lastErrorMessage = errorMsg
 
-                    // If API key is invalid or permission denied, stop trying other models
-                    if (response.code == 400 && (errorMsg.contains("API_KEY_INVALID", true) || errorMsg.contains("key", true))) {
+                    val isNoLongerAvailable = errorMsg.contains("no longer available", true) ||
+                                              errorMsg.contains("deprecated", true) ||
+                                              errorMsg.contains("not found", true)
+
+                    // If API key is truly invalid (not just model deprecated), stop trying
+                    if (!isNoLongerAvailable && response.code == 400 && errorMsg.contains("API_KEY_INVALID", true)) {
                         isAuthError = true
                         break
                     }
-                    if (response.code == 403) {
+                    if (response.code == 403 && !isNoLongerAvailable) {
                         isAuthError = true
                         break
                     }
-                    // If it was a 404 (model deprecated) or 503 (high demand), continue loop to next model
+                    // If it was a 404 (model deprecated) or 400 (no longer available), loop continues to try gemini-3.8-flash!
                 }
             } catch (e: Exception) {
                 lastErrorMessage = e.message ?: "Network error"
@@ -226,13 +234,13 @@ object GeminiSpeechEvaluator {
             return@withContext Result.failure(IllegalArgumentException("No speech input was detected."))
         }
 
-        // Try primary model, then fall back to gemini-2.5-flash / gemini-2.0-flash / gemini-1.5-flash
+        // Try primary model, then fall back to gemini-3.8-flash / gemini-3.5-flash / gemini-3.5-flash-lite
         val modelsToTry = mutableListOf<String>()
         val cleanModel = model.trim().let {
-            if (it.startsWith("gemini-3.") || it.isEmpty()) DEFAULT_MODEL else it
+            if (it.startsWith("gemini-1.") || it.startsWith("gemini-2.") || it.isEmpty()) DEFAULT_MODEL else it
         }
         modelsToTry.add(cleanModel)
-        listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash").forEach { fallback ->
+        listOf("gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite").forEach { fallback ->
             if (!modelsToTry.contains(fallback)) modelsToTry.add(fallback)
         }
 
