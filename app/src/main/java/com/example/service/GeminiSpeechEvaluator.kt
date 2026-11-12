@@ -19,13 +19,13 @@ object GeminiSpeechEvaluator {
         .writeTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    const val DEFAULT_MODEL = "gemini-3.5-flash-lite"
+    const val DEFAULT_MODEL = "gemini-2.5-flash"
 
     val AVAILABLE_MODELS = listOf(
-        "gemini-3.5-flash-lite" to "Gemini 3.5 Flash Lite (Recommended - Ultra Fast & Stable)",
-        "gemini-3.5-flash" to "Gemini 3.5 Flash (High Intelligence)",
-        "gemini-3.8-flash" to "Gemini 3.8 Flash (Latest Flagship)",
-        "gemini-3.1-flash-lite" to "Gemini 3.1 Flash Lite (Fast Fallback)"
+        "gemini-2.5-flash" to "Gemini 2.5 Flash (Recommended - Ultra Fast & Multimodal)",
+        "gemini-2.0-flash" to "Gemini 2.0 Flash (Fast & Low Latency)",
+        "gemini-1.5-flash" to "Gemini 1.5 Flash (Reliable & Stable)",
+        "gemini-1.5-pro" to "Gemini 1.5 Pro (Deep Linguistic Reasoning)"
     )
 
     data class ApiKeyTestResult(
@@ -43,13 +43,28 @@ object GeminiSpeechEvaluator {
             return@withContext Result.failure(IllegalArgumentException("API Key cannot be empty."))
         }
 
+        // Helpful pre-check for common key prefix confusions
+        if (cleanKey.startsWith("cc_")) {
+            return@withContext Result.failure(
+                IllegalArgumentException(
+                    "This key starts with 'cc_', which is not a Google Gemini API key. Google Gemini API keys start with 'AIzaSy...'.\n\n" +
+                    "To use Google Gemini:\n" +
+                    "1. Go to https://aistudio.google.com/app/apikey to get a free Gemini API key.\n" +
+                    "2. Paste your 'AIzaSy...' key here.\n\n" +
+                    "If your 'cc_' key is for an OpenAI-compatible proxy or custom server, switch to Custom Endpoint mode."
+                )
+            )
+        }
+
         // Models to try in order of preference
         val modelsToTry = mutableListOf<String>()
-        val cleanPreferred = preferredModel.trim()
+        val cleanPreferred = preferredModel.trim().let {
+            if (it.startsWith("gemini-3.")) DEFAULT_MODEL else it
+        }
         if (cleanPreferred.isNotEmpty()) {
             modelsToTry.add(cleanPreferred)
         }
-        val fallbackCandidates = listOf("gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.1-flash-lite")
+        val fallbackCandidates = listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro")
         for (candidate in fallbackCandidates) {
             if (!modelsToTry.contains(candidate)) {
                 modelsToTry.add(candidate)
@@ -124,6 +139,73 @@ object GeminiSpeechEvaluator {
     }
 
     /**
+     * Verifies connection to an OpenAI-compatible custom endpoint or proxy.
+     */
+    suspend fun testCustomEndpoint(
+        endpointUrl: String,
+        apiKey: String,
+        modelName: String = "gpt-4o-mini"
+    ): Result<ApiKeyTestResult> = withContext(Dispatchers.IO) {
+        val cleanUrl = endpointUrl.trim().removeSuffix("/")
+        val cleanKey = apiKey.trim()
+        val cleanModel = modelName.trim().ifEmpty { "gpt-4o-mini" }
+
+        if (cleanUrl.isEmpty()) {
+            return@withContext Result.failure(IllegalArgumentException("Endpoint URL cannot be empty."))
+        }
+        if (cleanKey.isEmpty()) {
+            return@withContext Result.failure(IllegalArgumentException("API Key cannot be empty."))
+        }
+
+        val completionsUrl = if (cleanUrl.endsWith("/chat/completions")) cleanUrl else "$cleanUrl/chat/completions"
+
+        try {
+            val jsonBody = JSONObject().apply {
+                put("model", cleanModel)
+                val messages = JSONArray().apply {
+                    val msg = JSONObject().apply {
+                        put("role", "user")
+                        put("content", "Reply with only 'READY'")
+                    }
+                    put(msg)
+                }
+                put("messages", messages)
+                put("max_tokens", 10)
+                put("temperature", 0.0)
+            }
+
+            val request = Request.Builder()
+                .url(completionsUrl)
+                .addHeader("Authorization", "Bearer $cleanKey")
+                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
+
+            if (response.isSuccessful) {
+                return@withContext Result.success(
+                    ApiKeyTestResult(
+                        message = "Custom endpoint connected successfully with model $cleanModel!",
+                        workingModel = cleanModel
+                    )
+                )
+            } else {
+                val errorMsg = try {
+                    val errJson = JSONObject(responseBody)
+                    val errorObj = errJson.optJSONObject("error")
+                    errorObj?.optString("message") ?: "HTTP ${response.code}: ${response.message}"
+                } catch (_: Exception) {
+                    "HTTP ${response.code}: ${response.message}"
+                }
+                return@withContext Result.failure(Exception("Custom endpoint error: $errorMsg"))
+            }
+        } catch (e: Exception) {
+            return@withContext Result.failure(Exception("Connection error: ${e.message ?: "Failed to reach endpoint."}"))
+        }
+    }
+
+    /**
      * Performs comprehensive real-time speech evaluation using Gemini AI.
      */
     suspend fun evaluateSpeech(
@@ -144,11 +226,13 @@ object GeminiSpeechEvaluator {
             return@withContext Result.failure(IllegalArgumentException("No speech input was detected."))
         }
 
-        // Try primary model, then fall back to gemini-3.5-flash-lite / gemini-3.5-flash if unavailable
+        // Try primary model, then fall back to gemini-2.5-flash / gemini-2.0-flash / gemini-1.5-flash
         val modelsToTry = mutableListOf<String>()
-        val cleanModel = model.trim().ifEmpty { DEFAULT_MODEL }
+        val cleanModel = model.trim().let {
+            if (it.startsWith("gemini-3.") || it.isEmpty()) DEFAULT_MODEL else it
+        }
         modelsToTry.add(cleanModel)
-        listOf("gemini-3.5-flash-lite", "gemini-3.5-flash").forEach { fallback ->
+        listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash").forEach { fallback ->
             if (!modelsToTry.contains(fallback)) modelsToTry.add(fallback)
         }
 
@@ -176,6 +260,111 @@ object GeminiSpeechEvaluator {
         Result.failure(lastError ?: Exception("Speech evaluation failed."))
     }
 
+    /**
+     * Performs speech evaluation using an OpenAI-compatible custom endpoint.
+     */
+    suspend fun evaluateSpeechCustomEndpoint(
+        endpointUrl: String,
+        apiKey: String,
+        modelName: String,
+        spokenText: String,
+        targetPhrase: String? = null,
+        conversationContext: String? = null
+    ): Result<SpeakingEvaluation> = withContext(Dispatchers.IO) {
+        val cleanUrl = endpointUrl.trim().removeSuffix("/")
+        val cleanKey = apiKey.trim()
+        val cleanSpoken = spokenText.trim()
+        val cleanModel = modelName.trim().ifEmpty { "gpt-4o-mini" }
+
+        if (cleanUrl.isEmpty() || cleanKey.isEmpty()) {
+            return@withContext Result.failure(IllegalStateException("Custom endpoint or API key is not configured."))
+        }
+        if (cleanSpoken.isEmpty()) {
+            return@withContext Result.failure(IllegalArgumentException("No speech input was detected."))
+        }
+
+        val completionsUrl = if (cleanUrl.endsWith("/chat/completions")) cleanUrl else "$cleanUrl/chat/completions"
+
+        try {
+            val systemInstructions = buildSystemInstructions()
+            val userPrompt = buildUserPrompt(cleanSpoken, targetPhrase, conversationContext)
+
+            val jsonBody = JSONObject().apply {
+                put("model", cleanModel)
+                val messages = JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "system")
+                        put("content", systemInstructions)
+                    })
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", userPrompt)
+                    })
+                }
+                put("messages", messages)
+                put("temperature", 0.3)
+            }
+
+            val request = Request.Builder()
+                .url(completionsUrl)
+                .addHeader("Authorization", "Bearer $cleanKey")
+                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                val errorMsg = try {
+                    val errJson = JSONObject(responseBody)
+                    val errorObj = errJson.optJSONObject("error")
+                    errorObj?.optString("message") ?: "Custom endpoint HTTP ${response.code}"
+                } catch (_: Exception) {
+                    "Custom endpoint HTTP ${response.code}"
+                }
+                return@withContext Result.failure(Exception(errorMsg))
+            }
+
+            val rootJson = JSONObject(responseBody)
+            val choices = rootJson.optJSONArray("choices")
+            val firstChoice = choices?.optJSONObject(0)
+            val message = firstChoice?.optJSONObject("message")
+            val textOutput = message?.optString("content") ?: ""
+
+            parseEvaluationOutput(textOutput, cleanSpoken, targetPhrase, cleanModel)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun buildSystemInstructions(): String = buildString {
+        append("You are 'Nova', an expert AI Spoken English Coach and CEFR-certified speech assessor. ")
+        append("Evaluate the user's spoken sentence in real-time. ")
+        append("Assess 4 key criteria (0-100 each): ")
+        append("1. pronunciationScore: intelligibility, natural phoneme accuracy, syllable stress. ")
+        append("2. fluencyScore: natural conversational flow, sentence rhythm, absence of unnatural filler. ")
+        append("3. grammarScore: correct tense, subject-verb agreement, natural phrasing. ")
+        append("4. vocabularyScore: word choice appropriateness, lexical variety. ")
+        append("5. overallScore: weighted score out of 100. ")
+        append("6. cefrLevel: one of ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']. ")
+        append("7. feedback: 1-2 warm, encouraging sentences as Nova giving constructive feedback. ")
+        append("8. suggestedImprovement: 1 concrete actionable phonetic or grammatical tip. ")
+        append("9. aiCoachResponse: Nova's natural spoken conversational reply to continue the dialogue (1-2 sentences). ")
+        append("10. detectedWeakWords: list of up to 3 words the speaker could pronounce better or practice. ")
+        append("Return ONLY a valid JSON object with these exact keys: ")
+        append("overallScore, pronunciationScore, fluencyScore, grammarScore, vocabularyScore, cefrLevel, feedback, suggestedImprovement, aiCoachResponse, detectedWeakWords.")
+    }
+
+    private fun buildUserPrompt(cleanSpoken: String, targetPhrase: String?, conversationContext: String?): String = buildString {
+        append("Spoken Sentence by Student: \"$cleanSpoken\"\n")
+        if (!targetPhrase.isNullOrBlank()) {
+            append("Expected / Target Sentence: \"$targetPhrase\"\n")
+        }
+        if (!conversationContext.isNullOrBlank()) {
+            append("Previous Coach Prompt / Topic Context: \"$conversationContext\"\n")
+        }
+    }
+
     private fun executeSingleEvaluation(
         cleanKey: String,
         cleanSpoken: String,
@@ -184,33 +373,8 @@ object GeminiSpeechEvaluator {
         model: String
     ): Result<SpeakingEvaluation> {
         try {
-            val systemInstructions = buildString {
-                append("You are 'Nova', an expert AI Spoken English Coach and CEFR-certified speech assessor. ")
-                append("Evaluate the user's spoken sentence in real-time. ")
-                append("Assess 4 key criteria (0-100 each): ")
-                append("1. pronunciationScore: intelligibility, natural phoneme accuracy, syllable stress. ")
-                append("2. fluencyScore: natural conversational flow, sentence rhythm, absence of unnatural filler. ")
-                append("3. grammarScore: correct tense, subject-verb agreement, natural phrasing. ")
-                append("4. vocabularyScore: word choice appropriateness, lexical variety. ")
-                append("5. overallScore: weighted score out of 100. ")
-                append("6. cefrLevel: one of ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']. ")
-                append("7. feedback: 1-2 warm, encouraging sentences as Nova giving constructive feedback. ")
-                append("8. suggestedImprovement: 1 concrete actionable phonetic or grammatical tip. ")
-                append("9. aiCoachResponse: Nova's natural spoken conversational reply to continue the dialogue (1-2 sentences). ")
-                append("10. detectedWeakWords: list of up to 3 words the speaker could pronounce better or practice. ")
-                append("Return ONLY a valid JSON object with these exact keys: ")
-                append("overallScore, pronunciationScore, fluencyScore, grammarScore, vocabularyScore, cefrLevel, feedback, suggestedImprovement, aiCoachResponse, detectedWeakWords.")
-            }
-
-            val userPrompt = buildString {
-                append("Spoken Sentence by Student: \"$cleanSpoken\"\n")
-                if (!targetPhrase.isNullOrBlank()) {
-                    append("Expected / Target Sentence: \"$targetPhrase\"\n")
-                }
-                if (!conversationContext.isNullOrBlank()) {
-                    append("Previous Coach Prompt / Topic Context: \"$conversationContext\"\n")
-                }
-            }
+            val systemInstructions = buildSystemInstructions()
+            val userPrompt = buildUserPrompt(cleanSpoken, targetPhrase, conversationContext)
 
             val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$cleanKey"
 
@@ -263,7 +427,21 @@ object GeminiSpeechEvaluator {
                 return Result.failure(Exception("Gemini returned an empty response."))
             }
 
-            val parsedJson = JSONObject(textOutput)
+            return parseEvaluationOutput(textOutput, cleanSpoken, targetPhrase, model)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        }
+    }
+
+    private fun parseEvaluationOutput(
+        textOutput: String,
+        cleanSpoken: String,
+        targetPhrase: String?,
+        model: String
+    ): Result<SpeakingEvaluation> {
+        return try {
+            val cleanJsonStr = textOutput.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+            val parsedJson = JSONObject(cleanJsonStr)
 
             val overallScore = parsedJson.optInt("overallScore", 80).coerceIn(10, 100)
             val pronunciationScore = parsedJson.optInt("pronunciationScore", 80).coerceIn(10, 100)
@@ -312,9 +490,9 @@ object GeminiSpeechEvaluator {
                 detectedWeakWords = weakWords
             )
 
-            return Result.success(evaluation)
+            Result.success(evaluation)
         } catch (e: Exception) {
-            return Result.failure(e)
+            Result.failure(e)
         }
     }
 }

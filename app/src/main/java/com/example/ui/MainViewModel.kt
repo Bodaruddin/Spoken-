@@ -859,6 +859,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _aiVoiceReplyEnabled = MutableStateFlow(appPreferences.isAiVoiceReplyEnabled())
     val aiVoiceReplyEnabled: StateFlow<Boolean> = _aiVoiceReplyEnabled.asStateFlow()
 
+    private val _aiProviderType = MutableStateFlow(appPreferences.getAiProviderType())
+    val aiProviderType: StateFlow<String> = _aiProviderType.asStateFlow()
+
+    private val _customEndpointUrl = MutableStateFlow(appPreferences.getCustomEndpointUrl())
+    val customEndpointUrl: StateFlow<String> = _customEndpointUrl.asStateFlow()
+
+    private val _customModelName = MutableStateFlow(appPreferences.getCustomModelName())
+    val customModelName: StateFlow<String> = _customModelName.asStateFlow()
+
     private val _showAiKeyDialog = MutableStateFlow(false)
     val showAiKeyDialog: StateFlow<Boolean> = _showAiKeyDialog.asStateFlow()
 
@@ -1452,13 +1461,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun isGeminiApiKeyConfigured(): Boolean {
+        if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
+            return _customEndpointUrl.value.isNotBlank() && getEffectiveGeminiApiKey().isNotBlank()
+        }
         return getEffectiveGeminiApiKey().isNotBlank()
     }
 
     fun getApiKeySourceDescription(): String {
+        if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
+            return if (_customEndpointUrl.value.isNotBlank() && getEffectiveGeminiApiKey().isNotBlank()) {
+                "Custom Endpoint (${_customModelName.value})"
+            } else {
+                "Custom Endpoint Incomplete"
+            }
+        }
         val custom = appPreferences.getCustomGeminiApiKey()
         if (!custom.isNullOrBlank()) {
-            return "Custom Key (Saved in App)"
+            return if (custom.startsWith("cc_")) {
+                "Custom Key ('cc_' format - Gemini needs 'AIzaSy...')"
+            } else {
+                "Custom Key (Saved in App)"
+            }
         }
         val buildConfigKey = try {
             com.example.BuildConfig.GEMINI_API_KEY
@@ -1474,6 +1497,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun openAiKeyDialog() {
         _aiKeyTestResult.value = null
         _geminiApiKey.value = appPreferences.getCustomGeminiApiKey() ?: ""
+        _customEndpointUrl.value = appPreferences.getCustomEndpointUrl()
+        _customModelName.value = appPreferences.getCustomModelName()
+        _aiProviderType.value = appPreferences.getAiProviderType()
         _isGeminiConfigured.value = isGeminiApiKeyConfigured()
         _apiKeySource.value = getApiKeySourceDescription()
         _showAiKeyDialog.value = true
@@ -1500,6 +1526,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _aiKeyTestResult.value = null
     }
 
+    fun setAiProviderType(type: String) {
+        appPreferences.setAiProviderType(type)
+        _aiProviderType.value = type
+        _isGeminiConfigured.value = isGeminiApiKeyConfigured()
+        _apiKeySource.value = getApiKeySourceDescription()
+    }
+
+    fun setCustomEndpointUrl(url: String) {
+        val clean = url.trim()
+        appPreferences.setCustomEndpointUrl(clean)
+        _customEndpointUrl.value = clean
+        _isGeminiConfigured.value = isGeminiApiKeyConfigured()
+        _apiKeySource.value = getApiKeySourceDescription()
+    }
+
+    fun setCustomModelName(model: String) {
+        val clean = model.trim()
+        appPreferences.setCustomModelName(clean)
+        _customModelName.value = clean
+    }
+
     fun testGeminiApiKey(keyToTest: String) {
         val key = keyToTest.trim().ifEmpty { getEffectiveGeminiApiKey() }
         if (key.isEmpty()) {
@@ -1519,6 +1566,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 "✅ " + outcome.message
             } else {
                 "❌ Connection Failed: " + (result.exceptionOrNull()?.message ?: "Check your API key and network connection.")
+            }
+        }
+    }
+
+    fun testCustomEndpoint(url: String, key: String, model: String) {
+        val cleanUrl = url.trim().ifEmpty { _customEndpointUrl.value }
+        val cleanKey = key.trim().ifEmpty { getEffectiveGeminiApiKey() }
+        val cleanModel = model.trim().ifEmpty { _customModelName.value }
+
+        if (cleanUrl.isEmpty()) {
+            _aiKeyTestResult.value = "⚠️ Please enter your endpoint URL (e.g. https://api.openai.com/v1 or proxy URL)."
+            return
+        }
+        if (cleanKey.isEmpty()) {
+            _aiKeyTestResult.value = "⚠️ Please enter your API key or Bearer token."
+            return
+        }
+
+        viewModelScope.launch {
+            _isTestingKey.value = true
+            _aiKeyTestResult.value = "Connecting to custom endpoint ($cleanUrl)..."
+            val result = GeminiSpeechEvaluator.testCustomEndpoint(cleanUrl, cleanKey, cleanModel)
+            _isTestingKey.value = false
+            _aiKeyTestResult.value = if (result.isSuccess) {
+                val outcome = result.getOrThrow()
+                "✅ " + outcome.message
+            } else {
+                "❌ Connection Failed: " + (result.exceptionOrNull()?.message ?: "Check your endpoint URL, key, and network.")
             }
         }
     }
@@ -1554,18 +1629,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isAiEvaluating.value = true
             val effectiveKey = getEffectiveGeminiApiKey()
 
-            val eval = if (effectiveKey.isNotBlank()) {
+            val eval = if (isGeminiApiKeyConfigured()) {
                 val contextPrompt = if (_speakingSubTab.value == SpeakingSubTab.AI_PARTNER) {
                     _activeCoachQuestion.value
                 } else null
 
-                val aiResult = GeminiSpeechEvaluator.evaluateSpeech(
-                    apiKey = effectiveKey,
-                    spokenText = spoken,
-                    targetPhrase = target,
-                    conversationContext = contextPrompt,
-                    model = _activeAiModel.value
-                )
+                val aiResult = if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
+                    GeminiSpeechEvaluator.evaluateSpeechCustomEndpoint(
+                        endpointUrl = _customEndpointUrl.value,
+                        apiKey = effectiveKey,
+                        modelName = _customModelName.value,
+                        spokenText = spoken,
+                        targetPhrase = target,
+                        conversationContext = contextPrompt
+                    )
+                } else {
+                    GeminiSpeechEvaluator.evaluateSpeech(
+                        apiKey = effectiveKey,
+                        spokenText = spoken,
+                        targetPhrase = target,
+                        conversationContext = contextPrompt,
+                        model = _activeAiModel.value
+                    )
+                }
 
                 if (aiResult.isSuccess) {
                     val aiEval = aiResult.getOrThrow()
@@ -1583,7 +1669,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     val errMsg = aiResult.exceptionOrNull()?.message ?: "Network error"
                     baseEval.copy(
-                        feedback = "⚡ Cloud Gemini Notice ($errMsg). Showing on-device smart evaluation:\n${baseEval.feedback}"
+                        feedback = "💡 Cloud AI Notice ($errMsg)\n\nNova evaluated on-device:\n${baseEval.feedback}"
                     )
                 }
             } else {

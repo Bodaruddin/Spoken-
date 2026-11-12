@@ -58,6 +58,9 @@ class AppPreferences(context: Context) {
         private const val KEY_GEMINI_API_KEY = "key_gemini_api_key"
         private const val KEY_AI_VOICE_REPLY_ENABLED = "key_ai_voice_reply_enabled"
         private const val KEY_AI_MODEL_NAME = "key_ai_model_name"
+        private const val KEY_AI_PROVIDER_TYPE = "key_ai_provider_type"
+        private const val KEY_AI_CUSTOM_ENDPOINT = "key_ai_custom_endpoint"
+        private const val KEY_AI_CUSTOM_MODEL = "key_ai_custom_model"
     }
 
 
@@ -1484,9 +1487,9 @@ class AppPreferences(context: Context) {
     }
 
     fun getSelectedAiModel(): String {
-        val stored = prefs.getString(KEY_AI_MODEL_NAME, "gemini-3.5-flash-lite") ?: "gemini-3.5-flash-lite"
-        return if (stored == "gemini-2.0-flash" || stored == "gemini-2.5-flash" || stored == "gemini-1.5-flash") {
-            "gemini-3.5-flash-lite"
+        val stored = prefs.getString(KEY_AI_MODEL_NAME, "gemini-2.5-flash") ?: "gemini-2.5-flash"
+        return if (stored.startsWith("gemini-3.") || stored == "gemini-3.5-flash-lite") {
+            "gemini-2.5-flash"
         } else {
             stored
         }
@@ -1494,6 +1497,30 @@ class AppPreferences(context: Context) {
 
     fun setSelectedAiModel(model: String) {
         prefs.edit().putString(KEY_AI_MODEL_NAME, model.trim()).apply()
+    }
+
+    fun getAiProviderType(): String {
+        return prefs.getString(KEY_AI_PROVIDER_TYPE, "GEMINI") ?: "GEMINI"
+    }
+
+    fun setAiProviderType(type: String) {
+        prefs.edit().putString(KEY_AI_PROVIDER_TYPE, type).apply()
+    }
+
+    fun getCustomEndpointUrl(): String {
+        return prefs.getString(KEY_AI_CUSTOM_ENDPOINT, "") ?: ""
+    }
+
+    fun setCustomEndpointUrl(url: String) {
+        prefs.edit().putString(KEY_AI_CUSTOM_ENDPOINT, url.trim()).apply()
+    }
+
+    fun getCustomModelName(): String {
+        return prefs.getString(KEY_AI_CUSTOM_MODEL, "gpt-4o-mini") ?: "gpt-4o-mini"
+    }
+
+    fun setCustomModelName(model: String) {
+        prefs.edit().putString(KEY_AI_CUSTOM_MODEL, model.trim()).apply()
     }
 }
 
