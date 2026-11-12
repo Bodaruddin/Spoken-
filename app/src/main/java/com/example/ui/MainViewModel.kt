@@ -936,6 +936,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // 4. Initialize Gemini AI Key status
         _isGeminiConfigured.value = isGeminiApiKeyConfigured()
         _apiKeySource.value = getApiKeySourceDescription()
+
+        // 5. Initialize default conversation topic if available
+        val initialTopic = repository.speakingPrompts.value.firstOrNull()
+        if (initialTopic != null) {
+            _activeConversationTopic.value = initialTopic
+            _activeCoachQuestion.value = initialTopic.question
+        }
     }
 
 

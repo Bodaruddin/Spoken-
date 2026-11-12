@@ -125,6 +125,18 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     // Speaking Challenges & Conversation Topics
     private val defaultSpeakingPrompts = listOf(
         SpeakingPrompt(
+            id = "topic_time_words",
+            title = "Time Words (In, On, At)",
+            category = "Grammar & Speaking",
+            question = "When do you usually go to school?",
+            followUpTip = "Practice using time prepositions: 'at 8 o'clock', 'in the morning', or 'on weekdays'.",
+            recommendedKeywords = listOf("in the morning", "at 8:00 AM", "on weekdays", "usually", "schedule"),
+            minSpeakingSeconds = 20,
+            emoji = "🕒",
+            difficultyLevel = "Beginner",
+            createdBy = "Faculty"
+        ),
+        SpeakingPrompt(
             id = "topic_hobbies",
             title = "Hobbies & Passions",
             category = "Personal Life",
@@ -248,7 +260,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     private val _speakingPrompts = MutableStateFlow(
         run {
             val saved = appPreferences?.getSpeakingPrompts()
-            if (!saved.isNullOrEmpty()) saved else defaultSpeakingPrompts
+            if (!saved.isNullOrEmpty()) {
+                if (saved.none { it.id == "topic_time_words" }) {
+                    listOf(defaultSpeakingPrompts.first()) + saved
+                } else saved
+            } else defaultSpeakingPrompts
         }
     )
     val speakingPrompts: StateFlow<List<SpeakingPrompt>> = _speakingPrompts.asStateFlow()

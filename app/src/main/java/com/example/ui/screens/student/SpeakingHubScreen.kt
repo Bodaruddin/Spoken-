@@ -86,7 +86,17 @@ fun SpeakingHubScreen(
         }
     }
 
-    if (currentSubTab == SpeakingSubTab.TOPICS_ROADMAP) {
+    if (currentSubTab == SpeakingSubTab.AI_PARTNER) {
+        NovaAiChatScreen(
+            viewModel = viewModel,
+            speechState = speechState,
+            evaluation = lastEvaluation,
+            onBack = {
+                viewModel.selectSpeakingSubTab(SpeakingSubTab.TOPICS_ROADMAP)
+            },
+            modifier = modifier.fillMaxSize()
+        )
+    } else if (currentSubTab == SpeakingSubTab.TOPICS_ROADMAP) {
         ConversationTopicsRoadmapScreen(
             viewModel = viewModel,
             onTopicSelected = { topic ->
