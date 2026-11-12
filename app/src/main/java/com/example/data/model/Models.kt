@@ -128,7 +128,23 @@ data class SpeakingEvaluation(
     val aiModelUsed: String = "",
     val aiCoachResponse: String? = null,
     val cefrLevel: String = "",
-    val detectedWeakWords: List<String> = emptyList()
+    val detectedWeakWords: List<String> = emptyList(),
+    val followUpQuestion: String? = null,
+    val hint: String? = null,
+    val exampleAnswers: List<String> = emptyList()
+)
+
+data class NovaChatMessage(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val isNova: Boolean,
+    val text: String,
+    val audioPrompt: String = text,
+    val isQuestion: Boolean = false,
+    val questionNumber: Int = 1,
+    val evaluation: SpeakingEvaluation? = null,
+    val hint: String? = null,
+    val exampleAnswers: List<String> = emptyList(),
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 data class DialogueTurn(

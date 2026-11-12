@@ -126,111 +126,21 @@ fun NovaAiChatScreen(
             )
     }
 
-    val questionBank = remember(currentTopic) {
-        getQuestionsForTopic(currentTopic)
-    }
+    val chatMessages by viewModel.novaChatMessages.collectAsState()
+    val turnCount by viewModel.novaTurnCount.collectAsState()
+    val currentHint by viewModel.novaCurrentHint.collectAsState()
+    val currentExamples by viewModel.novaCurrentExamples.collectAsState()
 
-    val totalQuestions = 5
-    var questionIndex by remember(currentTopic.id) { mutableIntStateOf(0) }
-    val initialQuestion = remember(currentTopic) {
-        questionBank.firstOrNull()?.questionText ?: currentTopic.question.ifBlank { "When do you usually wake up on weekdays?" }
-    }
-    val currentQuestion = questionBank.getOrElse(questionIndex) { questionBank.first() }
-
-    // Chat history state starting with opening question - recomputed whenever teacher updates topic title or question
-    var chatMessages by remember(currentTopic.id, currentTopic.title, currentTopic.question) {
-        mutableStateOf(
-            listOf(
-                ChatMessage(
-                    id = "msg_q1_${currentTopic.id}_${currentTopic.title.hashCode()}_${currentTopic.question.hashCode()}",
-                    isNova = true,
-                    text = "Hi! I'm Nova 😊\nLet's practice “${currentTopic.title}”.\n\nQuestion 1:\n🕒 $initialQuestion",
-                    audioPrompt = "Hi! I'm Nova. Let's practice ${currentTopic.title}. Question 1: $initialQuestion",
-                    isQuestion = true,
-                    questionNumber = 1
-                )
-            )
-        )
-    }
-
-    // Greet and speak initial question on opening or when updated by teacher
-    LaunchedEffect(currentTopic.id, currentTopic.title, currentTopic.question) {
-        viewModel.setActiveCoachQuestion(initialQuestion)
-        delay(400)
-        viewModel.speakAudio("Hi! I'm Nova. Let's practice ${currentTopic.title}. Question 1: $initialQuestion")
-    }
-
-    // Listen to speech recognition results
-    LaunchedEffect(speechState) {
-        if (speechState is SpeechState.Success && speechState.spokenText.isNotBlank()) {
-            val spoken = speechState.spokenText.trim()
-            if (chatMessages.lastOrNull()?.text != spoken) {
-                val studentMsg = ChatMessage(
-                    id = "student_${System.currentTimeMillis()}",
-                    isNova = false,
-                    text = spoken,
-                    isQuestion = false
-                )
-                chatMessages = chatMessages + studentMsg
-            }
-        }
-    }
-
-    // Listen to AI evaluation updates and formulate the contextual next turn
-    var lastProcessedSpoken by remember { mutableStateOf("") }
-
-    LaunchedEffect(evaluation) {
-        if (evaluation != null && evaluation.spokenText.isNotBlank() && evaluation.spokenText != lastProcessedSpoken) {
-            lastProcessedSpoken = evaluation.spokenText
-
-            val coachReply = evaluation.aiCoachResponse?.ifBlank { null }
-                ?: if (evaluation.overallScore >= 75) {
-                    "Great job! That was spoken with natural clarity. What is another activity you do during that time?"
-                } else {
-                    "Good practice! Try speaking in a complete sentence. What time do you usually finish your routine?"
-                }
-
-            if (questionIndex < totalQuestions - 1) {
-                questionIndex++
-                val nextQNum = questionIndex + 1
-
-                val novaReply = ChatMessage(
-                    id = "nova_reply_${System.currentTimeMillis()}",
-                    isNova = true,
-                    text = coachReply,
-                    audioPrompt = coachReply,
-                    evaluation = evaluation,
-                    isQuestion = true,
-                    questionNumber = nextQNum
-                )
-                chatMessages = chatMessages + novaReply
-                viewModel.setActiveCoachQuestion(coachReply)
-            } else {
-                questionIndex = totalQuestions - 1
-                val novaReply = ChatMessage(
-                    id = "nova_reply_${System.currentTimeMillis()}",
-                    isNova = true,
-                    text = coachReply,
-                    audioPrompt = coachReply,
-                    evaluation = evaluation,
-                    isQuestion = false
-                )
-                val completeMsg = ChatMessage(
-                    id = "msg_complete_${System.currentTimeMillis()}",
-                    isNova = true,
-                    text = "🎉 Outstanding conversation! You completed all 5 practice turns for \"${currentTopic.title}\"!\n\nYou earned +50 XP and +20 Fluency Coins! 🏆",
-                    isQuestion = false
-                )
-                chatMessages = chatMessages + novaReply + completeMsg
-                Toast.makeText(context, "Lesson Completed! +50 XP & +20 Coins", Toast.LENGTH_SHORT).show()
-            }
-        }
+    // Load or restore persistent conversation session for this student and topic
+    LaunchedEffect(currentTopic.id) {
+        viewModel.loadNovaSession(currentTopic)
     }
 
     // Modals state
     var showHintDialog by remember { mutableStateOf(false) }
     var showExamplesDialog by remember { mutableStateOf(false) }
     var showTranslateDialog by remember { mutableStateOf(false) }
+    var showRestartConfirmDialog by remember { mutableStateOf(false) }
     var showTopicPickerDialog by remember { mutableStateOf(false) }
     var showTopicFilterSheet by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
@@ -373,6 +283,38 @@ fun NovaAiChatScreen(
                     )
                 }
 
+                // Restart Conversation Button
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFF1E1438),
+                    border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .height(34.dp)
+                        .clickable { showRestartConfirmDialog = true }
+                        .testTag("restart_conversation_btn")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = "Restart Conversation",
+                            tint = Color(0xFFC084FC),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "Restart",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE9D5FF)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(6.dp))
+
                 // Flame Streak Capsule (🔥 0)
                 Surface(
                     shape = RoundedCornerShape(20.dp),
@@ -398,8 +340,9 @@ fun NovaAiChatScreen(
 
             Spacer(Modifier.height(10.dp))
 
-            val currentQDisplay = (questionIndex + 1).coerceIn(1, totalQuestions)
-            val percentVal = (currentQDisplay * 100) / totalQuestions
+            val milestoneTurns = 5
+            val currentTurnDisplay = turnCount.coerceAtLeast(1)
+            val percentVal = ((currentTurnDisplay.coerceAtMost(milestoneTurns) * 100) / milestoneTurns)
 
             // =========================================================================
             // 2. COMPACT TOPIC & PROGRESS BANNER (Space-optimized for chat visibility)
@@ -444,7 +387,7 @@ fun NovaAiChatScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "Interactive Spoken Conversation",
+                                text = "Dynamic Multi-Turn Conversation",
                                 fontSize = 11.sp,
                                 color = Color(0xFFC4B5FD)
                             )
@@ -481,7 +424,7 @@ fun NovaAiChatScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "Question $currentQDisplay of $totalQuestions",
+                            text = if (currentTurnDisplay >= milestoneTurns) "Turn $currentTurnDisplay • Milestone 🏆" else "Turn $currentTurnDisplay • Live Dialogue",
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFFE2E8F0)
@@ -492,8 +435,8 @@ fun NovaAiChatScreen(
                             horizontalArrangement = Arrangement.spacedBy(3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            for (i in 0 until totalQuestions) {
-                                val isFilled = i < currentQDisplay
+                            for (i in 0 until milestoneTurns) {
+                                val isFilled = i < currentTurnDisplay
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
@@ -512,7 +455,7 @@ fun NovaAiChatScreen(
                             }
                         }
                         Text(
-                            text = "$percentVal%",
+                            text = if (currentTurnDisplay >= milestoneTurns) "Goal Met!" else "$percentVal%",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFA7F3D0)
@@ -706,9 +649,9 @@ fun NovaAiChatScreen(
                     modifier = Modifier.clickable {
                         // Quick simulation option for emulator users
                         if (!isListening && !isAiEvaluating) {
-                            val sample = currentQuestion.exampleAnswers.firstOrNull()
-                                ?: "I usually go to school at eight o'clock in the morning."
-                            viewModel.simulateVoiceInput(sample)
+                            val sample = currentExamples.firstOrNull()
+                                ?: "I usually start my day at seven thirty in the morning on weekdays."
+                            viewModel.evaluateInputSpeech(sample)
                         }
                     }
                 )
@@ -775,7 +718,7 @@ fun NovaAiChatScreen(
                                     if (bottomInputText.isNotBlank()) {
                                         val typed = bottomInputText.trim()
                                         bottomInputText = ""
-                                        viewModel.simulateVoiceInput(typed)
+                                        viewModel.evaluateInputSpeech(typed)
                                     }
                                 }
                             ),
@@ -788,7 +731,7 @@ fun NovaAiChatScreen(
                             onClick = {
                                 val typed = bottomInputText.trim()
                                 bottomInputText = ""
-                                viewModel.simulateVoiceInput(typed)
+                                viewModel.evaluateInputSpeech(typed)
                             },
                             modifier = Modifier.size(28.dp)
                         ) {
@@ -845,31 +788,7 @@ fun NovaAiChatScreen(
                     borderColor = Color(0xFF7C3AED),
                     modifier = Modifier.weight(1f),
                     onClick = {
-                        if (questionIndex < totalQuestions - 1) {
-                            questionIndex++
-                            val nextQ = questionBank.getOrElse(questionIndex) { questionBank.first() }
-                            val nextQMsg = ChatMessage(
-                                id = "msg_q_${questionIndex + 1}_${System.currentTimeMillis()}",
-                                isNova = true,
-                                text = "Question ${questionIndex + 1}:\n🕒 ${nextQ.questionText}",
-                                audioPrompt = "Question ${questionIndex + 1}: ${nextQ.questionText}",
-                                isQuestion = true,
-                                questionNumber = questionIndex + 1
-                            )
-                            chatMessages = chatMessages + nextQMsg
-                            viewModel.setActiveCoachQuestion(nextQ.questionText)
-                            viewModel.speakAudio(nextQ.questionText)
-                        } else {
-                            // Completed all 5 questions
-                            chatMessages = chatMessages + ChatMessage(
-                                id = "msg_complete_${System.currentTimeMillis()}",
-                                isNova = true,
-                                text = "🎉 Outstanding job! You completed all 5 questions for \"${currentTopic.title}\"!\n\nYou earned +50 XP and +20 Fluency Coins! 🏆",
-                                isQuestion = false
-                            )
-                            viewModel.speakAudio("Outstanding job! You completed all questions for ${currentTopic.title}.")
-                            Toast.makeText(context, "Lesson Completed! +50 XP", Toast.LENGTH_SHORT).show()
-                        }
+                        viewModel.advanceToNextNovaPrompt()
                     }
                 )
             }
@@ -909,7 +828,7 @@ fun NovaAiChatScreen(
                     }
 
                     Text(
-                        text = currentQuestion.hintText,
+                        text = currentHint.ifBlank { currentTopic.followUpTip.ifBlank { "Express your thoughts clearly using complete sentences and natural pronunciation." } },
                         fontSize = 14.sp,
                         color = Color(0xFFDDD6FE),
                         lineHeight = 20.sp
@@ -983,7 +902,14 @@ fun NovaAiChatScreen(
                         color = Color(0xFFCBD5E1)
                     )
 
-                    currentQuestion.exampleAnswers.forEachIndexed { idx, ex ->
+                    val modelExamples = currentExamples.ifEmpty {
+                        listOf(
+                            "Speaking about ${currentTopic.title}, I usually start my schedule in the morning.",
+                            "In my personal experience, practice helps build natural speaking confidence."
+                        )
+                    }
+
+                    modelExamples.forEachIndexed { idx, ex ->
                         Surface(
                             shape = RoundedCornerShape(14.dp),
                             color = Color(0xFF24184E),
@@ -1040,6 +966,12 @@ fun NovaAiChatScreen(
     // 3. Translate Dialog
     if (showTranslateDialog) {
         Dialog(onDismissRequest = { showTranslateDialog = false }) {
+            val activeCoachQuestion by viewModel.activeCoachQuestion.collectAsState()
+            val questionToTranslate = activeCoachQuestion.ifBlank { currentTopic.question }
+            val translationResult = remember(questionToTranslate) {
+                com.example.util.AssameseTranslator.translate(questionToTranslate)
+            }
+
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = Color(0xFF1B133B),
@@ -1071,8 +1003,8 @@ fun NovaAiChatScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text("English Question:", fontSize = 11.sp, color = Color(0xFFC4B5FD))
-                            Text(currentQuestion.questionText, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("English Question / Prompt:", fontSize = 11.sp, color = Color(0xFFC4B5FD))
+                            Text(questionToTranslate, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
 
@@ -1083,7 +1015,11 @@ fun NovaAiChatScreen(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text("অসমীয়া (Assamese):", fontSize = 11.sp, color = Color(0xFF67E8F9))
-                            Text(currentQuestion.assameseTranslation, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                            Text(translationResult.assameseText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                            if (translationResult.transliteration.isNotBlank()) {
+                                Spacer(Modifier.height(4.dp))
+                                Text("উচ্চাৰণ: ${translationResult.transliteration}", fontSize = 12.sp, color = Color(0xFFA7F3D0))
+                            }
                         }
                     }
 
@@ -1093,8 +1029,8 @@ fun NovaAiChatScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text("বাংলা / हिन्दी (Bengali / Hindi):", fontSize = 11.sp, color = Color(0xFFF472B6))
-                            Text(currentQuestion.bengaliHindiTranslation, fontSize = 13.5.sp, color = Color.White)
+                            Text("বাংলা / हिन्दी (Bengali / Hindi Guidance):", fontSize = 11.sp, color = Color(0xFFF472B6))
+                            Text("এই প্রশ্নের উত্তরে আপনার দৈনন্দিন অভিজ্ঞতা বা মতামত স্পষ্ট বাক্যে বলুন। / इस प्रश्न के उत्तर में अपनी आदत या अनुभव पूरे वाक्य में बोलें।", fontSize = 13.sp, color = Color.White)
                         }
                     }
 
@@ -1109,6 +1045,42 @@ fun NovaAiChatScreen(
                 }
             }
         }
+    }
+
+    // 3.5 Restart Conversation Confirmation Dialog
+    if (showRestartConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showRestartConfirmDialog = false },
+            title = {
+                Text("Restart Conversation?", color = Color.White, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    "This will clear the current dialogue history for “${currentTopic.title}” and start fresh with Nova. Your profile XP and coins remain saved.",
+                    color = Color(0xFFDDD6FE),
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRestartConfirmDialog = false
+                        viewModel.restartNovaSession(currentTopic)
+                        Toast.makeText(context, "Conversation restarted with Nova", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6))
+                ) {
+                    Text("Restart", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestartConfirmDialog = false }) {
+                    Text("Cancel", color = Color(0xFFC4B5FD))
+                }
+            },
+            containerColor = Color(0xFF1B133B),
+            shape = RoundedCornerShape(20.dp)
+        )
     }
 
     // 4. Topic Picker / Filter Modal
@@ -1522,15 +1494,7 @@ fun ActionPillButton(
 // DATA MODELS & QUESTION REPOSITORY
 // =========================================================================
 
-data class ChatMessage(
-    val id: String,
-    val isNova: Boolean,
-    val text: String,
-    val audioPrompt: String? = null,
-    val isQuestion: Boolean = false,
-    val questionNumber: Int = 1,
-    val evaluation: SpeakingEvaluation? = null
-)
+typealias ChatMessage = com.example.data.model.NovaChatMessage
 
 data class TopicLessonQuestion(
     val questionNumber: Int,

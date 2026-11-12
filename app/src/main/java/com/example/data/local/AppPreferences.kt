@@ -1528,5 +1528,119 @@ class AppPreferences(context: Context) {
     fun setCustomModelName(model: String) {
         prefs.edit().putString(KEY_AI_CUSTOM_MODEL, model.trim()).apply()
     }
+
+    // =========================================================================
+    // NOVA AI CHAT MULTI-TURN SESSION PERSISTENCE (Per Student & Topic)
+    // =========================================================================
+
+    fun saveNovaSession(studentId: String, topicId: String, messages: List<NovaChatMessage>) {
+        try {
+            val key = "nova_session_${studentId.trim()}_${topicId.trim()}"
+            val arr = JSONArray()
+            messages.forEach { msg ->
+                val obj = JSONObject().apply {
+                    put("id", msg.id)
+                    put("isNova", msg.isNova)
+                    put("text", msg.text)
+                    put("audioPrompt", msg.audioPrompt)
+                    put("isQuestion", msg.isQuestion)
+                    put("questionNumber", msg.questionNumber)
+                    put("hint", msg.hint ?: "")
+                    put("timestamp", msg.timestamp)
+                    val examplesArr = JSONArray()
+                    msg.exampleAnswers.forEach { examplesArr.put(it) }
+                    put("exampleAnswers", examplesArr)
+                    if (msg.evaluation != null) {
+                        val evalObj = JSONObject().apply {
+                            put("spokenText", msg.evaluation.spokenText)
+                            put("overallScore", msg.evaluation.overallScore)
+                            put("pronunciationScore", msg.evaluation.pronunciationScore)
+                            put("fluencyScore", msg.evaluation.fluencyScore)
+                            put("grammarScore", msg.evaluation.grammarScore)
+                            put("vocabularyScore", msg.evaluation.vocabularyScore)
+                            put("feedback", msg.evaluation.feedback)
+                            put("suggestedImprovement", msg.evaluation.suggestedImprovement)
+                            put("isAiEvaluated", msg.evaluation.isAiEvaluated)
+                            put("aiModelUsed", msg.evaluation.aiModelUsed)
+                            put("aiCoachResponse", msg.evaluation.aiCoachResponse ?: "")
+                            put("cefrLevel", msg.evaluation.cefrLevel)
+                            put("followUpQuestion", msg.evaluation.followUpQuestion ?: "")
+                        }
+                        put("evaluation", evalObj)
+                    }
+                }
+                arr.put(obj)
+            }
+            prefs.edit().putString(key, arr.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getNovaSession(studentId: String, topicId: String): List<NovaChatMessage>? {
+        return try {
+            val key = "nova_session_${studentId.trim()}_${topicId.trim()}"
+            val raw = prefs.getString(key, null) ?: return null
+            val arr = JSONArray(raw)
+            val list = mutableListOf<NovaChatMessage>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val id = obj.optString("id", java.util.UUID.randomUUID().toString())
+                val isNova = obj.optBoolean("isNova", true)
+                val text = obj.optString("text", "")
+                val audioPrompt = obj.optString("audioPrompt", text)
+                val isQuestion = obj.optBoolean("isQuestion", false)
+                val questionNumber = obj.optInt("questionNumber", 1)
+                val hint = obj.optString("hint", "").ifBlank { null }
+                val timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                val examples = mutableListOf<String>()
+                val examplesArr = obj.optJSONArray("exampleAnswers")
+                if (examplesArr != null) {
+                    for (j in 0 until examplesArr.length()) {
+                        examples.add(examplesArr.optString(j))
+                    }
+                }
+                val evalObj = obj.optJSONObject("evaluation")
+                val evaluation = if (evalObj != null) {
+                    SpeakingEvaluation(
+                        spokenText = evalObj.optString("spokenText", text),
+                        overallScore = evalObj.optInt("overallScore", 80),
+                        pronunciationScore = evalObj.optInt("pronunciationScore", 80),
+                        fluencyScore = evalObj.optInt("fluencyScore", 80),
+                        grammarScore = evalObj.optInt("grammarScore", 80),
+                        vocabularyScore = evalObj.optInt("vocabularyScore", 80),
+                        feedback = evalObj.optString("feedback", ""),
+                        suggestedImprovement = evalObj.optString("suggestedImprovement", ""),
+                        isAiEvaluated = evalObj.optBoolean("isAiEvaluated", true),
+                        aiModelUsed = evalObj.optString("aiModelUsed", ""),
+                        aiCoachResponse = evalObj.optString("aiCoachResponse", ""),
+                        cefrLevel = evalObj.optString("cefrLevel", "B1"),
+                        followUpQuestion = evalObj.optString("followUpQuestion", "").ifBlank { null }
+                    )
+                } else null
+
+                list.add(
+                    NovaChatMessage(
+                        id = id,
+                        isNova = isNova,
+                        text = text,
+                        audioPrompt = audioPrompt,
+                        isQuestion = isQuestion,
+                        questionNumber = questionNumber,
+                        evaluation = evaluation,
+                        hint = hint,
+                        exampleAnswers = examples,
+                        timestamp = timestamp
+                    )
+                )
+            }
+            if (list.isNotEmpty()) list else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun clearNovaSession(studentId: String, topicId: String) {
+        val key = "nova_session_${studentId.trim()}_${topicId.trim()}"
+        prefs.edit().remove(key).apply()
+    }
 }
 
