@@ -14,18 +14,18 @@ import java.util.concurrent.TimeUnit
 object GeminiSpeechEvaluator {
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(6, TimeUnit.SECONDS)
+        .writeTimeout(4, TimeUnit.SECONDS)
         .build()
 
-    const val DEFAULT_MODEL = "gemini-3.8-flash"
+    const val DEFAULT_MODEL = "gemini-2.5-flash"
 
     val AVAILABLE_MODELS = listOf(
-        "gemini-3.8-flash" to "Gemini 3.8 Flash (Latest Flagship - Recommended)",
-        "gemini-3.5-flash" to "Gemini 3.5 Flash (High Intelligence)",
-        "gemini-3.5-flash-lite" to "Gemini 3.5 Flash Lite (Ultra Fast & Lightweight)",
-        "gemini-3.1-flash-lite" to "Gemini 3.1 Flash Lite (Fast Fallback)"
+        "gemini-2.5-flash" to "Gemini 2.5 Flash (Ultra Fast & Intelligent - Recommended)",
+        "gemini-2.0-flash" to "Gemini 2.0 Flash (Real-time Low Latency)",
+        "gemini-2.0-flash-lite" to "Gemini 2.0 Flash Lite (Fastest)",
+        "gemini-1.5-flash" to "Gemini 1.5 Flash (Standard Fallback)"
     )
 
     data class ApiKeyTestResult(
@@ -58,17 +58,11 @@ object GeminiSpeechEvaluator {
 
         // Models to try in order of preference
         val modelsToTry = mutableListOf<String>()
-        val cleanPreferred = preferredModel.trim().let {
-            if (it.startsWith("gemini-1.") || it.startsWith("gemini-2.") || it.isEmpty()) {
-                DEFAULT_MODEL
-            } else {
-                it
-            }
-        }
+        val cleanPreferred = preferredModel.trim().ifEmpty { DEFAULT_MODEL }
         if (cleanPreferred.isNotEmpty()) {
             modelsToTry.add(cleanPreferred)
         }
-        val fallbackCandidates = listOf("gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite")
+        val fallbackCandidates = listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.0-flash-lite")
         for (candidate in fallbackCandidates) {
             if (!modelsToTry.contains(candidate)) {
                 modelsToTry.add(candidate)
@@ -234,13 +228,11 @@ object GeminiSpeechEvaluator {
             return@withContext Result.failure(IllegalArgumentException("No speech input was detected."))
         }
 
-        // Try primary model, then fall back to gemini-3.8-flash / gemini-3.5-flash / gemini-3.5-flash-lite
+        // Try primary model, then fall back to fast real-time Gemini models
         val modelsToTry = mutableListOf<String>()
-        val cleanModel = model.trim().let {
-            if (it.startsWith("gemini-1.") || it.startsWith("gemini-2.") || it.isEmpty()) DEFAULT_MODEL else it
-        }
+        val cleanModel = model.trim().ifEmpty { DEFAULT_MODEL }
         modelsToTry.add(cleanModel)
-        listOf("gemini-3.8-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite").forEach { fallback ->
+        listOf("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash").forEach { fallback ->
             if (!modelsToTry.contains(fallback)) modelsToTry.add(fallback)
         }
 
@@ -400,7 +392,8 @@ object GeminiSpeechEvaluator {
                 }
                 put("contents", contents)
                 put("generationConfig", JSONObject().apply {
-                    put("temperature", 0.3)
+                    put("temperature", 0.2)
+                    put("maxOutputTokens", 300)
                     put("responseMimeType", "application/json")
                 })
             }

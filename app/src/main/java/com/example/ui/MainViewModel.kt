@@ -1682,24 +1682,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } else null
 
-                val aiResult = if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
-                    GeminiSpeechEvaluator.evaluateSpeechCustomEndpoint(
-                        endpointUrl = _customEndpointUrl.value,
-                        apiKey = effectiveKey,
-                        modelName = _customModelName.value,
-                        spokenText = spoken,
-                        targetPhrase = target,
-                        conversationContext = contextPrompt
-                    )
-                } else {
-                    GeminiSpeechEvaluator.evaluateSpeech(
-                        apiKey = effectiveKey,
-                        spokenText = spoken,
-                        targetPhrase = target,
-                        conversationContext = contextPrompt,
-                        model = _activeAiModel.value
-                    )
-                }
+                val aiResult = kotlinx.coroutines.withTimeoutOrNull(4500L) {
+                    if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
+                        GeminiSpeechEvaluator.evaluateSpeechCustomEndpoint(
+                            endpointUrl = _customEndpointUrl.value,
+                            apiKey = effectiveKey,
+                            modelName = _customModelName.value,
+                            spokenText = spoken,
+                            targetPhrase = target,
+                            conversationContext = contextPrompt
+                        )
+                    } else {
+                        GeminiSpeechEvaluator.evaluateSpeech(
+                            apiKey = effectiveKey,
+                            spokenText = spoken,
+                            targetPhrase = target,
+                            conversationContext = contextPrompt,
+                            model = _activeAiModel.value
+                        )
+                    }
+                } ?: Result.failure(Exception("Evaluation timed out, using fast local engine"))
 
                 if (aiResult.isSuccess) {
                     val aiEval = aiResult.getOrThrow()

@@ -164,15 +164,15 @@ fun NovaAiChatScreen(
         }
     }
 
-    // Listen to AI evaluation updates
+    // Listen to AI evaluation updates and automatically ask the next question
     LaunchedEffect(evaluation) {
         if (evaluation != null && evaluation.spokenText.isNotBlank()) {
             // Append Nova's coaching response
             val coachReply = evaluation.aiCoachResponse?.ifBlank { null }
                 ?: if (evaluation.overallScore >= 75) {
-                    "Brilliant! 🌟 You spoke with clear pronunciation and natural rhythm. Ready for the next challenge?"
+                    "Brilliant! 🌟 You spoke with clear pronunciation and natural rhythm."
                 } else {
-                    "Good effort! 👏 Keep focusing on your time prepositions. Let's try another one!"
+                    "Good effort! 👏 Keep focusing on your time prepositions. You're doing great!"
                 }
 
             val novaReply = ChatMessage(
@@ -184,6 +184,36 @@ fun NovaAiChatScreen(
                 isQuestion = false
             )
             chatMessages = chatMessages + novaReply
+
+            // Automatically advance and ask the next question after a natural pause
+            delay(1700L)
+            if (questionIndex < questionBank.size - 1) {
+                questionIndex++
+                val nextQ = questionBank[questionIndex]
+                val nextQMsg = ChatMessage(
+                    id = "msg_q_${questionIndex + 1}_${System.currentTimeMillis()}",
+                    isNova = true,
+                    text = "Question ${questionIndex + 1}:\n🕒 ${nextQ.questionText}",
+                    audioPrompt = nextQ.questionText,
+                    isQuestion = true,
+                    questionNumber = questionIndex + 1
+                )
+                chatMessages = chatMessages + nextQMsg
+                viewModel.setActiveCoachQuestion(nextQ.questionText)
+                viewModel.speakAudio(nextQ.questionText)
+            } else {
+                // Completed all 5 questions!
+                delay(300L)
+                val completeMsg = ChatMessage(
+                    id = "msg_complete_${System.currentTimeMillis()}",
+                    isNova = true,
+                    text = "🎉 Outstanding job! You completed all 5 questions for \"${currentTopic.title}\"!\n\nYou earned +50 XP and +20 Fluency Coins! 🏆",
+                    isQuestion = false
+                )
+                chatMessages = chatMessages + completeMsg
+                viewModel.speakAudio("Outstanding job! You completed all questions for ${currentTopic.title}.")
+                Toast.makeText(context, "Lesson Completed! +50 XP & +20 Coins", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -976,6 +1006,8 @@ fun NovaAiChatScreen(
                                 isQuestion = true,
                                 questionNumber = questionIndex + 1
                             )
+                            viewModel.setActiveCoachQuestion(nextQ.questionText)
+                            viewModel.speakAudio(nextQ.questionText)
                         } else {
                             // Completed all 5 questions
                             chatMessages = chatMessages + ChatMessage(
@@ -984,6 +1016,7 @@ fun NovaAiChatScreen(
                                 text = "🎉 Outstanding job! You completed all 5 questions for \"${currentTopic.title}\"!\n\nYou earned +50 XP and +20 Fluency Coins! 🏆",
                                 isQuestion = false
                             )
+                            viewModel.speakAudio("Outstanding job! You completed all questions for ${currentTopic.title}.")
                             Toast.makeText(context, "Lesson Completed! +50 XP", Toast.LENGTH_SHORT).show()
                         }
                     }

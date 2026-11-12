@@ -101,6 +101,12 @@ object EvaluationEngine {
             else -> "Add descriptive adjectives to expand your speaking richness."
         }
 
+        val coachResponse = when {
+            overallScore >= 85 -> "Awesome job! You spoke with wonderful fluency and natural rhythm."
+            overallScore >= 70 -> "Well done! Your answer was clear and understandable. Let's keep practicing!"
+            else -> "Good try! Practice speaking each word with the audio guide. You're improving!"
+        }
+
         return SpeakingEvaluation(
             spokenText = cleanSpoken,
             expectedText = targetPhrase,
@@ -111,6 +117,7 @@ object EvaluationEngine {
             vocabularyScore = vocabularyScore,
             feedback = feedbackBuilder.toString(),
             suggestedImprovement = suggestedImprovement,
+            aiCoachResponse = coachResponse,
             phonemeAccuracy = phonemeMatches
         )
     }
