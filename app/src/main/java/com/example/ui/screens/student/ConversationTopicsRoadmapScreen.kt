@@ -223,6 +223,7 @@ fun ConversationTopicsRoadmapScreen(
                 RoadmapModePill(
                     title = "Nova AI Chat",
                     emoji = "🤖",
+                    iconRes = R.drawable.img_nova_ai_robot,
                     isSelected = false,
                     onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER) }
                 )
@@ -273,12 +274,12 @@ fun ConversationTopicsRoadmapScreen(
             }
         }
 
-        // 4. Floating Coach Avatar at Bottom Right matching screenshot
+        // 4. Floating Nova AI Coach Icon at Bottom Right
         FloatingCoachAvatar(
             onClick = onOpenCoachDirectly,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 20.dp)
+                .padding(end = 18.dp, bottom = 14.dp)
         )
     }
 }
@@ -432,8 +433,8 @@ fun RoadmapTopicNodeItem(
 }
 
 /**
- * Floating Coach Avatar at Bottom Right:
- * Matches the student/teacher avatar with purple glowing ring in the user's screenshot.
+ * Floating Nova AI Coach Avatar at Bottom Right:
+ * Displays the Nova AI robot mascot icon with neon cyan/purple glow.
  */
 @Composable
 fun FloatingCoachAvatar(
@@ -442,7 +443,7 @@ fun FloatingCoachAvatar(
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "coach_glow")
     val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.7f,
+        initialValue = 0.65f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(1200, easing = FastOutSlowInEasing),
@@ -451,42 +452,52 @@ fun FloatingCoachAvatar(
         label = "glowAlpha"
     )
 
-    Surface(
-        shape = CircleShape,
-        color = Color(0xFF1E1B4B),
-        border = BorderStroke(2.5.dp, Color(0xFFC084FC).copy(alpha = glowAlpha)),
-        shadowElevation = 10.dp,
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
-            .size(66.dp)
             .clickable { onClick() }
             .testTag("floating_coach_avatar")
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color(0xFF141136),
+            border = BorderStroke(
+                width = 2.dp,
+                brush = Brush.linearGradient(
+                    listOf(
+                        Color(0xFF38BDF8).copy(alpha = glowAlpha),
+                        Color(0xFFA855F7).copy(alpha = glowAlpha)
+                    )
+                )
+            ),
+            shadowElevation = 12.dp,
+            modifier = Modifier.size(68.dp)
+        ) {
             Image(
-                painter = painterResource(id = R.drawable.img_academic_laptop_books),
-                contentDescription = "Nova Coach",
+                painter = painterResource(id = R.drawable.img_nova_ai_robot),
+                contentDescription = "Nova AI Coach",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(CircleShape)
+                    .clip(RoundedCornerShape(18.dp))
             )
+        }
 
-            // Small "Nova" badge overlay at bottom
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = Color(0xFF7C3AED),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .offset(y = (-2).dp)
-            ) {
-                Text(
-                    text = "Nova",
-                    color = Color.White,
-                    fontSize = 8.5.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                )
-            }
+        Spacer(Modifier.height(4.dp))
+
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFF6D28D9),
+            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.85f)),
+            shadowElevation = 4.dp
+        ) {
+            Text(
+                text = "Nova AI",
+                color = Color.White,
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+            )
         }
     }
 }
@@ -496,6 +507,7 @@ private fun RoadmapModePill(
     title: String,
     emoji: String,
     isSelected: Boolean,
+    iconRes: Int? = null,
     onClick: () -> Unit
 ) {
     Surface(
@@ -512,7 +524,18 @@ private fun RoadmapModePill(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(text = emoji, fontSize = 13.sp)
+            if (iconRes != null) {
+                Image(
+                    painter = painterResource(id = iconRes),
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                )
+            } else {
+                Text(text = emoji, fontSize = 13.sp)
+            }
             Text(
                 text = title,
                 fontSize = 12.sp,
