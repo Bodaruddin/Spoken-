@@ -379,40 +379,108 @@ fun StudentProfileScreen(
 
                 // Dynamic Practice Metrics Row
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Max),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = Color(0xFF0F172A),
                         border = BorderStroke(1.dp, Color(0xFF334155)),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     ) {
-                        Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("⏱️ Practice Time", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Medium)
-                            Text("${profile.speakingPracticeMinutes} mins", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 6.dp, vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                "⏱️ Practice Time",
+                                fontSize = 10.sp,
+                                color = Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "${profile.speakingPracticeMinutes} mins",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF38BDF8),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = Color(0xFF0F172A),
                         border = BorderStroke(1.dp, Color(0xFF334155)),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     ) {
-                        Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("🗺️ Lessons Cleared", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Medium)
-                            Text("${profile.completedStagesCount} stages", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = EmeraldSuccess)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 6.dp, vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                "🗺️ Lessons Cleared",
+                                fontSize = 10.sp,
+                                color = Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "${profile.completedStagesCount} stages",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = EmeraldSuccess,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = Color(0xFF0F172A),
                         border = BorderStroke(1.dp, Color(0xFF334155)),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     ) {
-                        Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("🏆 Overall Level", fontSize = 10.sp, color = Color(0xFF94A3B8), fontWeight = FontWeight.Medium)
-                            Text("Level ${profile.activityLevel} • ${profile.overallScore}%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AmberGold)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 6.dp, vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                "🏆 Overall Level",
+                                fontSize = 10.sp,
+                                color = Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "Level ${profile.activityLevel} • ${profile.overallScore}%",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AmberGold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
