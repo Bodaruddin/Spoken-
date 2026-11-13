@@ -2616,6 +2616,41 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         return item
     }
 
+    fun bulkImportSentenceBuilders(
+        rows: List<Triple<String, String, String>>,
+        createdBy: String
+    ): Int {
+        if (rows.isEmpty()) return 0
+        val timestamp = System.currentTimeMillis()
+        var count = 0
+        val newChallenges = mutableListOf<SentenceBuilderChallenge>()
+
+        rows.forEachIndexed { index, (sentence, hint, assamese) ->
+            val cleaned = sentence.trim()
+            if (cleaned.isNotBlank()) {
+                val finalHint = hint.trim().ifBlank { "Assemble syntax" }
+                val finalAssamese = assamese.trim()
+                val id = "sb_${timestamp}_$index"
+                newChallenges.add(
+                    SentenceBuilderChallenge(
+                        id = id,
+                        targetSentence = cleaned,
+                        hint = finalHint,
+                        assameseTranslation = finalAssamese,
+                        createdBy = createdBy
+                    )
+                )
+                count++
+            }
+        }
+
+        if (newChallenges.isNotEmpty()) {
+            _sentenceBuilderChallenges.update { it + newChallenges }
+            appPreferences?.saveSentenceBuilderChallenges(_sentenceBuilderChallenges.value)
+        }
+        return count
+    }
+
     fun deleteSentenceBuilderChallenge(id: String) {
         _sentenceBuilderChallenges.update { it.filterNot { item -> item.id == id } }
         appPreferences?.saveSentenceBuilderChallenges(_sentenceBuilderChallenges.value)

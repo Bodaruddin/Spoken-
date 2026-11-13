@@ -362,5 +362,92 @@ class ExampleUnitTest {
         assertFalse(com.example.util.ExampleAnswerGenerator.isGreetingExampleSet(dynamicBookExamples))
         assertTrue(dynamicBookExamples.any { it.contains("book", ignoreCase = true) })
     }
+
+    @Test
+    fun testSentenceBuilderBulkExcelAndCsvImport() {
+        // 1. Sample template & quoted CSV parsing
+        val sampleCsv = com.example.util.ExcelWordSheetParser.getSampleSentenceBuilderCsv()
+        val parsedSample = com.example.util.ExcelWordSheetParser.parseSentenceBuildersFromText(sampleCsv)
+        assertEquals(10, parsedSample.size)
+        assertEquals("She speaks English fluently every day.", parsedSample.first().targetSentence)
+        assertEquals("Present Simple • Daily Habit", parsedSample.first().hint)
+        assertTrue(parsedSample.first().assameseTranslation.isNotBlank())
+
+        // 2. Quoted comma sentence + missing hint falls back to defaultHint
+        val customCsv = """
+            Target Sentence,Grammar Hint,Assamese Translation
+            "Yes, I practice speaking every morning.",Daily Routine,হয় মই প্ৰতিদিনে ৰাতিপুৱা কথা কোৱা অভ্যাস কৰোঁ।
+            "Honestly, fluency takes patience.",,
+        """.trimIndent()
+        val parsedCustom = com.example.util.ExcelWordSheetParser.parseSentenceBuildersFromText(
+            rawText = customCsv,
+            defaultHint = "Spoken Practice"
+        )
+        assertEquals(2, parsedCustom.size)
+        assertEquals("Yes, I practice speaking every morning.", parsedCustom[0].targetSentence)
+        assertEquals("Daily Routine", parsedCustom[0].hint)
+        assertEquals("Honestly, fluency takes patience.", parsedCustom[1].targetSentence)
+        assertEquals("Spoken Practice", parsedCustom[1].hint)
+        assertEquals("", parsedCustom[1].assameseTranslation)
+
+        // 3. Real .xlsx ZIP stream with sparse columns (row 2 omits column B hint -> keeps column C Assamese aligned!)
+        val baos = java.io.ByteArrayOutputStream()
+        java.util.zip.ZipOutputStream(baos).use { zip ->
+            zip.putNextEntry(java.util.zip.ZipEntry("xl/sharedStrings.xml"))
+            val sharedXml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="5" uniqueCount="5">
+                  <si><t>Target Sentence</t></si>
+                  <si><t>Grammar Hint</t></si>
+                  <si><t>Assamese Translation</t></si>
+                  <si><t>They arrived early today.</t></si>
+                  <si><t>তেওঁলোক আজি সোনকালে আহি পালে।</t></si>
+                </sst>
+            """.trimIndent()
+            zip.write(sharedXml.toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
+
+            zip.putNextEntry(java.util.zip.ZipEntry("xl/worksheets/sheet1.xml"))
+            val sheetXml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+                  <sheetData>
+                    <row r="1">
+                      <c r="A1" t="s"><v>0</v></c>
+                      <c r="B1" t="s"><v>1</v></c>
+                      <c r="C1" t="s"><v>2</v></c>
+                    </row>
+                    <row r="2">
+                      <c r="A2" t="s"><v>3</v></c>
+                      <c r="C2" t="s"><v>4</v></c>
+                    </row>
+                  </sheetData>
+                </worksheet>
+            """.trimIndent()
+            zip.write(sheetXml.toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
+        }
+
+        val xlsxRows = com.example.util.ExcelWordSheetParser.parseSentenceBuildersFromXlsxStream(
+            inputStream = baos.toByteArray().inputStream(),
+            defaultHint = "Past Simple"
+        )
+        assertEquals(1, xlsxRows.size)
+        assertEquals("They arrived early today.", xlsxRows[0].targetSentence)
+        assertEquals("Past Simple", xlsxRows[0].hint)
+        assertEquals("তেওঁলোক আজি সোনকালে আহি পালে।", xlsxRows[0].assameseTranslation)
+
+        // 4. Repository bulk import persists all rows
+        val repository = LinguaQuestRepository(null)
+        val initialCount = repository.sentenceBuilderChallenges.value.size
+        val imported = repository.bulkImportSentenceBuilders(
+            rows = xlsxRows.map { Triple(it.targetSentence, it.hint, it.assameseTranslation) } +
+                parsedCustom.map { Triple(it.targetSentence, it.hint, it.assameseTranslation) },
+            createdBy = "Prof. Eleanor Vance"
+        )
+        assertEquals(3, imported)
+        assertEquals(initialCount + 3, repository.sentenceBuilderChallenges.value.size)
+        assertTrue(repository.sentenceBuilderChallenges.value.any { it.targetSentence == "They arrived early today." && it.createdBy == "Prof. Eleanor Vance" })
+    }
 }
 

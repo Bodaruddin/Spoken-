@@ -29,6 +29,7 @@ import com.example.util.CertificatePdfGenerator
 import com.example.ui.components.SpeaklyCertificatePreviewDialog
 import com.example.util.ExcelWordSheetParser
 import com.example.util.ParsedMissingLetterRow
+import com.example.util.ParsedSentenceBuilderRow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -1406,6 +1407,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     var selectedCategory by remember { mutableStateOf(GameCategoryFilter.WORD_MATCH) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var showBulkImportMissingLettersDialog by remember { mutableStateOf(false) }
+    var showBulkImportSentenceBuilderDialog by remember { mutableStateOf(false) }
     var showManageCategoriesDialog by remember { mutableStateOf(false) }
     var activeEditingChallenge by remember { mutableStateOf<ActiveEditingChallenge?>(null) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
@@ -2013,6 +2015,88 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             }
         }
 
+        if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A).copy(alpha = 0.95f)),
+                    border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.55f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("sentence_builder_management_toolbar")
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(EmeraldSuccess.copy(alpha = 0.18f))
+                                    .border(1.dp, EmeraldSuccess.copy(alpha = 0.55f), RoundedCornerShape(12.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("📊", fontSize = 18.sp)
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = "Bulk Sentence Excel Import",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Upload .xlsx / .csv or paste spreadsheet rows",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF94A3B8),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = { showBulkImportSentenceBuilderDialog = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier
+                                .height(40.dp)
+                                .testTag("sentence_builder_bulk_import_btn")
+                        ) {
+                            Icon(
+                                Icons.Rounded.UploadFile,
+                                contentDescription = "Import Excel Sheet",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                text = "Import Sheet",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = Color.White,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         statusMsg?.let { msg ->
             item {
                 Surface(
@@ -2362,7 +2446,11 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             viewModel = viewModel,
             onOpenBulkImport = {
                 showCreateDialog = false
-                showBulkImportMissingLettersDialog = true
+                if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER) {
+                    showBulkImportSentenceBuilderDialog = true
+                } else {
+                    showBulkImportMissingLettersDialog = true
+                }
             }
         )
     }
@@ -2373,6 +2461,17 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             onImported = { count ->
                 statusMsg = "Successfully imported $count challenges from spreadsheet!"
                 showBulkImportMissingLettersDialog = false
+            },
+            viewModel = viewModel
+        )
+    }
+
+    if (showBulkImportSentenceBuilderDialog) {
+        BulkImportSentenceBuilderDialog(
+            onDismiss = { showBulkImportSentenceBuilderDialog = false },
+            onImported = { count ->
+                statusMsg = "Successfully imported $count sentences from Excel sheet & synced to Student Panel!"
+                showBulkImportSentenceBuilderDialog = false
             },
             viewModel = viewModel
         )
@@ -5382,6 +5481,405 @@ fun BulkImportMissingLettersDialog(
 }
 
 // -------------------------------------------------------------
+// BULK IMPORT SENTENCE BUILDER EXCEL DIALOG
+// -------------------------------------------------------------
+@Composable
+fun BulkImportSentenceBuilderDialog(
+    onDismiss: () -> Unit,
+    onImported: (count: Int) -> Unit,
+    viewModel: MainViewModel
+) {
+    val context = LocalContext.current
+    val currentUser by viewModel.currentUser.collectAsState()
+
+    val hintPresets = listOf("Assemble syntax", "Daily Speaking", "Present Simple", "Past Simple", "Question Form")
+    var selectedTab by remember { mutableIntStateOf(0) } // 0 = File Upload (.xlsx/.csv), 1 = Paste / Template
+    var defaultHint by remember { mutableStateOf("Assemble syntax") }
+    var selectedFileName by remember { mutableStateOf<String?>(null) }
+    var rawInputText by remember { mutableStateOf("") }
+    var parsedRows by remember { mutableStateOf<List<ParsedSentenceBuilderRow>>(emptyList()) }
+    var isProcessing by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var successMessage by remember { mutableStateOf<String?>(null) }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isProcessing = true
+            errorMessage = null
+            successMessage = null
+            try {
+                var fileName: String? = null
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex != -1) {
+                            fileName = cursor.getString(nameIndex)
+                        }
+                    }
+                }
+                val resolvedName = fileName ?: uri.lastPathSegment ?: "sentences.xlsx"
+                selectedFileName = resolvedName
+
+                val rows = ExcelWordSheetParser.parseSentenceBuildersFromUri(
+                    context = context,
+                    uri = uri,
+                    fileName = resolvedName,
+                    defaultHint = defaultHint
+                )
+
+                if (rows.isEmpty()) {
+                    errorMessage = "No valid sentences found in '$resolvedName'. Expected columns: Target Sentence, Grammar Hint, Assamese Translation (optional)."
+                    parsedRows = emptyList()
+                } else {
+                    parsedRows = rows
+                    errorMessage = null
+                }
+            } catch (e: Exception) {
+                errorMessage = "Failed to parse spreadsheet: ${e.localizedMessage ?: "Unknown error"}"
+            } finally {
+                isProcessing = false
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("bulk_import_sentence_builder_dialog"),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(EmeraldSuccess),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("📊", fontSize = 18.sp)
+                    }
+                    Column {
+                        Text(
+                            text = "Bulk Sentence Excel Import",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            text = "Sentence Builder Challenges",
+                            fontSize = 11.sp,
+                            color = EmeraldSuccess,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close", tint = MutedGray)
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    contentColor = RoyalBlue
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("📁 Upload .xlsx / .csv", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("📋 Paste / Template", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+                    )
+                }
+
+                // Default Hint selector for rows missing a Hint column
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Default Hint (if unspecified in sheet):", fontSize = 11.sp, color = MutedGray)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        hintPresets.forEach { preset ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (defaultHint.equals(preset, true)) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.clickable {
+                                    defaultHint = preset
+                                    if (parsedRows.isNotEmpty() && selectedTab == 1 && rawInputText.isNotBlank()) {
+                                        parsedRows = ExcelWordSheetParser.parseSentenceBuildersFromText(rawInputText, preset)
+                                    }
+                                }
+                            ) {
+                                Text(
+                                    text = preset,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (defaultHint.equals(preset, true)) Color.White else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (selectedTab == 0) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = BorderStroke(1.5.dp, if (selectedFileName != null) EmeraldSuccess else RoyalBlue.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { filePickerLauncher.launch("*/*") }
+                            .testTag("choose_sentence_excel_file_card")
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(if (selectedFileName != null) "📄" else "📥", fontSize = 32.sp)
+                            Text(
+                                text = selectedFileName ?: "Tap to Select Excel (.xlsx) or CSV File",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "Columns: Target Sentence, Grammar Hint, Assamese Translation",
+                                fontSize = 11.sp,
+                                color = MutedGray,
+                                textAlign = TextAlign.Center
+                            )
+                            Button(
+                                onClick = { filePickerLauncher.launch("*/*") },
+                                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Text("Browse Device Files", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Paste CSV / Excel rows:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            TextButton(
+                                onClick = {
+                                    val sample = ExcelWordSheetParser.getSampleSentenceBuilderCsv()
+                                    rawInputText = sample
+                                    parsedRows = ExcelWordSheetParser.parseSentenceBuildersFromText(sample, defaultHint)
+                                    errorMessage = null
+                                },
+                                modifier = Modifier.testTag("load_sentence_sample_template_button")
+                            ) {
+                                Text("💡 Load Sample Template", fontSize = 11.sp, color = RoyalBlue)
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = rawInputText,
+                            onValueChange = {
+                                rawInputText = it
+                                errorMessage = null
+                                parsedRows = if (it.isNotBlank()) {
+                                    ExcelWordSheetParser.parseSentenceBuildersFromText(it, defaultHint)
+                                } else {
+                                    emptyList()
+                                }
+                            },
+                            placeholder = {
+                                Text(
+                                    "Target Sentence,Grammar Hint,Assamese Translation\nShe speaks English fluently.,Present Simple,তাই সাৱলীলভাৱে ইংৰাজী কয়।\nCould you repeat that slowly?,Polite Request,",
+                                    fontSize = 11.sp,
+                                    color = MutedGray
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(140.dp)
+                                .testTag("paste_sentence_excel_text_field"),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
+                        )
+                    }
+                }
+
+                if (isProcessing) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Parsing spreadsheet sentences...", fontSize = 12.sp, color = MutedGray)
+                    }
+                }
+
+                errorMessage?.let { err ->
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFFEE2E2),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "⚠️ $err",
+                            color = Color(0xFFDC2626),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
+
+                successMessage?.let { msg ->
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFFDCFCE7),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "✅ $msg",
+                            color = EmeraldSuccess,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
+
+                if (parsedRows.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Previewing ${parsedRows.size} Sentences:",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = EmeraldSuccess
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = EmeraldSuccess.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    "${parsedRows.size} ready",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EmeraldSuccess,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 200.dp)
+                        ) {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                itemsIndexed(parsedRows) { idx, row ->
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                        ) {
+                                            Text(
+                                                "${idx + 1}. ${row.targetSentence}",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.5.sp
+                                            )
+                                            Text(
+                                                text = "Hint: ${row.hint}" + if (row.assameseTranslation.isNotBlank()) " • ${row.assameseTranslation}" else "",
+                                                fontSize = 11.sp,
+                                                color = MutedGray,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (parsedRows.isNotEmpty()) {
+                        val author = currentUser.name.ifBlank { "Faculty Instructor" }
+                        val rowsToImport = parsedRows.map {
+                            Triple(it.targetSentence, it.hint, it.assameseTranslation)
+                        }
+                        val count = viewModel.bulkImportSentenceBuilders(rowsToImport, author)
+                        successMessage = "Successfully imported $count sentences!"
+                        onImported(count)
+                    }
+                },
+                enabled = parsedRows.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                modifier = Modifier.testTag("execute_sentence_bulk_import_button")
+            ) {
+                Text(
+                    text = if (parsedRows.isNotEmpty()) "Import All (${parsedRows.size}) 🚀" else "Import Sentences",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+// -------------------------------------------------------------
 // UNIVERSAL CREATE CHALLENGE DIALOG
 // -------------------------------------------------------------
 @Composable
@@ -5595,6 +6093,52 @@ fun CreateGameChallengeDialog(
                         OutlinedTextField(value = field1, onValueChange = { field1 = it }, label = { Text("Target Sentence (e.g. She speaks English)") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = field2, onValueChange = { field2 = it }, label = { Text("Grammar Hint / Category") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = field3, onValueChange = { field3 = it }, label = { Text("Assamese Translation (অসমীয়া অনুবাদ - optional)") }, modifier = Modifier.fillMaxWidth())
+
+                        if (onOpenBulkImport != null) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF059669).copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, Color(0xFF059669).copy(alpha = 0.4f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenBulkImport() }
+                                    .testTag("dialog_open_sentence_bulk_import_btn")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text("📊", fontSize = 16.sp)
+                                        Column {
+                                            Text(
+                                                "Bulk Sentence Excel Import",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                color = Color(0xFF059669)
+                                            )
+                                            Text(
+                                                "Upload .xlsx / .csv or paste rows",
+                                                fontSize = 10.sp,
+                                                color = MutedGray
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        "Open Import →",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF059669)
+                                    )
+                                }
+                            }
+                        }
                     }
                     GameCategoryFilter.LISTEN_CHOOSE -> {
                         OutlinedTextField(value = field1, onValueChange = { field1 = it }, label = { Text("Audio Script Spoken (TTS)") }, modifier = Modifier.fillMaxWidth())

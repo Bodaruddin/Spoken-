@@ -26,6 +26,12 @@ data class ParsedMissingLetterRow(
     val category: String
 )
 
+data class ParsedSentenceBuilderRow(
+    val targetSentence: String,
+    val hint: String = "Assemble syntax",
+    val assameseTranslation: String = ""
+)
+
 object ExcelWordSheetParser {
 
     /**
@@ -148,33 +154,95 @@ object ExcelWordSheetParser {
     }
 
     /**
-     * Extracts matrix of cell strings from worksheet XML (<row>...<c t="s"><v>0</v></c>...).
+     * Extracts raw string table from an .xlsx stream (supports sparse empty cells via Excel column letters).
+     */
+    fun extractRawTableFromXlsxStream(inputStream: InputStream): List<List<String>> {
+        val sharedStrings = mutableListOf<String>()
+        val sheetRows = mutableListOf<List<String>>()
+
+        try {
+            val bytes = inputStream.readBytes()
+
+            ZipInputStream(bytes.inputStream()).use { zip ->
+                var entry = zip.nextEntry
+                while (entry != null) {
+                    if (entry.name.equals("xl/sharedStrings.xml", ignoreCase = true) ||
+                        entry.name.endsWith("sharedStrings.xml", ignoreCase = true)
+                    ) {
+                        val xmlContent = zip.reader(Charsets.UTF_8).readText()
+                        sharedStrings.addAll(extractSharedStringsFromXml(xmlContent))
+                    }
+                    entry = zip.nextEntry
+                }
+            }
+
+            ZipInputStream(bytes.inputStream()).use { zip ->
+                var entry = zip.nextEntry
+                while (entry != null) {
+                    if (entry.name.startsWith("xl/worksheets/sheet", ignoreCase = true) &&
+                        entry.name.endsWith(".xml", ignoreCase = true)
+                    ) {
+                        val sheetXml = zip.reader(Charsets.UTF_8).readText()
+                        val rows = extractRowsFromSheetXml(sheetXml, sharedStrings)
+                        if (rows.isNotEmpty()) {
+                            sheetRows.addAll(rows)
+                            break
+                        }
+                    }
+                    entry = zip.nextEntry
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return sheetRows
+    }
+
+    private fun excelColumnToIndex(colLetters: String): Int {
+        var idx = 0
+        for (ch in colLetters.uppercase()) {
+            if (ch in 'A'..'Z') {
+                idx = idx * 26 + (ch - 'A' + 1)
+            }
+        }
+        return (idx - 1).coerceAtLeast(0)
+    }
+
+    /**
+     * Extracts matrix of cell strings from worksheet XML (<row>...<c r="A1" t="s"><v>0</v></c>...).
      */
     private fun extractRowsFromSheetXml(xml: String, sharedStrings: List<String>): List<List<String>> {
         val rows = mutableListOf<List<String>>()
         val rowRegex = "<row[^>]*>(.*?)</row>".toRegex(RegexOption.DOT_MATCHES_ALL)
-        val cellRegex = """<c\s+r="([A-Z]+)[0-9]+"(?:\s+[^>]*?t="([a-z]+)")?[^>]*>(?:<v>([^<]*)</v>)?(?:<is><t>([^<]*)</t></is>)?</c>""".toRegex(RegexOption.DOT_MATCHES_ALL)
+        val cellRegex = """<c\s+r="([A-Z]+)[0-9]+"(?:\s+[^>]*?t="([a-zA-Z]+)")?[^>]*>(?:.*?<v>([^<]*)</v>)?(?:.*?<is>(.*?)</is>)?.*?</c>""".toRegex(RegexOption.DOT_MATCHES_ALL)
+        val tRegex = "<t[^>]*>(.*?)</t>".toRegex(RegexOption.DOT_MATCHES_ALL)
 
         rowRegex.findAll(xml).forEach { rowMatch ->
             val rowBody = rowMatch.groupValues[1]
             val cellMatches = cellRegex.findAll(rowBody).toList()
             if (cellMatches.isNotEmpty()) {
-                val rowCells = mutableListOf<String>()
+                val maxColIdx = cellMatches.maxOf { excelColumnToIndex(it.groupValues[1]) }
+                val rowCells = MutableList(maxColIdx + 1) { "" }
                 for (c in cellMatches) {
+                    val colIdx = excelColumnToIndex(c.groupValues[1])
                     val type = c.groupValues[2]
                     val value = c.groupValues[3]
-                    val inlineStr = c.groupValues[4]
+                    val inlineBody = c.groupValues[4]
+                    val inlineText = if (inlineBody.isNotBlank()) {
+                        tRegex.findAll(inlineBody).joinToString("") { it.groupValues[1] }
+                    } else ""
 
                     val textValue = when {
                         type == "s" -> {
                             val idx = value.toIntOrNull() ?: -1
                             sharedStrings.getOrNull(idx) ?: ""
                         }
-                        inlineStr.isNotBlank() -> unescapeXml(inlineStr)
+                        inlineText.isNotBlank() -> unescapeXml(inlineText)
                         type == "inlineStr" || type == "str" -> unescapeXml(value)
                         else -> unescapeXml(value)
                     }
-                    rowCells.add(textValue.trim())
+                    rowCells[colIdx] = textValue.trim()
                 }
                 if (rowCells.any { it.isNotBlank() }) {
                     rows.add(rowCells)
@@ -424,6 +492,144 @@ ASTRONOMY,Scientific study of the universe stars and planets,Science
 CONVERSATION,An informal spoken exchange of thoughts between people,General
 PRONUNCIATION,The correct way in which a word or language is spoken,General
 FLUENCY,The ability to speak smoothly easily and naturally,General
+        """.trimIndent()
+    }
+
+    /**
+     * Parses raw CSV/TSV/pasted Excel text into Sentence Builder challenges.
+     * Supports columns: Target Sentence, Grammar Hint / Category, Assamese Translation (optional).
+     */
+    fun parseSentenceBuildersFromText(
+        rawText: String,
+        defaultHint: String = "Assemble syntax"
+    ): List<ParsedSentenceBuilderRow> {
+        val lines = rawText.lines().map { it.trim() }.filter { it.isNotBlank() }
+        if (lines.isEmpty()) return emptyList()
+        val rawTable = lines.map { splitDelimitedLine(it) }.filter { it.isNotEmpty() && it.any { c -> c.isNotBlank() } }
+        return mapTableToSentenceBuilderRows(rawTable, defaultHint)
+    }
+
+    /**
+     * Parses Sentence Builder challenges directly from an .xlsx workbook InputStream.
+     */
+    fun parseSentenceBuildersFromXlsxStream(
+        inputStream: InputStream,
+        defaultHint: String = "Assemble syntax"
+    ): List<ParsedSentenceBuilderRow> {
+        val rawTable = extractRawTableFromXlsxStream(inputStream)
+        return mapTableToSentenceBuilderRows(rawTable, defaultHint)
+    }
+
+    /**
+     * Parses .xlsx or .csv/.tsv from an Android content Uri into ParsedSentenceBuilderRow items.
+     */
+    fun parseSentenceBuildersFromUri(
+        context: Context,
+        uri: Uri,
+        fileName: String? = null,
+        defaultHint: String = "Assemble syntax"
+    ): List<ParsedSentenceBuilderRow> {
+        val resolvedName = fileName ?: uri.lastPathSegment ?: "sentences.csv"
+        return context.contentResolver.openInputStream(uri)?.use { stream ->
+            if (resolvedName.endsWith(".xlsx", ignoreCase = true)) {
+                parseSentenceBuildersFromXlsxStream(stream, defaultHint)
+            } else {
+                val rawText = stream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                parseSentenceBuildersFromText(rawText, defaultHint)
+            }
+        } ?: emptyList()
+    }
+
+    private fun isSentenceHeaderRow(row: List<String>): Boolean {
+        if (row.isEmpty()) return false
+        val first = row.firstOrNull()?.lowercase()?.trim() ?: ""
+        val joined = row.joinToString(" ").lowercase()
+        return first == "sentence" ||
+            first == "target sentence" ||
+            first == "target_sentence" ||
+            first == "english sentence" ||
+            first == "question" ||
+            first == "drill" ||
+            first == "sl" ||
+            first == "no" ||
+            first == "#" ||
+            first == "id" ||
+            (joined.contains("sentence") && (joined.contains("hint") || joined.contains("assamese") || joined.contains("translation") || joined.contains("grammar")))
+    }
+
+    private fun mapTableToSentenceBuilderRows(
+        table: List<List<String>>,
+        defaultHint: String
+    ): List<ParsedSentenceBuilderRow> {
+        if (table.isEmpty()) return emptyList()
+        val firstRow = table.first()
+        val hasHeader = isSentenceHeaderRow(firstRow)
+
+        var sentenceCol = 0
+        var hintCol = 1
+        var assameseCol = 2
+
+        val dataRows = if (hasHeader) {
+            var foundSentenceCol = -1
+            var foundHintCol = -1
+            var foundAssameseCol = -1
+            firstRow.forEachIndexed { idx, rawHeader ->
+                val h = rawHeader.lowercase().trim()
+                when {
+                    h.contains("assamese") || h.contains("অসমীয়া") || h.contains("translation") || h.contains("অনুবাদ") -> foundAssameseCol = idx
+                    h.contains("hint") || h.contains("clue") || h.contains("grammar") || h.contains("category") || h.contains("tip") -> foundHintCol = idx
+                    h.contains("sentence") || h.contains("target") || h.contains("english") || h.contains("drill") || h.contains("question") -> foundSentenceCol = idx
+                }
+            }
+            if (foundSentenceCol >= 0) sentenceCol = foundSentenceCol
+            else if (firstRow.firstOrNull()?.lowercase()?.trim() in setOf("sl", "no", "#", "id") && firstRow.size > 1) {
+                sentenceCol = 1
+                hintCol = 2
+                assameseCol = 3
+            }
+            if (foundHintCol >= 0) hintCol = foundHintCol
+            if (foundAssameseCol >= 0) assameseCol = foundAssameseCol
+            table.drop(1)
+        } else {
+            table
+        }
+
+        val cleanDefaultHint = defaultHint.trim().ifBlank { "Assemble syntax" }
+        val result = mutableListOf<ParsedSentenceBuilderRow>()
+
+        for (cells in dataRows) {
+            val rawSentence = cells.getOrNull(sentenceCol)?.trim() ?: ""
+            if (rawSentence.isNotBlank() && !isSentenceHeaderRow(cells)) {
+                val hint = cells.getOrNull(hintCol)?.trim()?.ifBlank { cleanDefaultHint } ?: cleanDefaultHint
+                val assamese = cells.getOrNull(assameseCol)?.trim() ?: ""
+                result.add(
+                    ParsedSentenceBuilderRow(
+                        targetSentence = rawSentence,
+                        hint = hint,
+                        assameseTranslation = assamese
+                    )
+                )
+            }
+        }
+        return result
+    }
+
+    /**
+     * Pre-formatted CSV sample template for Sentence Builder Excel bulk import.
+     */
+    fun getSampleSentenceBuilderCsv(): String {
+        return """
+Target Sentence,Grammar Hint / Category,Assamese Translation
+She speaks English fluently every day.,Present Simple • Daily Habit,তাই সদায় সাৱলীলভাৱে ইংৰাজী কয়।
+Could you please repeat that slowly?,Polite Request • Spoken Fluency,অনুগ্ৰহ কৰি সেইটো লাহে লাহে পুনৰ ক'ব নেকি?
+We are practicing English conversation together.,Present Continuous • Teamwork,আমি একেলগে ইংৰাজী কথোপকথন অভ্যাস কৰি আছোঁ।
+I have already finished my homework.,Present Perfect • Time Marker,মই ইতিমধ্যে মোৰ গৃহকাৰ্য শেষ কৰিছোঁ।
+They went to the library yesterday morning.,Past Simple • Time Expression,তেওঁলোক কালি পুৱা পুথিভঁৰাললৈ গৈছিল।
+Practice makes a speaker confident and clear.,Proverb • Fluency Mindset,অভ্যাসে এজন বক্তাক আত্মবিশ্বাসী আৰু স্পষ্ট কৰি তোলে।
+What time does the morning assembly start?,Wh-Question • Present Simple,ৰাতিপুৱাৰ সভা কেতিয়া আৰম্ভ হয়?
+Always listen carefully before you answer.,Imperative • Communication Tip,উত্তৰ দিয়াৰ আগতে সদায় মন দি শুনিব।
+Reading aloud improves pronunciation and rhythm.,Gerund Subject • Speaking Drill,ডাঙৰকৈ পঢ়িলে উচ্চাৰণ আৰু ছন্দ উন্নত হয়।
+She will attend the seminar next Monday.,Future Simple • Scheduled Plan,তাই অহা সোমবাৰে আলোচনাচক্ৰত অংশগ্ৰহণ কৰিব।
         """.trimIndent()
     }
 }

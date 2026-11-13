@@ -596,6 +596,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    fun bulkImportSentenceBuilders(
+        rows: List<Triple<String, String, String>>,
+        createdBy: String
+    ): Int {
+        val count = repository.bulkImportSentenceBuilders(rows, createdBy)
+        if (count > 0 && supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val currentChallenges = repository.sentenceBuilderChallenges.value
+                val recent = currentChallenges.takeLast(count)
+                recent.forEach { item ->
+                    val sc = com.example.data.model.SupabaseGameChallenge(
+                        id = item.id,
+                        type = "SENTENCE_BUILDER",
+                        titleOrWord = item.targetSentence,
+                        hintOrMeaning = item.hint,
+                        category = "Syntax",
+                        extraData = item.assameseTranslation,
+                        createdBy = item.createdBy
+                    )
+                    supabaseService.saveGameChallenge(sc)
+                }
+            }
+        }
+        return count
+    }
     fun deleteSentenceBuilderChallenge(id: String) {
         repository.deleteSentenceBuilderChallenge(id)
         if (supabaseService.isConfigured()) {
