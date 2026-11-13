@@ -1669,13 +1669,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _novaTurnCount.value = saved.count { it.isNova }
             val lastNova = saved.lastOrNull { it.isNova }
             if (lastNova != null) {
-                _activeCoachQuestion.value = lastNova.evaluation?.followUpQuestion ?: lastNova.text
+                val activeQ = lastNova.evaluation?.followUpQuestion ?: lastNova.text
+                _activeCoachQuestion.value = activeQ
                 if (!lastNova.hint.isNullOrBlank()) _novaCurrentHint.value = lastNova.hint
-                if (lastNova.exampleAnswers.isNotEmpty()) _novaCurrentExamples.value = lastNova.exampleAnswers
+                val resolvedExamples = if (
+                    lastNova.exampleAnswers.isNotEmpty() &&
+                    (lastNova.evaluation != null || !com.example.util.ExampleAnswerGenerator.isLegacyGenericExampleSet(lastNova.exampleAnswers))
+                ) {
+                    lastNova.exampleAnswers
+                } else {
+                    com.example.util.ExampleAnswerGenerator.generateForQuestion(activeQ, topic)
+                }
+                _novaCurrentExamples.value = resolvedExamples
             }
         } else {
             val initialQ = topic.question.ifBlank { "When do you usually go to school or start your day?" }
             val greeting = "Hi! I'm Nova 😊\nLet's practice “${topic.title}”.\n\n🕒 $initialQ"
+            val initialExamples = com.example.util.ExampleAnswerGenerator.generateForQuestion(initialQ, topic)
             val initialTurn = NovaChatMessage(
                 id = "msg_init_${topic.id}_${System.currentTimeMillis()}",
                 isNova = true,
@@ -1683,11 +1693,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 audioPrompt = "Hi! I'm Nova. Let's practice ${topic.title}. $initialQ",
                 isQuestion = true,
                 questionNumber = 1,
-                hint = topic.followUpTip.ifBlank { "Use time prepositions or daily routine words to answer naturally." },
-                exampleAnswers = listOf(
-                    "I usually start my day at 7:30 in the morning on weekdays.",
-                    "Speaking about this, my schedule starts early and stays busy."
-                )
+                hint = topic.followUpTip.ifBlank { "Respond naturally in complete sentences related to “${topic.title}”." },
+                exampleAnswers = initialExamples
             )
             _novaChatMessages.value = listOf(initialTurn)
             _novaTurnCount.value = 1
@@ -1726,6 +1733,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 else -> "If you could change one thing related to “${topic.title}”, what would it be?"
             }
             val novaPromptText = "$transition\n\n🕒 $nextQuestion"
+            val nextExamples = com.example.util.ExampleAnswerGenerator.generateForQuestion(nextQuestion, topic)
             val novaTurn = NovaChatMessage(
                 id = "nova_next_${System.currentTimeMillis()}",
                 isNova = true,
@@ -1734,10 +1742,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 isQuestion = true,
                 questionNumber = nextTurnNumber,
                 hint = "Express your thoughts clearly using complete sentences and descriptive words.",
-                exampleAnswers = listOf(
-                    "In my personal experience, it makes a big difference in my routine.",
-                    "One memorable story I recall was when I tried this with my classmates."
-                )
+                exampleAnswers = nextExamples
             )
             val updated = _novaChatMessages.value + novaTurn
             _novaChatMessages.value = updated
@@ -1826,6 +1831,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             )
         } else {
             com.example.util.AssameseTranslator.translate(englishSentence)
+        }
+    }
+
+    suspend fun generateExamplesForCurrentQuestion(
+        question: String,
+        topic: SpeakingPrompt?
+    ): List<String> {
+        val apiKey = getEffectiveGeminiApiKey()
+        return if (apiKey.isNotBlank()) {
+            com.example.util.ExampleAnswerGenerator.generateWithAi(
+                question = question,
+                topic = topic,
+                apiKey = apiKey,
+                model = appPreferences.getSelectedAiModel()
+            )
+        } else {
+            com.example.util.ExampleAnswerGenerator.generateForQuestion(question, topic)
         }
     }
 
@@ -1950,7 +1972,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             followUpQuestion = fallbackQuestion,
                             feedback = "💡 Cloud AI Notice ($errMsg)\n\nEvaluated on-device:\n${baseEval.feedback}",
                             hint = "Try answering in a complete sentence using words like 'because' or 'usually'.",
-                            exampleAnswers = listOf("I usually enjoy spending time with family.", "Another activity I like is reading.")
+                            exampleAnswers = com.example.util.ExampleAnswerGenerator.generateForQuestion(fallbackQuestion, activeTopic)
                         )
                         val novaTurn = NovaChatMessage(
                             id = "nova_fb_${System.currentTimeMillis()}",
@@ -1994,8 +2016,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val fallbackEval = baseEval.copy(
                         aiCoachResponse = fallbackReply,
                         followUpQuestion = fallbackQuestion,
-                        hint = "Practice using time or frequency words like 'often', 'at 8 AM', or 'usually'.",
-                        exampleAnswers = listOf("I usually do this in the afternoon.", "On weekends, I prefer relaxing at home.")
+                        hint = "Try answering clearly with examples or reasons related to ${activeTopic.title}.",
+                        exampleAnswers = com.example.util.ExampleAnswerGenerator.generateForQuestion(fallbackQuestion, activeTopic)
                     )
                     val novaTurn = NovaChatMessage(
                         id = "nova_ondev_${System.currentTimeMillis()}",

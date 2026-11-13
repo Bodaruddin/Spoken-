@@ -302,5 +302,47 @@ class ExampleUnitTest {
         val clamped = repository.speakingPrompts.value.firstOrNull { it.title == "Extended Marathon" }
         assertEquals(30, clamped?.milestoneTurns)
     }
+
+    @Test
+    fun testExampleAnswerGeneratorMatchesQuestionAndTopic() {
+        val introTopic = com.example.data.model.SpeakingPrompt(
+            id = "topic_intro",
+            title = "Introduction",
+            category = "Greetings",
+            question = "Hello! How are you?",
+            followUpTip = "Greet politely and share how you feel.",
+            recommendedKeywords = listOf("hello", "doing great", "thank you")
+        )
+        val introExamples = com.example.util.ExampleAnswerGenerator.generateForQuestion(
+            "Hi! I'm Nova 😊\nLet's practice “Introduction”.\n\n🕒 Hello! How are you?",
+            introTopic
+        )
+        assertEquals(2, introExamples.size)
+        assertFalse(com.example.util.ExampleAnswerGenerator.isLegacyGenericExampleSet(introExamples))
+        assertTrue(introExamples.any { it.contains("doing great", ignoreCase = true) || it.contains("doing really well", ignoreCase = true) })
+
+        // Verify legacy generic placeholders are caught for cached sessions
+        val legacy = listOf(
+            "I usually start my day at 7:30 in the morning on weekdays.",
+            "Speaking about this, my schedule starts early and stays busy."
+        )
+        assertTrue(com.example.util.ExampleAnswerGenerator.isLegacyGenericExampleSet(legacy))
+
+        // Custom topic uses its own title and keywords
+        val customTopic = com.example.data.model.SpeakingPrompt(
+            id = "topic_cricket",
+            title = "School Sports",
+            category = "Sports",
+            question = "Which outdoor game do you enjoy playing at school?",
+            followUpTip = "Talk about teamwork.",
+            recommendedKeywords = listOf("teamwork", "discipline", "fitness")
+        )
+        val customExamples = com.example.util.ExampleAnswerGenerator.generateForQuestion(
+            customTopic.question,
+            customTopic
+        )
+        assertEquals(2, customExamples.size)
+        assertTrue(customExamples.any { it.contains("School Sports") && it.contains("teamwork") })
+    }
 }
 

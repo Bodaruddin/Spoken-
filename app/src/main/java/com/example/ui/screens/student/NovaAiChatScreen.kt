@@ -655,8 +655,12 @@ fun NovaAiChatScreen(
                     modifier = Modifier.clickable {
                         // Quick simulation option for emulator users
                         if (!isListening && !isAiEvaluating) {
-                            val sample = currentExamples.firstOrNull()
-                                ?: "I usually start my day at seven thirty in the morning on weekdays."
+                            val activeQ = viewModel.activeCoachQuestion.value.ifBlank { currentTopic.question }
+                            val usableCurrent = currentExamples.firstOrNull()?.takeIf {
+                                !com.example.util.ExampleAnswerGenerator.isLegacyGenericExampleSet(listOf(it))
+                            }
+                            val sample = usableCurrent
+                                ?: com.example.util.ExampleAnswerGenerator.generateForQuestion(activeQ, currentTopic).first()
                             viewModel.evaluateInputSpeech(sample)
                         }
                     }
@@ -877,6 +881,49 @@ fun NovaAiChatScreen(
     // 2. Examples Dialog
     if (showExamplesDialog) {
         Dialog(onDismissRequest = { showExamplesDialog = false }) {
+            val activeCoachQuestion by viewModel.activeCoachQuestion.collectAsState()
+            val rawQuestion = activeCoachQuestion.ifBlank { currentTopic.question }
+            val cleanQuestion = remember(rawQuestion) {
+                com.example.util.AssameseTranslator.extractCleanQuestion(rawQuestion)
+            }
+            val curatedMatch = remember(cleanQuestion, currentTopic) {
+                com.example.util.ExampleAnswerGenerator.matchCuratedExamples(cleanQuestion, currentTopic)
+            }
+            val lastNovaHasLiveAiEval = remember(chatMessages) {
+                chatMessages.lastOrNull { it.isNova }?.evaluation != null
+            }
+            val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
+            var isExamplesAiLoading by remember { mutableStateOf(false) }
+
+            var modelExamples by remember(cleanQuestion, currentTopic.id, currentExamples) {
+                val usableCurrent = currentExamples.takeIf {
+                    it.isNotEmpty() && !com.example.util.ExampleAnswerGenerator.isLegacyGenericExampleSet(it)
+                }
+                val initial = when {
+                    curatedMatch != null -> curatedMatch
+                    lastNovaHasLiveAiEval && usableCurrent != null -> usableCurrent
+                    usableCurrent != null -> usableCurrent
+                    else -> com.example.util.ExampleAnswerGenerator.generateForQuestion(cleanQuestion, currentTopic)
+                }
+                mutableStateOf(initial)
+            }
+
+            // For custom / open-ended questions without a curated match or live turn eval, fetch Gemini AI examples if configured
+            LaunchedEffect(cleanQuestion, currentTopic.id, isGeminiConfigured) {
+                if (isGeminiConfigured && curatedMatch == null && !lastNovaHasLiveAiEval) {
+                    isExamplesAiLoading = true
+                    try {
+                        val aiList = viewModel.generateExamplesForCurrentQuestion(cleanQuestion, currentTopic)
+                        if (aiList.isNotEmpty()) {
+                            modelExamples = aiList
+                        }
+                    } catch (_: Throwable) {
+                    } finally {
+                        isExamplesAiLoading = false
+                    }
+                }
+            }
+
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = Color(0xFF1B133B),
@@ -890,16 +937,29 @@ fun NovaAiChatScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("📖", fontSize = 24.sp)
-                        Text(
-                            "Example Model Answers",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("📖", fontSize = 24.sp)
+                            Text(
+                                "Example Model Answers",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        if (isExamplesAiLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color(0xFF38BDF8),
+                                strokeWidth = 2.dp
+                            )
+                        }
                     }
 
                     Text(
@@ -907,13 +967,6 @@ fun NovaAiChatScreen(
                         fontSize = 12.5.sp,
                         color = Color(0xFFCBD5E1)
                     )
-
-                    val modelExamples = currentExamples.ifEmpty {
-                        listOf(
-                            "Speaking about ${currentTopic.title}, I usually start my schedule in the morning.",
-                            "In my personal experience, practice helps build natural speaking confidence."
-                        )
-                    }
 
                     modelExamples.forEachIndexed { idx, ex ->
                         Surface(
@@ -1760,10 +1813,7 @@ fun getQuestionsForTopic(topic: SpeakingPrompt): List<TopicLessonQuestion> {
                     questionNumber = 1,
                     questionText = topic.question,
                     hintText = topic.followUpTip.ifBlank { "Express your core thoughts clearly using complete sentences." },
-                    exampleAnswers = listOf(
-                        "Speaking about this topic, I believe it plays a crucial role in our daily routine.",
-                        "In my personal experience, this is something I encounter very frequently."
-                    ),
+                    exampleAnswers = com.example.util.ExampleAnswerGenerator.generateForQuestion(topic.question, topic),
                     assameseTranslation = com.example.util.AssameseTranslator.translate(topic.question).assameseText,
                     bengaliHindiTranslation = "এই বিষয়ে আপনার মতামত জানান।"
                 ),
