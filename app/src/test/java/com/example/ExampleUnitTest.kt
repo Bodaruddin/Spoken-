@@ -449,5 +449,81 @@ class ExampleUnitTest {
         assertEquals(initialCount + 3, repository.sentenceBuilderChallenges.value.size)
         assertTrue(repository.sentenceBuilderChallenges.value.any { it.targetSentence == "They arrived early today." && it.createdBy == "Prof. Eleanor Vance" })
     }
+
+    @Test
+    fun testSentenceBuilderPacksCrudMultiSentenceAndRemoteSync() {
+        val repository = LinguaQuestRepository(null)
+
+        // 1. Default Easy / Medium / Hard challenge packs each contain starter sentences
+        val packs = repository.sentenceBuilderPacks.value
+        assertTrue(packs.any { it.id == "sb_pack_easy" && it.title == "Easy Challenge" })
+        assertTrue(packs.any { it.id == "sb_pack_medium" && it.title == "Medium Challenge" })
+        assertTrue(packs.any { it.id == "sb_pack_hard" && it.title == "Hard Challenge" })
+        assertTrue(repository.sentenceBuilderChallenges.value.any { it.packId == "sb_pack_easy" })
+        assertTrue(repository.sentenceBuilderChallenges.value.any { it.packId == "sb_pack_medium" })
+        assertTrue(repository.sentenceBuilderChallenges.value.any { it.packId == "sb_pack_hard" })
+
+        // 2. Teacher creates a custom challenge pack and edits it
+        val createdPack = repository.addSentenceBuilderPack(
+            title = "Daily Verbs Pack",
+            description = "Practice everyday verb phrases",
+            difficulty = "Medium",
+            xpReward = 75,
+            createdBy = "Prof. Eleanor Vance"
+        )
+        assertTrue(repository.sentenceBuilderPacks.value.any { it.id == createdPack.id && it.title == "Daily Verbs Pack" })
+
+        repository.updateSentenceBuilderPack(createdPack.copy(title = "Daily Verbs Mastery", xpReward = 80))
+        val updatedPack = repository.sentenceBuilderPacks.value.first { it.id == createdPack.id }
+        assertEquals("Daily Verbs Mastery", updatedPack.title)
+        assertEquals(80, updatedPack.xpReward)
+
+        // 3. Teacher adds many sentences inside that single challenge pack (single + bulk)
+        val s1 = repository.addSentenceBuilderChallenge("She opens the window every morning", "Present Simple", "", "Prof. Eleanor Vance", packId = createdPack.id)
+        val bulkCount = repository.bulkImportSentenceBuilders(
+            rows = listOf(
+                Triple("They practice reading together after school", "Daily routine", ""),
+                Triple("We always listen carefully in class", "Adverbs of frequency", "")
+            ),
+            createdBy = "Prof. Eleanor Vance",
+            packId = createdPack.id
+        )
+        assertEquals(2, bulkCount)
+        val sentencesInPack = repository.sentenceBuilderChallenges.value.filter { it.packId == createdPack.id }
+        assertEquals(3, sentencesInPack.size)
+        assertTrue(sentencesInPack.any { it.id == s1.id })
+
+        // 4. Remote merge syncs both SENTENCE_BUILDER_PACK and scoped SENTENCE_BUILDER items
+        repository.mergeRemoteGameChallenges(
+            listOf(
+                com.example.data.model.SupabaseGameChallenge(
+                    id = "sb_pack_remote_1",
+                    type = "SENTENCE_BUILDER_PACK",
+                    titleOrWord = "Travel Phrases",
+                    hintOrMeaning = "Build airport and hotel sentences",
+                    category = "Hard",
+                    correctIndex = 120,
+                    createdBy = "Remote Teacher"
+                ),
+                com.example.data.model.SupabaseGameChallenge(
+                    id = "sb_remote_s_1",
+                    type = "SENTENCE_BUILDER",
+                    titleOrWord = "Please show me your boarding pass.",
+                    hintOrMeaning = "Polite request",
+                    category = "sb_pack_remote_1",
+                    extraData = "অনুগ্ৰহ কৰি আপোনাৰ বৰ্ডিং পাছ দেখুৱাওক।",
+                    createdBy = "Remote Teacher"
+                )
+            )
+        )
+        assertTrue(repository.sentenceBuilderPacks.value.any { it.id == "sb_pack_remote_1" && it.xpReward == 120 })
+        assertTrue(repository.sentenceBuilderChallenges.value.any { it.id == "sb_remote_s_1" && it.packId == "sb_pack_remote_1" })
+
+        // 5. Deleting a challenge pack removes the pack and cascades to its sentences
+        val removedIds = repository.deleteSentenceBuilderPack(createdPack.id)
+        assertEquals(3, removedIds.size)
+        assertFalse(repository.sentenceBuilderPacks.value.any { it.id == createdPack.id })
+        assertTrue(repository.sentenceBuilderChallenges.value.none { it.packId == createdPack.id })
+    }
 }
 

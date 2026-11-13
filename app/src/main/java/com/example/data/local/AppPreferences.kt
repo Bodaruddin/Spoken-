@@ -43,6 +43,7 @@ class AppPreferences(context: Context) {
         private const val KEY_WORD_MATCH_LIST = "key_word_match_list"
         private const val KEY_MISSING_LETTERS_LIST = "key_missing_letters_list"
         private const val KEY_SENTENCE_BUILDER_LIST = "key_sentence_builder_list"
+        private const val KEY_SENTENCE_BUILDER_PACKS = "key_sentence_builder_packs"
         private const val KEY_LISTEN_CHOOSE_LIST = "key_listen_choose_list"
         private const val KEY_PRONUNCIATION_BATTLE_LIST = "key_pronunciation_battle_list"
         private const val KEY_FAST_VOCABULARY_LIST = "key_fast_vocabulary_list"
@@ -476,6 +477,47 @@ class AppPreferences(context: Context) {
         }
     }
 
+    fun saveSentenceBuilderPacks(packs: List<SentenceBuilderPack>) {
+        try {
+            val array = JSONArray()
+            for (p in packs) {
+                val obj = JSONObject()
+                obj.put("id", p.id)
+                obj.put("title", p.title)
+                obj.put("description", p.description)
+                obj.put("difficulty", p.difficulty)
+                obj.put("xpReward", p.xpReward)
+                obj.put("createdBy", p.createdBy)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_SENTENCE_BUILDER_PACKS, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getSentenceBuilderPacks(): List<SentenceBuilderPack>? {
+        val raw = prefs.getString(KEY_SENTENCE_BUILDER_PACKS, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<SentenceBuilderPack>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    SentenceBuilderPack(
+                        id = obj.optString("id", ""),
+                        title = obj.optString("title", "Challenge"),
+                        description = obj.optString("description", "Build grammatically correct sentences."),
+                        difficulty = obj.optString("difficulty", "Easy"),
+                        xpReward = obj.optInt("xpReward", 40),
+                        createdBy = obj.optString("createdBy", "System")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun saveSentenceBuilderChallenges(challenges: List<SentenceBuilderChallenge>) {
         try {
             val array = JSONArray()
@@ -486,6 +528,7 @@ class AppPreferences(context: Context) {
                 obj.put("hint", c.hint)
                 obj.put("assameseTranslation", c.assameseTranslation)
                 obj.put("createdBy", c.createdBy)
+                obj.put("packId", c.packId)
                 array.put(obj)
             }
             prefs.edit().putString(KEY_SENTENCE_BUILDER_LIST, array.toString()).apply()
@@ -499,13 +542,15 @@ class AppPreferences(context: Context) {
             val list = mutableListOf<SentenceBuilderChallenge>()
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
+                val storedPackId = obj.optString("packId", "").ifBlank { "sb_pack_easy" }
                 list.add(
                     SentenceBuilderChallenge(
                         id = obj.optString("id", ""),
                         targetSentence = obj.optString("targetSentence", ""),
                         hint = obj.optString("hint", "Form a grammatically correct sentence"),
                         assameseTranslation = obj.optString("assameseTranslation", ""),
-                        createdBy = obj.optString("createdBy", "System")
+                        createdBy = obj.optString("createdBy", "System"),
+                        packId = storedPackId
                     )
                 )
             }

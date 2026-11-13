@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
@@ -914,57 +916,68 @@ fun ActiveGameRunner(
     modifier: Modifier = Modifier
 ) {
     // Intercept system Back button so student returns to catalog instead of exiting app
-    BackHandler {
-        onClose()
+    // (SentenceBuilderGame manages its own 2-level BackHandler internally)
+    if (gameType != ActiveGameType.SENTENCE_BUILDER) {
+        BackHandler {
+            onClose()
+        }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Game Header Bar (Custom integrated hero banner is rendered inside PronunciationBattleGame)
-        if (gameType != ActiveGameType.PRONUNCIATION_BATTLE) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+    if (gameType == ActiveGameType.SENTENCE_BUILDER) {
+        SentenceBuilderGame(
+            viewModel = viewModel,
+            onClose = onClose,
+            modifier = modifier
+        )
+    } else {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Game Header Bar (Custom integrated hero banner is rendered inside PronunciationBattleGame)
+            if (gameType != ActiveGameType.PRONUNCIATION_BATTLE) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(gameType.emoji, fontSize = 28.sp)
-                    Column {
-                        Text(gameType.title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                        Text("Interactive Learning Challenge", fontSize = 11.sp, color = MutedGray)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(gameType.emoji, fontSize = 28.sp)
+                        Column {
+                            Text(gameType.title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                            Text("Interactive Learning Challenge", fontSize = 11.sp, color = MutedGray)
+                        }
+                    }
+                    IconButton(
+                        onClick = onClose,
+                        modifier = Modifier.testTag("close_game_button")
+                    ) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close Game")
                     }
                 }
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.testTag("close_game_button")
-                ) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close Game")
-                }
             }
-        }
 
-        // Dedicated games with real, validated logic
-        when (gameType) {
-            ActiveGameType.WORD_MATCH -> WordMatchGame(viewModel)
-            ActiveGameType.MISSING_LETTERS -> MissingLettersGame(viewModel)
-            ActiveGameType.SENTENCE_BUILDER -> SentenceBuilderGame(viewModel)
-            ActiveGameType.LISTEN_CHOOSE -> ListenAndChooseGame(viewModel)
-            ActiveGameType.PRONUNCIATION_BATTLE -> PronunciationBattleGame(viewModel, onClose)
-            ActiveGameType.FAST_VOCABULARY -> FastVocabularyGame(viewModel)
-            ActiveGameType.GRAMMAR_CHALLENGE -> GrammarChallengeGame(viewModel)
-            ActiveGameType.PICTURE_VOCAB -> PictureVocabGame(viewModel)
-            ActiveGameType.SPEAK_30_SECONDS -> Speak30SecondsGame(viewModel)
-            ActiveGameType.STORY_BUILDER -> StoryBuilderGame(viewModel)
-            ActiveGameType.CONVERSATION_CHALLENGE -> ConversationChallengeGame(viewModel)
-            ActiveGameType.SPELLING_CHALLENGE -> SpellingBeeGame(viewModel)
+            // Dedicated games with real, validated logic
+            when (gameType) {
+                ActiveGameType.WORD_MATCH -> WordMatchGame(viewModel)
+                ActiveGameType.MISSING_LETTERS -> MissingLettersGame(viewModel)
+                ActiveGameType.SENTENCE_BUILDER -> SentenceBuilderGame(viewModel, onClose)
+                ActiveGameType.LISTEN_CHOOSE -> ListenAndChooseGame(viewModel)
+                ActiveGameType.PRONUNCIATION_BATTLE -> PronunciationBattleGame(viewModel, onClose)
+                ActiveGameType.FAST_VOCABULARY -> FastVocabularyGame(viewModel)
+                ActiveGameType.GRAMMAR_CHALLENGE -> GrammarChallengeGame(viewModel)
+                ActiveGameType.PICTURE_VOCAB -> PictureVocabGame(viewModel)
+                ActiveGameType.SPEAK_30_SECONDS -> Speak30SecondsGame(viewModel)
+                ActiveGameType.STORY_BUILDER -> StoryBuilderGame(viewModel)
+                ActiveGameType.CONVERSATION_CHALLENGE -> ConversationChallengeGame(viewModel)
+                ActiveGameType.SPELLING_CHALLENGE -> SpellingBeeGame(viewModel)
+            }
         }
     }
 }
@@ -1634,346 +1647,1008 @@ fun MissingLettersGame(viewModel: MainViewModel) {
 }
 
 // =========================================================================
-// 3. SENTENCE BUILDER GAME - Robust tokenization and punctuation handling
+// 3. SENTENCE BUILDER GAME - Choose a Challenge Page + Pack-Scoped Gameplay
 // =========================================================================
 private data class SentenceWordChip(val id: Int, val text: String)
 
+private data class SentenceChallengeCardStyle(
+    val gradientColors: List<Color>,
+    val borderColor: Color,
+    val badgeBgColor: Color,
+    val starCount: Int
+)
+
+private fun resolveChallengeCardStyle(pack: SentenceBuilderPack, index: Int): SentenceChallengeCardStyle {
+    return when (pack.difficulty.trim().lowercase()) {
+        "easy" -> SentenceChallengeCardStyle(
+            gradientColors = listOf(Color(0xFF159957), Color(0xFF0A5C36)),
+            borderColor = Color(0xFF4ADE80),
+            badgeBgColor = Color(0xFF0B4629),
+            starCount = 1
+        )
+        "medium" -> SentenceChallengeCardStyle(
+            gradientColors = listOf(Color(0xFF0284C7), Color(0xFF0A3D82)),
+            borderColor = Color(0xFF38BDF8),
+            badgeBgColor = Color(0xFF082F63),
+            starCount = 2
+        )
+        "hard" -> SentenceChallengeCardStyle(
+            gradientColors = listOf(Color(0xFF8B2CF5), Color(0xFF4C1D95)),
+            borderColor = Color(0xFFD8B4FE),
+            badgeBgColor = Color(0xFF3B1373),
+            starCount = 3
+        )
+        else -> when (index % 3) {
+            0 -> SentenceChallengeCardStyle(
+                gradientColors = listOf(Color(0xFF0D9488), Color(0xFF115E59)),
+                borderColor = Color(0xFF5EEAD4),
+                badgeBgColor = Color(0xFF083D3A),
+                starCount = 1
+            )
+            1 -> SentenceChallengeCardStyle(
+                gradientColors = listOf(Color(0xFFD97706), Color(0xFF78350F)),
+                borderColor = Color(0xFFFCD34D),
+                badgeBgColor = Color(0xFF59280B),
+                starCount = 2
+            )
+            else -> SentenceChallengeCardStyle(
+                gradientColors = listOf(Color(0xFFDB2777), Color(0xFF831843)),
+                borderColor = Color(0xFFF9A8D4),
+                badgeBgColor = Color(0xFF5E1032),
+                starCount = 3
+            )
+        }
+    }
+}
+
 @Composable
-fun SentenceBuilderGame(viewModel: MainViewModel) {
-    val challenges by viewModel.sentenceBuilderChallenges.collectAsState()
-    var challengeIndex by remember { mutableIntStateOf(0) }
-    val safeIndex = if (challenges.isNotEmpty()) (challengeIndex % challenges.size).coerceAtLeast(0) else 0
-    val current = challenges.getOrNull(safeIndex)
+fun SentenceBuilderGame(
+    viewModel: MainViewModel,
+    onClose: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val packs by viewModel.sentenceBuilderPacks.collectAsState()
+    val allChallenges by viewModel.sentenceBuilderChallenges.collectAsState()
+    val studentProfile by viewModel.studentProfile.collectAsState()
 
-    if (current == null) {
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.fillMaxWidth().padding(16.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text("📝 No Sentence Challenges Available", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text("Faculty instructors haven't published Sentence Builder challenges yet. Check back soon!", fontSize = 12.sp, color = MutedGray, textAlign = TextAlign.Center)
+    var selectedPackId by remember { mutableStateOf<String?>(null) }
+    var activePlayingPackId by remember { mutableStateOf<String?>(null) }
+
+    // Default-select the first pack that has sentences (or the very first pack)
+    LaunchedEffect(packs, allChallenges) {
+        if (selectedPackId == null || packs.none { it.id == selectedPackId }) {
+            val firstWithSentences = packs.firstOrNull { p ->
+                allChallenges.any { it.packId == p.id }
             }
+            selectedPackId = (firstWithSentences ?: packs.firstOrNull())?.id
         }
-        return
-    }
-
-    // Tokenize target sentence with unique IDs to handle duplicate words cleanly
-    val initialTokens = remember(current.id) {
-        current.targetSentence.trim().split(Regex("\\s+")).mapIndexed { index, word ->
-            SentenceWordChip(index, word)
+        if (activePlayingPackId != null && packs.none { it.id == activePlayingPackId }) {
+            activePlayingPackId = null
         }
     }
-    val shuffledChips = remember(current.id) { initialTokens.shuffled() }
 
-    var selectedChips by remember(current.id) { mutableStateOf(listOf<SentenceWordChip>()) }
-    var isCorrect by remember(current.id) { mutableStateOf<Boolean?>(null) }
-    var hasAwarded by remember(current.id) { mutableStateOf(false) }
-
-    val remainingChips = remember(shuffledChips, selectedChips) {
-        val selectedIds = selectedChips.map { it.id }.toSet()
-        shuffledChips.filterNot { selectedIds.contains(it.id) }
+    BackHandler {
+        if (activePlayingPackId != null) {
+            activePlayingPackId = null
+        } else {
+            onClose()
+        }
     }
 
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Assemble Sentence Syntax:", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        "Challenge ${safeIndex + 1}/${challenges.size}",
-                        fontSize = 12.sp,
-                        color = RoyalBlue,
-                        fontWeight = FontWeight.Bold
+    val activePack = remember(packs, activePlayingPackId) {
+        packs.firstOrNull { it.id == activePlayingPackId }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xFF10042B),
+                        Color(0xFF1D0B4F),
+                        Color(0xFF130638),
+                        Color(0xFF0A021D)
                     )
-                    if (current.createdBy.isNotBlank() && current.createdBy != "System") {
-                        Text(
-                            "By ${current.createdBy}",
-                            fontSize = 10.sp,
-                            color = CoralAccent,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-
-            // Hint Box
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color(0xFF0F1E42),
-                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    "💡 Hint: ${current.hint}",
-                    fontSize = 12.sp,
-                    color = Color(0xFF93C5FD),
-                    modifier = Modifier.padding(12.dp)
                 )
+            )
+    ) {
+        // Ambient cosmic wave & orb backdrop
+        ArcadeBackgroundWaves()
+
+        if (activePack == null) {
+            // =========================================================
+            // PAGE 1: CHOOSE A CHALLENGE SELECTION SCREEN
+            // =========================================================
+            val selectedPack = packs.firstOrNull { it.id == selectedPackId }
+            val selectedPackSentences = remember(allChallenges, selectedPack) {
+                if (selectedPack == null) emptyList()
+                else allChallenges.filter { it.packId == selectedPack.id }
             }
 
-            // Assembled Sentence Tray
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Top Bar: Back Button, Title, XP Pill
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Your Assembled Sentence:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MutedGray)
-                    if (selectedChips.isNotEmpty()) {
-                        TextButton(
-                            onClick = {
-                                selectedChips = emptyList()
-                                isCorrect = null
-                            },
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF28175A),
+                            border = BorderStroke(1.2.dp, Color(0xFF7C3AED).copy(alpha = 0.7f)),
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clickable { onClose() }
+                                .testTag("sb_back_button")
                         ) {
-                            Text("Clear All", fontSize = 11.sp, color = CoralAccent, fontWeight = FontWeight.Bold)
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = "Back to Games Hub",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Extension,
+                                contentDescription = null,
+                                tint = Color(0xFFFACC15),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "Sentence Builder",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 19.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    // XP Pill
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFF1F1147),
+                        border = BorderStroke(1.2.dp, Color(0xFFFACC15).copy(alpha = 0.55f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text("⭐", fontSize = 13.sp)
+                            Text(
+                                text = "${studentProfile.xpPoints} XP",
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp
+                            )
                         }
                     }
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    border = BorderStroke(
-                        1.5.dp,
-                        when {
-                            isCorrect == true -> EmeraldSuccess
-                            isCorrect == false -> CoralAccent
-                            selectedChips.isNotEmpty() -> RoyalBlue
-                            else -> MaterialTheme.colorScheme.outlineVariant
-                        }
-                    ),
+                // Hero Banner: Mascot, Trophy, Ribbon & Choose a Challenge Pill
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .defaultMinSize(minHeight = 76.dp)
+                        .padding(top = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(22.dp),
+                            color = Color(0xFF281259),
+                            border = BorderStroke(1.5.dp, Color(0xFFA855F7).copy(alpha = 0.7f)),
+                            modifier = Modifier.size(72.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.app_logo),
+                                contentDescription = "Speakly Owl Mascot",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+
+                        Image(
+                            painter = painterResource(R.drawable.img_arcade_trophy),
+                            contentDescription = "Challenge Trophy",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.size(76.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.height(6.dp))
+
+                    // Ribbon Banner
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        contentAlignment = Alignment.CenterStart
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        Color(0xFF9333EA),
+                                        Color(0xFFC026D3),
+                                        Color(0xFF7E22CE)
+                                    )
+                                )
+                            )
+                            .border(1.5.dp, Color(0xFFF0ABFC).copy(alpha = 0.65f), RoundedCornerShape(18.dp))
+                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        if (selectedChips.isEmpty()) {
-                            Text("Tap the word chips below in grammatical order...", fontSize = 13.sp, color = MutedGray)
-                        } else {
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                        Text(
+                            text = "Sentence Builder",
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 20.sp
+                        )
+                    }
+
+                    // Overlapping Golden Pill "Choose a Challenge"
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFFFACC15),
+                        border = BorderStroke(1.5.dp, Color(0xFFFEF08A)),
+                        modifier = Modifier
+                            .offset(y = (-8).dp)
+                            .testTag("sb_choose_challenge_badge")
+                    ) {
+                        Text(
+                            text = "Choose a Challenge",
+                            color = Color(0xFF1E103C),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp)
+                        )
+                    }
+
+                    Text(
+                        text = "Pick a challenge level and start building sentences!",
+                        fontSize = 13.sp,
+                        color = Color(0xFFE2E8F0),
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                // Challenge Selection Cards
+                if (packs.isEmpty()) {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A103D)),
+                        border = BorderStroke(1.dp, Color(0xFF6366F1).copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("🧩", fontSize = 36.sp)
+                            Text(
+                                "No Sentence Challenges Created Yet",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                "Teachers can add challenges and sentences from the Teacher Panel.",
+                                fontSize = 12.sp,
+                                color = Color(0xFFCBD5E1),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("sb_challenge_packs_list")
+                    ) {
+                        packs.forEachIndexed { index, pack ->
+                            val isSelected = pack.id == selectedPackId
+                            val sentencesCount = allChallenges.count { it.packId == pack.id }
+                            val style = resolveChallengeCardStyle(pack, index)
+
+                            Surface(
+                                shape = RoundedCornerShape(22.dp),
+                                color = Color.Transparent,
+                                border = BorderStroke(
+                                    width = if (isSelected) 2.2.dp else 1.2.dp,
+                                    color = if (isSelected) style.borderColor else style.borderColor.copy(alpha = 0.45f)
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(22.dp))
+                                    .clickable { selectedPackId = pack.id }
+                                    .testTag("sb_pack_card_${pack.id}")
                             ) {
-                                selectedChips.forEachIndexed { index, chip ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                colors = if (isSelected) {
+                                                    style.gradientColors
+                                                } else {
+                                                    style.gradientColors.map { it.copy(alpha = 0.72f) }
+                                                }
+                                            )
+                                        )
+                                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    // Left Star Badge
                                     Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = RoyalBlue,
-                                        modifier = Modifier.clickable {
-                                            selectedChips = selectedChips.filterIndexed { i, _ -> i != index }
-                                            isCorrect = null
-                                        }
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = style.badgeBgColor,
+                                        border = BorderStroke(1.2.dp, style.borderColor.copy(alpha = 0.75f)),
+                                        modifier = Modifier.size(width = 76.dp, height = 58.dp)
                                     ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                repeat(style.starCount) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Star,
+                                                        contentDescription = null,
+                                                        tint = Color(0xFFFACC15),
+                                                        modifier = Modifier.size(if (style.starCount == 3) 18.dp else 21.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Center Title, Description, Badges
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                                    ) {
+                                        Text(
+                                            text = pack.title,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 17.sp,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = pack.description,
+                                            fontSize = 12.sp,
+                                            color = Color.White.copy(alpha = 0.88f),
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            lineHeight = 16.sp
+                                        )
                                         Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                            modifier = Modifier.padding(top = 2.dp)
                                         ) {
-                                            Text(
-                                                text = chip.text,
-                                                color = Color.White,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp
-                                            )
-                                            Spacer(Modifier.width(4.dp))
-                                            Icon(
-                                                Icons.Filled.Close,
-                                                contentDescription = "Remove",
-                                                tint = Color.White.copy(alpha = 0.8f),
-                                                modifier = Modifier.size(12.dp)
-                                            )
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = Color(0xFF0A1026).copy(alpha = 0.55f),
+                                                border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.25f))
+                                            ) {
+                                                Text(
+                                                    text = "🎯 $sentencesCount ${if (sentencesCount == 1) "Sentence" else "Sentences"}",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                            Surface(
+                                                shape = RoundedCornerShape(12.dp),
+                                                color = Color(0xFF0A1026).copy(alpha = 0.55f),
+                                                border = BorderStroke(0.8.dp, Color(0xFFFACC15).copy(alpha = 0.45f))
+                                            ) {
+                                                Text(
+                                                    text = "⚡ +${pack.xpReward} XP",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFFDE047),
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Right Selection Radio / Checkmark Indicator
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isSelected) Color(0xFF22C55E) else Color.Transparent,
+                                        border = BorderStroke(
+                                            2.dp,
+                                            if (isSelected) Color(0xFFBBF7D0) else Color.White.copy(alpha = 0.75f)
+                                        ),
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        if (isSelected) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Check,
+                                                    contentDescription = "Selected",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(17.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                }
-            }
 
-            // Available Word Chips
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Available Words:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                if (remainingChips.isEmpty()) {
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            "✓ All words placed! Tap 'Verify Sentence Syntax' below.",
-                            fontSize = 12.sp,
-                            color = MutedGray,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(10.dp)
-                        )
-                    }
-                } else {
-                    FlowRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        remainingChips.forEach { chip ->
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF0F1E42),
-                                border = BorderStroke(1.2.dp, RoyalBlue),
-                                modifier = Modifier.clickable {
-                                    selectedChips = selectedChips + chip
-                                    isCorrect = null
-                                    viewModel.speakAudio(chip.text)
-                                }
-                            ) {
-                                Text(
-                                    text = chip.text,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Verify Button
-            Button(
-                onClick = {
-                    val constructed = selectedChips.joinToString(" ") { it.text }
-                    // Normalize comparison: strip common trailing punctuation and compare lowercased
-                    fun normalize(s: String) = s.replace(Regex("[.,!?;:]"), "").trim().lowercase()
-                    if (normalize(constructed) == normalize(current.targetSentence)) {
-                        isCorrect = true
-                        if (!hasAwarded) {
-                            hasAwarded = true
-                            viewModel.rewardGameWin(60, 20)
-                        }
-                        viewModel.speakAudio(current.targetSentence)
-                    } else {
-                        isCorrect = false
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
-            ) {
-                Text("Verify Sentence Syntax")
-            }
-
-            isCorrect?.let { correct ->
-                if (!correct) {
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFFFEE2E2),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "❌ Not quite right yet. Tap words to remove from tray and re-arrange into correct syntax.",
-                            color = CoralAccent,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
-                }
-            }
-
-            // Assamese Translation & Next Button
-            if (isCorrect == true) {
-                val translation = remember(current.id) {
-                    AssameseTranslator.translate(current.targetSentence, current.assameseTranslation)
-                }
-
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0C241E)),
-                    border = BorderStroke(1.5.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            "অসমীয়া অনুবাদ (Assamese Translation):",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF86EFAC)
-                        )
-                        Text(
-                            text = translation.assameseText,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-
-                        Text(
-                            "শব্দার্থ (Word Meanings):",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFCBD5E1)
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                    // Warning note if selected pack has 0 sentences
+                    if (selectedPack != null && selectedPackSentences.isEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF451A03).copy(alpha = 0.85f),
+                            border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.6f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            translation.wordBreakdown.forEach { (en, asWord) ->
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFF0B1B38),
-                                    border = BorderStroke(0.8.dp, Color(0xFF38BDF8).copy(alpha = 0.4f))
-                                ) {
+                            Text(
+                                text = "⚠️ '${selectedPack.title}' has no sentences yet. Choose another challenge or ask your teacher to add sentences.",
+                                fontSize = 12.sp,
+                                color = Color(0xFFFDE68A),
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
+                    }
+
+                    // Bottom "Start Challenge" CTA Button
+                    val canStart = selectedPack != null && selectedPackSentences.isNotEmpty()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp, bottom = 14.dp)
+                            .height(54.dp)
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    if (canStart) {
+                                        listOf(Color(0xFFF59E0B), Color(0xFFFB7185), Color(0xFFEC4899))
+                                    } else {
+                                        listOf(Color(0xFF475569), Color(0xFF334155))
+                                    }
+                                )
+                            )
+                            .border(
+                                1.5.dp,
+                                if (canStart) Color(0xFFFDE047).copy(alpha = 0.8f) else Color(0xFF64748B),
+                                RoundedCornerShape(28.dp)
+                            )
+                            .clickable(enabled = canStart) {
+                                activePlayingPackId = selectedPack?.id
+                            }
+                            .testTag("sb_start_challenge_btn"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(26.dp)
+                            )
+                            Text(
+                                text = "Start Challenge",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 17.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            // =========================================================
+            // PAGE 2: PLAYING SENTENCES INSIDE SELECTED CHALLENGE
+            // =========================================================
+            val packChallenges = remember(allChallenges, activePack.id) {
+                allChallenges.filter { it.packId == activePack.id }
+            }
+            var challengeIndex by remember(activePack.id) { mutableIntStateOf(0) }
+            var completedSentenceIds by remember(activePack.id) { mutableStateOf(setOf<String>()) }
+            val safeIndex = if (packChallenges.isNotEmpty()) challengeIndex.coerceIn(0, packChallenges.lastIndex) else 0
+            val current = packChallenges.getOrNull(safeIndex)
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header with Back to Challenges
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF28175A),
+                        border = BorderStroke(1.dp, Color(0xFF7C3AED).copy(alpha = 0.7f)),
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 48.dp)
+                            .clickable { activePlayingPackId = null }
+                            .testTag("sb_back_to_challenges_btn")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back to Challenges",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Challenges",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                    ) {
+                        Text(
+                            text = activePack.title,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "${packChallenges.size} ${if (packChallenges.size == 1) "Sentence" else "Sentences"} • ${activePack.difficulty}",
+                            fontSize = 11.sp,
+                            color = Color(0xFFCBD5E1)
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF1F1147),
+                        border = BorderStroke(1.dp, Color(0xFFFACC15).copy(alpha = 0.55f))
+                    ) {
+                        Text(
+                            text = "⚡ +${activePack.xpReward} XP",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFFFDE047),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+
+                if (current == null) {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text("📝 No Sentences in This Challenge", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(
+                                "Ask your teacher to add sentences to '${activePack.title}', or select another challenge.",
+                                fontSize = 12.sp,
+                                color = MutedGray,
+                                textAlign = TextAlign.Center
+                            )
+                            Button(
+                                onClick = { activePlayingPackId = null },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Choose Another Challenge")
+                            }
+                        }
+                    }
+                } else {
+                    // Tokenize target sentence with unique IDs to handle duplicate words cleanly
+                    val initialTokens = remember(current.id) {
+                        current.targetSentence.trim().split(Regex("\\s+")).mapIndexed { index, word ->
+                            SentenceWordChip(index, word)
+                        }
+                    }
+                    val shuffledChips = remember(current.id) { initialTokens.shuffled() }
+
+                    var selectedChips by remember(current.id) { mutableStateOf(listOf<SentenceWordChip>()) }
+                    var isCorrect by remember(current.id) { mutableStateOf<Boolean?>(null) }
+                    var hasAwarded by remember(current.id) { mutableStateOf(false) }
+
+                    val remainingChips = remember(shuffledChips, selectedChips) {
+                        val selectedIds = selectedChips.map { it.id }.toSet()
+                        shuffledChips.filterNot { selectedIds.contains(it.id) }
+                    }
+
+                    Card(
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Assemble Sentence Syntax:", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Column(horizontalAlignment = Alignment.End) {
                                     Text(
-                                        text = "$en: $asWord",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = Color(0xFF93C5FD),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        "Sentence ${safeIndex + 1}/${packChallenges.size}",
+                                        fontSize = 12.sp,
+                                        color = RoyalBlue,
+                                        fontWeight = FontWeight.Bold
                                     )
+                                    if (current.createdBy.isNotBlank() && current.createdBy != "System") {
+                                        Text(
+                                            "By ${current.createdBy}",
+                                            fontSize = 10.sp,
+                                            color = CoralAccent,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Hint Box
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF0F1E42),
+                                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    "💡 Hint: ${current.hint}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF93C5FD),
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+
+                            // Assembled Sentence Tray
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Your Assembled Sentence:", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MutedGray)
+                                    if (selectedChips.isNotEmpty()) {
+                                        TextButton(
+                                            onClick = {
+                                                selectedChips = emptyList()
+                                                isCorrect = null
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("Clear All", fontSize = 11.sp, color = CoralAccent, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                    border = BorderStroke(
+                                        1.5.dp,
+                                        when {
+                                            isCorrect == true -> EmeraldSuccess
+                                            isCorrect == false -> CoralAccent
+                                            selectedChips.isNotEmpty() -> RoyalBlue
+                                            else -> MaterialTheme.colorScheme.outlineVariant
+                                        }
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .defaultMinSize(minHeight = 76.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        if (selectedChips.isEmpty()) {
+                                            Text("Tap the word chips below in grammatical order...", fontSize = 13.sp, color = MutedGray)
+                                        } else {
+                                            FlowRow(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                selectedChips.forEachIndexed { index, chip ->
+                                                    Surface(
+                                                        shape = RoundedCornerShape(10.dp),
+                                                        color = RoyalBlue,
+                                                        modifier = Modifier.clickable {
+                                                            selectedChips = selectedChips.filterIndexed { i, _ -> i != index }
+                                                            isCorrect = null
+                                                        }
+                                                    ) {
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = chip.text,
+                                                                color = Color.White,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 13.sp
+                                                            )
+                                                            Spacer(Modifier.width(4.dp))
+                                                            Icon(
+                                                                Icons.Filled.Close,
+                                                                contentDescription = "Remove",
+                                                                tint = Color.White.copy(alpha = 0.8f),
+                                                                modifier = Modifier.size(12.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Available Word Chips
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Available Words:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                if (remainingChips.isEmpty()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            "✓ All words placed! Tap 'Verify Sentence Syntax' below.",
+                                            fontSize = 12.sp,
+                                            color = MutedGray,
+                                            fontWeight = FontWeight.Medium,
+                                            modifier = Modifier.padding(10.dp)
+                                        )
+                                    }
+                                } else {
+                                    FlowRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        remainingChips.forEach { chip ->
+                                            Surface(
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = Color(0xFF0F1E42),
+                                                border = BorderStroke(1.2.dp, RoyalBlue),
+                                                modifier = Modifier.clickable {
+                                                    selectedChips = selectedChips + chip
+                                                    isCorrect = null
+                                                    viewModel.speakAudio(chip.text)
+                                                }
+                                            ) {
+                                                Text(
+                                                    text = chip.text,
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp,
+                                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Verify Button
+                            Button(
+                                onClick = {
+                                    val constructed = selectedChips.joinToString(" ") { it.text }
+                                    fun normalize(s: String) = s.replace(Regex("[.,!?;:]"), "").trim().lowercase()
+                                    if (normalize(constructed) == normalize(current.targetSentence)) {
+                                        isCorrect = true
+                                        completedSentenceIds = completedSentenceIds + current.id
+                                        if (!hasAwarded) {
+                                            hasAwarded = true
+                                            viewModel.rewardGameWin(activePack.xpReward, 20)
+                                        }
+                                        viewModel.speakAudio(current.targetSentence)
+                                    } else {
+                                        isCorrect = false
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+                            ) {
+                                Text("Verify Sentence Syntax")
+                            }
+
+                            isCorrect?.let { correct ->
+                                if (!correct) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFFFEE2E2),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = "❌ Not quite right yet. Tap words to remove from tray and re-arrange into correct syntax.",
+                                            color = CoralAccent,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.padding(12.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Assamese Translation & Navigation Buttons
+                            if (isCorrect == true) {
+                                val translation = remember(current.id) {
+                                    AssameseTranslator.translate(current.targetSentence, current.assameseTranslation)
+                                }
+
+                                Card(
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0C241E)),
+                                    border = BorderStroke(1.5.dp, Color(0xFF10B981).copy(alpha = 0.5f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text(
+                                            "অসমীয়া অনুবাদ (Assamese Translation):",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF86EFAC)
+                                        )
+                                        Text(
+                                            text = translation.assameseText,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+
+                                        Text(
+                                            "শব্দার্থ (Word Meanings):",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFFCBD5E1)
+                                        )
+                                        FlowRow(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            translation.wordBreakdown.forEach { (en, asWord) ->
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = Color(0xFF0B1B38),
+                                                    border = BorderStroke(0.8.dp, Color(0xFF38BDF8).copy(alpha = 0.4f))
+                                                ) {
+                                                    Text(
+                                                        text = "$en: $asWord",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFF93C5FD),
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                val isLastSentence = safeIndex >= packChallenges.lastIndex
+                                if (isLastSentence && completedSentenceIds.size >= packChallenges.size) {
+                                    Surface(
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = Color(0xFF1E1B4B),
+                                        border = BorderStroke(1.2.dp, Color(0xFFFACC15).copy(alpha = 0.65f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text(
+                                                "🏆 ${activePack.title} Completed!",
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 15.sp,
+                                                color = Color(0xFFFDE047)
+                                            )
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        challengeIndex = 0
+                                                        completedSentenceIds = emptySet()
+                                                        selectedChips = emptyList()
+                                                        isCorrect = null
+                                                        hasAwarded = false
+                                                    },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Text("Play Again")
+                                                }
+                                                Button(
+                                                    onClick = { activePlayingPackId = null },
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Text("Other Challenges")
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Button(
+                                        onClick = {
+                                            challengeIndex = (safeIndex + 1) % packChallenges.size
+                                            selectedChips = emptyList()
+                                            isCorrect = null
+                                            hasAwarded = false
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Next Sentence ➡️", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    }
                                 }
                             }
                         }
                     }
-                }
-
-                Button(
-                    onClick = {
-                        challengeIndex = (safeIndex + 1) % challenges.size
-                        selectedChips = emptyList()
-                        isCorrect = null
-                        hasAwarded = false
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Next Sentence ➡️", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
         }

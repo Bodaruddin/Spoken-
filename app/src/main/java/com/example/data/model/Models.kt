@@ -399,12 +399,22 @@ data class MissingLettersChallenge(
     val createdBy: String = "System"
 )
 
+data class SentenceBuilderPack(
+    val id: String,
+    val title: String,
+    val description: String = "Build grammatically correct sentences.",
+    val difficulty: String = "Easy", // "Easy", "Medium", "Hard"
+    val xpReward: Int = 40,
+    val createdBy: String = "System"
+)
+
 data class SentenceBuilderChallenge(
     val id: String,
     val targetSentence: String,
     val hint: String = "Form a grammatically correct sentence",
     val assameseTranslation: String = "",
-    val createdBy: String = "System"
+    val createdBy: String = "System",
+    val packId: String = "sb_pack_easy"
 )
 
 data class ListenChooseChallenge(

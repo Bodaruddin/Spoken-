@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.rounded.*
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.widget.Toast
@@ -1406,6 +1407,10 @@ data class ActiveEditingChallenge(
 fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     var selectedCategory by remember { mutableStateOf(GameCategoryFilter.WORD_MATCH) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showCreatePackDialog by remember { mutableStateOf(false) }
+    var editingSentencePack by remember { mutableStateOf<SentenceBuilderPack?>(null) }
+    var packPendingDelete by remember { mutableStateOf<SentenceBuilderPack?>(null) }
+    var selectedSentencePackId by remember { mutableStateOf<String?>(null) }
     var showBulkImportMissingLettersDialog by remember { mutableStateOf(false) }
     var showBulkImportSentenceBuilderDialog by remember { mutableStateOf(false) }
     var showManageCategoriesDialog by remember { mutableStateOf(false) }
@@ -1429,12 +1434,23 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     val missingLetters by viewModel.missingLettersChallenges.collectAsState()
     val missingLettersCategories by viewModel.missingLettersCategories.collectAsState()
     var selectedMissingLettersCategory by remember { mutableStateOf("All") }
+    val sentenceBuilderPacks by viewModel.sentenceBuilderPacks.collectAsState()
     val sentenceBuilders by viewModel.sentenceBuilderChallenges.collectAsState()
     val listenChooses by viewModel.listenChooseChallenges.collectAsState()
     val pronunciationBattles by viewModel.pronunciationBattleChallenges.collectAsState()
     val fastVocabs by viewModel.fastVocabularyChallenges.collectAsState()
     val pictureVocabs by viewModel.pictureVocabChallenges.collectAsState()
     val grammarChallenges by viewModel.grammarChallenges.collectAsState()
+
+    val activeSentencePack = remember(sentenceBuilderPacks, selectedSentencePackId) {
+        sentenceBuilderPacks.firstOrNull { it.id == selectedSentencePackId }
+    }
+
+    if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack != null) {
+        BackHandler {
+            selectedSentencePackId = null
+        }
+    }
 
     val filteredWordMatches = remember(wordMatches, searchQuery) {
         if (searchQuery.isBlank()) wordMatches
@@ -1451,9 +1467,22 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             matchesCat && matchesQuery
         }
     }
-    val filteredSentenceBuilders = remember(sentenceBuilders, searchQuery) {
-        if (searchQuery.isBlank()) sentenceBuilders
-        else sentenceBuilders.filter { it.targetSentence.contains(searchQuery.trim(), ignoreCase = true) || it.hint.contains(searchQuery.trim(), ignoreCase = true) }
+    val filteredSentencePacks = remember(sentenceBuilderPacks, searchQuery) {
+        if (searchQuery.isBlank()) sentenceBuilderPacks
+        else sentenceBuilderPacks.filter {
+            it.title.contains(searchQuery.trim(), ignoreCase = true) ||
+            it.description.contains(searchQuery.trim(), ignoreCase = true) ||
+            it.difficulty.contains(searchQuery.trim(), ignoreCase = true)
+        }
+    }
+    val filteredSentenceBuilders = remember(sentenceBuilders, activeSentencePack, searchQuery) {
+        val scoped = if (activeSentencePack != null) {
+            sentenceBuilders.filter { it.packId == activeSentencePack.id }
+        } else {
+            sentenceBuilders
+        }
+        if (searchQuery.isBlank()) scoped
+        else scoped.filter { it.targetSentence.contains(searchQuery.trim(), ignoreCase = true) || it.hint.contains(searchQuery.trim(), ignoreCase = true) }
     }
     val filteredListenChooses = remember(listenChooses, searchQuery) {
         if (searchQuery.isBlank()) listenChooses
@@ -1620,7 +1649,13 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
 
                         // Electric cyan "+ New" button
                         Button(
-                            onClick = { showCreateDialog = true },
+                            onClick = {
+                                if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack == null) {
+                                    showCreatePackDialog = true
+                                } else {
+                                    showCreateDialog = true
+                                }
+                            },
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color.Transparent
@@ -1683,7 +1718,12 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                                         .border(1.dp, Color(0xFF1E293B), tabShape)
                                 }
                             )
-                            .clickable { selectedCategory = cat }
+                            .clickable {
+                                selectedCategory = cat
+                                if (cat != GameCategoryFilter.SENTENCE_BUILDER) {
+                                    selectedSentencePackId = null
+                                }
+                            }
                             .padding(horizontal = 14.dp, vertical = 9.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1746,15 +1786,33 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             }
         }
 
-        // 3. Action Banner: "+ Add New Challenge"
+        // 3. Action Banner: "+ Add New Challenge" (or "+ Add Sentence to Challenge" when inside a Sentence Builder pack)
         item {
+            val isSentencePackList = selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack == null
+            val isInsideSentencePack = selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack != null
+            val bannerAction = {
+                if (isSentencePackList) showCreatePackDialog = true
+                else showCreateDialog = true
+            }
+            val bannerTitle = when {
+                isSentencePackList -> "+ Add New Challenge"
+                isInsideSentencePack -> "+ Add Sentences to ${activeSentencePack!!.title}"
+                else -> "+ Add New ${selectedCategory.title}"
+            }
+            val bannerSubtitle = when {
+                isSentencePackList -> "Create a challenge level & add many sentences inside"
+                isInsideSentencePack -> "Add one or multiple sentences into this challenge"
+                else -> "Create a question or drill to publish"
+            }
+
             Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF09122C).copy(alpha = 0.92f)),
                 border = BorderStroke(1.5.dp, Color(0xFF0077B6).copy(alpha = 0.7f)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { showCreateDialog = true }
+                    .clickable { bannerAction() }
+                    .testTag(if (isSentencePackList) "add_sentence_pack_banner" else "add_game_item_banner")
             ) {
                 Row(
                     modifier = Modifier
@@ -1792,17 +1850,19 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                "+ Add New ${selectedCategory.title}",
+                                bannerTitle,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 color = Color.White,
-                                maxLines = 1
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                "Create a question or drill to publish",
+                                bannerSubtitle,
                                 fontSize = 11.sp,
                                 color = Color(0xFF94A3B8),
-                                maxLines = 1
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -1817,7 +1877,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                                 )
                             )
                             .border(1.dp, Color(0xFFF0ABFC).copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                            .clickable { showCreateDialog = true }
+                            .clickable { bannerAction() }
                             .padding(horizontal = 14.dp, vertical = 9.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -2015,7 +2075,98 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             }
         }
 
-        if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER) {
+        if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack != null) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1A103D)),
+                    border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.65f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("teacher_active_sentence_pack_header")
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF2E1B69),
+                                border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.6f)),
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clickable { selectedSentencePackId = null }
+                                    .testTag("teacher_back_to_sentence_packs_btn")
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.ArrowBack,
+                                        contentDescription = "Back to Challenges",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = activeSentencePack.title,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFFFACC15).copy(alpha = 0.18f),
+                                        border = BorderStroke(0.8.dp, Color(0xFFFACC15).copy(alpha = 0.6f))
+                                    ) {
+                                        Text(
+                                            text = "${activeSentencePack.difficulty} • +${activeSentencePack.xpReward} XP",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFFDE047),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = activeSentencePack.description,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFCBD5E1),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { editingSentencePack = activeSentencePack },
+                            modifier = Modifier.testTag("edit_active_sentence_pack_btn")
+                        ) {
+                            Icon(
+                                Icons.Filled.Edit,
+                                contentDescription = "Edit Challenge",
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             item {
                 Card(
                     shape = RoundedCornerShape(16.dp),
@@ -2059,7 +2210,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "Upload .xlsx / .csv or paste spreadsheet rows",
+                                    text = "Upload .xlsx / .csv into '${activeSentencePack.title}'",
                                     fontSize = 11.sp,
                                     color = Color(0xFF94A3B8),
                                     maxLines = 1,
@@ -2113,7 +2264,11 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         val (categoryHeaderLabel, currentCount) = when (selectedCategory) {
             GameCategoryFilter.WORD_MATCH -> "Existing Word Match Pairs" to filteredWordMatches.size
             GameCategoryFilter.MISSING_LETTERS -> "Existing Missing Letters Challenges" to filteredMissingLetters.size
-            GameCategoryFilter.SENTENCE_BUILDER -> "Existing Sentence Builder Challenges" to filteredSentenceBuilders.size
+            GameCategoryFilter.SENTENCE_BUILDER -> if (activeSentencePack == null) {
+                "Sentence Builder Challenges" to filteredSentencePacks.size
+            } else {
+                "Sentences in ${activeSentencePack.title}" to filteredSentenceBuilders.size
+            }
             GameCategoryFilter.LISTEN_CHOOSE -> "Existing Listen & Choose Drills" to filteredListenChooses.size
             GameCategoryFilter.PRONUNCIATION_BATTLE -> "Existing Pronunciation Battles" to filteredPronunciationBattles.size
             GameCategoryFilter.FAST_VOCABULARY -> "Existing Fast Vocabulary Blitzes" to filteredFastVocabs.size
@@ -2254,29 +2409,218 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 }
             }
             GameCategoryFilter.SENTENCE_BUILDER -> {
-                itemsIndexed(filteredSentenceBuilders) { index, item ->
-                    GameItemCard(
-                        title = item.targetSentence,
-                        subtitle = "Hint: ${item.hint}" + if (item.assameseTranslation.isNotBlank()) "\n🇮🇳 অসমীয়া: ${item.assameseTranslation}" else "",
-                        tag = "Sentence Syntax",
-                        createdBy = item.createdBy,
-                        index = index,
-                        onPlayAudio = { viewModel.speakAudio(item.targetSentence) },
-                        onEdit = {
-                            activeEditingChallenge = ActiveEditingChallenge(
-                                category = GameCategoryFilter.SENTENCE_BUILDER,
-                                id = item.id,
-                                field1 = item.targetSentence,
-                                field2 = item.hint,
-                                field3 = item.assameseTranslation,
-                                onSave = { f1, f2, f3, _, _ ->
-                                    viewModel.updateSentenceBuilderChallenge(item.copy(targetSentence = f1, hint = f2, assameseTranslation = f3))
-                                    statusMsg = "Updated sentence builder challenge!"
+                if (activeSentencePack == null) {
+                    itemsIndexed(filteredSentencePacks) { index, pack ->
+                        val sentenceCount = sentenceBuilders.count { it.packId == pack.id }
+                        val packAccent = when (pack.difficulty.lowercase()) {
+                            "easy" -> Color(0xFF10B981)
+                            "medium" -> Color(0xFF0EA5E9)
+                            "hard" -> Color(0xFFA855F7)
+                            else -> if (index % 2 == 0) Color(0xFF10B981) else Color(0xFF38BDF8)
+                        }
+                        val stars = when (pack.difficulty.lowercase()) {
+                            "hard" -> "⭐⭐⭐"
+                            "medium" -> "⭐⭐"
+                            else -> "⭐"
+                        }
+
+                        Card(
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1633).copy(alpha = 0.94f)),
+                            border = BorderStroke(1.3.dp, packAccent.copy(alpha = 0.55f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedSentencePackId = pack.id }
+                                .testTag("teacher_sentence_pack_card_${pack.id}")
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = packAccent.copy(alpha = 0.18f),
+                                            border = BorderStroke(1.dp, packAccent.copy(alpha = 0.6f)),
+                                            modifier = Modifier.size(width = 58.dp, height = 46.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(stars, fontSize = if (stars.length >= 3) 12.sp else 15.sp)
+                                            }
+                                        }
+                                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Text(
+                                                text = pack.title,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 15.sp,
+                                                color = Color.White,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = pack.description,
+                                                fontSize = 12.sp,
+                                                color = Color(0xFFCBD5E1),
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        IconButton(
+                                            onClick = { editingSentencePack = pack },
+                                            modifier = Modifier.testTag("edit_sentence_pack_${pack.id}")
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Edit,
+                                                contentDescription = "Edit Challenge",
+                                                tint = Color(0xFF38BDF8),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { packPendingDelete = pack },
+                                            modifier = Modifier.testTag("delete_sentence_pack_${pack.id}")
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Delete,
+                                                contentDescription = "Delete Challenge",
+                                                tint = CoralAccent,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
                                 }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = packAccent.copy(alpha = 0.16f),
+                                            border = BorderStroke(0.8.dp, packAccent.copy(alpha = 0.5f))
+                                        ) {
+                                            Text(
+                                                text = "🎯 $sentenceCount ${if (sentenceCount == 1) "Sentence" else "Sentences"}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color(0xFF1F1638),
+                                            border = BorderStroke(0.8.dp, Color(0xFFFACC15).copy(alpha = 0.45f))
+                                        ) {
+                                            Text(
+                                                text = "⚡ +${pack.xpReward} XP",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFFDE047),
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Button(
+                                        onClick = { selectedSentencePackId = pack.id },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = packAccent),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                        modifier = Modifier
+                                            .height(36.dp)
+                                            .testTag("open_sentence_pack_${pack.id}")
+                                    ) {
+                                        Text(
+                                            text = "Add / Edit Sentences →",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.5.sp,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    if (filteredSentenceBuilders.isEmpty()) {
+                        item {
+                            Card(
+                                shape = RoundedCornerShape(18.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1633)),
+                                border = BorderStroke(1.dp, Color(0xFF334155)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("📝", fontSize = 32.sp)
+                                    Text(
+                                        "No sentences inside '${activeSentencePack.title}' yet",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Color.White,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Text(
+                                        "Tap '+ Add Sentences' or 'Import Sheet' above to add many sentences to this challenge.",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF94A3B8),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        itemsIndexed(filteredSentenceBuilders) { index, item ->
+                            GameItemCard(
+                                title = item.targetSentence,
+                                subtitle = "Hint: ${item.hint}" + if (item.assameseTranslation.isNotBlank()) "\n🇮🇳 অসমীয়া: ${item.assameseTranslation}" else "",
+                                tag = activeSentencePack.title,
+                                createdBy = item.createdBy,
+                                index = index,
+                                onPlayAudio = { viewModel.speakAudio(item.targetSentence) },
+                                onEdit = {
+                                    activeEditingChallenge = ActiveEditingChallenge(
+                                        category = GameCategoryFilter.SENTENCE_BUILDER,
+                                        id = item.id,
+                                        field1 = item.targetSentence,
+                                        field2 = item.hint,
+                                        field3 = item.assameseTranslation,
+                                        onSave = { f1, f2, f3, _, _ ->
+                                            viewModel.updateSentenceBuilderChallenge(item.copy(targetSentence = f1, hint = f2, assameseTranslation = f3))
+                                            statusMsg = "Updated sentence in '${activeSentencePack.title}'!"
+                                        }
+                                    )
+                                },
+                                onDelete = { viewModel.deleteSentenceBuilderChallenge(item.id) }
                             )
-                        },
-                        onDelete = { viewModel.deleteSentenceBuilderChallenge(item.id) }
-                    )
+                        }
+                    }
                 }
             }
             GameCategoryFilter.LISTEN_CHOOSE -> {
@@ -2434,16 +2778,95 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     }
     }
 
+    if (showCreatePackDialog) {
+        SentencePackEditorDialog(
+            initialPack = null,
+            onDismiss = { showCreatePackDialog = false },
+            onSave = { title, description, difficulty, xpReward ->
+                val created = viewModel.addSentenceBuilderPack(
+                    title = title,
+                    description = description,
+                    difficulty = difficulty,
+                    xpReward = xpReward,
+                    createdBy = currentUser.name.ifBlank { "Faculty Instructor" }
+                )
+                statusMsg = "Created challenge '${created.title}'! Now add sentences inside it."
+                selectedSentencePackId = created.id
+                showCreatePackDialog = false
+            }
+        )
+    }
+
+    editingSentencePack?.let { pack ->
+        SentencePackEditorDialog(
+            initialPack = pack,
+            onDismiss = { editingSentencePack = null },
+            onSave = { title, description, difficulty, xpReward ->
+                viewModel.updateSentenceBuilderPack(
+                    pack.copy(
+                        title = title,
+                        description = description,
+                        difficulty = difficulty,
+                        xpReward = xpReward
+                    )
+                )
+                statusMsg = "Updated challenge '$title'!"
+                editingSentencePack = null
+            }
+        )
+    }
+
+    packPendingDelete?.let { pack ->
+        val sentenceCount = sentenceBuilders.count { it.packId == pack.id }
+        AlertDialog(
+            onDismissRequest = { packPendingDelete = null },
+            title = { Text("Delete Challenge?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    if (sentenceCount > 0) {
+                        "Are you sure you want to delete '${pack.title}' and its $sentenceCount ${if (sentenceCount == 1) "sentence" else "sentences"}?"
+                    } else {
+                        "Are you sure you want to delete '${pack.title}'?"
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteSentenceBuilderPack(pack.id)
+                        if (selectedSentencePackId == pack.id) selectedSentencePackId = null
+                        statusMsg = "Deleted challenge '${pack.title}'."
+                        packPendingDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CoralAccent),
+                    modifier = Modifier.testTag("confirm_delete_sentence_pack_btn")
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { packPendingDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (showCreateDialog) {
         CreateGameChallengeDialog(
             category = selectedCategory,
             authorName = currentUser.name.ifBlank { "Faculty Instructor" },
             onDismiss = { showCreateDialog = false },
             onCreated = {
-                statusMsg = "Successfully published and synced new challenge for ${selectedCategory.title} to Supabase & student panel! 🚀"
+                statusMsg = if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack != null) {
+                    "Published sentences into '${activeSentencePack.title}' & synced to Student Panel! 🚀"
+                } else {
+                    "Successfully published and synced new challenge for ${selectedCategory.title} to Supabase & student panel! 🚀"
+                }
                 showCreateDialog = false
             },
             viewModel = viewModel,
+            targetSentencePack = activeSentencePack,
             onOpenBulkImport = {
                 showCreateDialog = false
                 if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER) {
@@ -2470,10 +2893,13 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         BulkImportSentenceBuilderDialog(
             onDismiss = { showBulkImportSentenceBuilderDialog = false },
             onImported = { count ->
-                statusMsg = "Successfully imported $count sentences from Excel sheet & synced to Student Panel!"
+                val packTitle = activeSentencePack?.title ?: "Easy Challenge"
+                statusMsg = "Successfully imported $count sentences into '$packTitle' & synced to Student Panel!"
                 showBulkImportSentenceBuilderDialog = false
             },
-            viewModel = viewModel
+            viewModel = viewModel,
+            targetPackId = activeSentencePack?.id ?: "sb_pack_easy",
+            targetPackTitle = activeSentencePack?.title ?: "Easy Challenge"
         )
     }
 
@@ -5487,7 +5913,9 @@ fun BulkImportMissingLettersDialog(
 fun BulkImportSentenceBuilderDialog(
     onDismiss: () -> Unit,
     onImported: (count: Int) -> Unit,
-    viewModel: MainViewModel
+    viewModel: MainViewModel,
+    targetPackId: String = "sb_pack_easy",
+    targetPackTitle: String = "Easy Challenge"
 ) {
     val context = LocalContext.current
     val currentUser by viewModel.currentUser.collectAsState()
@@ -5575,7 +6003,7 @@ fun BulkImportSentenceBuilderDialog(
                             fontSize = 16.sp
                         )
                         Text(
-                            text = "Sentence Builder Challenges",
+                            text = "Into: $targetPackTitle",
                             fontSize = 11.sp,
                             color = EmeraldSuccess,
                             fontWeight = FontWeight.SemiBold
@@ -5856,7 +6284,7 @@ fun BulkImportSentenceBuilderDialog(
                         val rowsToImport = parsedRows.map {
                             Triple(it.targetSentence, it.hint, it.assameseTranslation)
                         }
-                        val count = viewModel.bulkImportSentenceBuilders(rowsToImport, author)
+                        val count = viewModel.bulkImportSentenceBuilders(rowsToImport, author, targetPackId)
                         successMessage = "Successfully imported $count sentences!"
                         onImported(count)
                     }
@@ -5880,6 +6308,119 @@ fun BulkImportSentenceBuilderDialog(
 }
 
 // -------------------------------------------------------------
+// CREATE / EDIT SENTENCE BUILDER CHALLENGE PACK DIALOG
+// -------------------------------------------------------------
+@Composable
+fun SentencePackEditorDialog(
+    initialPack: SentenceBuilderPack?,
+    onDismiss: () -> Unit,
+    onSave: (title: String, description: String, difficulty: String, xpReward: Int) -> Unit
+) {
+    val difficulties = listOf("Easy" to 40, "Medium" to 60, "Hard" to 100)
+    var title by remember { mutableStateOf(initialPack?.title ?: "") }
+    var description by remember { mutableStateOf(initialPack?.description ?: "") }
+    var difficulty by remember { mutableStateOf(initialPack?.difficulty ?: "Easy") }
+    var xpText by remember { mutableStateOf((initialPack?.xpReward ?: 40).toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("🏗️", fontSize = 22.sp)
+                Text(
+                    if (initialPack == null) "Create Sentence Challenge" else "Edit Sentence Challenge",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Challenge Name (e.g. Easy Challenge, Daily Verbs)") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("sentence_pack_title_input")
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description (e.g. Build simple and short sentences.)") },
+                    maxLines = 2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("sentence_pack_desc_input")
+                )
+
+                Text("Difficulty Level:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    difficulties.forEach { (level, defaultXp) ->
+                        val isSel = difficulty.equals(level, ignoreCase = true)
+                        FilterChip(
+                            selected = isSel,
+                            onClick = {
+                                difficulty = level
+                                if (initialPack == null || xpText == "40" || xpText == "60" || xpText == "100") {
+                                    xpText = defaultXp.toString()
+                                }
+                            },
+                            label = {
+                                val stars = when (level) {
+                                    "Hard" -> "⭐⭐⭐"
+                                    "Medium" -> "⭐⭐"
+                                    else -> "⭐"
+                                }
+                                Text("$stars $level", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = xpText,
+                    onValueChange = { input -> xpText = input.filter { it.isDigit() } },
+                    label = { Text("XP Reward per Sentence (e.g. 40, 60, 100)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val xp = (xpText.toIntOrNull() ?: 40).coerceIn(10, 500)
+                    onSave(
+                        title.trim().ifBlank { "$difficulty Challenge" },
+                        description.trim().ifBlank { "Build grammatically correct sentences." },
+                        difficulty,
+                        xp
+                    )
+                },
+                enabled = title.trim().isNotEmpty(),
+                modifier = Modifier.testTag("save_sentence_pack_btn")
+            ) {
+                Text(if (initialPack == null) "Create Challenge 🚀" else "Save Changes")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+// -------------------------------------------------------------
 // UNIVERSAL CREATE CHALLENGE DIALOG
 // -------------------------------------------------------------
 @Composable
@@ -5889,6 +6430,7 @@ fun CreateGameChallengeDialog(
     onDismiss: () -> Unit,
     onCreated: () -> Unit,
     viewModel: MainViewModel,
+    targetSentencePack: SentenceBuilderPack? = null,
     onOpenBulkImport: (() -> Unit)? = null
 ) {
     var field1 by remember { mutableStateOf("") }
@@ -5897,13 +6439,22 @@ fun CreateGameChallengeDialog(
     var field4 by remember { mutableStateOf("") }
     var field5 by remember { mutableStateOf("") }
     var correctIndex by remember { mutableIntStateOf(0) }
+    var addedSentencesCount by remember { mutableIntStateOf(0) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(category.emoji, fontSize = 24.sp)
-                Text("Add ${category.title} Challenge", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(
+                    if (category == GameCategoryFilter.SENTENCE_BUILDER && targetSentencePack != null) {
+                        "Add Sentence to ${targetSentencePack.title}"
+                    } else {
+                        "Add ${category.title} Challenge"
+                    },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
             }
         },
         text = {
@@ -6090,6 +6641,40 @@ fun CreateGameChallengeDialog(
                         }
                     }
                     GameCategoryFilter.SENTENCE_BUILDER -> {
+                        if (targetSentencePack != null) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF3B1578).copy(alpha = 0.14f),
+                                border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.45f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "🎯 Challenge: ${targetSentencePack.title} (${targetSentencePack.difficulty})",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF7C3AED),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                                )
+                            }
+                        }
+
+                        if (addedSentencesCount > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = EmeraldSuccess.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.45f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "✓ Added $addedSentencesCount ${if (addedSentencesCount == 1) "sentence" else "sentences"}! Enter another below or tap Done.",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EmeraldSuccess,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                                )
+                            }
+                        }
+
                         OutlinedTextField(value = field1, onValueChange = { field1 = it }, label = { Text("Target Sentence (e.g. She speaks English)") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = field2, onValueChange = { field2 = it }, label = { Text("Grammar Hint / Category") }, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = field3, onValueChange = { field3 = it }, label = { Text("Assamese Translation (অসমীয়া অনুবাদ - optional)") }, modifier = Modifier.fillMaxWidth())
@@ -6258,8 +6843,17 @@ fun CreateGameChallengeDialog(
                         }
                     }
                     GameCategoryFilter.SENTENCE_BUILDER -> {
+                        val destPackId = targetSentencePack?.id ?: "sb_pack_easy"
                         if (field1.isNotBlank()) {
-                            viewModel.addSentenceBuilderChallenge(field1, field2.ifBlank { "Assemble syntax" }, field3.trim(), authorName)
+                            viewModel.addSentenceBuilderChallenge(
+                                targetSentence = field1,
+                                hint = field2.ifBlank { "Assemble syntax" },
+                                assameseTranslation = field3.trim(),
+                                createdBy = authorName,
+                                packId = destPackId
+                            )
+                            onCreated()
+                        } else if (addedSentencesCount > 0) {
                             onCreated()
                         }
                     }
@@ -6342,11 +6936,45 @@ fun CreateGameChallengeDialog(
                     }
                 }
             }) {
-                Text("Publish to Students 🚀")
+                Text(
+                    if (category == GameCategoryFilter.SENTENCE_BUILDER && field1.isBlank() && addedSentencesCount > 0) {
+                        "Done ✓"
+                    } else {
+                        "Publish to Students 🚀"
+                    }
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (category == GameCategoryFilter.SENTENCE_BUILDER) {
+                    OutlinedButton(
+                        onClick = {
+                            if (field1.isNotBlank()) {
+                                val destPackId = targetSentencePack?.id ?: "sb_pack_easy"
+                                viewModel.addSentenceBuilderChallenge(
+                                    targetSentence = field1,
+                                    hint = field2.ifBlank { "Assemble syntax" },
+                                    assameseTranslation = field3.trim(),
+                                    createdBy = authorName,
+                                    packId = destPackId
+                                )
+                                field1 = ""
+                                field2 = ""
+                                field3 = ""
+                                addedSentencesCount++
+                            }
+                        },
+                        enabled = field1.isNotBlank(),
+                        modifier = Modifier.testTag("save_and_add_another_sentence_btn")
+                    ) {
+                        Text("+ Add Another")
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(if (addedSentencesCount > 0) "Close" else "Cancel")
+                }
+            }
         }
     )
 }

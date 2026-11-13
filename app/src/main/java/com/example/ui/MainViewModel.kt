@@ -327,6 +327,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val wordMatchChallenges = repository.wordMatchChallenges
     val missingLettersChallenges = repository.missingLettersChallenges
     val missingLettersCategories = repository.missingLettersCustomCategories
+    val sentenceBuilderPacks = repository.sentenceBuilderPacks
     val sentenceBuilderChallenges = repository.sentenceBuilderChallenges
     val listenChooseChallenges = repository.listenChooseChallenges
     val pronunciationBattleChallenges = repository.pronunciationBattleChallenges
@@ -579,8 +580,69 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return count
     }
 
-    fun addSentenceBuilderChallenge(targetSentence: String, hint: String, assameseTranslation: String = "", createdBy: String) {
-        val created = repository.addSentenceBuilderChallenge(targetSentence, hint, assameseTranslation, createdBy)
+    fun addSentenceBuilderPack(
+        title: String,
+        description: String,
+        difficulty: String = "Easy",
+        xpReward: Int = 40,
+        createdBy: String
+    ): SentenceBuilderPack {
+        val created = repository.addSentenceBuilderPack(title, description, difficulty, xpReward, createdBy)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = created.id,
+                    type = "SENTENCE_BUILDER_PACK",
+                    titleOrWord = created.title,
+                    hintOrMeaning = created.description,
+                    category = created.difficulty,
+                    correctIndex = created.xpReward,
+                    createdBy = created.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
+        return created
+    }
+
+    fun updateSentenceBuilderPack(updated: SentenceBuilderPack) {
+        repository.updateSentenceBuilderPack(updated)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = updated.id,
+                    type = "SENTENCE_BUILDER_PACK",
+                    titleOrWord = updated.title,
+                    hintOrMeaning = updated.description,
+                    category = updated.difficulty,
+                    correctIndex = updated.xpReward,
+                    createdBy = updated.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
+    }
+
+    fun deleteSentenceBuilderPack(packId: String) {
+        val removedSentenceIds = repository.deleteSentenceBuilderPack(packId)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteGameChallenge(packId)
+                removedSentenceIds.forEach { sentenceId ->
+                    supabaseService.deleteGameChallenge(sentenceId)
+                }
+            }
+        }
+    }
+
+    fun addSentenceBuilderChallenge(
+        targetSentence: String,
+        hint: String,
+        assameseTranslation: String = "",
+        createdBy: String,
+        packId: String = "sb_pack_easy"
+    ) {
+        val created = repository.addSentenceBuilderChallenge(targetSentence, hint, assameseTranslation, createdBy, packId)
         if (supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
                 val challenge = com.example.data.model.SupabaseGameChallenge(
@@ -588,7 +650,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     type = "SENTENCE_BUILDER",
                     titleOrWord = created.targetSentence,
                     hintOrMeaning = created.hint,
-                    category = "Syntax",
+                    category = created.packId,
                     extraData = created.assameseTranslation,
                     createdBy = created.createdBy
                 )
@@ -599,9 +661,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun bulkImportSentenceBuilders(
         rows: List<Triple<String, String, String>>,
-        createdBy: String
+        createdBy: String,
+        packId: String = "sb_pack_easy"
     ): Int {
-        val count = repository.bulkImportSentenceBuilders(rows, createdBy)
+        val count = repository.bulkImportSentenceBuilders(rows, createdBy, packId)
         if (count > 0 && supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
                 val currentChallenges = repository.sentenceBuilderChallenges.value
@@ -612,7 +675,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         type = "SENTENCE_BUILDER",
                         titleOrWord = item.targetSentence,
                         hintOrMeaning = item.hint,
-                        category = "Syntax",
+                        category = item.packId,
                         extraData = item.assameseTranslation,
                         createdBy = item.createdBy
                     )
@@ -778,7 +841,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     type = "SENTENCE_BUILDER",
                     titleOrWord = updated.targetSentence,
                     hintOrMeaning = updated.hint,
-                    category = "Syntax",
+                    category = updated.packId,
                     extraData = updated.assameseTranslation,
                     createdBy = updated.createdBy
                 )

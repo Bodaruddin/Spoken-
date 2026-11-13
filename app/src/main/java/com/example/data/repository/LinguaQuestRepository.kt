@@ -1806,11 +1806,53 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         return true
     }
 
+    private val defaultSentenceBuilderPacks = listOf(
+        SentenceBuilderPack(
+            id = "sb_pack_easy",
+            title = "Easy Challenge",
+            description = "Build simple and short sentences.",
+            difficulty = "Easy",
+            xpReward = 40,
+            createdBy = "System"
+        ),
+        SentenceBuilderPack(
+            id = "sb_pack_medium",
+            title = "Medium Challenge",
+            description = "Build longer and more meaningful sentences.",
+            difficulty = "Medium",
+            xpReward = 60,
+            createdBy = "System"
+        ),
+        SentenceBuilderPack(
+            id = "sb_pack_hard",
+            title = "Hard Challenge",
+            description = "Build complex sentences with proper grammar.",
+            difficulty = "Hard",
+            xpReward = 100,
+            createdBy = "System"
+        )
+    )
+
+    private fun loadInitialSentenceBuilderPacks(): List<SentenceBuilderPack> {
+        val saved = appPreferences?.getSentenceBuilderPacks()
+        if (!saved.isNullOrEmpty()) {
+            return saved
+        }
+        appPreferences?.saveSentenceBuilderPacks(defaultSentenceBuilderPacks)
+        return defaultSentenceBuilderPacks
+    }
+
+    private val _sentenceBuilderPacks = MutableStateFlow(loadInitialSentenceBuilderPacks())
+    val sentenceBuilderPacks: StateFlow<List<SentenceBuilderPack>> = _sentenceBuilderPacks.asStateFlow()
+
     private val defaultSentenceBuilderChallenges = listOf(
-        SentenceBuilderChallenge("sb_1", "She speaks English with natural confidence and clarity", "Daily speaking practice", "তাই স্বাভাৱিক আত্মবিশ্বাস আৰু স্পষ্টতাৰে ইংৰাজী কয়।", "System"),
-        SentenceBuilderChallenge("sb_2", "Clear pronunciation helps listeners understand your message easily", "Pronunciation guide", "স্পষ্ট উচ্চাৰণে শ্ৰোতাসকলক আপোনাৰ বাৰ্তা সহজে বুজিবলৈ সহায় কৰে।", "Prof. Eleanor Vance"),
-        SentenceBuilderChallenge("sb_3", "We practice speaking English every day to build fluency", "Study habits", "সাবলীলতা গঢ়ি তুলিবলৈ আমি প্ৰতিদিনে ইংৰাজী কোৱা অনুশীলন কৰোঁ।", "System"),
-        SentenceBuilderChallenge("sb_4", "Collaborative conversations improve confidence in professional workplace settings", "Workplace English", "পাৰস্পৰিক কথোপকথনে পেছাদাৰী কৰ্মক্ষেত্ৰত আত্মবিশ্বাস বৃদ্ধি কৰে।", "Dean Arthur Pendelton")
+        SentenceBuilderChallenge("sb_1", "She speaks English with natural confidence and clarity", "Daily speaking practice", "তাই স্বাভাৱিক আত্মবিশ্বাস আৰু স্পষ্টতাৰে ইংৰাজী কয়।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_5", "We drink warm tea every morning", "Present simple routine", "আমি প্ৰতিদিনে ৰাতিপুৱা গৰম চাহ খাওঁ।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_2", "Clear pronunciation helps listeners understand your message easily", "Pronunciation guide", "স্পষ্ট উচ্চাৰণে শ্ৰোতাসকলক আপোনাৰ বাৰ্তা সহজে বুজিবলৈ সহায় কৰে।", "Prof. Eleanor Vance", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_3", "We practice speaking English every day to build fluency", "Study habits", "সাবলীলতা গঢ়ি তুলিবলৈ আমি প্ৰতিদিনে ইংৰাজী কোৱা অনুশীলন কৰোঁ।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_7", "Speaking clearly every day builds strong confidence", "Daily fluency habit", "প্ৰতিদিনে স্পষ্টকৈ ক'লে শক্তিশালী আত্মবিশ্বাস গঢ়ি উঠে।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_4", "Collaborative conversations improve confidence in professional workplace settings", "Workplace English", "পাৰস্পৰিক কথোপকথনে পেছাদাৰী কৰ্মক্ষেত্ৰত আত্মবিশ্বাস বৃদ্ধি কৰে।", "Dean Arthur Pendelton", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_6", "Although the weather was stormy we arrived on time", "Complex clause", "বতৰ ধুমুহাময় আছিল যদিও আমি সময়মতে উপস্থিত হ'লোঁ।", "System", "sb_pack_hard")
     )
 
     private fun loadInitialSentenceBuilders(): List<SentenceBuilderChallenge> {
@@ -2608,9 +2650,65 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         appPreferences?.saveMissingLettersChallenges(_missingLettersChallenges.value)
     }
 
-    fun addSentenceBuilderChallenge(targetSentence: String, hint: String = "Assemble syntax", assameseTranslation: String = "", createdBy: String): SentenceBuilderChallenge {
+    fun addSentenceBuilderPack(
+        title: String,
+        description: String,
+        difficulty: String = "Easy",
+        xpReward: Int = 40,
+        createdBy: String
+    ): SentenceBuilderPack {
+        val id = "sb_pack_${System.currentTimeMillis()}"
+        val pack = SentenceBuilderPack(
+            id = id,
+            title = title.trim().ifBlank { "Custom Challenge" },
+            description = description.trim().ifBlank { "Arrange words into grammatical sentences." },
+            difficulty = difficulty.trim().ifBlank { "Easy" },
+            xpReward = xpReward.coerceIn(10, 500),
+            createdBy = createdBy
+        )
+        _sentenceBuilderPacks.update { it + pack }
+        appPreferences?.saveSentenceBuilderPacks(_sentenceBuilderPacks.value)
+        return pack
+    }
+
+    fun updateSentenceBuilderPack(updated: SentenceBuilderPack) {
+        _sentenceBuilderPacks.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
+        }
+        appPreferences?.saveSentenceBuilderPacks(_sentenceBuilderPacks.value)
+    }
+
+    fun deleteSentenceBuilderPack(packId: String): List<String> {
+        val removedSentenceIds = _sentenceBuilderChallenges.value
+            .filter { it.packId == packId }
+            .map { it.id }
+        _sentenceBuilderPacks.update { it.filterNot { pack -> pack.id == packId } }
+        appPreferences?.saveSentenceBuilderPacks(_sentenceBuilderPacks.value)
+
+        if (removedSentenceIds.isNotEmpty()) {
+            _sentenceBuilderChallenges.update { it.filterNot { item -> item.packId == packId } }
+            appPreferences?.saveSentenceBuilderChallenges(_sentenceBuilderChallenges.value)
+        }
+        return removedSentenceIds
+    }
+
+    fun addSentenceBuilderChallenge(
+        targetSentence: String,
+        hint: String = "Assemble syntax",
+        assameseTranslation: String = "",
+        createdBy: String,
+        packId: String = "sb_pack_easy"
+    ): SentenceBuilderChallenge {
         val id = "sb_${System.currentTimeMillis()}"
-        val item = SentenceBuilderChallenge(id, targetSentence.trim(), hint.trim(), assameseTranslation.trim(), createdBy)
+        val resolvedPackId = packId.ifBlank { "sb_pack_easy" }
+        val item = SentenceBuilderChallenge(
+            id = id,
+            targetSentence = targetSentence.trim(),
+            hint = hint.trim(),
+            assameseTranslation = assameseTranslation.trim(),
+            createdBy = createdBy,
+            packId = resolvedPackId
+        )
         _sentenceBuilderChallenges.update { it + item }
         appPreferences?.saveSentenceBuilderChallenges(_sentenceBuilderChallenges.value)
         return item
@@ -2618,10 +2716,12 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
 
     fun bulkImportSentenceBuilders(
         rows: List<Triple<String, String, String>>,
-        createdBy: String
+        createdBy: String,
+        packId: String = "sb_pack_easy"
     ): Int {
         if (rows.isEmpty()) return 0
         val timestamp = System.currentTimeMillis()
+        val resolvedPackId = packId.ifBlank { "sb_pack_easy" }
         var count = 0
         val newChallenges = mutableListOf<SentenceBuilderChallenge>()
 
@@ -2637,7 +2737,8 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                         targetSentence = cleaned,
                         hint = finalHint,
                         assameseTranslation = finalAssamese,
-                        createdBy = createdBy
+                        createdBy = createdBy,
+                        packId = resolvedPackId
                     )
                 )
                 count++
@@ -3109,6 +3210,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
 
     fun mergeRemoteGameChallenges(remoteChallenges: List<SupabaseGameChallenge>) {
         if (remoteChallenges.isEmpty()) return
+        var sbPackChanged = false
         var sbChanged = false
         var wmChanged = false
         var mlChanged = false
@@ -3118,6 +3220,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         var gcChanged = false
         var pvChanged = false
 
+        val currentSbPacks = _sentenceBuilderPacks.value.toMutableList()
         val currentSb = _sentenceBuilderChallenges.value.toMutableList()
         val currentWm = _wordMatchChallenges.value.toMutableList()
         val currentMl = _missingLettersChallenges.value.toMutableList()
@@ -3129,14 +3232,41 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
 
         for (rc in remoteChallenges) {
             when (rc.type.uppercase()) {
+                "SENTENCE_BUILDER_PACK" -> {
+                    val idx = currentSbPacks.indexOfFirst { it.id == rc.id }
+                    val pack = SentenceBuilderPack(
+                        id = rc.id,
+                        title = rc.titleOrWord.ifBlank { "Sentence Challenge" },
+                        description = rc.hintOrMeaning.ifBlank { "Build grammatically correct sentences." },
+                        difficulty = rc.category.ifBlank { "Easy" },
+                        xpReward = if (rc.correctIndex > 0) rc.correctIndex else 40,
+                        createdBy = rc.createdBy
+                    )
+                    if (idx >= 0) {
+                        currentSbPacks[idx] = pack
+                    } else {
+                        currentSbPacks.add(pack)
+                    }
+                    sbPackChanged = true
+                }
                 "SENTENCE_BUILDER" -> {
-                    val idx = currentSb.indexOfFirst { it.id == rc.id || (it.targetSentence.isNotBlank() && it.targetSentence.equals(rc.titleOrWord, ignoreCase = true)) }
+                    val resolvedPackId = if (
+                        rc.category.isBlank() ||
+                        rc.category.equals("Syntax", ignoreCase = true) ||
+                        rc.category.equals("General", ignoreCase = true)
+                    ) {
+                        "sb_pack_easy"
+                    } else {
+                        rc.category
+                    }
+                    val idx = currentSb.indexOfFirst { it.id == rc.id || (it.targetSentence.isNotBlank() && it.targetSentence.equals(rc.titleOrWord, ignoreCase = true) && it.packId == resolvedPackId) }
                     val item = SentenceBuilderChallenge(
                         id = rc.id,
                         targetSentence = rc.titleOrWord,
                         hint = rc.hintOrMeaning.ifBlank { "Form a grammatically correct sentence" },
                         assameseTranslation = rc.extraData,
-                        createdBy = rc.createdBy
+                        createdBy = rc.createdBy,
+                        packId = resolvedPackId
                     )
                     if (idx >= 0) {
                         currentSb[idx] = item
@@ -3279,6 +3409,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             }
         }
 
+        if (sbPackChanged) {
+            _sentenceBuilderPacks.value = currentSbPacks
+            appPreferences?.saveSentenceBuilderPacks(currentSbPacks)
+        }
         if (sbChanged) {
             _sentenceBuilderChallenges.value = currentSb
             appPreferences?.saveSentenceBuilderChallenges(currentSb)
