@@ -48,9 +48,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import com.example.R
 import com.example.data.model.SpeakingEvaluation
@@ -811,57 +814,90 @@ fun NovaAiChatScreen(
 
     // 1. Hint Dialog
     if (showHintDialog) {
-        Dialog(onDismissRequest = { showHintDialog = false }) {
+        Dialog(
+            onDismissRequest = { showHintDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
             Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = Color(0xFF1B133B),
                 border = BorderStroke(1.5.dp, Color(0xFFA855F7)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(horizontal = 18.dp, vertical = 20.dp)
+                    .heightIn(max = 620.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("💡", fontSize = 24.sp)
-                        Text(
-                            "Speaking & Grammar Hint",
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("💡", fontSize = 22.sp)
+                            Text(
+                                "Speaking & Grammar Hint",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        IconButton(
+                            onClick = { showHintDialog = false },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .testTag("close_hint_dialog_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Close Hint",
+                                tint = Color(0xFFCBD5E1),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
 
-                    Text(
-                        text = currentHint.ifBlank { currentTopic.followUpTip.ifBlank { "Express your thoughts clearly using complete sentences and natural pronunciation." } },
-                        fontSize = 14.sp,
-                        color = Color(0xFFDDD6FE),
-                        lineHeight = 20.sp
-                    )
-
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF281A54),
-                        modifier = Modifier.fillMaxWidth()
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                "Target Vocabulary / Phrases:",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF67E8F9)
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                currentTopic.recommendedKeywords.joinToString(" • "),
-                                fontSize = 13.sp,
-                                color = Color.White
-                            )
+                        Text(
+                            text = currentHint.ifBlank { currentTopic.followUpTip.ifBlank { "Express your thoughts clearly using complete sentences and natural pronunciation." } },
+                            fontSize = 14.sp,
+                            color = Color(0xFFDDD6FE),
+                            lineHeight = 20.sp
+                        )
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF281A54),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    "Target Vocabulary / Phrases:",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF67E8F9)
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    currentTopic.recommendedKeywords.joinToString(" • "),
+                                    fontSize = 13.sp,
+                                    color = Color.White
+                                )
+                            }
                         }
                     }
 
@@ -880,41 +916,68 @@ fun NovaAiChatScreen(
 
     // 2. Examples Dialog
     if (showExamplesDialog) {
-        Dialog(onDismissRequest = { showExamplesDialog = false }) {
+        Dialog(
+            onDismissRequest = { showExamplesDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
             val activeCoachQuestion by viewModel.activeCoachQuestion.collectAsState()
             val rawQuestion = activeCoachQuestion.ifBlank { currentTopic.question }
             val cleanQuestion = remember(rawQuestion) {
                 com.example.util.AssameseTranslator.extractCleanQuestion(rawQuestion)
             }
+            val activeLower = remember(cleanQuestion) { cleanQuestion.lowercase().trim() }
+            val isGreetingQ = remember(activeLower) {
+                activeLower.contains("how are you") ||
+                    activeLower.startsWith("hello") ||
+                    activeLower.startsWith("hi!") ||
+                    activeLower == "hi"
+            }
             val curatedMatch = remember(cleanQuestion, currentTopic) {
                 com.example.util.ExampleAnswerGenerator.matchCuratedExamples(cleanQuestion, currentTopic)
             }
-            val lastNovaHasLiveAiEval = remember(chatMessages) {
-                chatMessages.lastOrNull { it.isNova }?.evaluation != null
+            val lastNovaMsg = remember(chatMessages) {
+                chatMessages.lastOrNull { it.isNova }
+            }
+            val lastNovaFollowUpClean = remember(lastNovaMsg) {
+                lastNovaMsg?.evaluation?.followUpQuestion
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { com.example.util.AssameseTranslator.extractCleanQuestion(it) }
+            }
+            val lastNovaMatchesQuestion = remember(lastNovaMsg, lastNovaFollowUpClean, cleanQuestion) {
+                lastNovaMsg?.evaluation != null &&
+                    (lastNovaFollowUpClean == null || lastNovaFollowUpClean.equals(cleanQuestion, ignoreCase = true))
             }
             val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
             var isExamplesAiLoading by remember { mutableStateOf(false) }
 
-            var modelExamples by remember(cleanQuestion, currentTopic.id, currentExamples) {
-                val usableCurrent = currentExamples.takeIf {
-                    it.isNotEmpty() && !com.example.util.ExampleAnswerGenerator.isLegacyGenericExampleSet(it)
+            val usableCurrent = remember(currentExamples, isGreetingQ) {
+                currentExamples.takeIf {
+                    it.isNotEmpty() &&
+                        !com.example.util.ExampleAnswerGenerator.isLegacyGenericExampleSet(it) &&
+                        (isGreetingQ || !com.example.util.ExampleAnswerGenerator.isGreetingExampleSet(it))
                 }
+            }
+
+            var modelExamples by remember(cleanQuestion, currentTopic.id, usableCurrent, curatedMatch, lastNovaMatchesQuestion) {
                 val initial = when {
                     curatedMatch != null -> curatedMatch
-                    lastNovaHasLiveAiEval && usableCurrent != null -> usableCurrent
-                    usableCurrent != null -> usableCurrent
+                    lastNovaMatchesQuestion && usableCurrent != null -> usableCurrent
+                    usableCurrent != null && isGreetingQ -> usableCurrent
                     else -> com.example.util.ExampleAnswerGenerator.generateForQuestion(cleanQuestion, currentTopic)
                 }
                 mutableStateOf(initial)
             }
 
-            // For custom / open-ended questions without a curated match or live turn eval, fetch Gemini AI examples if configured
-            LaunchedEffect(cleanQuestion, currentTopic.id, isGeminiConfigured) {
-                if (isGeminiConfigured && curatedMatch == null && !lastNovaHasLiveAiEval) {
+            // For open-ended questions without a curated match or matching live eval, fetch Gemini AI examples if configured
+            LaunchedEffect(cleanQuestion, currentTopic.id, isGeminiConfigured, curatedMatch, lastNovaMatchesQuestion, usableCurrent) {
+                val needsAiFetch = isGeminiConfigured &&
+                    curatedMatch == null &&
+                    (!lastNovaMatchesQuestion || usableCurrent == null)
+                if (needsAiFetch) {
                     isExamplesAiLoading = true
                     try {
                         val aiList = viewModel.generateExamplesForCurrentQuestion(cleanQuestion, currentTopic)
-                        if (aiList.isNotEmpty()) {
+                        if (aiList.isNotEmpty() && (isGreetingQ || !com.example.util.ExampleAnswerGenerator.isGreetingExampleSet(aiList))) {
                             modelExamples = aiList
                         }
                     } catch (_: Throwable) {
@@ -930,27 +993,32 @@ fun NovaAiChatScreen(
                 border = BorderStroke(1.5.dp, Color(0xFF38BDF8)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(horizontal = 18.dp, vertical = 20.dp)
+                    .heightIn(max = 640.dp)
+                    .testTag("nova_examples_dialog")
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(
+                            modifier = Modifier.weight(1f),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("📖", fontSize = 24.sp)
+                            Text("📖", fontSize = 22.sp)
                             Text(
                                 "Example Model Answers",
-                                fontSize = 17.sp,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         if (isExamplesAiLoading) {
@@ -960,50 +1028,92 @@ fun NovaAiChatScreen(
                                 strokeWidth = 2.dp
                             )
                         }
+                        IconButton(
+                            onClick = { showExamplesDialog = false },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .testTag("close_examples_x_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Close Examples",
+                                tint = Color(0xFFCBD5E1),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
 
-                    Text(
-                        "Here are native conversational responses you can speak:",
-                        fontSize = 12.5.sp,
-                        color = Color(0xFFCBD5E1)
-                    )
-
-                    modelExamples.forEachIndexed { idx, ex ->
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = Color(0xFF24184E),
-                            border = BorderStroke(1.dp, Color(0xFF4C3080)),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF281A54),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        "Example ${idx + 1}:",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF38BDF8)
-                                    )
-                                    Spacer(Modifier.height(2.dp))
-                                    Text(
-                                        "“$ex”",
-                                        fontSize = 13.5.sp,
-                                        color = Color.White
-                                    )
-                                }
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    "Question:",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFC4B5FD)
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    cleanQuestion,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                            }
+                        }
 
-                                IconButton(
-                                    onClick = { viewModel.speakAudio(ex) },
-                                    modifier = Modifier.size(34.dp)
+                        Text(
+                            "Here are native conversational responses you can speak:",
+                            fontSize = 12.5.sp,
+                            color = Color(0xFFCBD5E1)
+                        )
+
+                        modelExamples.forEachIndexed { idx, ex ->
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF24184E),
+                                border = BorderStroke(1.dp, Color(0xFF4C3080)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.VolumeUp,
-                                        contentDescription = "Listen Example",
-                                        tint = Color(0xFF67E8F9),
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Example ${idx + 1}:",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF38BDF8)
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            "“$ex”",
+                                            fontSize = 13.5.sp,
+                                            color = Color.White
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = { viewModel.speakAudio(ex) },
+                                        modifier = Modifier.size(34.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.VolumeUp,
+                                            contentDescription = "Listen Example",
+                                            tint = Color(0xFF67E8F9),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1013,7 +1123,9 @@ fun NovaAiChatScreen(
                         onClick = { showExamplesDialog = false },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("close_examples_dialog_btn")
                     ) {
                         Text("Practice Speaking This", color = Color.White, fontWeight = FontWeight.Bold)
                     }
@@ -1024,7 +1136,10 @@ fun NovaAiChatScreen(
 
     // 3. Translate Dialog
     if (showTranslateDialog) {
-        Dialog(onDismissRequest = { showTranslateDialog = false }) {
+        Dialog(
+            onDismissRequest = { showTranslateDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
             val activeCoachQuestion by viewModel.activeCoachQuestion.collectAsState()
             val rawQuestion = activeCoachQuestion.ifBlank { currentTopic.question }
             val cleanQuestion = remember(rawQuestion) {
@@ -1082,7 +1197,8 @@ fun NovaAiChatScreen(
                 border = BorderStroke(1.5.dp, Color(0xFFC084FC)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(horizontal = 18.dp, vertical = 20.dp)
+                    .heightIn(max = 640.dp)
                     .testTag("nova_translate_dialog")
             ) {
                 Column(
@@ -1092,24 +1208,29 @@ fun NovaAiChatScreen(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(
+                            modifier = Modifier.weight(1f),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("🔤", fontSize = 24.sp)
-                            Column {
+                            Text("🔤", fontSize = 22.sp)
+                            Column(modifier = Modifier.weight(1f, fill = false)) {
                                 Text(
                                     "Question Translation",
-                                    fontSize = 17.sp,
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     "অসমীয়া ভাষাত অৰ্থ আৰু উচ্চাৰণ",
                                     fontSize = 11.sp,
-                                    color = Color(0xFFC4B5FD)
+                                    color = Color(0xFFC4B5FD),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -1130,145 +1251,167 @@ fun NovaAiChatScreen(
                                     fontSize = 10.sp,
                                     color = Color(0xFF7DD3FC),
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                 )
                             }
                         }
-                    }
-
-                    // English Question Prompt
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF281A54),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("English Question / Prompt:", fontSize = 11.sp, color = Color(0xFFC4B5FD), fontWeight = FontWeight.SemiBold)
-                                IconButton(
-                                    onClick = { viewModel.speakAudio(cleanQuestion) },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.VolumeUp,
-                                        contentDescription = "Listen English",
-                                        tint = Color(0xFFC084FC),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.height(2.dp))
-                            Text(cleanQuestion, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        IconButton(
+                            onClick = { showTranslateDialog = false },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .testTag("close_translation_x_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Close Translation",
+                                tint = Color(0xFFCBD5E1),
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
 
-                    // Assamese Translation Box
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFF201347),
-                        border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
-                        modifier = Modifier.fillMaxWidth()
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("অসমীয়া (Assamese):", fontSize = 11.5.sp, color = Color(0xFF67E8F9), fontWeight = FontWeight.Bold)
+                        // English Question Prompt
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF281A54),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
                                 Row(
+                                    modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
+                                    Text("English Question / Prompt:", fontSize = 11.sp, color = Color(0xFFC4B5FD), fontWeight = FontWeight.SemiBold)
                                     IconButton(
-                                        onClick = {
-                                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(translationResult.assameseText))
-                                            copiedNotification = true
-                                        },
+                                        onClick = { viewModel.speakAudio(cleanQuestion) },
                                         modifier = Modifier.size(24.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Rounded.ContentCopy,
-                                            contentDescription = "Copy Translation",
-                                            tint = Color(0xFF67E8F9),
-                                            modifier = Modifier.size(16.dp)
+                                            imageVector = Icons.Rounded.VolumeUp,
+                                            contentDescription = "Listen English",
+                                            tint = Color(0xFFC084FC),
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = translationResult.assameseText,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                lineHeight = 22.sp
-                            )
-                            if (translationResult.transliteration.isNotBlank()) {
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = "উচ্চাৰণ: ${translationResult.transliteration}",
-                                    fontSize = 12.5.sp,
-                                    color = Color(0xFFA7F3D0),
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                            if (copiedNotification) {
-                                Spacer(Modifier.height(4.dp))
-                                Text("অনুবাদ কপি কৰা হ'ল (Copied!)", fontSize = 10.5.sp, color = Color(0xFF34D399))
+                                Spacer(Modifier.height(2.dp))
+                                Text(cleanQuestion, fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             }
                         }
-                    }
 
-                    // Word breakdown if available
-                    if (translationResult.wordBreakdown.isNotEmpty()) {
+                        // Assamese Translation Box
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF201347),
+                            border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("অসমীয়া (Assamese):", fontSize = 11.5.sp, color = Color(0xFF67E8F9), fontWeight = FontWeight.Bold)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        IconButton(
+                                            onClick = {
+                                                clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(translationResult.assameseText))
+                                                copiedNotification = true
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.ContentCopy,
+                                                contentDescription = "Copy Translation",
+                                                tint = Color(0xFF67E8F9),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = translationResult.assameseText,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    lineHeight = 22.sp
+                                )
+                                if (translationResult.transliteration.isNotBlank()) {
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        text = "উচ্চাৰণ: ${translationResult.transliteration}",
+                                        fontSize = 12.5.sp,
+                                        color = Color(0xFFA7F3D0),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                if (copiedNotification) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Text("অনুবাদ কপি কৰা হ'ল (Copied!)", fontSize = 10.5.sp, color = Color(0xFF34D399))
+                                }
+                            }
+                        }
+
+                        // Word breakdown if available
+                        if (translationResult.wordBreakdown.isNotEmpty()) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF281A54),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text("শব্দাৰ্থ (Key Words Breakdown):", fontSize = 11.sp, color = Color(0xFFFDE68A), fontWeight = FontWeight.SemiBold)
+                                    Spacer(Modifier.height(6.dp))
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        translationResult.wordBreakdown.take(6).forEach { (word, meaning) ->
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = Color(0xFF1E1038),
+                                                border = BorderStroke(1.dp, Color(0xFF818CF8).copy(alpha = 0.5f))
+                                            ) {
+                                                Text(
+                                                    text = "$word: $meaning",
+                                                    fontSize = 11.sp,
+                                                    color = Color(0xFFE2E8F0),
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Bengali / Hindi Guidance
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = Color(0xFF281A54),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
-                                Text("শব্দাৰ্থ (Key Words Breakdown):", fontSize = 11.sp, color = Color(0xFFFDE68A), fontWeight = FontWeight.SemiBold)
-                                Spacer(Modifier.height(6.dp))
-                                FlowRow(
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    translationResult.wordBreakdown.take(6).forEach { (word, meaning) ->
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = Color(0xFF1E1038),
-                                            border = BorderStroke(1.dp, Color(0xFF818CF8).copy(alpha = 0.5f))
-                                        ) {
-                                            Text(
-                                                text = "$word: $meaning",
-                                                fontSize = 11.sp,
-                                                color = Color(0xFFE2E8F0),
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                                            )
-                                        }
-                                    }
-                                }
+                                Text("বাংলা / हिन्दी (Guidance):", fontSize = 10.5.sp, color = Color(0xFFF472B6), fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.height(2.dp))
+                                val guideText = matchingLessonQ?.bengaliHindiTranslation
+                                    ?: "এই প্রশ্নের উত্তরে আপনার স্বাভাবিক অভিজ্ঞতা বা অভ্যাস সম্পূর্ণ বাক্যে বলুন। / इस प्रश्न के उत्तर में अपना अनुभव पूरे वाक्य में बोलें।"
+                                Text(guideText, fontSize = 12.sp, color = Color(0xFFF1F5F9))
                             }
-                        }
-                    }
-
-                    // Bengali / Hindi Guidance
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF281A54),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(10.dp)) {
-                            Text("বাংলা / हिन्दी (Guidance):", fontSize = 10.5.sp, color = Color(0xFFF472B6), fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(2.dp))
-                            val guideText = matchingLessonQ?.bengaliHindiTranslation
-                                ?: "এই প্রশ্নের উত্তরে আপনার স্বাভাবিক অভিজ্ঞতা বা অভ্যাস সম্পূর্ণ বাক্যে বলুন। / इस प्रश्न के उत्तर में अपना अनुभव पूरे वाक्य में बोलें।"
-                            Text(guideText, fontSize = 12.sp, color = Color(0xFFF1F5F9))
                         }
                     }
 
@@ -1276,9 +1419,11 @@ fun NovaAiChatScreen(
                         onClick = { showTranslateDialog = false },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9333EA)),
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth().testTag("close_translation_dialog_btn")
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("close_translation_dialog_btn")
                     ) {
-                        Text("বুজি পালোঁ (Understood)", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("বুজি পালোঁ (Close)", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }

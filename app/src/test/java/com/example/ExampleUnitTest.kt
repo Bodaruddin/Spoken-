@@ -343,6 +343,24 @@ class ExampleUnitTest {
         )
         assertEquals(2, customExamples.size)
         assertTrue(customExamples.any { it.contains("School Sports") && it.contains("teamwork") })
+
+        // Follow-up question on Introduction topic must NOT return greeting examples
+        val turn4Question = "Who is your favorite historical person to read about?"
+        val curatedTurn4 = com.example.util.ExampleAnswerGenerator.matchCuratedExamples(
+            turn4Question,
+            introTopic
+        )
+        assertNotNull(curatedTurn4)
+        assertFalse(com.example.util.ExampleAnswerGenerator.isGreetingExampleSet(curatedTurn4!!))
+        assertTrue(curatedTurn4.any { it.contains("Kalam", ignoreCase = true) || it.contains("Gandhi", ignoreCase = true) })
+
+        val dynamicBookExamples = com.example.util.ExampleAnswerGenerator.generateForQuestion(
+            "What is your favorite book to read on weekends?",
+            introTopic
+        )
+        assertEquals(2, dynamicBookExamples.size)
+        assertFalse(com.example.util.ExampleAnswerGenerator.isGreetingExampleSet(dynamicBookExamples))
+        assertTrue(dynamicBookExamples.any { it.contains("book", ignoreCase = true) })
     }
 }
 

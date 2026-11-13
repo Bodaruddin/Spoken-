@@ -29,6 +29,13 @@ object ExampleAnswerGenerator {
         "On weekends, I prefer relaxing at home."
     )
 
+    private val greetingExamples = setOf(
+        "Hello! I am doing great today, thank you for asking. How about you?",
+        "Hi Nova! I'm doing really well and excited to practice speaking English today.",
+        "Hello! I'm doing great today. My name is Alex, and I'm excited to practice English with you.",
+        "Hi! Nice to meet you. I enjoy learning new things, reading books, and chatting with friends."
+    )
+
     private val aiExamplesCache = ConcurrentHashMap<String, List<String>>()
 
     private val httpClient = OkHttpClient.Builder()
@@ -41,16 +48,22 @@ object ExampleAnswerGenerator {
         return examples.all { it in legacyGenericPlaceholders }
     }
 
+    fun isGreetingExampleSet(examples: List<String>): Boolean {
+        if (examples.isEmpty()) return false
+        return examples.all { it in greetingExamples }
+    }
+
     /**
-     * Returns curated, exact question/topic examples when available, or null for open-ended custom prompts.
+     * Returns curated, exact question-matched examples when available, or null for open-ended/dynamic questions.
+     * Matches strictly on the active question text so follow-up turns never get hijacked by topic titles.
      */
     fun matchCuratedExamples(question: String, topic: SpeakingPrompt? = null): List<String>? {
         val clean = AssameseTranslator.extractCleanQuestion(question)
-        val lower = clean.lowercase()
-        val topicTitle = topic?.title?.lowercase().orEmpty()
+        val lower = clean.lowercase().trim()
 
         return when {
-            lower.contains("how are you") || lower == "hello" || lower == "hi" || lower.startsWith("hello!") || lower.startsWith("hi!") -> listOf(
+            lower.contains("how are you") || lower == "hello" || lower == "hi" ||
+                    lower.startsWith("hello!") || lower.startsWith("hi!") -> listOf(
                 "Hello! I am doing great today, thank you for asking. How about you?",
                 "Hi Nova! I'm doing really well and excited to practice speaking English today."
             )
@@ -146,6 +159,10 @@ object ExampleAnswerGenerator {
                 "I can speak Assamese and Hindi fluently, and I am actively practicing English every day.",
                 "I speak my mother tongue at home and use English at school to improve my fluency."
             )
+            lower.contains("historical") && (lower.contains("person") || lower.contains("figure") || lower.contains("leader")) -> listOf(
+                "One of my favorite historical figures to read about is Dr. A. P. J. Abdul Kalam because his dedication to science and education inspires me.",
+                "I really enjoy reading about Mahatma Gandhi and how patience, truth, and courage helped shape modern history."
+            )
             lower.contains("connect with your weekend or personal goals") -> {
                 val label = topic?.title?.takeIf { it.isNotBlank() } ?: "this topic"
                 listOf(
@@ -188,21 +205,80 @@ object ExampleAnswerGenerator {
                     "I also like spending fifteen quiet minutes reading or reflecting on $label in the evening."
                 )
             }
-            topicTitle.contains("introduction") -> listOf(
-                "Hello! I'm doing great today. My name is Alex, and I'm excited to practice English with you.",
-                "Hi! Nice to meet you. I enjoy learning new things, reading books, and chatting with friends."
-            )
             else -> null
         }
     }
 
     /**
-     * Generates contextual example answers for any question/topic (always question- and topic-aware).
+     * Generates contextual example answers directly answering [question], falling back gracefully
+     * to dynamic question-pattern synthesis when offline.
      */
     fun generateForQuestion(question: String, topic: SpeakingPrompt? = null): List<String> {
         matchCuratedExamples(question, topic)?.let { return it }
 
         val clean = AssameseTranslator.extractCleanQuestion(question)
+        val lower = clean.lowercase().trim()
+
+        // Dynamic question-pattern synthesis based on the actual question asked
+        when {
+            lower.startsWith("who is your favorite") || lower.startsWith("who's your favorite") -> {
+                val subject = clean.substringAfter("favorite", "")
+                    .replace("?", "")
+                    .trim()
+                    .ifBlank { "person" }
+                return listOf(
+                    "My favorite $subject is someone who works hard, stays kind, and inspires me to keep learning.",
+                    "I really admire my favorite $subject because their dedication and positive attitude motivate me every day."
+                )
+            }
+            lower.startsWith("what is your favorite") || lower.startsWith("what's your favorite") -> {
+                val subject = clean.substringAfter("favorite", "")
+                    .replace("?", "")
+                    .trim()
+                    .ifBlank { "choice" }
+                return listOf(
+                    "My favorite $subject is something I enjoy very often because it brings me joy and helps me relax.",
+                    "If I had to pick a favorite $subject, I would choose the one that I share with my family and friends."
+                )
+            }
+            lower.contains("read about") || lower.contains("favorite book") || lower.contains("author") -> {
+                return listOf(
+                    "I love reading inspiring biographies and real-life stories because they teach valuable life lessons.",
+                    "Reading about remarkable people motivates me to work harder and broaden my perspective."
+                )
+            }
+            lower.startsWith("why ") -> {
+                return listOf(
+                    "I feel that way mainly because it helps me grow, stay confident, and learn practical skills.",
+                    "For me, the biggest reason is that it brings positive energy into my daily life."
+                )
+            }
+            lower.startsWith("how ") -> {
+                return listOf(
+                    "Usually, I start step by step, stay consistent every day, and learn from my mistakes along the way.",
+                    "I approach it calmly by practicing regularly and asking for helpful feedback whenever I need it."
+                )
+            }
+            lower.startsWith("where ") -> {
+                return listOf(
+                    "I usually enjoy going to a quiet, comfortable place near my home where I can focus and relax.",
+                    "My favorite spot is a peaceful place surrounded by nature or with my close friends and family."
+                )
+            }
+            lower.startsWith("when ") -> {
+                return listOf(
+                    "I usually do this in the evening or on weekends when I have free time to focus properly.",
+                    "Most of the time, I prefer doing it early in the day when my mind feels fresh."
+                )
+            }
+            lower.startsWith("have you ever") || lower.startsWith("did you ever") -> {
+                return listOf(
+                    "Yes, I tried that once with my friends, and it turned out to be a wonderful learning experience.",
+                    "I haven't experienced that yet, but I would definitely love the opportunity to try it soon."
+                )
+            }
+        }
+
         val label = topic?.title?.takeIf { it.isNotBlank() } ?: "this topic"
         val kws = topic?.recommendedKeywords.orEmpty().filter { it.isNotBlank() }
 
@@ -225,7 +301,7 @@ object ExampleAnswerGenerator {
     }
 
     /**
-     * Uses Gemini AI to generate natural model answers for dynamic/custom questions when configured,
+     * Uses Gemini AI to generate natural model answers directly answering [question],
      * falling back gracefully to [generateForQuestion].
      */
     suspend fun generateWithAi(
@@ -248,9 +324,10 @@ object ExampleAnswerGenerator {
         try {
             val cleanModel = model.trim().ifEmpty { "gemini-3.5-flash-lite" }
             val url = "https://generativelanguage.googleapis.com/v1beta/models/$cleanModel:generateContent?key=$trimmedKey"
-            val topicLine = topic?.let { "Topic: ${it.title} (${it.difficultyLevel}). Keywords: ${it.recommendedKeywords.joinToString(", ")}." } ?: ""
+            val topicLine = topic?.let { "Topic: ${it.title} (${it.difficultyLevel})." } ?: ""
             val prompt = """
-                Provide 2 short, natural, conversational English example answers that a student could speak aloud in response to this speaking question.
+                Provide 2 short, natural, conversational English example answers that a student could speak aloud directly in response to this exact question.
+                Make sure BOTH answers specifically and directly answer the question below.
                 $topicLine
                 Question: "$clean"
 

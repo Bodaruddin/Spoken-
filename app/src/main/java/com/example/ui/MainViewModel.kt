@@ -1672,8 +1672,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val activeQ = lastNova.evaluation?.followUpQuestion ?: lastNova.text
                 _activeCoachQuestion.value = activeQ
                 if (!lastNova.hint.isNullOrBlank()) _novaCurrentHint.value = lastNova.hint
+                val activeLower = com.example.util.AssameseTranslator.extractCleanQuestion(activeQ).lowercase()
+                val isGreetingQ = activeLower.contains("how are you") || activeLower.startsWith("hello") || activeLower.startsWith("hi!")
+                val isStaleGreetingExamples = !isGreetingQ && com.example.util.ExampleAnswerGenerator.isGreetingExampleSet(lastNova.exampleAnswers)
                 val resolvedExamples = if (
                     lastNova.exampleAnswers.isNotEmpty() &&
+                    !isStaleGreetingExamples &&
                     (lastNova.evaluation != null || !com.example.util.ExampleAnswerGenerator.isLegacyGenericExampleSet(lastNova.exampleAnswers))
                 ) {
                     lastNova.exampleAnswers
@@ -1927,6 +1931,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             } else {
                                 "Good practice! Try speaking in a complete sentence. What else can you tell me about that?"
                             }
+                        val nextCoachQuestion = aiEval.followUpQuestion?.takeIf { it.isNotBlank() } ?: coachReply
+                        val turnExamples = if (aiEval.exampleAnswers.isNotEmpty()) {
+                            aiEval.exampleAnswers
+                        } else {
+                            com.example.util.ExampleAnswerGenerator.generateWithAi(
+                                question = nextCoachQuestion,
+                                topic = activeTopic,
+                                apiKey = effectiveKey,
+                                model = _activeAiModel.value
+                            )
+                        }
                         val novaTurn = NovaChatMessage(
                             id = "nova_reply_${System.currentTimeMillis()}",
                             isNova = true,
@@ -1936,13 +1951,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             isQuestion = true,
                             questionNumber = nextTurn,
                             hint = aiEval.hint ?: _novaCurrentHint.value,
-                            exampleAnswers = if (aiEval.exampleAnswers.isNotEmpty()) aiEval.exampleAnswers else _novaCurrentExamples.value
+                            exampleAnswers = turnExamples
                         )
                         val finalHistory = historyForNova + novaTurn
                         _novaChatMessages.value = finalHistory
                         if (!aiEval.hint.isNullOrBlank()) _novaCurrentHint.value = aiEval.hint
-                        if (aiEval.exampleAnswers.isNotEmpty()) _novaCurrentExamples.value = aiEval.exampleAnswers
-                        _activeCoachQuestion.value = aiEval.followUpQuestion ?: coachReply
+                        _novaCurrentExamples.value = turnExamples
+                        _activeCoachQuestion.value = nextCoachQuestion
 
                         val studentId = currentUser.value.id.ifBlank { "default_student" }
                         appPreferences.saveNovaSession(studentId, activeTopic.id, finalHistory)
