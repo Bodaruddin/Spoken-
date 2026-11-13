@@ -1127,7 +1127,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // 1. Check Administrator Access
         if (preferredRole == null || preferredRole == Role.ADMIN) {
             val adminEmailMatches = idClean == "admin@linguaquest.edu" || idClean == "admin" ||
-                idClean == "dean.arthur" || idClean == repository.currentUser.value.email.trim().lowercase()
+                idClean == "dean.arthur" ||
+                (repository.currentUser.value.role == Role.ADMIN &&
+                 idClean == repository.currentUser.value.email.trim().lowercase())
             val adminPinMatches = secretClean == adminPin || secretClean == adminPassword ||
                 secretClean == "1234" || secretClean == "admin123"
 
@@ -1246,7 +1248,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // 1. Check Administrator Access
-        if ((idClean == "admin@linguaquest.edu" || idClean == "admin" || idClean == "dean.arthur" || idClean == repository.currentUser.value.email.trim().lowercase()) &&
+        val adminEmailMatchSync = idClean == "admin@linguaquest.edu" || idClean == "admin" ||
+            idClean == "dean.arthur" ||
+            (repository.currentUser.value.role == Role.ADMIN &&
+             idClean == repository.currentUser.value.email.trim().lowercase())
+        if (adminEmailMatchSync &&
             (secretClean == adminPin || secretClean == adminPassword || secretClean == "1234")) {
             val adminUser = User(
                 id = "adm_001",

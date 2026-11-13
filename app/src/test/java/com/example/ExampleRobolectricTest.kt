@@ -7,6 +7,7 @@ import com.example.data.local.AppPreferences
 import com.example.data.model.Exam
 import com.example.data.model.ExamQuestion
 import com.example.data.model.NovaChatMessage
+import com.example.data.model.Role
 import com.example.data.model.SpeakingPrompt
 import com.example.ui.MainViewModel
 import org.junit.Assert.assertEquals
@@ -187,6 +188,35 @@ class ExampleRobolectricTest {
     assertNotNull(persisted)
     assertEquals(startMillis, persisted!!.availableFromMillis)
     assertEquals(endMillis, persisted.availableUntilMillis)
+  }
+
+  @Test
+  fun `unifiedLogin automatically detects Student, Faculty, and Admin roles from credentials`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val vm = MainViewModel(app)
+
+    // Student credentials -> automatically detected as STUDENT
+    val studentRes = vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    assertTrue(studentRes is MainViewModel.UnifiedLoginResult.Success)
+    assertEquals(Role.STUDENT, (studentRes as MainViewModel.UnifiedLoginResult.Success).role)
+
+    // Logout and re-login as Student -> must still detect STUDENT, not ADMIN
+    vm.logout()
+    val reloginStudent = vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    assertTrue(reloginStudent is MainViewModel.UnifiedLoginResult.Success)
+    assertEquals(Role.STUDENT, (reloginStudent as MainViewModel.UnifiedLoginResult.Success).role)
+
+    // Faculty credentials -> automatically detected as TEACHER
+    vm.logout()
+    val teacherRes = vm.unifiedLogin("e.vance@linguaquest.edu", "7321")
+    assertTrue(teacherRes is MainViewModel.UnifiedLoginResult.Success)
+    assertEquals(Role.TEACHER, (teacherRes as MainViewModel.UnifiedLoginResult.Success).role)
+
+    // Admin credentials -> automatically detected as ADMIN
+    vm.logout()
+    val adminRes = vm.unifiedLogin("admin@linguaquest.edu", "1234")
+    assertTrue(adminRes is MainViewModel.UnifiedLoginResult.Success)
+    assertEquals(Role.ADMIN, (adminRes as MainViewModel.UnifiedLoginResult.Success).role)
   }
 }
 
