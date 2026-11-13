@@ -156,7 +156,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val remotePrompts = supabaseService.fetchSpeakingPrompts()
             if (remotePrompts.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
+                    val previousPrompts = repository.speakingPrompts.value
                     repository.mergeRemoteSpeakingPrompts(remotePrompts)
+                    val updatedPrompts = repository.speakingPrompts.value
+                    updatedPrompts.forEach { updated ->
+                        val prev = previousPrompts.firstOrNull { it.id == updated.id }
+                        if (prev != null && (
+                                !prev.title.trim().equals(updated.title.trim(), ignoreCase = true) ||
+                                    !prev.question.trim().equals(updated.question.trim(), ignoreCase = true)
+                                )
+                        ) {
+                            appPreferences.clearNovaSessionsForTopic(updated.id)
+                        }
+                    }
+                    val currentActive = _activeConversationTopic.value
+                    if (currentActive != null) {
+                        val refreshed = updatedPrompts.firstOrNull { it.id == currentActive.id }
+                        if (refreshed != null && refreshed != currentActive) {
+                            _activeConversationTopic.value = refreshed
+                            if (!refreshed.title.trim().equals(currentActive.title.trim(), ignoreCase = true) ||
+                                !refreshed.question.trim().equals(currentActive.question.trim(), ignoreCase = true)
+                            ) {
+                                loadNovaSession(refreshed)
+                            }
+                        }
+                    }
                 }
             }
         } catch (_: Exception) { }
@@ -1664,10 +1688,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun loadNovaSession(topic: SpeakingPrompt) {
         val studentId = currentUser.value.id.ifBlank { "default_student" }
         val saved = appPreferences.getNovaSession(studentId, topic.id)
-        if (!saved.isNullOrEmpty()) {
-            _novaChatMessages.value = saved
-            _novaTurnCount.value = saved.count { it.isNova }
-            val lastNova = saved.lastOrNull { it.isNova }
+        val cleanTitle = topic.title.trim()
+        val cleanInitialQ = topic.question.trim()
+        val firstNova = saved?.firstOrNull { it.isNova }
+        val firstNovaText = firstNova?.text.orEmpty()
+        val greetingTitleMatch = Regex("""Let's practice [“"]([^”"]+)[”"]""")
+            .find(firstNovaText)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.trim()
+        val isDifferentTopicTitle = greetingTitleMatch != null &&
+            cleanTitle.isNotBlank() &&
+            !greetingTitleMatch.equals(cleanTitle, ignoreCase = true)
+        val isUntouchedInitialQuestionChanged = firstNova != null &&
+            cleanInitialQ.isNotBlank() &&
+            saved.size == 1 &&
+            firstNova.isNova &&
+            !firstNovaText.contains(cleanInitialQ, ignoreCase = true)
+        val validSaved = if (!saved.isNullOrEmpty() && (isDifferentTopicTitle || isUntouchedInitialQuestionChanged)) {
+            appPreferences.clearNovaSession(studentId, topic.id)
+            null
+        } else {
+            saved
+        }
+
+        if (!validSaved.isNullOrEmpty()) {
+            _novaChatMessages.value = validSaved
+            _novaTurnCount.value = validSaved.count { it.isNova }
+            val lastNova = validSaved.lastOrNull { it.isNova }
             if (lastNova != null) {
                 val activeQ = lastNova.evaluation?.followUpQuestion ?: lastNova.text
                 _activeCoachQuestion.value = activeQ
@@ -1687,17 +1735,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _novaCurrentExamples.value = resolvedExamples
             }
         } else {
-            val initialQ = topic.question.ifBlank { "When do you usually go to school or start your day?" }
-            val greeting = "Hi! I'm Nova 😊\nLet's practice “${topic.title}”.\n\n🕒 $initialQ"
+            val initialQ = cleanInitialQ.ifBlank { "When do you usually go to school or start your day?" }
+            val displayTitle = cleanTitle.ifBlank { topic.title }
+            val greeting = "Hi! I'm Nova 😊\nLet's practice “$displayTitle”.\n\n🕒 $initialQ"
             val initialExamples = com.example.util.ExampleAnswerGenerator.generateForQuestion(initialQ, topic)
             val initialTurn = NovaChatMessage(
                 id = "msg_init_${topic.id}_${System.currentTimeMillis()}",
                 isNova = true,
                 text = greeting,
-                audioPrompt = "Hi! I'm Nova. Let's practice ${topic.title}. $initialQ",
+                audioPrompt = "Hi! I'm Nova. Let's practice $displayTitle. $initialQ",
                 isQuestion = true,
                 questionNumber = 1,
-                hint = topic.followUpTip.ifBlank { "Respond naturally in complete sentences related to “${topic.title}”." },
+                hint = topic.followUpTip.ifBlank { "Respond naturally in complete sentences related to “$displayTitle”." },
                 exampleAnswers = initialExamples
             )
             _novaChatMessages.value = listOf(initialTurn)
@@ -2454,12 +2503,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSpeakingPrompt(prompt: SpeakingPrompt) {
         val previous = repository.speakingPrompts.value.firstOrNull { it.id == prompt.id }
+        val titleOrQuestionChanged = previous == null ||
+            !previous.title.trim().equals(prompt.title.trim(), ignoreCase = true) ||
+            !previous.question.trim().equals(prompt.question.trim(), ignoreCase = true)
+        if (titleOrQuestionChanged) {
+            appPreferences.clearNovaSessionsForTopic(prompt.id)
+        }
         repository.updateSpeakingPrompt(prompt)
-        // Refresh active topic immediately; only overwrite activeCoachQuestion if question text itself changed
+        // Refresh active topic immediately; reload session if title or question changed
         if (_activeConversationTopic.value?.id == prompt.id) {
             _activeConversationTopic.value = prompt
-            if (previous == null || previous.question != prompt.question) {
-                _activeCoachQuestion.value = prompt.question
+            if (titleOrQuestionChanged) {
+                loadNovaSession(prompt)
             }
         }
         if (supabaseService.isConfigured()) {

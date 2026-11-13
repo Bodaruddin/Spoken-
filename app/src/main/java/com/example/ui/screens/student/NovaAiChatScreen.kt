@@ -138,7 +138,7 @@ fun NovaAiChatScreen(
     val currentExamples by viewModel.novaCurrentExamples.collectAsState()
 
     // Load or restore persistent conversation session for this student and topic
-    LaunchedEffect(currentTopic.id) {
+    LaunchedEffect(currentTopic.id, currentTopic.title, currentTopic.question) {
         viewModel.loadNovaSession(currentTopic)
     }
 

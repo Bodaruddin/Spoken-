@@ -1646,6 +1646,16 @@ class AppPreferences(context: Context) {
         prefs.edit().remove(key).apply()
     }
 
+    fun clearNovaSessionsForTopic(topicId: String) {
+        val suffix = "_${topicId.trim()}"
+        val matchingKeys = prefs.all.keys.filter { it.startsWith("nova_session_") && it.endsWith(suffix) }
+        if (matchingKeys.isNotEmpty()) {
+            val editor = prefs.edit()
+            matchingKeys.forEach { editor.remove(it) }
+            editor.apply()
+        }
+    }
+
     fun getNovaMilestoneTarget(): Int {
         return prefs.getInt(KEY_NOVA_MILESTONE_TARGET, 5)
     }
