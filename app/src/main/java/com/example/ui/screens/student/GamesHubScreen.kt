@@ -1711,17 +1711,9 @@ fun SentenceBuilderGame(
     val allChallenges by viewModel.sentenceBuilderChallenges.collectAsState()
     val studentProfile by viewModel.studentProfile.collectAsState()
 
-    var selectedPackId by remember { mutableStateOf<String?>(null) }
     var activePlayingPackId by remember { mutableStateOf<String?>(null) }
 
-    // Default-select the first pack that has sentences (or the very first pack)
-    LaunchedEffect(packs, allChallenges) {
-        if (selectedPackId == null || packs.none { it.id == selectedPackId }) {
-            val firstWithSentences = packs.firstOrNull { p ->
-                allChallenges.any { it.packId == p.id }
-            }
-            selectedPackId = (firstWithSentences ?: packs.firstOrNull())?.id
-        }
+    LaunchedEffect(packs) {
         if (activePlayingPackId != null && packs.none { it.id == activePlayingPackId }) {
             activePlayingPackId = null
         }
@@ -1760,12 +1752,6 @@ fun SentenceBuilderGame(
             // =========================================================
             // PAGE 1: CHOOSE A CHALLENGE SELECTION SCREEN
             // =========================================================
-            val selectedPack = packs.firstOrNull { it.id == selectedPackId }
-            val selectedPackSentences = remember(allChallenges, selectedPack) {
-                if (selectedPack == null) emptyList()
-                else allChallenges.filter { it.packId == selectedPack.id }
-            }
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1922,14 +1908,14 @@ fun SentenceBuilderGame(
                     }
 
                     Text(
-                        text = "Pick a challenge level and start building sentences!",
+                        text = "Tap any challenge to start building sentences!",
                         fontSize = 13.sp,
                         color = Color(0xFFE2E8F0),
                         textAlign = TextAlign.Center
                     )
                 }
 
-                // Challenge Selection Cards
+                // Challenge Selection Cards (Direct 1-tap launch into Sentence Builder)
                 if (packs.isEmpty()) {
                     Card(
                         shape = RoundedCornerShape(20.dp),
@@ -1964,10 +1950,10 @@ fun SentenceBuilderGame(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(bottom = 14.dp)
                             .testTag("sb_challenge_packs_list")
                     ) {
                         packs.forEachIndexed { index, pack ->
-                            val isSelected = pack.id == selectedPackId
                             val sentencesCount = allChallenges.count { it.packId == pack.id }
                             val style = resolveChallengeCardStyle(pack, index)
 
@@ -1975,26 +1961,20 @@ fun SentenceBuilderGame(
                                 shape = RoundedCornerShape(22.dp),
                                 color = Color.Transparent,
                                 border = BorderStroke(
-                                    width = if (isSelected) 2.2.dp else 1.2.dp,
-                                    color = if (isSelected) style.borderColor else style.borderColor.copy(alpha = 0.45f)
+                                    width = 1.6.dp,
+                                    color = style.borderColor.copy(alpha = 0.85f)
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(22.dp))
-                                    .clickable { selectedPackId = pack.id }
+                                    .clickable { activePlayingPackId = pack.id }
                                     .testTag("sb_pack_card_${pack.id}")
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(
-                                            Brush.horizontalGradient(
-                                                colors = if (isSelected) {
-                                                    style.gradientColors
-                                                } else {
-                                                    style.gradientColors.map { it.copy(alpha = 0.72f) }
-                                                }
-                                            )
+                                            Brush.horizontalGradient(colors = style.gradientColors)
                                         )
                                         .padding(horizontal = 14.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -2079,93 +2059,24 @@ fun SentenceBuilderGame(
                                         }
                                     }
 
-                                    // Right Selection Radio / Checkmark Indicator
+                                    // Right Direct Launch Arrow Badge
                                     Surface(
                                         shape = CircleShape,
-                                        color = if (isSelected) Color(0xFF22C55E) else Color.Transparent,
-                                        border = BorderStroke(
-                                            2.dp,
-                                            if (isSelected) Color(0xFFBBF7D0) else Color.White.copy(alpha = 0.75f)
-                                        ),
-                                        modifier = Modifier.size(28.dp)
+                                        color = style.badgeBgColor.copy(alpha = 0.9f),
+                                        border = BorderStroke(1.2.dp, style.borderColor.copy(alpha = 0.8f)),
+                                        modifier = Modifier.size(36.dp)
                                     ) {
-                                        if (isSelected) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    imageVector = Icons.Filled.Check,
-                                                    contentDescription = "Selected",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(17.dp)
-                                                )
-                                            }
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                                                contentDescription = "Start ${pack.title}",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(18.dp)
+                                            )
                                         }
                                     }
                                 }
                             }
-                        }
-                    }
-
-                    // Warning note if selected pack has 0 sentences
-                    if (selectedPack != null && selectedPackSentences.isEmpty()) {
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF451A03).copy(alpha = 0.85f),
-                            border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.6f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "⚠️ '${selectedPack.title}' has no sentences yet. Choose another challenge or ask your teacher to add sentences.",
-                                fontSize = 12.sp,
-                                color = Color(0xFFFDE68A),
-                                modifier = Modifier.padding(12.dp)
-                            )
-                        }
-                    }
-
-                    // Bottom "Start Challenge" CTA Button
-                    val canStart = selectedPack != null && selectedPackSentences.isNotEmpty()
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp, bottom = 14.dp)
-                            .height(54.dp)
-                            .clip(RoundedCornerShape(28.dp))
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    if (canStart) {
-                                        listOf(Color(0xFFF59E0B), Color(0xFFFB7185), Color(0xFFEC4899))
-                                    } else {
-                                        listOf(Color(0xFF475569), Color(0xFF334155))
-                                    }
-                                )
-                            )
-                            .border(
-                                1.5.dp,
-                                if (canStart) Color(0xFFFDE047).copy(alpha = 0.8f) else Color(0xFF64748B),
-                                RoundedCornerShape(28.dp)
-                            )
-                            .clickable(enabled = canStart) {
-                                activePlayingPackId = selectedPack?.id
-                            }
-                            .testTag("sb_start_challenge_btn"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.PlayArrow,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(26.dp)
-                            )
-                            Text(
-                                text = "Start Challenge",
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 17.sp,
-                                color = Color.White
-                            )
                         }
                     }
                 }
