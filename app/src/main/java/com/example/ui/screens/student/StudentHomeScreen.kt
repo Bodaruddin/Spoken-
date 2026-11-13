@@ -899,7 +899,9 @@ fun StudentPanelFooterCard(
 
             // Quick Stats Badges Row
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Max),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Streak Badge
@@ -907,17 +909,35 @@ fun StudentPanelFooterCard(
                     shape = RoundedCornerShape(12.dp),
                     color = Color(0xFFEA580C).copy(alpha = 0.15f),
                     border = BorderStroke(1.dp, Color(0xFFEA580C).copy(alpha = 0.4f)),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 7.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        Text("🔥", fontSize = 16.sp)
+                        Text("🔥", fontSize = 15.sp)
                         Column {
-                            Text("$streakDays Day Streak", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFFFDBA74))
-                            Text("Consistency", fontSize = 9.sp, color = Color(0xFF94A3B8))
+                            Text(
+                                "$streakDays Day Streak",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.5.sp,
+                                lineHeight = 13.sp,
+                                color = Color(0xFFFDBA74),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "Consistency",
+                                fontSize = 9.sp,
+                                color = Color(0xFF94A3B8),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
@@ -927,17 +947,35 @@ fun StudentPanelFooterCard(
                     shape = RoundedCornerShape(12.dp),
                     color = Color(0xFF8B5CF6).copy(alpha = 0.15f),
                     border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.4f)),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 7.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        Text("⚡", fontSize = 16.sp)
+                        Text("⚡", fontSize = 15.sp)
                         Column {
-                            Text("$xpPoints XP Earned", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFFD8B4FE))
-                            Text("Total Score", fontSize = 9.sp, color = Color(0xFF94A3B8))
+                            Text(
+                                "$xpPoints XP Earned",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.5.sp,
+                                lineHeight = 13.sp,
+                                color = Color(0xFFD8B4FE),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "Total Score",
+                                fontSize = 9.sp,
+                                color = Color(0xFF94A3B8),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
@@ -947,17 +985,35 @@ fun StudentPanelFooterCard(
                     shape = RoundedCornerShape(12.dp),
                     color = Color(0xFF00D2FF).copy(alpha = 0.15f),
                     border = BorderStroke(1.dp, Color(0xFF00D2FF).copy(alpha = 0.4f)),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 7.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        Text("👑", fontSize = 16.sp)
+                        Text("👑", fontSize = 15.sp)
                         Column {
-                            Text(league.ifBlank { "Diamond League" }, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF7DD3FC), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("Current Tier", fontSize = 9.sp, color = Color(0xFF94A3B8))
+                            Text(
+                                league.ifBlank { "Diamond League" },
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.5.sp,
+                                lineHeight = 13.sp,
+                                color = Color(0xFF7DD3FC),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "Current Tier",
+                                fontSize = 9.sp,
+                                color = Color(0xFF94A3B8),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
