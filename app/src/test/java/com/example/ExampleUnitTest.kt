@@ -240,5 +240,67 @@ class ExampleUnitTest {
         assertEquals(90, mergedSub?.percentage)
         assertTrue(mergedSub?.isPassed == true)
     }
+
+    @Test
+    fun testAssameseTranslatorGreetingsAndNoShortSubstringCollision() {
+        val introGreeting = com.example.util.AssameseTranslator.translate(
+            "Hi! I'm Nova 😊\nLet's practice “Introduction”.\n\n🕒 Hello! How are you?"
+        )
+        assertEquals("নমস্কাৰ! আপুনি কেনে আছে?", introGreeting.assameseText)
+
+        // Ensure "hi" inside "this" does not trigger the "hi" -> "নমস্কাৰ!" curated entry
+        val thisSentence = com.example.util.AssameseTranslator.translate("What do you think about this?")
+        assertNotEquals("নমস্কাৰ!", thisSentence.assameseText)
+        assertTrue(thisSentence.assameseText.contains("ভবা") || thisSentence.assameseText.contains("এই"))
+
+        // Multi-sentence Nova reply extracts and translates the follow-up question cleanly
+        val followUp = com.example.util.AssameseTranslator.translate(
+            "Great job! That was spoken with natural clarity. What is another detail you would like to share?"
+        )
+        assertEquals("এই বিষয়ে আপুনি আন কিবা কথা ক'ব বিচাৰিবনে?", followUp.assameseText)
+    }
+
+    @Test
+    fun testSpeakingPromptMilestoneTurnsCreationAndClamping() {
+        val repository = LinguaQuestRepository(null)
+        val initialSize = repository.speakingPrompts.value.size
+
+        // Custom milestone prompt
+        val customPrompt = repository.addSpeakingPrompt(
+            title = "Custom Debate",
+            category = "Debate",
+            question = "What is your opinion on remote learning?",
+            followUpTip = "Give two reasons.",
+            recommendedKeywords = listOf("online", "flexible"),
+            minSpeakingSeconds = 30,
+            emoji = "🎤",
+            difficultyLevel = "Intermediate",
+            milestoneTurns = 12
+        )
+        val prompts = repository.speakingPrompts.value
+        assertEquals(initialSize + 1, prompts.size)
+        val created = prompts.firstOrNull { it.title == "Custom Debate" }
+        assertNotNull(created)
+        assertEquals(12, created?.milestoneTurns)
+
+        // Update milestone target down (teacher decreasing milestone for topic)
+        repository.updateSpeakingPrompt(customPrompt.copy(milestoneTurns = 4))
+        assertEquals(4, repository.speakingPrompts.value.firstOrNull { it.title == "Custom Debate" }?.milestoneTurns)
+
+        // Clamped upper bound (max 30)
+        repository.addSpeakingPrompt(
+            title = "Extended Marathon",
+            category = "Fluency",
+            question = "Tell me about your childhood.",
+            followUpTip = "Use past tense.",
+            recommendedKeywords = listOf("school", "friends"),
+            minSpeakingSeconds = 45,
+            emoji = "🌟",
+            difficultyLevel = "Advanced",
+            milestoneTurns = 99
+        )
+        val clamped = repository.speakingPrompts.value.firstOrNull { it.title == "Extended Marathon" }
+        assertEquals(30, clamped?.milestoneTurns)
+    }
 }
 

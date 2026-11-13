@@ -175,7 +175,8 @@ data class SpeakingPrompt(
     val minSpeakingSeconds: Int = 20,
     val emoji: String = "💬",
     val difficultyLevel: String = "Intermediate", // Beginner, Intermediate, Advanced
-    val createdBy: String = "Faculty"
+    val createdBy: String = "Faculty",
+    val milestoneTurns: Int = 0 // 0 = follow global teacher milestone target
 )
 
 data class PronunciationDrill(

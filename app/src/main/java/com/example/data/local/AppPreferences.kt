@@ -61,6 +61,7 @@ class AppPreferences(context: Context) {
         private const val KEY_AI_PROVIDER_TYPE = "key_ai_provider_type"
         private const val KEY_AI_CUSTOM_ENDPOINT = "key_ai_custom_endpoint"
         private const val KEY_AI_CUSTOM_MODEL = "key_ai_custom_model"
+        private const val KEY_NOVA_MILESTONE_TARGET = "key_nova_milestone_target"
     }
 
 
@@ -1144,6 +1145,7 @@ class AppPreferences(context: Context) {
                     put("emoji", p.emoji)
                     put("difficultyLevel", p.difficultyLevel)
                     put("createdBy", p.createdBy)
+                    put("milestoneTurns", p.milestoneTurns)
                 }
                 array.put(obj)
             }
@@ -1176,7 +1178,8 @@ class AppPreferences(context: Context) {
                         minSpeakingSeconds = obj.optInt("minSeconds", 20),
                         emoji = obj.optString("emoji", "💬"),
                         difficultyLevel = obj.optString("difficultyLevel", "Intermediate"),
-                        createdBy = obj.optString("createdBy", "Faculty")
+                        createdBy = obj.optString("createdBy", "Faculty"),
+                        milestoneTurns = obj.optInt("milestoneTurns", 0)
                     )
                 )
             }
@@ -1641,6 +1644,14 @@ class AppPreferences(context: Context) {
     fun clearNovaSession(studentId: String, topicId: String) {
         val key = "nova_session_${studentId.trim()}_${topicId.trim()}"
         prefs.edit().remove(key).apply()
+    }
+
+    fun getNovaMilestoneTarget(): Int {
+        return prefs.getInt(KEY_NOVA_MILESTONE_TARGET, 5)
+    }
+
+    fun setNovaMilestoneTarget(target: Int) {
+        prefs.edit().putInt(KEY_NOVA_MILESTONE_TARGET, target.coerceIn(1, 30)).apply()
     }
 }
 

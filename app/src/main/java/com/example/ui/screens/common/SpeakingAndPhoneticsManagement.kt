@@ -80,6 +80,7 @@ fun SpeakingAndPhoneticsManagement(
     val roleplays by viewModel.roleplays.collectAsState()
     val adventureWorlds by viewModel.adventureWorlds.collectAsState()
     val vocabularyWords by viewModel.vocabularyWords.collectAsState()
+    val milestoneTarget by viewModel.novaMilestoneTarget.collectAsState()
     val cloudNotice by viewModel.cloudSyncNotice.collectAsState()
 
     LaunchedEffect(cloudNotice) {
@@ -286,6 +287,10 @@ fun SpeakingAndPhoneticsManagement(
             SpeakingManageTab.SPEAKING_PROMPTS -> {
                 PromptsManagementList(
                     prompts = prompts,
+                    milestoneTarget = milestoneTarget,
+                    onIncreaseMilestone = { viewModel.increaseNovaMilestone() },
+                    onDecreaseMilestone = { viewModel.decreaseNovaMilestone() },
+                    onSetMilestoneTarget = { viewModel.setNovaMilestoneTarget(it) },
                     onEdit = { editingPrompt = it },
                     onDelete = { promptToDelete = it },
                     onSpeakAudio = { viewModel.speakAudio(it) }
@@ -393,8 +398,9 @@ fun SpeakingAndPhoneticsManagement(
     // Create Speaking Prompt Dialog
     if (showCreatePromptDialog) {
         CreateSpeakingPromptDialog(
+            defaultMilestone = milestoneTarget,
             onDismiss = { showCreatePromptDialog = false },
-            onCreate = { title, cat, q, tip, kw, sec, emoji, diff ->
+            onCreate = { title, cat, q, tip, kw, sec, emoji, diff, milestone ->
                 viewModel.addSpeakingPrompt(
                     title = title,
                     category = cat,
@@ -403,7 +409,8 @@ fun SpeakingAndPhoneticsManagement(
                     keywords = kw,
                     minSeconds = sec,
                     emoji = emoji,
-                    difficultyLevel = diff
+                    difficultyLevel = diff,
+                    milestoneTurns = milestone
                 )
                 showCreatePromptDialog = false
                 toastMessage = "New Conversation Topic '$title' published for students!"
@@ -415,6 +422,7 @@ fun SpeakingAndPhoneticsManagement(
     editingPrompt?.let { prompt ->
         EditSpeakingPromptDialog(
             prompt = prompt,
+            defaultMilestone = milestoneTarget,
             onDismiss = { editingPrompt = null },
             onSave = { updated ->
                 viewModel.updateSpeakingPrompt(updated)
@@ -548,6 +556,10 @@ fun SpeakingAndPhoneticsManagement(
 @Composable
 fun PromptsManagementList(
     prompts: List<SpeakingPrompt>,
+    milestoneTarget: Int = 5,
+    onIncreaseMilestone: () -> Unit = {},
+    onDecreaseMilestone: () -> Unit = {},
+    onSetMilestoneTarget: (Int) -> Unit = {},
     onEdit: (SpeakingPrompt) -> Unit,
     onDelete: (SpeakingPrompt) -> Unit,
     onSpeakAudio: (String) -> Unit
@@ -567,6 +579,122 @@ fun PromptsManagementList(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // Teacher Milestone Target Management Section
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1038)),
+                border = BorderStroke(1.2.dp, Brush.horizontalGradient(listOf(Color(0xFFEC4899), Color(0xFF8B5CF6)))),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("teacher_nova_milestone_card")
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("🏆", fontSize = 24.sp)
+                            Column {
+                                Text(
+                                    "Nova AI Chatbot Milestone Goal",
+                                    fontSize = 14.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    "Required conversation turns for students to achieve their milestone trophy",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFC4B5FD)
+                                )
+                            }
+                        }
+
+                        // Stepper: [-] [ Target ] [+]
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            IconButton(
+                                onClick = onDecreaseMilestone,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .background(Color(0xFF78350F), shape = RoundedCornerShape(8.dp))
+                                    .testTag("teacher_decrease_milestone_btn")
+                            ) {
+                                Text("-", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF2E1B5B),
+                                border = BorderStroke(1.dp, Color(0xFFA855F7))
+                            ) {
+                                Text(
+                                    text = "$milestoneTarget Turns",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFE0E7FF),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = onIncreaseMilestone,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .background(Color(0xFF047857), shape = RoundedCornerShape(8.dp))
+                                    .testTag("teacher_increase_milestone_btn")
+                            ) {
+                                Text("+", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
+
+                    // Quick presets row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            3 to "3 Turns (Quick)",
+                            5 to "5 Turns (Standard)",
+                            8 to "8 Turns (Advanced)",
+                            10 to "10 Turns (Mastery)"
+                        ).forEach { (preset, label) ->
+                            val isSel = milestoneTarget == preset
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSel) Color(0xFF7C3AED) else Color(0xFF281845),
+                                border = BorderStroke(1.dp, if (isSel) Color.White else Color(0xFF4C1D95)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onSetMilestoneTarget(preset) }
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSel) Color.White else Color(0xFFDDD6FE),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             OutlinedTextField(
                 value = searchQuery,
@@ -659,17 +787,35 @@ fun PromptsManagementList(
                             }
                         }
 
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                            val effectiveMilestone = if (prompt.milestoneTurns > 0) prompt.milestoneTurns else milestoneTarget
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = PurpleAccent.copy(alpha = 0.14f)
                             ) {
-                                Icon(Icons.Rounded.Timer, contentDescription = null, modifier = Modifier.size(13.dp), tint = MutedGray)
-                                Spacer(Modifier.width(3.dp))
-                                Text("Min ${prompt.minSpeakingSeconds}s", fontSize = 10.sp, color = MutedGray)
+                                Text(
+                                    text = "🏆 $effectiveMilestone turns",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = PurpleAccent,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Rounded.Timer, contentDescription = null, modifier = Modifier.size(13.dp), tint = MutedGray)
+                                    Spacer(Modifier.width(3.dp))
+                                    Text("Min ${prompt.minSpeakingSeconds}s", fontSize = 10.sp, color = MutedGray)
+                                }
                             }
                         }
                     }
@@ -1070,8 +1216,9 @@ fun RoleplayManagementList(
 
 @Composable
 fun CreateSpeakingPromptDialog(
+    defaultMilestone: Int = 5,
     onDismiss: () -> Unit,
-    onCreate: (title: String, category: String, question: String, tip: String, keywords: List<String>, minSeconds: Int, emoji: String, difficultyLevel: String) -> Unit
+    onCreate: (title: String, category: String, question: String, tip: String, keywords: List<String>, minSeconds: Int, emoji: String, difficultyLevel: String, milestoneTurns: Int) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Personal Life") }
@@ -1079,6 +1226,7 @@ fun CreateSpeakingPromptDialog(
     var tip by remember { mutableStateOf("") }
     var keywordsInput by remember { mutableStateOf("") }
     var minSeconds by remember { mutableIntStateOf(25) }
+    var milestoneTurns by remember(defaultMilestone) { mutableIntStateOf(defaultMilestone.coerceIn(1, 30)) }
     var emoji by remember { mutableStateOf("💬") }
     var difficultyLevel by remember { mutableStateOf("Intermediate") }
 
@@ -1203,6 +1351,22 @@ fun CreateSpeakingPromptDialog(
                         }
                     }
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Milestone Goal: $milestoneTurns turns", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+                    Row {
+                        IconButton(onClick = { if (milestoneTurns > 1) milestoneTurns -= 1 }) {
+                            Icon(Icons.Filled.Remove, contentDescription = "Decrease Milestone")
+                        }
+                        IconButton(onClick = { if (milestoneTurns < 30) milestoneTurns += 1 }) {
+                            Icon(Icons.Filled.Add, contentDescription = "Increase Milestone")
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -1210,7 +1374,7 @@ fun CreateSpeakingPromptDialog(
                 onClick = {
                     if (title.isNotBlank() && question.isNotBlank()) {
                         val kwList = keywordsInput.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                        onCreate(title, category, question, tip, kwList, minSeconds, emoji, difficultyLevel)
+                        onCreate(title, category, question, tip, kwList, minSeconds, emoji, difficultyLevel, milestoneTurns)
                     }
                 },
                 enabled = title.isNotBlank() && question.isNotBlank()
@@ -1227,6 +1391,7 @@ fun CreateSpeakingPromptDialog(
 @Composable
 fun EditSpeakingPromptDialog(
     prompt: SpeakingPrompt,
+    defaultMilestone: Int = 5,
     onDismiss: () -> Unit,
     onSave: (SpeakingPrompt) -> Unit
 ) {
@@ -1236,6 +1401,9 @@ fun EditSpeakingPromptDialog(
     var tip by remember { mutableStateOf(prompt.followUpTip) }
     var keywordsInput by remember { mutableStateOf(prompt.recommendedKeywords.joinToString(", ")) }
     var minSeconds by remember { mutableIntStateOf(prompt.minSpeakingSeconds) }
+    var milestoneTurns by remember(prompt.id) {
+        mutableIntStateOf((if (prompt.milestoneTurns > 0) prompt.milestoneTurns else defaultMilestone).coerceIn(1, 30))
+    }
     var emoji by remember { mutableStateOf(prompt.emoji) }
     var difficultyLevel by remember { mutableStateOf(prompt.difficultyLevel) }
 
@@ -1340,6 +1508,38 @@ fun EditSpeakingPromptDialog(
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Target Duration: $minSeconds seconds", fontSize = 12.sp, color = MutedGray)
+                    Row {
+                        IconButton(onClick = { if (minSeconds > 10) minSeconds -= 5 }) {
+                            Icon(Icons.Filled.Remove, contentDescription = "Decrease")
+                        }
+                        IconButton(onClick = { if (minSeconds < 120) minSeconds += 5 }) {
+                            Icon(Icons.Filled.Add, contentDescription = "Increase")
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Milestone Goal: $milestoneTurns turns", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = RoyalBlue)
+                    Row {
+                        IconButton(onClick = { if (milestoneTurns > 1) milestoneTurns -= 1 }) {
+                            Icon(Icons.Filled.Remove, contentDescription = "Decrease Milestone")
+                        }
+                        IconButton(onClick = { if (milestoneTurns < 30) milestoneTurns += 1 }) {
+                            Icon(Icons.Filled.Add, contentDescription = "Increase Milestone")
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -1354,7 +1554,8 @@ fun EditSpeakingPromptDialog(
                         recommendedKeywords = kwList,
                         minSpeakingSeconds = minSeconds,
                         emoji = emoji,
-                        difficultyLevel = difficultyLevel
+                        difficultyLevel = difficultyLevel,
+                        milestoneTurns = milestoneTurns
                     ))
                 }
             ) {

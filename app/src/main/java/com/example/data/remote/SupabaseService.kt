@@ -1354,7 +1354,8 @@ class SupabaseService {
                                     minSpeakingSeconds = if (obj.has("min_seconds")) obj.optInt("min_seconds", 20) else obj.optInt("minSeconds", 20),
                                     emoji = obj.optString("emoji", "💬"),
                                     difficultyLevel = obj.optString("difficulty_level", obj.optString("difficultyLevel", "Intermediate")),
-                                    createdBy = obj.optString("created_by", obj.optString("createdBy", "Faculty"))
+                                    createdBy = obj.optString("created_by", obj.optString("createdBy", "Faculty")),
+                                    milestoneTurns = if (obj.has("milestone_turns")) obj.optInt("milestone_turns", 0) else obj.optInt("milestoneTurns", 0)
                                 )
                             )
                             seenIds.add(id)
@@ -1385,27 +1386,36 @@ class SupabaseService {
                             try {
                                 val obj = JSONObject(feedback)
                                 val id = obj.optString("id", targetId)
-                                if (id.isNotBlank() && id !in seenIds) {
-                                    val kwArr = obj.optJSONArray("keywords")
-                                    val kwList = mutableListOf<String>()
-                                    if (kwArr != null) {
-                                        for (j in 0 until kwArr.length()) kwList.add(kwArr.getString(j))
-                                    }
-                                    list.add(
-                                        SpeakingPrompt(
-                                            id = id,
-                                            title = obj.optString("title", row.optString("spoken_text", "")),
-                                            category = obj.optString("category", "General"),
-                                            question = obj.optString("question", ""),
-                                            followUpTip = obj.optString("followUpTip", obj.optString("follow_up_tip", "")),
-                                            recommendedKeywords = kwList,
-                                            minSpeakingSeconds = if (obj.has("minSeconds")) obj.optInt("minSeconds", 20) else obj.optInt("min_seconds", 20),
-                                            emoji = obj.optString("emoji", "💬"),
-                                            difficultyLevel = obj.optString("difficultyLevel", obj.optString("difficulty_level", "Intermediate")),
-                                            createdBy = obj.optString("createdBy", obj.optString("created_by", "Faculty"))
+                                if (id.isNotBlank()) {
+                                    val syncMilestone = obj.optInt("milestoneTurns", obj.optInt("milestone_turns", 0))
+                                    if (id !in seenIds) {
+                                        val kwArr = obj.optJSONArray("keywords")
+                                        val kwList = mutableListOf<String>()
+                                        if (kwArr != null) {
+                                            for (j in 0 until kwArr.length()) kwList.add(kwArr.getString(j))
+                                        }
+                                        list.add(
+                                            SpeakingPrompt(
+                                                id = id,
+                                                title = obj.optString("title", row.optString("spoken_text", "")),
+                                                category = obj.optString("category", "General"),
+                                                question = obj.optString("question", ""),
+                                                followUpTip = obj.optString("followUpTip", obj.optString("follow_up_tip", "")),
+                                                recommendedKeywords = kwList,
+                                                minSpeakingSeconds = if (obj.has("minSeconds")) obj.optInt("minSeconds", 20) else obj.optInt("min_seconds", 20),
+                                                emoji = obj.optString("emoji", "💬"),
+                                                difficultyLevel = obj.optString("difficultyLevel", obj.optString("difficulty_level", "Intermediate")),
+                                                createdBy = obj.optString("createdBy", obj.optString("created_by", "Faculty")),
+                                                milestoneTurns = syncMilestone
+                                            )
                                         )
-                                    )
-                                    seenIds.add(id)
+                                        seenIds.add(id)
+                                    } else if (syncMilestone > 0) {
+                                        val idx = list.indexOfFirst { it.id == id }
+                                        if (idx >= 0 && list[idx].milestoneTurns <= 0) {
+                                            list[idx] = list[idx].copy(milestoneTurns = syncMilestone)
+                                        }
+                                    }
                                 }
                             } catch (_: Exception) {}
                         }
@@ -1492,6 +1502,8 @@ class SupabaseService {
                 put("difficulty_level", prompt.difficultyLevel)
                 put("createdBy", prompt.createdBy)
                 put("created_by", prompt.createdBy)
+                put("milestoneTurns", prompt.milestoneTurns)
+                put("milestone_turns", prompt.milestoneTurns)
             }
 
             val patchPayload = JSONObject().apply {
@@ -1548,6 +1560,90 @@ class SupabaseService {
         } catch (_: Exception) {}
 
         savedInPrimary || savedInFallback
+    }
+
+    suspend fun saveNovaMilestoneTarget(target: Int): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        val clean = target.coerceIn(1, 30)
+        try {
+            val patchPayload = JSONObject().apply {
+                put("spoken_text", "Nova Milestone Goal")
+                put("feedback", JSONObject().apply { put("milestoneTurns", clean) }.toString())
+                put("overall_score", clean)
+            }
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.NOVA_CONFIG_SYNC&target_phrase=eq.milestone_turns")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .addHeader("Prefer", "return=representation")
+                .patch(patchPayload.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        return@withContext true
+                    }
+                }
+            }
+
+            cleanSyncRows("NOVA_CONFIG_SYNC", "milestone_turns")
+            val evalObj = JSONObject().apply {
+                put("student_id", "NOVA_CONFIG_SYNC")
+                put("target_phrase", "milestone_turns")
+                put("spoken_text", "Nova Milestone Goal")
+                put("feedback", JSONObject().apply { put("milestoneTurns", clean) }.toString())
+                put("pronunciation_score", clean)
+                put("fluency_score", clean)
+                put("grammar_score", clean)
+                put("vocabulary_score", clean)
+                put("overall_score", clean)
+            }
+            val postReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(postReq).execute().use { resp ->
+                return@withContext resp.isSuccessful
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    suspend fun fetchNovaMilestoneTarget(): Int? = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext null
+        try {
+            val req = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.NOVA_CONFIG_SYNC&target_phrase=eq.milestone_turns&select=overall_score,feedback&limit=1")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .get()
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    val arr = JSONArray(body)
+                    if (arr.length() > 0) {
+                        val row = arr.getJSONObject(0)
+                        val scoreVal = row.optInt("overall_score", 0)
+                        if (scoreVal in 1..30) return@withContext scoreVal
+                        val fb = row.optString("feedback", "")
+                        if (fb.isNotBlank()) {
+                            val obj = JSONObject(fb)
+                            val fbVal = obj.optInt("milestoneTurns", 0)
+                            if (fbVal in 1..30) return@withContext fbVal
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        null
     }
 
     suspend fun deleteSpeakingPrompt(promptId: String): Boolean = withContext(Dispatchers.IO) {

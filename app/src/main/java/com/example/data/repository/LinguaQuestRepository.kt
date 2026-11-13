@@ -2853,7 +2853,8 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         minSpeakingSeconds: Int = 20,
         emoji: String = "💬",
         difficultyLevel: String = "Intermediate",
-        createdBy: String = "Faculty"
+        createdBy: String = "Faculty",
+        milestoneTurns: Int = 0
     ): SpeakingPrompt {
         val newPrompt = SpeakingPrompt(
             id = "sp_${System.currentTimeMillis()}",
@@ -2865,7 +2866,8 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             minSpeakingSeconds = minSpeakingSeconds,
             emoji = emoji.trim().ifBlank { "💬" },
             difficultyLevel = difficultyLevel.trim().ifBlank { "Intermediate" },
-            createdBy = createdBy.trim().ifBlank { "Faculty" }
+            createdBy = createdBy.trim().ifBlank { "Faculty" },
+            milestoneTurns = if (milestoneTurns > 0) milestoneTurns.coerceIn(1, 30) else 0
         )
         _speakingPrompts.update { it + newPrompt }
         appPreferences?.saveSpeakingPrompts(_speakingPrompts.value)

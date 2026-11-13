@@ -161,6 +161,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         } catch (_: Exception) { }
         try {
+            val remoteMilestone = supabaseService.fetchNovaMilestoneTarget()
+            if (remoteMilestone != null && remoteMilestone in 1..30) {
+                withContext(Dispatchers.Main) {
+                    _novaMilestoneTarget.value = remoteMilestone
+                    appPreferences.setNovaMilestoneTarget(remoteMilestone)
+                }
+            }
+        } catch (_: Exception) { }
+        try {
             val remoteExams = supabaseService.fetchExams()
             if (remoteExams.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
@@ -890,6 +899,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _novaTurnCount = MutableStateFlow(1)
     val novaTurnCount: StateFlow<Int> = _novaTurnCount.asStateFlow()
+
+    private val _novaMilestoneTarget = MutableStateFlow(appPreferences.getNovaMilestoneTarget())
+    val novaMilestoneTarget: StateFlow<Int> = _novaMilestoneTarget.asStateFlow()
 
     private val _novaCurrentHint = MutableStateFlow("")
     val novaCurrentHint: StateFlow<String> = _novaCurrentHint.asStateFlow()
@@ -1757,6 +1769,63 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _activeCoachQuestion.value = "Hi Alex! How was your weekend? Did you do anything fun or exciting?"
     }
 
+    fun increaseNovaMilestone(topicId: String? = null) {
+        val topicVal = topicId?.let { id ->
+            speakingPrompts.value.firstOrNull { it.id == id }?.milestoneTurns?.takeIf { it > 0 }
+        }
+        val current = topicVal ?: _novaMilestoneTarget.value
+        val next = (current + 1).coerceAtMost(30)
+        setNovaMilestoneTarget(next, topicId)
+    }
+
+    fun decreaseNovaMilestone(topicId: String? = null) {
+        val topicVal = topicId?.let { id ->
+            speakingPrompts.value.firstOrNull { it.id == id }?.milestoneTurns?.takeIf { it > 0 }
+        }
+        val current = topicVal ?: _novaMilestoneTarget.value
+        val next = (current - 1).coerceAtLeast(1)
+        setNovaMilestoneTarget(next, topicId)
+    }
+
+    fun setNovaMilestoneTarget(target: Int, topicId: String? = null) {
+        val oldGlobal = _novaMilestoneTarget.value
+        val clean = target.coerceIn(1, 30)
+        _novaMilestoneTarget.value = clean
+        appPreferences.setNovaMilestoneTarget(clean)
+        if (!topicId.isNullOrBlank()) {
+            val existing = speakingPrompts.value.firstOrNull { it.id == topicId }
+            if (existing != null) {
+                val updated = existing.copy(milestoneTurns = clean)
+                updateSpeakingPrompt(updated)
+            }
+        } else {
+            // Global milestone changed: keep topics at 0 following global, and update topics that matched oldGlobal
+            speakingPrompts.value
+                .filter { it.milestoneTurns == oldGlobal }
+                .forEach { prompt ->
+                    updateSpeakingPrompt(prompt.copy(milestoneTurns = clean))
+                }
+        }
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.saveNovaMilestoneTarget(clean)
+            }
+        }
+    }
+
+    suspend fun translateToAssamese(englishSentence: String): com.example.util.AssameseTranslator.TranslationResult {
+        val apiKey = getEffectiveGeminiApiKey()
+        return if (apiKey.isNotBlank()) {
+            com.example.util.AssameseTranslator.translateWithAi(
+                englishSentence = englishSentence,
+                apiKey = apiKey,
+                model = appPreferences.getSelectedAiModel()
+            )
+        } else {
+            com.example.util.AssameseTranslator.translate(englishSentence)
+        }
+    }
+
     fun evaluateInputSpeech(spoken: String) {
         val isNovaChat = _speakingSubTab.value == SpeakingSubTab.AI_PARTNER
         val activeTopic = _activeConversationTopic.value
@@ -1893,6 +1962,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         )
                         val finalHistory = historyForNova + novaTurn
                         _novaChatMessages.value = finalHistory
+                        _activeCoachQuestion.value = fallbackQuestion
+                        fallbackEval.hint?.let { _novaCurrentHint.value = it }
+                        if (fallbackEval.exampleAnswers.isNotEmpty()) _novaCurrentExamples.value = fallbackEval.exampleAnswers
                         val studentId = currentUser.value.id.ifBlank { "default_student" }
                         appPreferences.saveNovaSession(studentId, activeTopic.id, finalHistory)
                         if (_aiVoiceReplyEnabled.value) {
@@ -1935,6 +2007,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     val finalHistory = historyForNova + novaTurn
                     _novaChatMessages.value = finalHistory
+                    _activeCoachQuestion.value = fallbackQuestion
+                    fallbackEval.hint?.let { _novaCurrentHint.value = it }
+                    if (fallbackEval.exampleAnswers.isNotEmpty()) _novaCurrentExamples.value = fallbackEval.exampleAnswers
                     val studentId = currentUser.value.id.ifBlank { "default_student" }
                     appPreferences.saveNovaSession(studentId, activeTopic.id, finalHistory)
                     if (_aiVoiceReplyEnabled.value) {
@@ -2313,7 +2388,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         minSeconds: Int = 20,
         emoji: String = "💬",
         difficultyLevel: String = "Intermediate",
-        createdBy: String = "Faculty"
+        createdBy: String = "Faculty",
+        milestoneTurns: Int = 0
     ): SpeakingPrompt {
         val prompt = repository.addSpeakingPrompt(
             title = title,
@@ -2324,7 +2400,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             minSpeakingSeconds = minSeconds,
             emoji = emoji,
             difficultyLevel = difficultyLevel,
-            createdBy = createdBy
+            createdBy = createdBy,
+            milestoneTurns = milestoneTurns
         )
         if (supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
@@ -2336,11 +2413,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateSpeakingPrompt(prompt: SpeakingPrompt) {
+        val previous = repository.speakingPrompts.value.firstOrNull { it.id == prompt.id }
         repository.updateSpeakingPrompt(prompt)
-        // Refresh active topic and question immediately so student panel reflects changes in real-time
+        // Refresh active topic immediately; only overwrite activeCoachQuestion if question text itself changed
         if (_activeConversationTopic.value?.id == prompt.id) {
             _activeConversationTopic.value = prompt
-            _activeCoachQuestion.value = prompt.question
+            if (previous == null || previous.question != prompt.question) {
+                _activeCoachQuestion.value = prompt.question
+            }
         }
         if (supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
