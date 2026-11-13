@@ -288,6 +288,7 @@ fun SpeakingAndPhoneticsManagement(
                 PromptsManagementList(
                     prompts = prompts,
                     milestoneTarget = milestoneTarget,
+                    canManageMilestone = userRole == Role.TEACHER || userRole == Role.ADMIN,
                     onIncreaseMilestone = { viewModel.increaseNovaMilestone() },
                     onDecreaseMilestone = { viewModel.decreaseNovaMilestone() },
                     onSetMilestoneTarget = { viewModel.setNovaMilestoneTarget(it) },
@@ -557,6 +558,7 @@ fun SpeakingAndPhoneticsManagement(
 fun PromptsManagementList(
     prompts: List<SpeakingPrompt>,
     milestoneTarget: Int = 5,
+    canManageMilestone: Boolean = true,
     onIncreaseMilestone: () -> Unit = {},
     onDecreaseMilestone: () -> Unit = {},
     onSetMilestoneTarget: (Int) -> Unit = {},
@@ -579,9 +581,10 @@ fun PromptsManagementList(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Teacher Milestone Target Management Section
-        item {
-            Card(
+        // Teacher Milestone Target Management Section (hidden from students)
+        if (canManageMilestone) {
+            item {
+                Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1038)),
                 border = BorderStroke(1.2.dp, Brush.horizontalGradient(listOf(Color(0xFFEC4899), Color(0xFF8B5CF6)))),
@@ -693,6 +696,7 @@ fun PromptsManagementList(
                     }
                 }
             }
+        }
         }
 
         item {

@@ -1770,6 +1770,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun increaseNovaMilestone(topicId: String? = null) {
+        if (currentUser.value.role == Role.STUDENT) return
         val topicVal = topicId?.let { id ->
             speakingPrompts.value.firstOrNull { it.id == id }?.milestoneTurns?.takeIf { it > 0 }
         }
@@ -1779,6 +1780,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun decreaseNovaMilestone(topicId: String? = null) {
+        if (currentUser.value.role == Role.STUDENT) return
         val topicVal = topicId?.let { id ->
             speakingPrompts.value.firstOrNull { it.id == id }?.milestoneTurns?.takeIf { it > 0 }
         }
@@ -1788,6 +1790,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setNovaMilestoneTarget(target: Int, topicId: String? = null) {
+        if (currentUser.value.role == Role.STUDENT) return
         val oldGlobal = _novaMilestoneTarget.value
         val clean = target.coerceIn(1, 30)
         _novaMilestoneTarget.value = clean

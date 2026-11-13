@@ -53,7 +53,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import com.example.R
-import com.example.data.model.Role
 import com.example.data.model.SpeakingEvaluation
 import com.example.data.model.SpeakingPrompt
 import com.example.service.SpeechState
@@ -350,9 +349,6 @@ fun NovaAiChatScreen(
             }
             val currentTurnDisplay = turnCount.coerceAtLeast(1)
             val percentVal = ((currentTurnDisplay.coerceAtMost(milestoneTurns) * 100) / milestoneTurns)
-            val currentUser by viewModel.currentUser.collectAsState()
-            val isAdminSession by viewModel.isAdminSession.collectAsState()
-            val isTeacherOrAdmin = currentUser.role == Role.TEACHER || currentUser.role == Role.ADMIN || isAdminSession
 
             // =========================================================================
             // 2. COMPACT TOPIC & PROGRESS BANNER (Space-optimized for chat visibility)
@@ -470,94 +466,6 @@ fun NovaAiChatScreen(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFA7F3D0)
                         )
-                    }
-
-                    // Teacher Access: Direct Milestone Increase & Decrease Controls
-                    if (isTeacherOrAdmin) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFF28114E).copy(alpha = 0.95f),
-                            border = BorderStroke(1.dp, Color(0xFFF59E0B)),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("teacher_milestone_control_banner")
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text("👑", fontSize = 13.sp)
-                                    Column {
-                                        Text(
-                                            "Teacher Milestone Goal",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFFFDE68A)
-                                        )
-                                        Text(
-                                            "Target turns to earn Milestone trophy",
-                                            fontSize = 9.sp,
-                                            color = Color(0xFFCBD5E1)
-                                        )
-                                    }
-                                }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                                ) {
-                                    // Decrease Button
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF78350F),
-                                        border = BorderStroke(1.dp, Color(0xFFF59E0B)),
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clickable { viewModel.decreaseNovaMilestone(currentTopic.id) }
-                                            .testTag("decrease_milestone_btn")
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text("-", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
-                                        }
-                                    }
-
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF1E1038),
-                                        border = BorderStroke(1.dp, Color(0xFF818CF8))
-                                    ) {
-                                        Text(
-                                            text = "$milestoneTurns Turns",
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = Color(0xFFE0E7FF),
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                        )
-                                    }
-
-                                    // Increase Button
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF065F46),
-                                        border = BorderStroke(1.dp, Color(0xFF34D399)),
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clickable { viewModel.increaseNovaMilestone(currentTopic.id) }
-                                            .testTag("increase_milestone_btn")
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text("+", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
-                                        }
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
             }
