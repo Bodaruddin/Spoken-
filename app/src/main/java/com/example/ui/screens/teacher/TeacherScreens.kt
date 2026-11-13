@@ -268,122 +268,18 @@ fun TeacherDashboard(viewModel: MainViewModel, modifier: Modifier = Modifier) {
             }
         }
 
-        // Gemini AI Real-time Speech API Connection Card for Faculty
+        // Compact Premium AI Speech & Cloud Connection Card for Faculty
         item {
             val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
             val apiKeySource by viewModel.apiKeySource.collectAsState()
             val activeModel by viewModel.activeAiModel.collectAsState()
 
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                border = BorderStroke(
-                    1.5.dp,
-                    if (isGeminiConfigured) Color(0xFF38BDF8) else Color(0xFFF59E0B)
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { viewModel.openAiKeyDialog() }
-                    .testTag("teacher_gemini_api_card")
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.linearGradient(
-                                if (isGeminiConfigured)
-                                    listOf(Color(0xFF0F2B48), Color(0xFF131D4A), Color(0xFF0C1938))
-                                else
-                                    listOf(Color(0xFF3B1F08), Color(0xFF2E1505), Color(0xFF1A0D04))
-                            )
-                        )
-                        .padding(16.dp)
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (isGeminiConfigured) Color(0xFF0284C7).copy(alpha = 0.5f) else Color(0xFFD97706).copy(alpha = 0.5f),
-                                    border = BorderStroke(1.5.dp, if (isGeminiConfigured) Color(0xFF38BDF8) else Color(0xFFFBBF24)),
-                                    modifier = Modifier.size(42.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(if (isGeminiConfigured) "⚡" else "🔑", fontSize = 18.sp)
-                                    }
-                                }
-                                Column {
-                                    Text(
-                                        text = "Gemini AI Speech Evaluation API",
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 15.sp,
-                                        color = Color.White
-                                    )
-                                    Text(
-                                        text = if (isGeminiConfigured) "Active for all students • $activeModel" else "Connect key for students to chat with AI",
-                                        fontSize = 11.5.sp,
-                                        color = if (isGeminiConfigured) Color(0xFF7DD3FC) else Color(0xFFFDE68A)
-                                    )
-                                }
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isGeminiConfigured) Color(0xFF065F46) else Color(0xFF78350F),
-                                border = BorderStroke(1.dp, if (isGeminiConfigured) Color(0xFF34D399) else Color(0xFFF59E0B))
-                            ) {
-                                Text(
-                                    text = if (isGeminiConfigured) "CONNECTED" else "CONNECT API",
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-
-                        Text(
-                            text = if (isGeminiConfigured)
-                                "Students can now speak and practice conversation with Nova AI in real time. Status: $apiKeySource ($activeModel)."
-                            else
-                                "Connect your Gemini API Key here so students can practice speaking in real-time with Nova AI and receive automated CEFR scoring.",
-                            fontSize = 12.sp,
-                            color = Color(0xFFCBD5E1),
-                            lineHeight = 16.sp
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            Button(
-                                onClick = { viewModel.openAiKeyDialog() },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isGeminiConfigured) Color(0xFF0284C7) else Color(0xFFD97706)
-                                ),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                            ) {
-                                Icon(Icons.Rounded.Settings, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    text = if (isGeminiConfigured) "Manage API Connection" else "Connect Gemini API Key",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            TeacherAiConnectionCard(
+                isConfigured = isGeminiConfigured,
+                activeModel = activeModel,
+                apiKeySource = apiKeySource,
+                onClick = { viewModel.openAiKeyDialog() }
+            )
         }
 
         // Section: Classroom Overview & Metrics (Matching Screenshot 2x2 Grid)
@@ -5973,3 +5869,214 @@ fun GradingSlider(label: String, value: Float, onValueChange: (Float) -> Unit) {
         )
     }
 }
+
+@Composable
+fun TeacherAiConnectionCard(
+    isConfigured: Boolean,
+    activeModel: String,
+    apiKeySource: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val borderBrush = if (isConfigured) {
+        Brush.linearGradient(
+            listOf(Color(0xFF38BDF8), Color(0xFF818CF8), Color(0xFF34D399))
+        )
+    } else {
+        Brush.linearGradient(
+            listOf(Color(0xFFFBBF24), Color(0xFFF97316), Color(0xFFEC4899))
+        )
+    }
+
+    val bgBrush = if (isConfigured) {
+        Brush.linearGradient(
+            listOf(Color(0xFF0B1C40), Color(0xFF121847), Color(0xFF08122E))
+        )
+    } else {
+        Brush.linearGradient(
+            listOf(Color(0xFF2E1608), Color(0xFF211026), Color(0xFF120A1E))
+        )
+    }
+
+    val medallionBrush = if (isConfigured) {
+        Brush.linearGradient(listOf(Color(0xFF0EA5E9), Color(0xFF6366F1)))
+    } else {
+        Brush.linearGradient(listOf(Color(0xFFF59E0B), Color(0xFFEA580C)))
+    }
+
+    val actionBrush = if (isConfigured) {
+        Brush.horizontalGradient(listOf(Color(0xFF0284C7), Color(0xFF4F46E5)))
+    } else {
+        Brush.horizontalGradient(listOf(Color(0xFFD97706), Color(0xFFEA580C)))
+    }
+
+    val glowPrimary = if (isConfigured) Color(0xFF38BDF8) else Color(0xFFF59E0B)
+    val glowSecondary = if (isConfigured) Color(0xFF34D399) else Color(0xFFEC4899)
+
+    val compactSource = when {
+        apiKeySource.contains("Secrets", ignoreCase = true) -> "Secrets Key"
+        apiKeySource.contains("Saved", ignoreCase = true) -> "Saved Key"
+        apiKeySource.contains("Proxy", ignoreCase = true) || apiKeySource.contains("Custom", ignoreCase = true) -> "Custom Endpoint"
+        else -> apiKeySource
+    }
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.3.dp, borderBrush),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { onClick() }
+            .testTag("teacher_gemini_api_card")
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(bgBrush)
+        ) {
+            Canvas(modifier = Modifier.matchParentSize()) {
+                val w = size.width
+                val h = size.height
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(glowPrimary.copy(alpha = 0.24f), Color.Transparent),
+                        center = Offset(w * 0.12f, h * 0.5f),
+                        radius = h * 1.35f
+                    ),
+                    center = Offset(w * 0.12f, h * 0.5f),
+                    radius = h * 1.35f
+                )
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(glowSecondary.copy(alpha = 0.16f), Color.Transparent),
+                        center = Offset(w * 0.92f, h * 0.15f),
+                        radius = h * 1.2f
+                    ),
+                    center = Offset(w * 0.92f, h * 0.15f),
+                    radius = h * 1.2f
+                )
+                val sheen = Path().apply {
+                    moveTo(w * 0.36f, 0f)
+                    lineTo(w * 0.54f, 0f)
+                    lineTo(w * 0.42f, h)
+                    lineTo(w * 0.24f, h)
+                    close()
+                }
+                drawPath(sheen, Color.White.copy(alpha = 0.03f))
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(medallionBrush)
+                        .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isConfigured) Icons.Rounded.Bolt else Icons.Rounded.VpnKey,
+                        contentDescription = if (isConfigured) "AI Speech Connected" else "Connect AI Key",
+                        tint = Color.White,
+                        modifier = Modifier.size(21.dp)
+                    )
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Gemini Speech API",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.5.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = if (isConfigured) Color(0xFF064E3B).copy(alpha = 0.85f) else Color(0xFF78350F).copy(alpha = 0.85f),
+                            border = BorderStroke(
+                                0.8.dp,
+                                if (isConfigured) Color(0xFF34D399) else Color(0xFFFBBF24)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(5.5.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isConfigured) Color(0xFF34D399) else Color(0xFFFBBF24))
+                                )
+                                Text(
+                                    text = if (isConfigured) "LIVE" else "SETUP",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 0.5.sp,
+                                    color = if (isConfigured) Color(0xFFA7F3D0) else Color(0xFFFEF3C7),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = if (isConfigured) "$activeModel • $compactSource" else "Link API key for Nova AI voice",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (isConfigured) Color(0xFF93C5FD) else Color(0xFFFDE68A),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.Transparent,
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.24f)),
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .background(actionBrush)
+                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isConfigured) Icons.Rounded.Tune else Icons.Rounded.Key,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = if (isConfigured) "Manage" else "Connect",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
