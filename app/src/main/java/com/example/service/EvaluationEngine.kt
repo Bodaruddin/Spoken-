@@ -107,6 +107,14 @@ object EvaluationEngine {
             else -> "Good try! Practice speaking each word with the audio guide. You're improving!"
         }
 
+        val cefr = when {
+            overallScore >= 90 -> "C1"
+            overallScore >= 80 -> "B2"
+            overallScore >= 70 -> "B1"
+            overallScore >= 55 -> "A2"
+            else -> "A1"
+        }
+
         return SpeakingEvaluation(
             spokenText = cleanSpoken,
             expectedText = targetPhrase,
@@ -118,6 +126,7 @@ object EvaluationEngine {
             feedback = feedbackBuilder.toString(),
             suggestedImprovement = suggestedImprovement,
             aiCoachResponse = coachResponse,
+            cefrLevel = cefr,
             phonemeAccuracy = phonemeMatches
         )
     }

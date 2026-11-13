@@ -525,5 +525,88 @@ class ExampleUnitTest {
         assertFalse(repository.sentenceBuilderPacks.value.any { it.id == createdPack.id })
         assertTrue(repository.sentenceBuilderChallenges.value.none { it.packId == createdPack.id })
     }
+
+    @Test
+    fun testHumanConversationEngineTailorsFollowUpsToStudentAnswers() {
+        val introTopic = com.example.data.model.SpeakingPrompt(
+            id = "topic_intro",
+            title = "Introduction",
+            category = "Greetings",
+            question = "Hello! How are you?",
+            followUpTip = "Greet warmly and share how you feel.",
+            recommendedKeywords = listOf("hello", "doing great", "thank you")
+        )
+
+        // 1. Human greeting preserves topic & question naturally
+        val (greetingDisplay, greetingAudio) = com.example.service.HumanConversationEngine.buildHumanGreeting(
+            topic = introTopic,
+            studentName = "Arjun Das"
+        )
+        assertTrue(greetingDisplay.contains("Hey Arjun!"))
+        assertTrue(greetingDisplay.contains("Introduction"))
+        assertTrue(greetingDisplay.contains("Hello! How are you?"))
+        assertTrue(greetingAudio.contains("Hey Arjun!"))
+
+        // 2. Student answers mood AND asks Nova back ("I am fine, how about you?")
+        val base1 = com.example.service.EvaluationEngine.evaluateSpeech("I am fine, how about you?")
+        assertEquals("B2", base1.cefrLevel)
+        val turn1Eval = com.example.service.HumanConversationEngine.generateReply(
+            spokenText = "I am fine, how about you?",
+            topic = introTopic,
+            previousMessages = emptyList(),
+            lastNovaQuestion = "Hello! How are you?",
+            baseEval = base1
+        )
+        val reply1 = turn1Eval.aiCoachResponse.orEmpty()
+        assertFalse(reply1.contains("What is another detail you would like to share", ignoreCase = true))
+        assertTrue(reply1.contains("thanks so much for asking", ignoreCase = true) || reply1.contains("doing great", ignoreCase = true))
+        assertFalse(turn1Eval.followUpQuestion.isNullOrBlank())
+
+        // 3. Student shares name ("My name is Rahat") -> Nova greets Rahat by name
+        val base2 = com.example.service.EvaluationEngine.evaluateSpeech("My name is Rahat")
+        val turn2Eval = com.example.service.HumanConversationEngine.generateReply(
+            spokenText = "My name is Rahat",
+            topic = introTopic,
+            previousMessages = listOf(
+                com.example.data.model.NovaChatMessage(
+                    isNova = true,
+                    text = reply1,
+                    evaluation = turn1Eval
+                )
+            ),
+            lastNovaQuestion = turn1Eval.followUpQuestion.orEmpty(),
+            baseEval = base2
+        )
+        assertTrue(turn2Eval.aiCoachResponse.orEmpty().contains("Rahat"))
+        assertTrue(turn2Eval.followUpQuestion.orEmpty().contains("Rahat"))
+
+        // 4. Student shares hobby ("I love playing cricket with my friends") -> cricket-specific follow-up
+        val base3 = com.example.service.EvaluationEngine.evaluateSpeech("I love playing cricket with my friends")
+        val turn3Eval = com.example.service.HumanConversationEngine.generateReply(
+            spokenText = "I love playing cricket with my friends",
+            topic = introTopic,
+            previousMessages = emptyList(),
+            lastNovaQuestion = "So tell me, what do you usually enjoy doing in your free time?",
+            baseEval = base3
+        )
+        assertTrue(turn3Eval.aiCoachResponse.orEmpty().contains("cricket", ignoreCase = true))
+        assertTrue(turn3Eval.followUpQuestion.orEmpty().contains("cricket", ignoreCase = true))
+
+        // 5. Anti-repetition: repeating a cricket input does NOT repeat turn3Eval.followUpQuestion
+        val turn3RepeatEval = com.example.service.HumanConversationEngine.generateReply(
+            spokenText = "Yes I play cricket every Sunday too",
+            topic = introTopic,
+            previousMessages = listOf(
+                com.example.data.model.NovaChatMessage(
+                    isNova = true,
+                    text = turn3Eval.aiCoachResponse.orEmpty(),
+                    evaluation = turn3Eval
+                )
+            ),
+            lastNovaQuestion = turn3Eval.followUpQuestion.orEmpty(),
+            baseEval = base3
+        )
+        assertNotEquals(turn3Eval.followUpQuestion, turn3RepeatEval.followUpQuestion)
+    }
 }
 

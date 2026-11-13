@@ -12,6 +12,7 @@ import com.example.service.TtsManager
 import com.example.service.PhoneticsAiEngine
 import com.example.service.PhoneticSearchResult
 import com.example.service.GeminiSpeechEvaluator
+import com.example.service.HumanConversationEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -1829,7 +1830,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val cleanInitialQ = topic.question.trim()
         val firstNova = saved?.firstOrNull { it.isNova }
         val firstNovaText = firstNova?.text.orEmpty()
-        val greetingTitleMatch = Regex("""Let's practice [“"]([^”"]+)[”"]""")
+        val greetingTitleMatch = Regex("""(?:Let's practice|chat(?: with you)? about) [“"]([^”"]+)[”"]""")
             .find(firstNovaText)
             ?.groupValues
             ?.getOrNull(1)
@@ -1872,18 +1873,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _novaCurrentExamples.value = resolvedExamples
             }
         } else {
-            val initialQ = cleanInitialQ.ifBlank { "When do you usually go to school or start your day?" }
-            val displayTitle = cleanTitle.ifBlank { topic.title }
-            val greeting = "Hi! I'm Nova 😊\nLet's practice “$displayTitle”.\n\n🕒 $initialQ"
-            val initialExamples = com.example.util.ExampleAnswerGenerator.generateForQuestion(initialQ, topic)
+            val initialQ = cleanInitialQ.ifBlank { "How's your day going so far? Tell me a little about yourself!" }
+            val effectiveTopic = topic.copy(question = initialQ)
+            val (greetingText, audioGreeting) = HumanConversationEngine.buildHumanGreeting(
+                topic = effectiveTopic,
+                studentName = currentUser.value.name
+            )
+            val initialExamples = com.example.util.ExampleAnswerGenerator.generateForQuestion(initialQ, effectiveTopic)
             val initialTurn = NovaChatMessage(
                 id = "msg_init_${topic.id}_${System.currentTimeMillis()}",
                 isNova = true,
-                text = greeting,
-                audioPrompt = "Hi! I'm Nova. Let's practice $displayTitle. $initialQ",
+                text = greetingText,
+                audioPrompt = audioGreeting,
                 isQuestion = true,
                 questionNumber = 1,
-                hint = topic.followUpTip.ifBlank { "Respond naturally in complete sentences related to “$displayTitle”." },
+                hint = topic.followUpTip.ifBlank { "Respond naturally in 1 or 2 full sentences just like chatting with a friend." },
                 exampleAnswers = initialExamples
             )
             _novaChatMessages.value = listOf(initialTurn)
@@ -1910,28 +1914,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val nextTurnNumber = _novaTurnCount.value + 1
             _novaTurnCount.value = nextTurnNumber
-            val transitionPhrases = listOf(
-                "Let's explore another interesting angle on “${topic.title}”!",
-                "Great discussion! Let's take our conversation a step further on “${topic.title}”.",
-                "Here is another great question to practice on “${topic.title}”:"
-            )
-            val transition = transitionPhrases.random()
-            val nextQuestion = when (nextTurnNumber % 4) {
-                0 -> "How does “${topic.title}” connect with your weekend or personal goals?"
-                1 -> "Can you share a specific memorable story or experience related to “${topic.title}”?"
-                2 -> "What is something challenging about “${topic.title}”, and what advice would you give?"
-                else -> "If you could change one thing related to “${topic.title}”, what would it be?"
-            }
-            val novaPromptText = "$transition\n\n🕒 $nextQuestion"
+            val (nextQuestion, novaPromptText, hintAndAudio) =
+                HumanConversationEngine.generateNextTopicQuestion(topic, _novaChatMessages.value)
+            val hintText = hintAndAudio.substringBefore("|||")
+            val audioText = hintAndAudio.substringAfter("|||", "$novaPromptText")
             val nextExamples = com.example.util.ExampleAnswerGenerator.generateForQuestion(nextQuestion, topic)
             val novaTurn = NovaChatMessage(
                 id = "nova_next_${System.currentTimeMillis()}",
                 isNova = true,
                 text = novaPromptText,
-                audioPrompt = "$transition $nextQuestion",
+                audioPrompt = audioText,
                 isQuestion = true,
                 questionNumber = nextTurnNumber,
-                hint = "Express your thoughts clearly using complete sentences and descriptive words.",
+                hint = hintText,
                 exampleAnswers = nextExamples
             )
             val updated = _novaChatMessages.value + novaTurn
@@ -2056,6 +2051,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             else -> null
         }
 
+        // Capture conversation context & previous question BEFORE appending the student's current turn
+        val historyBeforeStudent = if (isNovaChat) _novaChatMessages.value else emptyList()
+        val previousNovaQuestion = if (isNovaChat) _activeCoachQuestion.value else null
+
         // If speaking with Nova in AI partner chat, append student's spoken message immediately
         val historyForNova = if (isNovaChat && activeTopic != null) {
             val studentTurn = NovaChatMessage(
@@ -2092,7 +2091,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             spokenText = spoken,
                             targetPhrase = target,
                             conversationContext = contextPrompt,
-                            conversationHistory = historyForNova
+                            conversationHistory = historyBeforeStudent,
+                            previousNovaQuestion = previousNovaQuestion
                         )
                     } else {
                         GeminiSpeechEvaluator.evaluateSpeech(
@@ -2100,7 +2100,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             spokenText = spoken,
                             targetPhrase = target,
                             conversationContext = contextPrompt,
-                            conversationHistory = historyForNova,
+                            conversationHistory = historyBeforeStudent,
+                            previousNovaQuestion = previousNovaQuestion,
                             model = _activeAiModel.value
                         )
                     }
@@ -2112,12 +2113,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val nextTurn = _novaTurnCount.value + 1
                         _novaTurnCount.value = nextTurn
                         val coachReply = aiEval.aiCoachResponse?.ifBlank { null }
-                            ?: if (aiEval.overallScore >= 75) {
-                                "Great job! That was spoken with natural clarity. What is another detail you would like to share?"
-                            } else {
-                                "Good practice! Try speaking in a complete sentence. What else can you tell me about that?"
-                            }
-                        val nextCoachQuestion = aiEval.followUpQuestion?.takeIf { it.isNotBlank() } ?: coachReply
+                            ?: HumanConversationEngine.generateReply(
+                                spokenText = spoken,
+                                topic = activeTopic,
+                                previousMessages = historyBeforeStudent,
+                                lastNovaQuestion = previousNovaQuestion.orEmpty(),
+                                baseEval = aiEval,
+                                studentName = currentUser.value.name
+                            ).aiCoachResponse.orEmpty()
+                        val nextCoachQuestion = aiEval.followUpQuestion?.takeIf { it.isNotBlank() }
+                            ?: com.example.util.AssameseTranslator.extractCleanQuestion(coachReply)
                         val turnExamples = if (aiEval.exampleAnswers.isNotEmpty()) {
                             aiEval.exampleAnswers
                         } else {
@@ -2157,29 +2162,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     aiEval
                 } else {
-                    // Graceful fallback to on-device linguistic evaluation engine
+                    // Graceful human-like fallback when Cloud AI is unreachable/timed out
                     val baseEval = EvaluationEngine.evaluateSpeech(
                         spokenText = spoken,
-                        targetPhrase = target ?: if (isNovaChat) "English conversation practice" else null
+                        targetPhrase = target
                     )
                     val errMsg = aiResult.exceptionOrNull()?.message ?: "Network error"
                     if (isNovaChat && activeTopic != null) {
                         val nextTurn = _novaTurnCount.value + 1
                         _novaTurnCount.value = nextTurn
-                        val fallbackQuestion = "What is another activity or routine you enjoy related to ${activeTopic.title}?"
-                        val fallbackReply = "Good effort! Your pronunciation was clear. $fallbackQuestion"
-                        val fallbackEval = baseEval.copy(
-                            aiCoachResponse = fallbackReply,
-                            followUpQuestion = fallbackQuestion,
-                            feedback = "💡 Cloud AI Notice ($errMsg)\n\nEvaluated on-device:\n${baseEval.feedback}",
-                            hint = "Try answering in a complete sentence using words like 'because' or 'usually'.",
-                            exampleAnswers = com.example.util.ExampleAnswerGenerator.generateForQuestion(fallbackQuestion, activeTopic)
+                        val humanEval = HumanConversationEngine.generateReply(
+                            spokenText = spoken,
+                            topic = activeTopic,
+                            previousMessages = historyBeforeStudent,
+                            lastNovaQuestion = previousNovaQuestion.orEmpty(),
+                            baseEval = baseEval,
+                            studentName = currentUser.value.name
                         )
+                        val fallbackEval = humanEval.copy(
+                            feedback = "💡 Cloud AI Notice ($errMsg)\n\nEvaluated on-device:\n${humanEval.feedback}"
+                        )
+                        val humanReply = fallbackEval.aiCoachResponse.orEmpty()
+                        val humanFollowUp = fallbackEval.followUpQuestion.orEmpty()
                         val novaTurn = NovaChatMessage(
                             id = "nova_fb_${System.currentTimeMillis()}",
                             isNova = true,
-                            text = fallbackReply,
-                            audioPrompt = fallbackReply,
+                            text = humanReply,
+                            audioPrompt = humanReply,
                             evaluation = fallbackEval,
                             isQuestion = true,
                             questionNumber = nextTurn,
@@ -2188,13 +2197,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         )
                         val finalHistory = historyForNova + novaTurn
                         _novaChatMessages.value = finalHistory
-                        _activeCoachQuestion.value = fallbackQuestion
+                        _activeCoachQuestion.value = humanFollowUp.ifBlank { humanReply }
                         fallbackEval.hint?.let { _novaCurrentHint.value = it }
                         if (fallbackEval.exampleAnswers.isNotEmpty()) _novaCurrentExamples.value = fallbackEval.exampleAnswers
                         val studentId = currentUser.value.id.ifBlank { "default_student" }
                         appPreferences.saveNovaSession(studentId, activeTopic.id, finalHistory)
-                        if (_aiVoiceReplyEnabled.value) {
-                            speakAudio(fallbackReply)
+                        if (_aiVoiceReplyEnabled.value && humanReply.isNotBlank()) {
+                            speakAudio(humanReply)
                         }
                         fallbackEval
                     } else {
@@ -2204,44 +2213,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             } else {
-                // No key configured: on-device evaluation engine
+                // On-device Human Conversation Engine when no Cloud AI key is configured
                 val baseEval = EvaluationEngine.evaluateSpeech(
                     spokenText = spoken,
-                    targetPhrase = target ?: if (isNovaChat) "English conversation practice" else null
+                    targetPhrase = target
                 )
                 if (isNovaChat && activeTopic != null) {
                     val nextTurn = _novaTurnCount.value + 1
                     _novaTurnCount.value = nextTurn
-                    val fallbackQuestion = "What is another detail you would like to share about ${activeTopic.title}?"
-                    val fallbackReply = "Well spoken! Let's continue practicing: $fallbackQuestion"
-                    val fallbackEval = baseEval.copy(
-                        aiCoachResponse = fallbackReply,
-                        followUpQuestion = fallbackQuestion,
-                        hint = "Try answering clearly with examples or reasons related to ${activeTopic.title}.",
-                        exampleAnswers = com.example.util.ExampleAnswerGenerator.generateForQuestion(fallbackQuestion, activeTopic)
+                    val humanEval = HumanConversationEngine.generateReply(
+                        spokenText = spoken,
+                        topic = activeTopic,
+                        previousMessages = historyBeforeStudent,
+                        lastNovaQuestion = previousNovaQuestion.orEmpty(),
+                        baseEval = baseEval,
+                        studentName = currentUser.value.name
                     )
+                    val humanReply = humanEval.aiCoachResponse.orEmpty()
+                    val humanFollowUp = humanEval.followUpQuestion.orEmpty()
                     val novaTurn = NovaChatMessage(
                         id = "nova_ondev_${System.currentTimeMillis()}",
                         isNova = true,
-                        text = fallbackReply,
-                        audioPrompt = fallbackReply,
-                        evaluation = fallbackEval,
+                        text = humanReply,
+                        audioPrompt = humanReply,
+                        evaluation = humanEval,
                         isQuestion = true,
                         questionNumber = nextTurn,
-                        hint = fallbackEval.hint,
-                        exampleAnswers = fallbackEval.exampleAnswers
+                        hint = humanEval.hint,
+                        exampleAnswers = humanEval.exampleAnswers
                     )
                     val finalHistory = historyForNova + novaTurn
                     _novaChatMessages.value = finalHistory
-                    _activeCoachQuestion.value = fallbackQuestion
-                    fallbackEval.hint?.let { _novaCurrentHint.value = it }
-                    if (fallbackEval.exampleAnswers.isNotEmpty()) _novaCurrentExamples.value = fallbackEval.exampleAnswers
+                    _activeCoachQuestion.value = humanFollowUp.ifBlank { humanReply }
+                    humanEval.hint?.let { _novaCurrentHint.value = it }
+                    if (humanEval.exampleAnswers.isNotEmpty()) _novaCurrentExamples.value = humanEval.exampleAnswers
                     val studentId = currentUser.value.id.ifBlank { "default_student" }
                     appPreferences.saveNovaSession(studentId, activeTopic.id, finalHistory)
-                    if (_aiVoiceReplyEnabled.value) {
-                        speakAudio(fallbackReply)
+                    if (_aiVoiceReplyEnabled.value && humanReply.isNotBlank()) {
+                        speakAudio(humanReply)
                     }
-                    fallbackEval
+                    humanEval
                 } else {
                     baseEval
                 }
