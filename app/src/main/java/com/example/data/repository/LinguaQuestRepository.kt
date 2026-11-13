@@ -1312,7 +1312,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         subjectCategory: String,
         durationMinutes: Int,
         passingPercentage: Int = 60,
-        questions: List<ExamQuestion>
+        questions: List<ExamQuestion>,
+        availableFromMillis: Long = 0L,
+        availableUntilMillis: Long = 0L,
+        dueDate: String = "Next Week"
     ): Exam {
         val totalMarks = questions.sumOf { it.marks }.let { if (it > 0) it else 50 }
         val newExam = Exam(
@@ -1327,12 +1330,51 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             passingPercentage = passingPercentage,
             questions = questions,
             createdAt = "Nov 2026",
-            dueDate = "Next Week",
-            isPublished = true
+            dueDate = dueDate,
+            isPublished = true,
+            availableFromMillis = availableFromMillis,
+            availableUntilMillis = availableUntilMillis
         )
         _exams.value = listOf(newExam) + _exams.value
         appPreferences?.saveExams(_exams.value)
         return newExam
+    }
+
+    fun updateExam(
+        examId: String,
+        title: String,
+        description: String,
+        targetClass: String,
+        subjectCategory: String,
+        durationMinutes: Int,
+        passingPercentage: Int,
+        questions: List<ExamQuestion>,
+        availableFromMillis: Long = 0L,
+        availableUntilMillis: Long = 0L,
+        dueDate: String? = null
+    ): Exam? {
+        val current = _exams.value.toMutableList()
+        val idx = current.indexOfFirst { it.id == examId }
+        if (idx < 0) return null
+        val existing = current[idx]
+        val totalMarks = questions.sumOf { it.marks }.let { if (it > 0) it else existing.totalMarks }
+        val updated = existing.copy(
+            title = title.trim(),
+            description = description.trim(),
+            targetClass = targetClass.trim().ifBlank { AcademicClasses.DEFAULT_CLASS },
+            subjectCategory = subjectCategory.ifBlank { existing.subjectCategory },
+            durationMinutes = if (durationMinutes > 0) durationMinutes else existing.durationMinutes,
+            totalMarks = totalMarks,
+            passingPercentage = passingPercentage,
+            questions = questions,
+            dueDate = dueDate ?: existing.dueDate,
+            availableFromMillis = availableFromMillis,
+            availableUntilMillis = availableUntilMillis
+        )
+        current[idx] = updated
+        _exams.value = current
+        appPreferences?.saveExams(current)
+        return updated
     }
 
     fun deleteExam(examId: String) {

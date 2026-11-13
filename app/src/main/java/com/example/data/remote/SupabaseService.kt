@@ -1759,11 +1759,18 @@ class SupabaseService {
             }
         } catch (_: Exception) {}
 
+        val examSyncObj = JSONObject(examObj.toString()).apply {
+            put("availableFromMillis", exam.availableFromMillis)
+            put("available_from_millis", exam.availableFromMillis)
+            put("availableUntilMillis", exam.availableUntilMillis)
+            put("available_until_millis", exam.availableUntilMillis)
+        }
+
         // 2. Always sync to speaking_evaluations
         try {
             val patchPayload = JSONObject().apply {
                 put("spoken_text", exam.title)
-                put("feedback", examObj.toString())
+                put("feedback", examSyncObj.toString())
                 put("overall_score", exam.passingPercentage)
             }
 
@@ -1793,7 +1800,7 @@ class SupabaseService {
                     put("student_id", "EXAM_SYNC")
                     put("target_phrase", exam.id)
                     put("spoken_text", exam.title)
-                    put("feedback", examObj.toString())
+                    put("feedback", examSyncObj.toString())
                     put("pronunciation_score", 100)
                     put("fluency_score", 100)
                     put("grammar_score", 100)
@@ -1884,7 +1891,9 @@ class SupabaseService {
                 questions = questions,
                 createdAt = obj.optString("createdAt", obj.optString("created_at", "Nov 2026")),
                 dueDate = obj.optString("dueDate", obj.optString("due_date", "Tomorrow, 6 PM")),
-                isPublished = if (obj.has("isPublished")) obj.optBoolean("isPublished", true) else obj.optBoolean("is_published", true)
+                isPublished = if (obj.has("isPublished")) obj.optBoolean("isPublished", true) else obj.optBoolean("is_published", true),
+                availableFromMillis = if (obj.has("availableFromMillis")) obj.optLong("availableFromMillis", 0L) else obj.optLong("available_from_millis", 0L),
+                availableUntilMillis = if (obj.has("availableUntilMillis")) obj.optLong("availableUntilMillis", 0L) else obj.optLong("available_until_millis", 0L)
             )
         }
 
@@ -1911,7 +1920,7 @@ class SupabaseService {
             }
         } catch (_: Exception) {}
 
-        // 2. Query fallback channel in speaking_evaluations
+        // 2. Query fallback channel in speaking_evaluations (also carries schedule window metadata)
         try {
             val req = Request.Builder()
                 .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.EXAM_SYNC&select=*&limit=500")
@@ -1932,8 +1941,15 @@ class SupabaseService {
                             try {
                                 val obj = JSONObject(feedback)
                                 val exam = parseExamJson(obj, targetId)
-                                if (exam != null && seenIds.add(exam.id)) {
-                                    list.add(exam)
+                                if (exam != null) {
+                                    if (seenIds.add(exam.id)) {
+                                        list.add(exam)
+                                    } else {
+                                        val existingIdx = list.indexOfFirst { it.id == exam.id }
+                                        if (existingIdx >= 0) {
+                                            list[existingIdx] = exam
+                                        }
+                                    }
                                 }
                             } catch (_: Exception) {}
                         }

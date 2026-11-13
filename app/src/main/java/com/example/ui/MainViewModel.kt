@@ -383,7 +383,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         subjectCategory: String,
         durationMinutes: Int,
         passingPercentage: Int = 60,
-        questions: List<ExamQuestion>
+        questions: List<ExamQuestion>,
+        availableFromMillis: Long = 0L,
+        availableUntilMillis: Long = 0L,
+        dueDate: String = "Next Week"
     ): Exam {
         val teacherName = currentUser.value.name.ifBlank { "Prof. Eleanor Vance" }
         val created = repository.createExam(
@@ -394,7 +397,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             subjectCategory = subjectCategory,
             durationMinutes = durationMinutes,
             passingPercentage = passingPercentage,
-            questions = questions
+            questions = questions,
+            availableFromMillis = availableFromMillis,
+            availableUntilMillis = availableUntilMillis,
+            dueDate = dueDate
         )
         if (supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
@@ -404,6 +410,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         return created
+    }
+
+    fun updateExam(
+        examId: String,
+        title: String,
+        description: String,
+        targetClass: String,
+        subjectCategory: String,
+        durationMinutes: Int,
+        passingPercentage: Int,
+        questions: List<ExamQuestion>,
+        availableFromMillis: Long = 0L,
+        availableUntilMillis: Long = 0L,
+        dueDate: String? = null
+    ): Exam? {
+        val updated = repository.updateExam(
+            examId = examId,
+            title = title,
+            description = description,
+            targetClass = targetClass,
+            subjectCategory = subjectCategory,
+            durationMinutes = durationMinutes,
+            passingPercentage = passingPercentage,
+            questions = questions,
+            availableFromMillis = availableFromMillis,
+            availableUntilMillis = availableUntilMillis,
+            dueDate = dueDate
+        )
+        if (updated != null && supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    supabaseService.saveExam(updated)
+                } catch (_: Exception) {}
+            }
+        }
+        return updated
     }
 
     fun deleteExam(examId: String) {

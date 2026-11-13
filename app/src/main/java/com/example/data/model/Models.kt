@@ -276,10 +276,22 @@ data class Exam(
     val questions: List<ExamQuestion> = emptyList(),
     val createdAt: String = "Nov 2026",
     val dueDate: String = "Tomorrow, 6 PM",
-    val isPublished: Boolean = true
+    val isPublished: Boolean = true,
+    val availableFromMillis: Long = 0L, // 0L = Available immediately
+    val availableUntilMillis: Long = 0L // 0L = No deadline (always open)
 ) {
     val questionsCount: Int get() = questions.size
     val passingMarks: Int get() = (totalMarks * passingPercentage) / 100
+    val hasTimeWindow: Boolean get() = availableFromMillis > 0L || availableUntilMillis > 0L
+
+    fun isBeforeStartAt(nowMillis: Long): Boolean =
+        availableFromMillis > 0L && nowMillis < availableFromMillis
+
+    fun isExpiredAt(nowMillis: Long): Boolean =
+        availableUntilMillis > 0L && nowMillis > availableUntilMillis
+
+    fun isOpenForStudentAt(nowMillis: Long): Boolean =
+        isPublished && !isBeforeStartAt(nowMillis) && !isExpiredAt(nowMillis)
 }
 
 data class ExamSubmission(

@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.data.model.*
 import com.example.ui.MainViewModel
 import com.example.ui.TeacherSpeakingSection
@@ -56,6 +57,9 @@ import com.example.ui.TeacherTab
 import com.example.ui.screens.common.SpeakingAndPhoneticsManagement
 import com.example.ui.screens.common.SpeakingManageTab
 import com.example.ui.theme.*
+import com.example.util.ExamTimeFormatter
+import kotlinx.coroutines.delay
+import java.util.Calendar
 
 @Composable
 fun TeacherMainScreen(
@@ -3129,13 +3133,19 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
     val academicClasses by viewModel.academicClasses.collectAsState()
 
     var showCreateExamDialog by remember { mutableStateOf(false) }
+    var editingExam by remember { mutableStateOf<Exam?>(null) }
     var selectedExamForSubmissions by remember { mutableStateOf<Exam?>(null) }
     var selectedSubmissionForCert by remember { mutableStateOf<ExamSubmission?>(null) }
     var toastMsg by remember { mutableStateOf<String?>(null) }
     var selectedClassFilter by remember { mutableStateOf("All Classes") }
+    var currentTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshExamsFromCloud()
+        while (true) {
+            delay(1000L)
+            currentTimeMillis = System.currentTimeMillis()
+        }
     }
 
     val filteredExams = remember(exams, selectedClassFilter) {
@@ -3366,15 +3376,51 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                             }
                         }
 
-                        // Delete button
-                        IconButton(
-                            onClick = {
-                                viewModel.deleteExam(exam.id)
-                                toastMsg = "Deleted exam: ${exam.title}"
-                            },
-                            modifier = Modifier.size(28.dp)
+                        // Edit & Delete buttons
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete Exam", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF0C2444),
+                                border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.65f)),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { editingExam = exam }
+                                    .testTag("teacher_edit_exam_btn_${exam.id}")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Edit,
+                                        contentDescription = "Edit Exam",
+                                        tint = Color(0xFF38BDF8),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        text = "Edit",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF7DD3FC)
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    viewModel.deleteExam(exam.id)
+                                    toastMsg = "Deleted exam: ${exam.title}"
+                                },
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .testTag("teacher_delete_exam_btn_${exam.id}")
+                            ) {
+                                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete Exam", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                            }
                         }
                     }
 
@@ -3394,6 +3440,47 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                         Text("📝 ${exam.questionsCount} MCQs", fontSize = 11.sp, color = Color(0xFFCBD5E1))
                         Text("🎯 ${exam.totalMarks} Marks", fontSize = 11.sp, color = AmberGold, fontWeight = FontWeight.Bold)
                         Text("🏆 Pass: ${exam.passingPercentage}%", fontSize = 11.sp, color = EmeraldSuccess)
+                    }
+
+                    // Student Access Window Status Banner
+                    if (exam.hasTimeWindow) {
+                        val isExpired = exam.isExpiredAt(currentTimeMillis)
+                        val isBeforeStart = exam.isBeforeStartAt(currentTimeMillis)
+                        val statusBg = when {
+                            isExpired -> Color(0xFF3B0D16)
+                            isBeforeStart -> Color(0xFF17204A)
+                            else -> Color(0xFF063325)
+                        }
+                        val statusBorder = when {
+                            isExpired -> Color(0xFFF43F5E)
+                            isBeforeStart -> Color(0xFF38BDF8)
+                            else -> EmeraldSuccess
+                        }
+                        val statusText = when {
+                            isExpired -> "🔒 Time Over • Hidden from Student Panel (Ended ${ExamTimeFormatter.formatShortDateTime(exam.availableUntilMillis)})"
+                            isBeforeStart -> "🕒 Scheduled • ${ExamTimeFormatter.formatShortDateTime(exam.availableFromMillis)} → ${ExamTimeFormatter.formatShortDateTime(exam.availableUntilMillis)}"
+                            exam.availableUntilMillis > 0L -> "🟢 Live Window • Closes in ${ExamTimeFormatter.formatCountdown(exam.availableUntilMillis - currentTimeMillis)} (${ExamTimeFormatter.formatTimeOnly(exam.availableUntilMillis)})"
+                            else -> "🟢 Open Since ${ExamTimeFormatter.formatShortDateTime(exam.availableFromMillis)}"
+                        }
+                        val statusColor = when {
+                            isExpired -> Color(0xFFFDA4AF)
+                            isBeforeStart -> Color(0xFF93C5FD)
+                            else -> Color(0xFF6EE7B7)
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = statusBg,
+                            border = BorderStroke(1.dp, statusBorder.copy(alpha = 0.6f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = statusText,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = statusColor,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
                     }
 
                     // Submissions bar & Review Action
@@ -3435,12 +3522,27 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
 
     // --- Create MCQ Exam Dialog ---
     if (showCreateExamDialog) {
-        TeacherCreateExamDialog(
+        TeacherCreateOrEditExamDialog(
             academicClasses = academicClasses,
+            existingExam = null,
             onDismiss = { showCreateExamDialog = false },
-            onExamCreated = { newExam ->
+            onExamSaved = { savedExam ->
                 showCreateExamDialog = false
-                toastMsg = "Published exam '${newExam.title}' (${newExam.questionsCount} MCQs, ${newExam.durationMinutes} mins)!"
+                toastMsg = "Published exam '${savedExam.title}' (${savedExam.questionsCount} MCQs, ${savedExam.durationMinutes} mins)!"
+            },
+            viewModel = viewModel
+        )
+    }
+
+    // --- Edit Existing MCQ Exam Dialog ---
+    editingExam?.let { examToEdit ->
+        TeacherCreateOrEditExamDialog(
+            academicClasses = academicClasses,
+            existingExam = examToEdit,
+            onDismiss = { editingExam = null },
+            onExamSaved = { updatedExam ->
+                editingExam = null
+                toastMsg = "Updated exam '${updatedExam.title}'!"
             },
             viewModel = viewModel
         )
@@ -3546,27 +3648,55 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
 }
 
 // -------------------------------------------------------------
-// TEACHER CREATE EXAM DIALOG WITH TIME, MARKS & MCQ BUILDER
+// TEACHER CREATE / EDIT EXAM DIALOG WITH TIME WINDOW & MCQ BUILDER
 // -------------------------------------------------------------
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun TeacherCreateExamDialog(
+private fun TeacherCreateOrEditExamDialog(
     academicClasses: List<String>,
+    existingExam: Exam? = null,
     onDismiss: () -> Unit,
-    onExamCreated: (Exam) -> Unit,
+    onExamSaved: (Exam) -> Unit,
     viewModel: MainViewModel
 ) {
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var selectedClass by remember { mutableStateOf(AcademicClasses.DEFAULT_CLASS) }
-    var selectedCategory by remember { mutableStateOf("English Grammar") }
-    var selectedDurationMinutes by remember { mutableIntStateOf(15) }
-    var passingPercentage by remember { mutableIntStateOf(60) }
+    val isEditing = existingExam != null
+    var title by remember(existingExam?.id) { mutableStateOf(existingExam?.title ?: "") }
+    var description by remember(existingExam?.id) { mutableStateOf(existingExam?.description ?: "") }
+    var selectedClass by remember(existingExam?.id) { mutableStateOf(existingExam?.targetClass ?: AcademicClasses.DEFAULT_CLASS) }
+    var selectedCategory by remember(existingExam?.id) { mutableStateOf(existingExam?.subjectCategory ?: "English Grammar") }
+    var selectedDurationMinutes by remember(existingExam?.id) { mutableIntStateOf(existingExam?.durationMinutes ?: 15) }
+    var passingPercentage by remember(existingExam?.id) { mutableIntStateOf(existingExam?.passingPercentage ?: 60) }
+
+    // Availability Window State (Students can take exam within selected time; auto-hides after End time)
+    val initialNow = remember { System.currentTimeMillis() }
+    var useTimeWindow by remember(existingExam?.id) {
+        mutableStateOf(existingExam?.hasTimeWindow == true)
+    }
+    var windowStartMillis by remember(existingExam?.id) {
+        mutableLongStateOf(
+            if (existingExam != null && existingExam.availableFromMillis > 0L) existingExam.availableFromMillis
+            else initialNow
+        )
+    }
+    var windowEndMillis by remember(existingExam?.id) {
+        mutableLongStateOf(
+            if (existingExam != null && existingExam.availableUntilMillis > 0L) existingExam.availableUntilMillis
+            else initialNow + 30 * 60_000L
+        )
+    }
+    var activePickerTarget by remember { mutableStateOf<String?>(null) } // "START" or "END"
 
     // Dynamic list of questions being composed
-    val questionsList = remember { mutableStateListOf<ExamQuestion>() }
+    val questionsList = remember(existingExam?.id) {
+        mutableStateListOf<ExamQuestion>().apply {
+            if (existingExam != null) {
+                addAll(existingExam.questions)
+            }
+        }
+    }
 
-    // Form inputs for adding a single question
+    // Form inputs for adding or editing a single question
+    var editingQuestionIndex by remember { mutableStateOf<Int?>(null) }
     var currentQuestionText by remember { mutableStateOf("") }
     var optA by remember { mutableStateOf("") }
     var optB by remember { mutableStateOf("") }
@@ -3577,15 +3707,24 @@ private fun TeacherCreateExamDialog(
     var questionExplanation by remember { mutableStateOf("") }
 
     val totalCalculatedMarks = questionsList.sumOf { it.marks }
+    val isWindowInvalid = useTimeWindow && windowEndMillis <= windowStartMillis
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("📝", fontSize = 20.sp)
+                Text(if (isEditing) "✏️" else "📝", fontSize = 20.sp)
                 Column {
-                    Text("Create MCQ Examination", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("Define duration, marks & add questions", fontSize = 11.5.sp, color = Color(0xFF94A3B8))
+                    Text(
+                        text = if (isEditing) "Edit MCQ Examination" else "Create MCQ Examination",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        text = "Define duration, student access time & questions",
+                        fontSize = 11.5.sp,
+                        color = Color(0xFF94A3B8)
+                    )
                 }
             }
         },
@@ -3603,7 +3742,9 @@ private fun TeacherCreateExamDialog(
                     label = { Text("Exam Title") },
                     placeholder = { Text("e.g. Class 10 Mid-Term Grammar & Phonetics") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("exam_dialog_title_input")
                 )
 
                 // Description
@@ -3685,6 +3826,185 @@ private fun TeacherCreateExamDialog(
                     }
                 }
 
+                // --- Student Access Window (Schedule & Auto-Hide After Time Over) ---
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF090D26),
+                    border = BorderStroke(
+                        1.dp,
+                        if (useTimeWindow) Color(0xFF38BDF8).copy(alpha = 0.6f) else Color(0xFF1E293B)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Student Access Time Window",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp,
+                                    color = Color(0xFF38BDF8)
+                                )
+                                Text(
+                                    "Auto-hides from Student Panel after end time",
+                                    fontSize = 10.5.sp,
+                                    color = Color(0xFF94A3B8)
+                                )
+                            }
+                            Switch(
+                                checked = useTimeWindow,
+                                onCheckedChange = { enabled ->
+                                    useTimeWindow = enabled
+                                    if (enabled && windowEndMillis <= windowStartMillis) {
+                                        val now = System.currentTimeMillis()
+                                        windowStartMillis = now
+                                        windowEndMillis = now + 30 * 60_000L
+                                    }
+                                },
+                                modifier = Modifier.testTag("exam_time_window_switch")
+                            )
+                        }
+
+                        if (!useTimeWindow) {
+                            Text(
+                                "Currently set to Always Open — students can take this exam anytime.",
+                                fontSize = 11.sp,
+                                color = Color(0xFFCBD5E1)
+                            )
+                        } else {
+                            // Quick Window Presets starting from Now
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    "Quick Window (Starts Now):",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFCBD5E1)
+                                )
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    listOf(
+                                        2 to "2 Mins",
+                                        5 to "5 Mins",
+                                        15 to "15 Mins",
+                                        30 to "30 Mins",
+                                        60 to "1 Hour",
+                                        120 to "2 Hours",
+                                        1440 to "24 Hours"
+                                    ).forEach { (mins, label) ->
+                                        val diffMins = ((windowEndMillis - windowStartMillis) / 60_000L).toInt()
+                                        FilterChip(
+                                            selected = diffMins == mins,
+                                            onClick = {
+                                                val now = System.currentTimeMillis()
+                                                windowStartMillis = now
+                                                windowEndMillis = now + mins * 60_000L
+                                            },
+                                            label = { Text(label, fontSize = 10.5.sp) }
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Custom Start Time Selector
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF0F172A),
+                                border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Start Time", fontSize = 10.5.sp, color = Color(0xFF94A3B8))
+                                        Text(
+                                            ExamTimeFormatter.formatShortDateTime(windowStartMillis),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        TextButton(
+                                            onClick = {
+                                                val now = System.currentTimeMillis()
+                                                val prevDuration = (windowEndMillis - windowStartMillis).coerceAtLeast(15 * 60_000L)
+                                                windowStartMillis = now
+                                                windowEndMillis = now + prevDuration
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("Now", fontSize = 11.sp, color = EmeraldSuccess, fontWeight = FontWeight.Bold)
+                                        }
+                                        OutlinedButton(
+                                            onClick = { activePickerTarget = "START" },
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                        ) {
+                                            Text("Pick", fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Custom End Time Selector
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF0F172A),
+                                border = BorderStroke(1.dp, if (isWindowInvalid) Color(0xFFEF4444) else Color(0xFF1E293B)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("End Time (Auto-Hide)", fontSize = 10.5.sp, color = Color(0xFF94A3B8))
+                                        Text(
+                                            ExamTimeFormatter.formatShortDateTime(windowEndMillis),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFFBBF24)
+                                        )
+                                    }
+                                    OutlinedButton(
+                                        onClick = { activePickerTarget = "END" },
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("Pick", fontSize = 11.sp)
+                                    }
+                                }
+                            }
+
+                            if (isWindowInvalid) {
+                                Text(
+                                    "⚠️ End time must be after Start time.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFF87171),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Passing Percentage Selector
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(
@@ -3731,7 +4051,6 @@ private fun TeacherCreateExamDialog(
                     // Quick Helper to load a question pack
                     OutlinedButton(
                         onClick = {
-                            // Populate 5 curated questions according to selected category
                             val sampleQuestions = when (selectedCategory) {
                                 "Phonetics & Pronunciation" -> listOf(
                                     ExamQuestion("sq1", "Which sound does the IPA symbol /ʃ/ represent in English?", listOf("The 'ch' sound in 'chair'", "The 'sh' sound in 'shine'", "The 's' sound in 'sun'", "The 'j' sound in 'jump'"), 1, 5, "/ʃ/ is the voiceless postalveolar fricative."),
@@ -3757,6 +4076,7 @@ private fun TeacherCreateExamDialog(
                             }
                             questionsList.clear()
                             questionsList.addAll(sampleQuestions)
+                            editingQuestionIndex = null
                         },
                         shape = RoundedCornerShape(8.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
@@ -3765,12 +4085,13 @@ private fun TeacherCreateExamDialog(
                     }
                 }
 
-                // Added Questions List View
+                // Added Questions List View (with Edit & Remove controls)
                 questionsList.forEachIndexed { qIndex, q ->
+                    val isBeingEdited = editingQuestionIndex == qIndex
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF0F172A),
-                        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                        color = if (isBeingEdited) Color(0xFF172554) else Color(0xFF0F172A),
+                        border = BorderStroke(1.dp, if (isBeingEdited) Color(0xFF38BDF8) else Color(0xFF1E293B)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -3793,14 +4114,38 @@ private fun TeacherCreateExamDialog(
                                     color = EmeraldSuccess
                                 )
                             }
-                            IconButton(onClick = { questionsList.removeAt(qIndex) }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Rounded.Close, contentDescription = "Remove", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = {
+                                        editingQuestionIndex = qIndex
+                                        currentQuestionText = q.question
+                                        optA = q.options.getOrElse(0) { "" }
+                                        optB = q.options.getOrElse(1) { "" }
+                                        optC = q.options.getOrElse(2) { "" }
+                                        optD = q.options.getOrElse(3) { "" }
+                                        correctOptIndex = q.correctOptionIndex
+                                        marksForQuestion = q.marks
+                                        questionExplanation = q.explanation
+                                    },
+                                    modifier = Modifier.size(26.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Edit, contentDescription = "Edit Question", tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
+                                }
+                                IconButton(
+                                    onClick = {
+                                        if (editingQuestionIndex == qIndex) editingQuestionIndex = null
+                                        questionsList.removeAt(qIndex)
+                                    },
+                                    modifier = Modifier.size(26.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Close, contentDescription = "Remove", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                }
                             }
                         }
                     }
                 }
 
-                // Add New Question Sub-Form
+                // Add / Edit Question Sub-Form
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = Color(0xFF090D26),
@@ -3811,7 +4156,34 @@ private fun TeacherCreateExamDialog(
                         modifier = Modifier.padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Add a Question", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color(0xFF38BDF8))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (editingQuestionIndex != null) "Editing Question Q${editingQuestionIndex!! + 1}" else "Add a Question",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.5.sp,
+                                color = Color(0xFF38BDF8)
+                            )
+                            if (editingQuestionIndex != null) {
+                                TextButton(
+                                    onClick = {
+                                        editingQuestionIndex = null
+                                        currentQuestionText = ""
+                                        optA = ""
+                                        optB = ""
+                                        optC = ""
+                                        optD = ""
+                                        questionExplanation = ""
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                                ) {
+                                    Text("Cancel Edit", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                }
+                            }
+                        }
 
                         OutlinedTextField(
                             value = currentQuestionText,
@@ -3903,21 +4275,26 @@ private fun TeacherCreateExamDialog(
                         Button(
                             onClick = {
                                 if (currentQuestionText.isNotBlank() && optA.isNotBlank() && optB.isNotBlank()) {
-                                    questionsList.add(
-                                        ExamQuestion(
-                                            id = "q_${System.currentTimeMillis()}_${questionsList.size}",
-                                            question = currentQuestionText.trim(),
-                                            options = listOf(
-                                                optA.trim(),
-                                                optB.trim(),
-                                                optC.ifBlank { "None of the above" }.trim(),
-                                                optD.ifBlank { "All of the above" }.trim()
-                                            ),
-                                            correctOptionIndex = correctOptIndex,
-                                            marks = marksForQuestion,
-                                            explanation = questionExplanation.trim()
-                                        )
+                                    val editIdx = editingQuestionIndex
+                                    val newQuestion = ExamQuestion(
+                                        id = if (editIdx != null) questionsList[editIdx].id else "q_${System.currentTimeMillis()}_${questionsList.size}",
+                                        question = currentQuestionText.trim(),
+                                        options = listOf(
+                                            optA.trim(),
+                                            optB.trim(),
+                                            optC.ifBlank { "None of the above" }.trim(),
+                                            optD.ifBlank { "All of the above" }.trim()
+                                        ),
+                                        correctOptionIndex = correctOptIndex,
+                                        marks = marksForQuestion,
+                                        explanation = questionExplanation.trim()
                                     )
+                                    if (editIdx != null && editIdx in questionsList.indices) {
+                                        questionsList[editIdx] = newQuestion
+                                        editingQuestionIndex = null
+                                    } else {
+                                        questionsList.add(newQuestion)
+                                    }
                                     // Reset question form
                                     currentQuestionText = ""
                                     optA = ""
@@ -3931,9 +4308,13 @@ private fun TeacherCreateExamDialog(
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Icon(if (editingQuestionIndex != null) Icons.Rounded.Check else Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Add Question to Exam", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(
+                                text = if (editingQuestionIndex != null) "Update Question Q${editingQuestionIndex!! + 1}" else "Add Question to Exam",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
                         }
                     }
                 }
@@ -3941,42 +4322,235 @@ private fun TeacherCreateExamDialog(
         },
         confirmButton = {
             Button(
+                enabled = title.isNotBlank() && !isWindowInvalid,
                 onClick = {
-                    if (title.isNotBlank()) {
-                        val finalQuestions = if (questionsList.isEmpty()) {
-                            // Default to sample set if none added manually
-                            listOf(
-                                ExamQuestion("def_1", "Choose the correct past participle form of 'WRITE':", listOf("Wrote", "Written", "Writing", "Writted"), 1, 5, "Past participle is 'written'."),
-                                ExamQuestion("def_2", "Identify the correct preposition: 'She is interested ______ learning French.'", listOf("on", "in", "with", "about"), 1, 5, "Interested takes 'in'."),
-                                ExamQuestion("def_3", "Which sentence is grammatically correct?", listOf("Neither he nor I are going.", "Neither he nor I am going.", "Neither he nor I is going.", "Neither him nor me is going."), 1, 5, "In 'neither... nor', the verb agrees with the subject closest to it ('I am')."),
-                                ExamQuestion("def_4", "What does 'break the ice' mean?", listOf("To smash frozen water", "To make people feel more comfortable in a social setting", "To stop talking", "To cancel a plan"), 1, 5, "Idiom meaning initiating conversation."),
-                                ExamQuestion("def_5", "Select the silent letter in 'SUBTLE':", listOf("s", "b", "t", "l"), 1, 5, "The letter 'b' is silent in subtle.")
-                            )
-                        } else {
-                            questionsList.toList()
-                        }
+                    val finalQuestions = if (questionsList.isEmpty()) {
+                        listOf(
+                            ExamQuestion("def_1", "Choose the correct past participle form of 'WRITE':", listOf("Wrote", "Written", "Writing", "Writted"), 1, 5, "Past participle is 'written'."),
+                            ExamQuestion("def_2", "Identify the correct preposition: 'She is interested ______ learning French.'", listOf("on", "in", "with", "about"), 1, 5, "Interested takes 'in'."),
+                            ExamQuestion("def_3", "Which sentence is grammatically correct?", listOf("Neither he nor I are going.", "Neither he nor I am going.", "Neither he nor I is going.", "Neither him nor me is going."), 1, 5, "In 'neither... nor', the verb agrees with the subject closest to it ('I am')."),
+                            ExamQuestion("def_4", "What does 'break the ice' mean?", listOf("To smash frozen water", "To make people feel more comfortable in a social setting", "To stop talking", "To cancel a plan"), 1, 5, "Idiom meaning initiating conversation."),
+                            ExamQuestion("def_5", "Select the silent letter in 'SUBTLE':", listOf("s", "b", "t", "l"), 1, 5, "The letter 'b' is silent in subtle.")
+                        )
+                    } else {
+                        questionsList.toList()
+                    }
 
-                        val created = viewModel.createExam(
+                    val fromMillis = if (useTimeWindow) windowStartMillis else 0L
+                    val untilMillis = if (useTimeWindow) windowEndMillis else 0L
+                    val dueLabel = if (useTimeWindow) "Closes ${ExamTimeFormatter.formatShortDateTime(untilMillis)}" else "Always Open"
+
+                    val saved = if (existingExam != null) {
+                        viewModel.updateExam(
+                            examId = existingExam.id,
                             title = title,
                             description = description.ifBlank { "Complete all multiple choice questions within the allotted time." },
                             targetClass = selectedClass,
                             subjectCategory = selectedCategory,
                             durationMinutes = selectedDurationMinutes,
                             passingPercentage = passingPercentage,
-                            questions = finalQuestions
+                            questions = finalQuestions,
+                            availableFromMillis = fromMillis,
+                            availableUntilMillis = untilMillis,
+                            dueDate = dueLabel
+                        ) ?: existingExam
+                    } else {
+                        viewModel.createExam(
+                            title = title,
+                            description = description.ifBlank { "Complete all multiple choice questions within the allotted time." },
+                            targetClass = selectedClass,
+                            subjectCategory = selectedCategory,
+                            durationMinutes = selectedDurationMinutes,
+                            passingPercentage = passingPercentage,
+                            questions = finalQuestions,
+                            availableFromMillis = fromMillis,
+                            availableUntilMillis = untilMillis,
+                            dueDate = dueLabel
                         )
-                        onExamCreated(created)
                     }
+                    onExamSaved(saved)
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess)
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                modifier = Modifier.testTag("exam_dialog_save_btn")
             ) {
-                Text("Publish Exam 🚀", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(
+                    text = if (isEditing) "Save Changes ✓" else "Publish Exam 🚀",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+
+    // Date & Time Picker Modal for Start or End of Student Access Window
+    activePickerTarget?.let { target ->
+        val initialMillis = if (target == "START") windowStartMillis else windowEndMillis
+        ExamScheduleDateTimePickerDialog(
+            title = if (target == "START") "Select Exam Start Time" else "Select Exam End Time (Auto-Hide)",
+            initialMillis = initialMillis,
+            onDismiss = { activePickerTarget = null },
+            onConfirm = { pickedMillis ->
+                if (target == "START") {
+                    windowStartMillis = pickedMillis
+                    if (windowEndMillis <= pickedMillis) {
+                        windowEndMillis = pickedMillis + 30 * 60_000L
+                    }
+                } else {
+                    windowEndMillis = pickedMillis
+                }
+                activePickerTarget = null
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExamScheduleDateTimePickerDialog(
+    title: String,
+    initialMillis: Long,
+    onDismiss: () -> Unit,
+    onConfirm: (Long) -> Unit
+) {
+    val initCal = remember(initialMillis) {
+        Calendar.getInstance().apply { timeInMillis = if (initialMillis > 0L) initialMillis else System.currentTimeMillis() }
+    }
+    var dayOffset by remember(initialMillis) {
+        val todayStart = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val initStart = Calendar.getInstance().apply {
+            timeInMillis = initCal.timeInMillis
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val diffDays = ((initStart.timeInMillis - todayStart.timeInMillis) / 86_400_000L).toInt().coerceIn(0, 30)
+        mutableIntStateOf(diffDays)
+    }
+    var customDateMillis by remember(initialMillis) { mutableStateOf<Long?>(null) }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    val timeState = rememberTimePickerState(
+        initialHour = initCal.get(Calendar.HOUR_OF_DAY),
+        initialMinute = initCal.get(Calendar.MINUTE),
+        is24Hour = false
+    )
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(22.dp),
+            color = Color(0xFF0F172A),
+            border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(18.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(title, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = Color.White)
+
+                // Quick Day Selection + Custom Date Picker trigger
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilterChip(
+                        selected = customDateMillis == null && dayOffset == 0,
+                        onClick = { customDateMillis = null; dayOffset = 0 },
+                        label = { Text("Today", fontSize = 11.sp) }
+                    )
+                    FilterChip(
+                        selected = customDateMillis == null && dayOffset == 1,
+                        onClick = { customDateMillis = null; dayOffset = 1 },
+                        label = { Text("Tomorrow", fontSize = 11.sp) }
+                    )
+                    OutlinedButton(
+                        onClick = { showDatePicker = true },
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Pick Date", fontSize = 11.sp)
+                    }
+                }
+
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    TimePicker(state = timeState)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val resultCal = Calendar.getInstance()
+                            val pickedDate = customDateMillis
+                            if (pickedDate != null) {
+                                val utcCal = Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+                                    timeInMillis = pickedDate
+                                }
+                                resultCal.set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
+                                resultCal.set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
+                                resultCal.set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
+                            } else {
+                                resultCal.add(Calendar.DAY_OF_YEAR, dayOffset)
+                            }
+                            resultCal.set(Calendar.HOUR_OF_DAY, timeState.hour)
+                            resultCal.set(Calendar.MINUTE, timeState.minute)
+                            resultCal.set(Calendar.SECOND, 0)
+                            resultCal.set(Calendar.MILLISECOND, 0)
+                            onConfirm(resultCal.timeInMillis)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+                    ) {
+                        Text("Apply Time", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initCal.timeInMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        customDateMillis = datePickerState.selectedDateMillis
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 }
 
 @Composable

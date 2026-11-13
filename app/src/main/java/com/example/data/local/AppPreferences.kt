@@ -894,6 +894,8 @@ class AppPreferences(context: Context) {
         obj.put("createdAt", exam.createdAt)
         obj.put("dueDate", exam.dueDate)
         obj.put("isPublished", exam.isPublished)
+        obj.put("availableFromMillis", exam.availableFromMillis)
+        obj.put("availableUntilMillis", exam.availableUntilMillis)
 
         val qArr = JSONArray()
         for (q in exam.questions) {
@@ -948,7 +950,9 @@ class AppPreferences(context: Context) {
             questions = questions,
             createdAt = obj.optString("createdAt", "Nov 2026"),
             dueDate = obj.optString("dueDate", "Upcoming"),
-            isPublished = obj.optBoolean("isPublished", true)
+            isPublished = obj.optBoolean("isPublished", true),
+            availableFromMillis = obj.optLong("availableFromMillis", 0L),
+            availableUntilMillis = obj.optLong("availableUntilMillis", 0L)
         )
     }
 

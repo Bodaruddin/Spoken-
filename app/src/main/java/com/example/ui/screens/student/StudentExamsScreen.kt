@@ -41,6 +41,7 @@ import com.example.ui.components.OfficialSpeaklyCertificateCard
 import com.example.ui.components.SpeaklyCertificatePreviewDialog
 import com.example.ui.theme.*
 import com.example.util.CertificatePdfGenerator
+import com.example.util.ExamTimeFormatter
 import java.io.File
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -70,6 +71,15 @@ fun StudentExamsScreen(
         viewModel.refreshExamsFromCloud()
     }
 
+    // Real-time 1-second ticker so scheduled exams unlock and expired exams auto-hide immediately
+    var currentTimeMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(1000L)
+            currentTimeMillis = System.currentTimeMillis()
+        }
+    }
+
     val studentClass = currentUser.studentClass
 
     // Map of completed submissions for this student keyed by examId
@@ -79,8 +89,17 @@ fun StudentExamsScreen(
         }.associateBy { it.examId }
     }
 
-    // Filter exams according to class, status, category, and search query
-    val filteredExams = remember(exams, selectedStatusFilter, selectedCategoryFilter, selectedClassFilter, searchQuery, studentSubmissionsMap, studentClass) {
+    // Filter exams according to class, status, category, search query, and live time window
+    val filteredExams = remember(
+        exams,
+        selectedStatusFilter,
+        selectedCategoryFilter,
+        selectedClassFilter,
+        searchQuery,
+        studentSubmissionsMap,
+        studentClass,
+        currentTimeMillis
+    ) {
         exams.filter { exam ->
             // Class match: if All Classes selected or student in generic batch, show all exams
             val matchesClass = when {
@@ -100,6 +119,16 @@ fun StudentExamsScreen(
             }
 
             val hasCompleted = studentSubmissionsMap.containsKey(exam.id)
+            val isExpired = exam.isExpiredAt(currentTimeMillis)
+
+            // Auto-hide exams once their teacher-selected window is over
+            // (Keep already-completed exams accessible only under "Completed" / "Certificates")
+            val isVisibleForWindow = when {
+                !hasCompleted && isExpired -> false
+                hasCompleted && isExpired && (selectedStatusFilter == "All" || selectedStatusFilter == "Pending") -> false
+                else -> true
+            }
+
             val matchesStatus = when (selectedStatusFilter) {
                 "Pending" -> !hasCompleted
                 "Completed" -> hasCompleted
@@ -115,12 +144,14 @@ fun StudentExamsScreen(
                 exam.description.contains(searchQuery, ignoreCase = true) ||
                 exam.teacherName.contains(searchQuery, ignoreCase = true)
 
-            matchesClass && matchesStatus && matchesCategory && matchesSearch
+            matchesClass && isVisibleForWindow && matchesStatus && matchesCategory && matchesSearch
         }
     }
 
     val completedCount = studentSubmissionsMap.size
-    val pendingCount = exams.count { exam -> !studentSubmissionsMap.containsKey(exam.id) }
+    val pendingCount = exams.count { exam ->
+        !studentSubmissionsMap.containsKey(exam.id) && !exam.isExpiredAt(currentTimeMillis)
+    }
 
     LazyColumn(
         modifier = modifier
@@ -451,7 +482,20 @@ fun StudentExamsScreen(
             ExamCard(
                 exam = exam,
                 submission = submission,
-                onStartExam = { activeExamToTake = exam },
+                currentTimeMillis = currentTimeMillis,
+                onStartExam = {
+                    if (exam.isOpenForStudentAt(currentTimeMillis)) {
+                        activeExamToTake = exam
+                    } else if (exam.isBeforeStartAt(currentTimeMillis)) {
+                        Toast.makeText(
+                            context,
+                            "Exam opens at ${ExamTimeFormatter.formatShortDateTime(exam.availableFromMillis)}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        Toast.makeText(context, "Exam access window has ended.", Toast.LENGTH_SHORT).show()
+                    }
+                },
                 onViewCertificate = { selectedSubmissionForCert = submission },
                 onDownloadPdf = {
                     submission?.let { sub ->
@@ -537,12 +581,15 @@ fun StudentExamsScreen(
 private fun ExamCard(
     exam: Exam,
     submission: ExamSubmission?,
+    currentTimeMillis: Long,
     onStartExam: () -> Unit,
     onViewCertificate: () -> Unit,
     onDownloadPdf: () -> Unit,
     onReviewQuestions: () -> Unit
 ) {
     val isCompleted = submission != null
+    val isBeforeStart = exam.isBeforeStartAt(currentTimeMillis)
+    val isOpenNow = exam.isOpenForStudentAt(currentTimeMillis)
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -731,28 +778,104 @@ private fun ExamCard(
                     }
                 }
             } else {
+                // Teacher-scheduled access window status pill
+                if (exam.hasTimeWindow) {
+                    val remainingUntilClose = (exam.availableUntilMillis - currentTimeMillis).coerceAtLeast(0L)
+                    val isUrgentClose = !isBeforeStart && exam.availableUntilMillis > 0L && remainingUntilClose <= 5 * 60_000L
+                    val bannerColor = when {
+                        isBeforeStart -> Color(0xFF1E1B4B)
+                        isUrgentClose -> Color(0xFF3F1D1D)
+                        else -> Color(0xFF0A2E2A)
+                    }
+                    val borderColor = when {
+                        isBeforeStart -> Color(0xFF818CF8)
+                        isUrgentClose -> CoralAccent
+                        else -> Color(0xFF10B981)
+                    }
+                    val textColor = when {
+                        isBeforeStart -> Color(0xFFC7D2FE)
+                        isUrgentClose -> Color(0xFFFCA5A5)
+                        else -> Color(0xFF6EE7B7)
+                    }
+                    val statusText = when {
+                        isBeforeStart ->
+                            "Scheduled • Opens in ${ExamTimeFormatter.formatCountdown(exam.availableFromMillis - currentTimeMillis)} (${ExamTimeFormatter.formatShortDateTime(exam.availableFromMillis)})"
+                        exam.availableUntilMillis > 0L ->
+                            "Live Window • Closes in ${ExamTimeFormatter.formatCountdown(remainingUntilClose)} (${ExamTimeFormatter.formatTimeOnly(exam.availableUntilMillis)})"
+                        else ->
+                            "Opened at ${ExamTimeFormatter.formatShortDateTime(exam.availableFromMillis)}"
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = bannerColor,
+                        border = BorderStroke(1.dp, borderColor.copy(alpha = 0.6f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("student_exam_window_banner_${exam.id}")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isBeforeStart) Icons.Rounded.Schedule else Icons.Rounded.Timer,
+                                contentDescription = null,
+                                tint = textColor,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = statusText,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = textColor
+                            )
+                        }
+                    }
+                }
+
                 // Pending: Start Exam CTA
                 Button(
                     onClick = onStartExam,
+                    enabled = isOpenNow,
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent
+                    ),
                     contentPadding = PaddingValues(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
+                        .testTag("student_start_exam_btn_${exam.id}")
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
-                                Brush.horizontalGradient(listOf(Color(0xFF0072FF), Color(0xFF00C6FF))),
+                                if (isOpenNow) {
+                                    Brush.horizontalGradient(listOf(Color(0xFF0072FF), Color(0xFF00C6FF)))
+                                } else {
+                                    Brush.horizontalGradient(listOf(Color(0xFF1E293B), Color(0xFF334155)))
+                                },
                                 RoundedCornerShape(14.dp)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Start MCQ Exam", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                            Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            if (isBeforeStart) {
+                                Icon(Icons.Rounded.LockClock, contentDescription = null, tint = Color(0xFFCBD5E1), modifier = Modifier.size(16.dp))
+                                Text(
+                                    "Opens ${ExamTimeFormatter.formatShortDateTime(exam.availableFromMillis)}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFFCBD5E1)
+                                )
+                            } else {
+                                Text("Start MCQ Exam", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
                         }
                     }
                 }
@@ -814,28 +937,53 @@ private fun LiveExamModal(
     onDismiss: () -> Unit,
     onSubmit: (selectedAnswers: Map<String, Int>, timeTakenSeconds: Int) -> Unit
 ) {
+    val context = LocalContext.current
     var hasStarted by remember { mutableStateOf(false) }
     var currentQuestionIndex by remember { mutableStateOf(0) }
     val selectedAnswers = remember { mutableStateMapOf<String, Int>() }
-    var timeRemainingSeconds by remember { mutableIntStateOf(exam.durationMinutes * 60) }
+    var timeRemainingSeconds by remember(exam.id) { mutableIntStateOf(exam.durationMinutes * 60) }
+    var effectiveDurationSeconds by remember(exam.id) { mutableIntStateOf(exam.durationMinutes * 60) }
     var showSubmitConfirmation by remember { mutableStateOf(false) }
+    var modalNowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    val totalDurationSeconds = exam.durationMinutes * 60
+    // Dismiss automatically if the scheduled window ends before the student presses Begin
+    LaunchedEffect(hasStarted, exam.id) {
+        if (!hasStarted && exam.hasTimeWindow) {
+            while (!hasStarted) {
+                modalNowMillis = System.currentTimeMillis()
+                if (exam.isExpiredAt(modalNowMillis)) {
+                    Toast.makeText(context, "Exam access window has ended.", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                    break
+                }
+                kotlinx.coroutines.delay(1000L)
+            }
+        }
+    }
 
-    // Countdown Timer
+    // Countdown Timer (capped to teacher's scheduled close deadline if earlier)
     DisposableEffect(hasStarted) {
         if (!hasStarted) return@DisposableEffect onDispose { }
 
-        val timer = object : CountDownTimer((timeRemainingSeconds * 1000).toLong(), 1000) {
+        val baseSeconds = exam.durationMinutes * 60
+        val startRemaining = if (exam.availableUntilMillis > 0L) {
+            val windowSec = ((exam.availableUntilMillis - System.currentTimeMillis()) / 1000L).toInt().coerceAtLeast(1)
+            minOf(baseSeconds, windowSec)
+        } else {
+            baseSeconds
+        }
+        timeRemainingSeconds = startRemaining
+        effectiveDurationSeconds = startRemaining
+
+        val timer = object : CountDownTimer(startRemaining * 1000L, 1000L) {
             override fun onTick(millisUntilFinished: Long) {
-                timeRemainingSeconds = (millisUntilFinished / 1000).toInt()
+                timeRemainingSeconds = (millisUntilFinished / 1000L).toInt()
             }
 
             override fun onFinish() {
                 timeRemainingSeconds = 0
-                // Auto-submit exam when timer reaches 0
-                val timeTaken = totalDurationSeconds
-                onSubmit(selectedAnswers.toMap(), timeTaken)
+                // Auto-submit exam when timer or access window reaches 0
+                onSubmit(selectedAnswers.toMap(), effectiveDurationSeconds)
             }
         }.start()
 
@@ -858,8 +1006,17 @@ private fun LiveExamModal(
                 // Pre-Exam Briefing Screen
                 PreExamBriefing(
                     exam = exam,
+                    currentTimeMillis = modalNowMillis,
                     onCancel = onDismiss,
-                    onBegin = { hasStarted = true }
+                    onBegin = {
+                        val now = System.currentTimeMillis()
+                        if (exam.isOpenForStudentAt(now)) {
+                            hasStarted = true
+                        } else {
+                            Toast.makeText(context, "This exam is outside its allowed schedule.", Toast.LENGTH_SHORT).show()
+                            onDismiss()
+                        }
+                    }
                 )
             } else {
                 // Active Test Taking UI
@@ -1173,7 +1330,7 @@ private fun LiveExamModal(
                 Button(
                     onClick = {
                         showSubmitConfirmation = false
-                        val timeTaken = totalDurationSeconds - timeRemainingSeconds
+                        val timeTaken = (effectiveDurationSeconds - timeRemainingSeconds).coerceAtLeast(1)
                         onSubmit(selectedAnswers.toMap(), timeTaken)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess)
@@ -1196,9 +1353,11 @@ private fun LiveExamModal(
 @Composable
 private fun PreExamBriefing(
     exam: Exam,
+    currentTimeMillis: Long,
     onCancel: () -> Unit,
     onBegin: () -> Unit
 ) {
+    val canBegin = exam.isOpenForStudentAt(currentTimeMillis)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1274,6 +1433,13 @@ private fun PreExamBriefing(
                     Text("Examination Guidelines", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
 
                     RuleItem(icon = Icons.Rounded.Timer, title = "Time Limit: ${exam.durationMinutes} Minutes", desc = "Timer starts immediately. Assessment auto-submits when time expires.")
+                    if (exam.availableUntilMillis > 0L) {
+                        RuleItem(
+                            icon = Icons.Rounded.Schedule,
+                            title = "Access Closes: ${ExamTimeFormatter.formatShortDateTime(exam.availableUntilMillis)}",
+                            desc = "Exam automatically hides from the student panel once this window ends."
+                        )
+                    }
                     RuleItem(icon = Icons.Rounded.Quiz, title = "${exam.questionsCount} Multiple Choice Questions", desc = "Each question carries ${exam.questions.firstOrNull()?.marks ?: 5} marks. Total marks: ${exam.totalMarks}.")
                     RuleItem(icon = Icons.Rounded.WorkspacePremium, title = "Pass Criteria: ${exam.passingPercentage}% (${exam.passingMarks} Marks)", desc = "Score ${exam.passingPercentage}% or above to generate your official Verified Certificate.")
                     RuleItem(icon = Icons.Rounded.Download, title = "PDF Certificate Download", desc = "Includes your score, award grade, official seal, and faculty digital signatures.")
@@ -1299,6 +1465,7 @@ private fun PreExamBriefing(
 
             Button(
                 onClick = onBegin,
+                enabled = canBegin,
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
                 modifier = Modifier

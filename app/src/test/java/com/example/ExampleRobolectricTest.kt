@@ -4,11 +4,14 @@ import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.local.AppPreferences
+import com.example.data.model.Exam
+import com.example.data.model.ExamQuestion
 import com.example.data.model.NovaChatMessage
 import com.example.data.model.SpeakingPrompt
 import com.example.ui.MainViewModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -69,4 +72,121 @@ class ExampleRobolectricTest {
     assertFalse(bubbleText.contains("When do you usually go to school?"))
     assertEquals("Hello! How are you?", vm.activeCoachQuestion.value)
   }
+
+  @Test
+  fun `exam time window accurately detects before start, open, and expired auto-hide states`() {
+    val baseTime = 1_750_000_000_000L
+    val scheduledExam = Exam(
+      id = "exam_timed_1",
+      title = "Timed Grammar Quiz",
+      description = "Windowed test",
+      teacherName = "Prof. Eleanor",
+      availableFromMillis = baseTime + 60_000L,
+      availableUntilMillis = baseTime + 300_000L
+    )
+
+    // Before start time
+    assertTrue(scheduledExam.isBeforeStartAt(baseTime))
+    assertFalse(scheduledExam.isExpiredAt(baseTime))
+    assertFalse(scheduledExam.isOpenForStudentAt(baseTime))
+
+    // During open window
+    val insideWindow = baseTime + 120_000L
+    assertFalse(scheduledExam.isBeforeStartAt(insideWindow))
+    assertFalse(scheduledExam.isExpiredAt(insideWindow))
+    assertTrue(scheduledExam.isOpenForStudentAt(insideWindow))
+
+    // After end time -> automatically hidden from student panel
+    val afterWindow = baseTime + 301_000L
+    assertFalse(scheduledExam.isBeforeStartAt(afterWindow))
+    assertTrue(scheduledExam.isExpiredAt(afterWindow))
+    assertFalse(scheduledExam.isOpenForStudentAt(afterWindow))
+
+    // Always open exam (0L bounds)
+    val alwaysOpenExam = Exam(
+      id = "exam_open_1",
+      title = "Always Open Quiz",
+      description = "No deadline",
+      teacherName = "Prof. Eleanor"
+    )
+    assertFalse(alwaysOpenExam.hasTimeWindow)
+    assertTrue(alwaysOpenExam.isOpenForStudentAt(afterWindow))
+    assertFalse(alwaysOpenExam.isExpiredAt(afterWindow))
+  }
+
+  @Test
+  fun `teacher updateExam updates exam fields, questions, and schedule window in place`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val prefs = AppPreferences(app)
+    val vm = MainViewModel(app)
+
+    val initialQ = ExamQuestion(
+      id = "q_init_1",
+      question = "She ___ to school daily.",
+      options = listOf("go", "goes", "going", "gone"),
+      correctOptionIndex = 1,
+      marks = 10
+    )
+
+    val created = vm.createExam(
+      title = "Initial Grammar Quiz",
+      description = "Draft description",
+      targetClass = "Class 8",
+      subjectCategory = "English Grammar",
+      durationMinutes = 15,
+      passingPercentage = 60,
+      questions = listOf(initialQ),
+      availableFromMillis = 0L,
+      availableUntilMillis = 0L
+    )
+
+    val startMillis = 1_800_000_000_000L
+    val endMillis = startMillis + 1_800_000L
+    val updatedQuestions = listOf(
+      initialQ.copy(question = "He ___ to school every morning.", marks = 15),
+      ExamQuestion(
+        id = "q_added_2",
+        question = "They ___ football yesterday.",
+        options = listOf("play", "plays", "played", "playing"),
+        correctOptionIndex = 2,
+        marks = 15
+      )
+    )
+
+    val updated = vm.updateExam(
+      examId = created.id,
+      title = "Updated Grammar Midterm",
+      description = "Timed exam for Class 9",
+      targetClass = "Class 9",
+      subjectCategory = "English Grammar",
+      durationMinutes = 30,
+      passingPercentage = 70,
+      questions = updatedQuestions,
+      availableFromMillis = startMillis,
+      availableUntilMillis = endMillis,
+      dueDate = "Scheduled Window"
+    )
+
+    assertNotNull(updated)
+    assertEquals(created.id, updated!!.id)
+    assertEquals("Updated Grammar Midterm", updated.title)
+    assertEquals("Class 9", updated.targetClass)
+    assertEquals(30, updated.durationMinutes)
+    assertEquals(70, updated.passingPercentage)
+    assertEquals(30, updated.totalMarks)
+    assertEquals(2, updated.questions.size)
+    assertEquals(startMillis, updated.availableFromMillis)
+    assertEquals(endMillis, updated.availableUntilMillis)
+
+    val inState = vm.exams.value.firstOrNull { it.id == created.id }
+    assertNotNull(inState)
+    assertEquals("Updated Grammar Midterm", inState!!.title)
+    assertEquals(endMillis, inState.availableUntilMillis)
+
+    val persisted = prefs.getExams()?.firstOrNull { it.id == created.id }
+    assertNotNull(persisted)
+    assertEquals(startMillis, persisted!!.availableFromMillis)
+    assertEquals(endMillis, persisted.availableUntilMillis)
+  }
 }
+
