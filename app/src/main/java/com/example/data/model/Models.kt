@@ -131,7 +131,11 @@ data class SpeakingEvaluation(
     val detectedWeakWords: List<String> = emptyList(),
     val followUpQuestion: String? = null,
     val hint: String? = null,
-    val exampleAnswers: List<String> = emptyList()
+    val exampleAnswers: List<String> = emptyList(),
+    val correctedSentence: String? = null,
+    val naturalExpression: String? = null,
+    val isSessionSummary: Boolean = false,
+    val improvementSuggestions: List<String> = emptyList()
 )
 
 data class NovaChatMessage(

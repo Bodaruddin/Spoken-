@@ -942,5 +942,93 @@ class ExampleUnitTest {
         assertTrue(afterDiagnostic.first { it.id == "b5" }.isUnlocked)
         assertTrue(afterDiagnostic.first { it.id == "b3" }.isUnlocked)
     }
+
+    @Test
+    fun testNovaTeacherPedagogyCorrectionsTopicFocusAndSummary() {
+        val introTopic = com.example.data.model.SpeakingPrompt(
+            id = "topic_intro_teacher",
+            title = "Introduction",
+            category = "Greetings",
+            question = "What is your name?",
+            followUpTip = "Introduce yourself in a clear sentence.",
+            recommendedKeywords = listOf("my name is", "years old", "class")
+        )
+
+        // 1. Grammar correction: "My name Ali." -> "My name is Ali."
+        val eval1 = com.example.service.HumanConversationEngine.generateReply(
+            spokenText = "My name Ali.",
+            topic = introTopic,
+            previousMessages = emptyList(),
+            lastNovaQuestion = "What is your name?",
+            baseEval = com.example.service.EvaluationEngine.evaluateSpeech("My name Ali."),
+            currentTurn = 1,
+            targetTurns = 5
+        )
+        assertEquals("My name is Ali.", eval1.correctedSentence)
+        assertTrue(eval1.aiCoachResponse.orEmpty().contains("My name is Ali."))
+        assertEquals(1, eval1.followUpQuestion.orEmpty().count { it == '?' })
+        assertFalse(eval1.isSessionSummary)
+
+        // 2. Natural expression: "I study in class 9." -> "I am in Class 9."
+        val eval2 = com.example.service.HumanConversationEngine.generateReply(
+            spokenText = "I study in class 9.",
+            topic = introTopic,
+            previousMessages = emptyList(),
+            lastNovaQuestion = "Which class do you study in?",
+            baseEval = com.example.service.EvaluationEngine.evaluateSpeech("I study in class 9."),
+            currentTurn = 3,
+            targetTurns = 5
+        )
+        assertNull(eval2.correctedSentence)
+        assertEquals("I am in Class 9.", eval2.naturalExpression)
+        assertTrue(eval2.aiCoachResponse.orEmpty().contains("I am in Class 9."))
+        assertEquals(1, eval2.followUpQuestion.orEmpty().count { it == '?' })
+
+        // 3. Strict Topic Adherence on "My School": even if student mentions cricket, guide back to school
+        val schoolTopic = com.example.data.model.SpeakingPrompt(
+            id = "topic_school",
+            title = "My School",
+            category = "School Life",
+            question = "Which class do you study in at school?",
+            followUpTip = "Talk about your school classes, friends, and teachers.",
+            recommendedKeywords = listOf("school", "subject", "teacher", "friends")
+        )
+        val schoolEval = com.example.service.HumanConversationEngine.generateReply(
+            spokenText = "I like playing cricket with friends.",
+            topic = schoolTopic,
+            previousMessages = emptyList(),
+            lastNovaQuestion = "What do you enjoy during break time?",
+            baseEval = com.example.service.EvaluationEngine.evaluateSpeech("I like playing cricket with friends."),
+            currentTurn = 2,
+            targetTurns = 5
+        )
+        assertTrue(schoolEval.followUpQuestion.orEmpty().contains("school", ignoreCase = true))
+        assertEquals(1, schoolEval.followUpQuestion.orEmpty().count { it == '?' })
+
+        // 4. Session Completion after 5 turns -> performance summary + 2-3 suggestions + topic prompt
+        val summaryEval = com.example.service.HumanConversationEngine.generateReply(
+            spokenText = "I wake up in morning at 7 am.",
+            topic = com.example.data.model.SpeakingPrompt(
+                id = "topic_routine",
+                title = "Daily Routine",
+                category = "Time Words",
+                question = "What time do you wake up?",
+                followUpTip = "Use 'at' for clock times and 'in the morning' for mornings.",
+                recommendedKeywords = listOf("wake up", "in the morning", "at 7 AM")
+            ),
+            previousMessages = listOf(
+                com.example.data.model.NovaChatMessage(isNova = false, text = "I wake up at 6 AM."),
+                com.example.data.model.NovaChatMessage(isNova = true, text = "Great!", evaluation = eval1)
+            ),
+            lastNovaQuestion = "What do you do in the morning?",
+            baseEval = com.example.service.EvaluationEngine.evaluateSpeech("I wake up in morning at 7 am."),
+            currentTurn = 5,
+            targetTurns = 5
+        )
+        assertTrue(summaryEval.isSessionSummary)
+        assertTrue(summaryEval.improvementSuggestions.size in 2..3)
+        assertEquals("Would you like to practise another topic?", summaryEval.followUpQuestion)
+        assertTrue(summaryEval.aiCoachResponse.orEmpty().contains("Would you like to practise another topic?"))
+    }
 }
 

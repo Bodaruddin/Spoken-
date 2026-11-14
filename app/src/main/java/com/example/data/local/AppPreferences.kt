@@ -1901,6 +1901,12 @@ class AppPreferences(context: Context) {
                             put("aiCoachResponse", msg.evaluation.aiCoachResponse ?: "")
                             put("cefrLevel", msg.evaluation.cefrLevel)
                             put("followUpQuestion", msg.evaluation.followUpQuestion ?: "")
+                            put("correctedSentence", msg.evaluation.correctedSentence ?: "")
+                            put("naturalExpression", msg.evaluation.naturalExpression ?: "")
+                            put("isSessionSummary", msg.evaluation.isSessionSummary)
+                            val suggArr = JSONArray()
+                            msg.evaluation.improvementSuggestions.forEach { suggArr.put(it) }
+                            put("improvementSuggestions", suggArr)
                         }
                         put("evaluation", evalObj)
                     }
@@ -1937,6 +1943,14 @@ class AppPreferences(context: Context) {
                 }
                 val evalObj = obj.optJSONObject("evaluation")
                 val evaluation = if (evalObj != null) {
+                    val suggestions = mutableListOf<String>()
+                    val suggArr = evalObj.optJSONArray("improvementSuggestions")
+                    if (suggArr != null) {
+                        for (k in 0 until suggArr.length()) {
+                            val s = suggArr.optString(k)
+                            if (s.isNotBlank()) suggestions.add(s)
+                        }
+                    }
                     SpeakingEvaluation(
                         spokenText = evalObj.optString("spokenText", text),
                         overallScore = evalObj.optInt("overallScore", 80),
@@ -1950,7 +1964,11 @@ class AppPreferences(context: Context) {
                         aiModelUsed = evalObj.optString("aiModelUsed", ""),
                         aiCoachResponse = evalObj.optString("aiCoachResponse", ""),
                         cefrLevel = evalObj.optString("cefrLevel", "B1"),
-                        followUpQuestion = evalObj.optString("followUpQuestion", "").ifBlank { null }
+                        followUpQuestion = evalObj.optString("followUpQuestion", "").ifBlank { null },
+                        correctedSentence = evalObj.optString("correctedSentence", "").ifBlank { null },
+                        naturalExpression = evalObj.optString("naturalExpression", "").ifBlank { null },
+                        isSessionSummary = evalObj.optBoolean("isSessionSummary", false),
+                        improvementSuggestions = suggestions
                     )
                 } else null
 

@@ -7,11 +7,34 @@ import com.example.util.AssameseTranslator
 import com.example.util.ExampleAnswerGenerator
 
 /**
- * Generates natural, human-like greetings, context-aware conversational replies,
- * and dynamic follow-up questions directly based on the student's actual spoken
- * or typed answer and conversation history.
+ * Pedagogical English teacher conversation engine for Nova AI.
+ * Enforces strict topic adherence, asks one logically connected question at a time,
+ * gently corrects student English grammar with simple explanations and natural phrasing,
+ * avoids repeating questions, and summarizes the session after 5–8 turns.
  */
 object HumanConversationEngine {
+
+    private enum class TopicDomain {
+        INTRODUCTION,
+        FAMILY,
+        SCHOOL,
+        ROUTINE,
+        HOBBIES,
+        TRAVEL,
+        FOOD,
+        CAREER,
+        TECHNOLOGY,
+        NATURE,
+        CUSTOM
+    }
+
+    private data class GrammarAnalysis(
+        val hasError: Boolean,
+        val correctedSentence: String? = null,
+        val naturalExpression: String? = null,
+        val spokenCorrectionLine: String? = null,
+        val shortTip: String? = null
+    )
 
     private val genericNames = setOf(
         "", "student", "guest", "user", "admin", "teacher", "faculty", "learner", "default_student"
@@ -23,7 +46,8 @@ object HumanConversationEngine {
         "student", "teacher", "engineer", "doctor", "boy", "girl", "man", "woman",
         "here", "home", "from", "going", "doing", "trying", "learning", "practicing",
         "speaking", "living", "working", "studying", "indian", "assamese", "very", "really",
-        "pretty", "quite", "not", "just", "feeling", "also", "still", "always", "never"
+        "pretty", "quite", "not", "just", "feeling", "also", "still", "always", "never",
+        "class", "school", "years", "year"
     )
 
     private val stopWords = setOf(
@@ -43,37 +67,54 @@ object HumanConversationEngine {
     )
 
     /**
-     * Builds a warm, natural opening message (display text + clean TTS prompt) so Nova
-     * starts the conversation like a real human partner rather than a worksheet quiz.
+     * Builds a warm, teacher-like opening message (display text + clean TTS prompt)
+     * anchored strictly to the selected topic with a single opening question.
      */
     fun buildHumanGreeting(
         topic: SpeakingPrompt,
         studentName: String? = null
     ): Pair<String, String> {
         val displayTitle = topic.title.trim().ifBlank { "English Conversation" }
-        val rawQ = topic.question.trim().ifBlank {
-            "How's your day going so far? Tell me a little about yourself!"
+        val domain = resolveTopicDomain(topic)
+        val defaultOpening = when (domain) {
+            TopicDomain.INTRODUCTION -> "Hello! Welcome to English speaking practice. What is your name?"
+            TopicDomain.FAMILY -> "Who lives with you in your family?"
+            TopicDomain.SCHOOL -> "Which class do you study in at school?"
+            TopicDomain.ROUTINE -> "What time do you usually wake up in the morning?"
+            TopicDomain.HOBBIES -> "What do you enjoy doing in your free time?"
+            TopicDomain.TRAVEL -> "Which place would you love to visit for a trip?"
+            TopicDomain.FOOD -> "What is your favorite meal or dish?"
+            TopicDomain.CAREER -> "What do you hope to become in the future?"
+            TopicDomain.TECHNOLOGY -> "What do you use a phone or computer for most often?"
+            TopicDomain.NATURE -> "What kind of weather or season do you like the most?"
+            TopicDomain.CUSTOM -> "What do you think is most interesting about $displayTitle?"
         }
+        val rawQ = topic.question.trim().ifBlank { defaultOpening }
         val firstName = extractCleanFirstName(studentName)
-        val greetingWord = if (firstName != null) "Hey $firstName!" else "Hey there!"
+        val greetingWord = if (firstName != null) "Hey $firstName!" else "Hello!"
 
         val openerLine = when {
             displayTitle.contains("Introduction", ignoreCase = true) ||
                 rawQ.contains("How are you", ignoreCase = true) ->
-                "$greetingWord I'm Nova 😊 Really glad we get to chat about “$displayTitle” today."
+                "${if (firstName != null) "Hey $firstName!" else "Hey there!"} I'm Nova 😊 Really glad we get to chat about “$displayTitle” today."
             else ->
-                "$greetingWord I'm Nova 😊 I'd love to have a real chat with you about “$displayTitle” today."
+                "$greetingWord Welcome to English speaking practice. Let's talk about “$displayTitle” today."
         }
 
         val displayText = "$openerLine\n\n$rawQ"
         val cleanAudioTitle = displayTitle.replace("(", "").replace(")", "")
-        val audioPrompt = "$greetingWord I'm Nova. Really glad we get to chat about $cleanAudioTitle today. $rawQ"
+        val audioPrompt = "${openerLine.replace("😊", "").replace("“", "").replace("”", "").trim()} $rawQ"
+            .replace(Regex("\\s+"), " ")
+            .trim()
         return displayText to audioPrompt
     }
 
     /**
-     * Generates a human-like conversational response and follow-up question tailored directly
-     * to what the student just answered, avoiding previously asked questions.
+     * Generates a structured teacher response:
+     * 1. Evaluates and gently corrects grammar in simple English (or praises + suggests natural phrasing).
+     * 2. Reacts directly to the student's meaning while staying strictly on the selected topic.
+     * 3. Asks ONLY ONE non-repeated, logically connected follow-up question — OR gives a closing summary
+     *    with 2–3 improvement suggestions when currentTurn >= targetTurns.
      */
     fun generateReply(
         spokenText: String,
@@ -81,107 +122,1368 @@ object HumanConversationEngine {
         previousMessages: List<NovaChatMessage>,
         lastNovaQuestion: String,
         baseEval: SpeakingEvaluation,
-        studentName: String? = null
+        studentName: String? = null,
+        currentTurn: Int = 1,
+        targetTurns: Int = 6
     ): SpeakingEvaluation {
         val cleanSpoken = spokenText.trim()
         val lower = cleanSpoken.lowercase()
         val words = cleanSpoken.split(Regex("\\s+")).filter { it.isNotBlank() }
-
+        val domain = resolveTopicDomain(topic)
         val previouslyAsked = collectAskedQuestions(previousMessages, lastNovaQuestion)
-        val grammarCorrectionTip = detectFriendlyGrammarTip(cleanSpoken)
-        val studentAskedQuestion = detectAndAnswerStudentQuestion(cleanSpoken, lower)
 
-        val (reaction, candidates, hintOverride) = buildContextReactionAndQuestions(
+        val grammar = analyzeStudentEnglish(cleanSpoken, domain)
+        val studentAskedQuestion = detectAndAnswerStudentQuestion(cleanSpoken, lower, topic)
+
+        // Closing session summary after completing target turns
+        if (currentTurn >= targetTurns) {
+            return buildSessionSummaryEvaluation(
+                cleanSpoken = cleanSpoken,
+                topic = topic,
+                domain = domain,
+                previousMessages = previousMessages,
+                baseEval = baseEval,
+                grammar = grammar,
+                studentName = studentName
+            )
+        }
+
+        val (reaction, candidates, hintOverride) = buildTopicAnchoredResponse(
             cleanSpoken = cleanSpoken,
             lower = lower,
             words = words,
             topic = topic,
+            domain = domain,
             lastNovaQuestion = lastNovaQuestion,
             previousMessages = previousMessages,
-            studentName = studentName
+            studentName = studentName,
+            currentTurn = currentTurn
         )
 
-        val chosenQuestion = pickFreshQuestion(candidates, previouslyAsked, topic, cleanSpoken)
+        val chosenQuestion = ensureSingleQuestion(
+            pickFreshTopicQuestion(
+                candidates = candidates,
+                previouslyAsked = previouslyAsked,
+                topic = topic,
+                domain = domain,
+                cleanSpoken = cleanSpoken,
+                currentTurn = currentTurn
+            )
+        )
 
-        // Assemble a warm, concise, human-sounding reply (avoid generic robotic phrases)
         val responseParts = mutableListOf<String>()
+
         if (studentAskedQuestion != null) {
             responseParts.add(studentAskedQuestion)
-            // Only add reaction if student also shared substantive info beyond just the question
-            if (words.size > 5 && reaction.isNotBlank()) {
-                responseParts.add(reaction)
-            }
-        } else if (reaction.isNotBlank()) {
-            responseParts.add(reaction)
         }
 
-        // Light, non-intrusive phrasing nudge only when there's a clear slip and student isn't just greeting
-        if (grammarCorrectionTip != null && words.size >= 4) {
-            responseParts.add(grammarCorrectionTip)
+        // Pedagogical teacher praise or gentle grammar correction
+        when {
+            grammar.hasError && !grammar.spokenCorrectionLine.isNullOrBlank() -> {
+                responseParts.add(grammar.spokenCorrectionLine)
+                // Only add extra reaction if it adds specific topic acknowledgement (like a person's name or hobby)
+                if (words.size >= 5 && reaction.isNotBlank() && !isGenericPraise(reaction)) {
+                    responseParts.add(reaction)
+                }
+            }
+            grammar.naturalExpression != null && !grammar.spokenCorrectionLine.isNullOrBlank() -> {
+                responseParts.add(grammar.spokenCorrectionLine)
+                if (reaction.isNotBlank() && !isGenericPraise(reaction) && words.size >= 6) {
+                    responseParts.add(reaction)
+                }
+            }
+            else -> {
+                if (studentAskedQuestion == null && reaction.isNotBlank()) {
+                    responseParts.add(reaction)
+                } else if (studentAskedQuestion != null && words.size > 5 && reaction.isNotBlank()) {
+                    responseParts.add(reaction)
+                }
+            }
         }
 
         responseParts.add(chosenQuestion)
-        val fullReply = responseParts.joinToString(" ").replace(Regex("\\s+"), " ").trim()
+
+        val fullReply = responseParts
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
 
         val computedCefr = baseEval.cefrLevel.ifBlank { computeCefrFromScore(baseEval.overallScore) }
-        val resolvedHint = hintOverride ?: buildHintForQuestion(chosenQuestion)
+        val resolvedHint = hintOverride ?: buildHintForQuestion(chosenQuestion, topic)
         val resolvedExamples = ExampleAnswerGenerator.generateForQuestion(chosenQuestion, topic)
-        val improvedTip = grammarCorrectionTip ?: baseEval.suggestedImprovement
+        val improvedTip = grammar.shortTip ?: baseEval.suggestedImprovement
 
         return baseEval.copy(
             cefrLevel = computedCefr,
             aiCoachResponse = fullReply,
             followUpQuestion = chosenQuestion,
             suggestedImprovement = improvedTip,
+            correctedSentence = grammar.correctedSentence,
+            naturalExpression = grammar.naturalExpression,
+            isSessionSummary = false,
+            improvementSuggestions = emptyList(),
             hint = resolvedHint,
             exampleAnswers = resolvedExamples
         )
     }
 
     /**
-     * Generates a fresh, natural human topic question when the student taps "Next".
+     * Generates a fresh, single, topic-anchored question when the student taps "Next".
      */
     fun generateNextTopicQuestion(
         topic: SpeakingPrompt,
         previousMessages: List<NovaChatMessage>
     ): Triple<String, String, String> {
         val previouslyAsked = collectAskedQuestions(previousMessages, "")
-        val topicLower = "${topic.title} ${topic.category}".lowercase()
+        val domain = resolveTopicDomain(topic)
+        val pool = getDomainQuestionPool(topic, domain, studentName = null, knownWord = null)
 
-        val pool = when {
-            topicLower.contains("intro") || topicLower.contains("greeting") -> listOf(
-                "By the way, what do you usually enjoy doing when you have some free time?" to "Mention one or two hobbies and why you enjoy them.",
-                "What's your favorite meal or comfort food after a long day?" to "Name a dish you love and describe how it tastes.",
-                "If you had a completely free Sunday, how would you spend it?" to "Talk about people you'd meet or places you'd visit.",
-                "What motivated you to practice speaking English these days?" to "Share a personal goal for your school, work, or travels."
+        val freshQ = ensureSingleQuestion(
+            pool.firstOrNull { (q, _) -> !isAlreadyAsked(q, previouslyAsked) }?.first
+                ?: pool.first().first
+        )
+        val freshHint = pool.firstOrNull { ensureSingleQuestion(it.first) == freshQ }?.second
+            ?: buildHintForQuestion(freshQ, topic)
+
+        val transitions = listOf(
+            "Let's try the next question on ${topic.title.ifBlank { "this topic" }}.",
+            "Good! Here is another question for our practice:",
+            "Great job so far! Let's continue talking about ${topic.title.ifBlank { "this topic" }}:"
+        )
+        val transition = transitions[previousMessages.size % transitions.size]
+        val fullText = "$transition\n\n$freshQ"
+        val audioText = "$transition $freshQ"
+        return Triple(freshQ, fullText, "$freshHint|||$audioText")
+    }
+
+    // =========================================================================
+    // SESSION COMPLETION SUMMARY (After 5–8 meaningful turns)
+    // =========================================================================
+
+    private fun buildSessionSummaryEvaluation(
+        cleanSpoken: String,
+        topic: SpeakingPrompt,
+        domain: TopicDomain,
+        previousMessages: List<NovaChatMessage>,
+        baseEval: SpeakingEvaluation,
+        grammar: GrammarAnalysis,
+        studentName: String?
+    ): SpeakingEvaluation {
+        val topicLabel = topic.title.trim().ifBlank { "this topic" }
+        val knownName = extractCleanFirstName(studentName)
+        val studentMessages = previousMessages.filter { !it.isNova }
+        val pastScores = previousMessages.mapNotNull { it.evaluation?.overallScore }.filter { it > 0 } +
+            listOf(baseEval.overallScore).filter { it > 0 }
+        val avgScore = if (pastScores.isNotEmpty()) pastScores.average().toInt() else baseEval.overallScore
+        val avgGrammar = (previousMessages.mapNotNull { it.evaluation?.grammarScore } + baseEval.grammarScore)
+            .filter { it > 0 }
+            .ifEmpty { listOf(baseEval.grammarScore) }
+            .average()
+            .toInt()
+        val avgVocab = (previousMessages.mapNotNull { it.evaluation?.vocabularyScore } + baseEval.vocabularyScore)
+            .filter { it > 0 }
+            .ifEmpty { listOf(baseEval.vocabularyScore) }
+            .average()
+            .toInt()
+
+        val hadCorrections = previousMessages.any { !it.evaluation?.correctedSentence.isNullOrBlank() } || grammar.hasError
+        val suggestions = mutableListOf<String>()
+
+        if (hadCorrections) {
+            suggestions.add("Check linking verbs like 'is', 'am', and 'are' in every sentence (e.g., 'My name is...').")
+        } else {
+            suggestions.add("Keep using full sentences with clear 'is/am/are' and verb forms.")
+        }
+
+        when (domain) {
+            TopicDomain.ROUTINE -> suggestions.add("Use accurate time prepositions: 'at' for clock times, 'in' for the morning/evening, and 'on' for weekdays.")
+            TopicDomain.SCHOOL -> suggestions.add("Expand answers about your subjects and classes using 'because' to give clear reasons.")
+            TopicDomain.FAMILY -> suggestions.add("Practise descriptive words like 'caring', 'supportive', and 'together' when describing family members.")
+            TopicDomain.INTRODUCTION -> suggestions.add("Use natural expressions like 'I am in Class...' and share 2–3 connected details smoothly.")
+            else -> suggestions.add("Add one example or reason using 'because' or 'for example' to make your speaking richer.")
+        }
+
+        val avgWordCount = (studentMessages.map { it.text.split(Regex("\\s+")).size } +
+            cleanSpoken.split(Regex("\\s+")).size).average()
+        if (avgWordCount < 7.0) {
+            suggestions.add("Try speaking 1–2 complete sentences instead of short phrases to build fluency.")
+        } else {
+            suggestions.add("Practice speaking at a steady pace and review 3 new words from \"$topicLabel\" today.")
+        }
+
+        val finalSentenceFeedback = when {
+            grammar.hasError && !grammar.spokenCorrectionLine.isNullOrBlank() -> grammar.spokenCorrectionLine
+            grammar.naturalExpression != null && !grammar.spokenCorrectionLine.isNullOrBlank() -> grammar.spokenCorrectionLine
+            else -> "Great answer! That was a clear closing response."
+        }
+
+        val grammarNote = when {
+            avgGrammar >= 82 -> "Your grammar was very accurate throughout our \"$topicLabel\" chat."
+            hadCorrections -> "You improved your sentence structure step by step during our \"$topicLabel\" practice."
+            else -> "You formed clear, understandable sentences throughout our \"$topicLabel\" chat."
+        }
+        val vocabNote = if (avgVocab >= 80) {
+            "You used good everyday vocabulary for this topic."
+        } else {
+            "Practising a few topic words aloud will boost your confidence even more."
+        }
+
+        val nameCall = if (knownName != null) "Well done, $knownName!" else "Well done!"
+        val closingQuestion = "Would you like to practise another topic?"
+
+        val fullSummary = buildString {
+            append(finalSentenceFeedback)
+            append(" ")
+            append("$nameCall You completed our \"$topicLabel\" practice with an average score of $avgScore%. ")
+            append("$grammarNote $vocabNote ")
+            append("Keep practising every day — you are making real progress! ")
+            append(closingQuestion)
+        }.replace(Regex("\\s+"), " ").trim()
+
+        val computedCefr = baseEval.cefrLevel.ifBlank { computeCefrFromScore(avgScore) }
+
+        return baseEval.copy(
+            cefrLevel = computedCefr,
+            aiCoachResponse = fullSummary,
+            followUpQuestion = closingQuestion,
+            suggestedImprovement = suggestions.firstOrNull() ?: baseEval.suggestedImprovement,
+            correctedSentence = grammar.correctedSentence,
+            naturalExpression = grammar.naturalExpression,
+            isSessionSummary = true,
+            improvementSuggestions = suggestions.take(3),
+            hint = "Tap 'Choose Another Topic' to start a new topic or tap 'Restart' to practise \"$topicLabel\" again.",
+            exampleAnswers = listOf(
+                "Yes, I would love to practise another topic!",
+                "Sure, let's talk about Daily Routine next."
             )
-            topicLower.contains("time") || topicLower.contains("routine") || topicLower.contains("habit") -> listOf(
-                "What time do you usually wake up on weekdays compared to weekends?" to "Use 'at' for exact times and 'on' for days of the week.",
-                "What's your favorite part of the day — morning, afternoon, or evening — and why?" to "Use 'in the morning/afternoon/evening' with a reason.",
-                "How do you usually spend your Sunday evenings before the week starts?" to "Mention one relaxing habit you do on Sundays.",
-                "When do you feel most focused during the day?" to "Share the time of day and what you usually work on then."
+        )
+    }
+
+    // =========================================================================
+    // SYSTEMATIC GRAMMAR CORRECTION & NATURAL EXPRESSION ENGINE
+    // =========================================================================
+
+    private fun analyzeStudentEnglish(spoken: String, domain: TopicDomain): GrammarAnalysis {
+        val trimmed = spoken.trim()
+        val lower = trimmed.lowercase()
+
+        // 1. "My name Ali" -> missing "is"
+        Regex("""^\s*my\s+name\s+(?!is\b|was\b)([A-Za-z]{2,20})\s*[.!]?\s*$""", RegexOption.IGNORE_CASE)
+            .find(trimmed)?.let { m ->
+                val name = m.groupValues[1].replaceFirstChar { it.uppercaseChar() }
+                val fixed = "My name is $name."
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Remember to use \"is\" here.",
+                    shortTip = "Remember to use \"is\" in \"My name is $name.\""
+                )
+            }
+
+        // 2. "I 15 years old" -> missing "am"
+        Regex("""\bi\s+(\d{1,2})\s+years?\s+old\b""", RegexOption.IGNORE_CASE)
+            .find(trimmed)?.let { m ->
+                val age = m.groupValues[1]
+                val fixed = "I am $age years old."
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Remember to use \"am\" after \"I\".",
+                    shortTip = "Use \"I am $age years old\" with \"am\"."
+                )
+            }
+
+        // 3. "I am 15 year old" -> plural "years"
+        Regex("""\bi\s*(?:am|'m)\s+(\d{1,2})\s+year\s+old\b""", RegexOption.IGNORE_CASE)
+            .find(trimmed)?.let { m ->
+                val age = m.groupValues[1]
+                val fixed = "I am $age years old."
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    spokenCorrectionLine = "Nice try! A better sentence is: \"$fixed\" Use \"years\" for numbers more than one.",
+                    shortTip = "Say \"$age years old\" (plural \"years\")."
+                )
+            }
+
+        // 4. "I is ..." -> "I am ..."
+        if (Regex("""\bi\s+is\b""").containsMatchIn(lower)) {
+            val fixed = trimmed.replace(Regex("""\b[Ii]\s+is\b"""), "I am").ensureSentencePeriod()
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Remember to use \"am\" with \"I\".",
+                shortTip = "Use \"I am\" instead of \"I is\"."
             )
-            else -> {
-                val label = topic.title.trim().ifBlank { "this" }
-                listOf(
-                    "What's something interesting about $label that most people might not expect?" to "Share a real example or observation from your experience.",
-                    "How has your view on $label changed over the past year?" to "Compare what you thought before with how you see it now.",
-                    "If you were talking to a friend about $label, what's the first story you'd tell them?" to "Describe a short memory using past tense verbs.",
-                    "What's one thing you'd love to try or improve next around $label?" to "Use 'I want to...' or 'I hope to...' to describe your plan."
+        }
+
+        // 5. "I am live in ..." / "I am go ..."
+        if (Regex("""\bi\s+(?:am|'m)\s+live\b""").containsMatchIn(lower)) {
+            val fixed = trimmed.replace(Regex("""\b[Ii]\s+(?:am|'m)\s+live\b""", RegexOption.IGNORE_CASE), "I live")
+                .ensureSentencePeriod()
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" You don't need \"am\" before \"live\".",
+                shortTip = "Say \"I live in...\" without \"am\"."
+            )
+        }
+
+        if (Regex("""\bi\s+(?:am|'m)\s+go\b""").containsMatchIn(lower)) {
+            val fixed = trimmed.replace(Regex("""\b[Ii]\s+(?:am|'m)\s+go\b""", RegexOption.IGNORE_CASE), "I go")
+                .ensureSentencePeriod()
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                spokenCorrectionLine = "Good try! Say \"$fixed\" or \"I am going\" instead of \"I am go\".",
+                shortTip = "Say \"I go\" for habits or \"I am going\" for right now."
+            )
+        }
+
+        // 6. "I live Guwahati" -> missing "in"
+        Regex("""\bi\s+live\s+(?!in\b|at\b|on\b|with\b|near\b|here\b|there\b|alone\b)([A-Za-z]{3,20})\b""", RegexOption.IGNORE_CASE)
+            .find(trimmed)?.let { m ->
+                val city = m.groupValues[1].replaceFirstChar { it.uppercaseChar() }
+                val fixed = "I live in $city."
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Remember to add \"in\" before a place.",
+                    shortTip = "Use \"in\" before a city or town name."
+                )
+            }
+
+        // 7. "My hobby cricket" / "My hobby is read"
+        Regex("""^\s*my\s+hobby\s+(?!is\b|was\b|are\b)([A-Za-z ]{3,25})\s*[.!]?\s*$""", RegexOption.IGNORE_CASE)
+            .find(trimmed)?.let { m ->
+                val h = m.groupValues[1].trim()
+                val fixed = "My hobby is $h."
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Remember to use \"is\" here.",
+                    shortTip = "Use \"is\" in \"My hobby is...\"."
+                )
+            }
+
+        // 8. "he/she have" -> "he/she has"
+        Regex("""\b(he|she)\s+have\b""", RegexOption.IGNORE_CASE).find(trimmed)?.let { m ->
+            val pron = m.groupValues[1].replaceFirstChar { it.uppercaseChar() }
+            val fixed = trimmed.replace(Regex("""\b(he|she)\s+have\b""", RegexOption.IGNORE_CASE), "$pron has")
+                .ensureSentencePeriod()
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                spokenCorrectionLine = "Nice try! A better sentence is: \"$fixed\" Use \"has\" with \"he\" or \"she\".",
+                shortTip = "Use \"has\" instead of \"have\" after \"he\" or \"she\"."
+            )
+        }
+
+        // 9. "yesterday I go / come / see / eat / wake"
+        val pastFixes = mapOf(
+            "go" to "went", "come" to "came", "see" to "saw",
+            "eat" to "ate", "wake" to "woke", "play" to "played", "study" to "studied"
+        )
+        for ((present, past) in pastFixes) {
+            if (Regex("""\byesterday\b.*\bi\s+$present\b|\bi\s+$present\b.*\byesterday\b""", RegexOption.IGNORE_CASE)
+                    .containsMatchIn(lower)
+            ) {
+                val fixed = trimmed.replace(Regex("""\b[Ii]\s+$present\b""", RegexOption.IGNORE_CASE), "I $past")
+                    .ensureSentencePeriod()
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Use past tense \"$past\" for yesterday.",
+                    shortTip = "Use past tense \"$past\" when talking about yesterday."
                 )
             }
         }
 
-        val fresh = pool.firstOrNull { (q, _) -> !isAlreadyAsked(q, previouslyAsked) } ?: pool.first()
-        val transitions = listOf(
-            "Ooh, let's switch gears for a second!",
-            "Here's something else I was curious to ask you:",
-            "Let's chat about another fun angle on this!"
+        // 10. "didn't went" -> "didn't go"
+        if (Regex("""\bdidn't\s+went\b|\bdid\s+not\s+went\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
+            val fixed = trimmed.replace(Regex("""\b(didn't|did\s+not)\s+went\b""", RegexOption.IGNORE_CASE), "didn't go")
+                .ensureSentencePeriod()
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                spokenCorrectionLine = "Nice try! A better sentence is: \"$fixed\" After \"didn't\", use the base verb \"go\".",
+                shortTip = "After \"didn't\", always use the base verb (didn't go)."
+            )
+        }
+
+        // 11. Time prepositions: "in night", "in morning", "on 7 am", "in 7 o'clock"
+        if (Regex("""\bin\s+night\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
+            val fixed = trimmed.replace(Regex("""\bin\s+night\b""", RegexOption.IGNORE_CASE), "at night")
+                .ensureSentencePeriod()
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                spokenCorrectionLine = "Good try! In English, we say \"at night\" instead of \"in night\". So: \"$fixed\"",
+                shortTip = "Use \"at night\" (not \"in night\")."
+            )
+        }
+
+        if (Regex("""\bin\s+(morning|afternoon|evening)\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
+            val part = Regex("""\bin\s+(morning|afternoon|evening)\b""", RegexOption.IGNORE_CASE)
+                .find(lower)?.groupValues?.get(1) ?: "morning"
+            val fixed = trimmed.replace(
+                Regex("""\bin\s+(morning|afternoon|evening)\b""", RegexOption.IGNORE_CASE),
+                "in the $part"
+            ).ensureSentencePeriod()
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Remember to use \"the\" before \"$part\".",
+                shortTip = "Say \"in the $part\" with \"the\"."
+            )
+        }
+
+        Regex("""\b(?:in|on)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.|o'clock))\b""", RegexOption.IGNORE_CASE)
+            .find(trimmed)?.let { m ->
+                val timePart = m.groupValues[1]
+                val fixed = trimmed.replace(
+                    Regex("""\b(?:in|on)\s+${Regex.escape(timePart)}""", RegexOption.IGNORE_CASE),
+                    "at $timePart"
+                ).ensureSentencePeriod()
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Always use \"at\" for exact clock times.",
+                    shortTip = "Use \"at\" before exact clock times like \"at $timePart\"."
+                )
+            }
+
+        // 12. "more better" -> "better" / "much better"
+        if (Regex("""\bmore\s+better\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
+            val fixed = trimmed.replace(Regex("""\bmore\s+better\b""", RegexOption.IGNORE_CASE), "much better")
+                .ensureSentencePeriod()
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                spokenCorrectionLine = "Nice try! Say \"better\" or \"much better\" instead of \"more better\". So: \"$fixed\"",
+                shortTip = "Say \"much better\" rather than \"more better\"."
+            )
+        }
+
+        // 13. Valid sentence -> offer a natural everyday expression when helpful
+        Regex("""\bi\s+(?:study|read)\s+in\s+class\s+(\d{1,2}[A-Za-z]?)\b""", RegexOption.IGNORE_CASE)
+            .find(trimmed)?.let { m ->
+                val cls = m.groupValues[1].uppercase()
+                val natural = "I am in Class $cls."
+                return GrammarAnalysis(
+                    hasError = false,
+                    naturalExpression = natural,
+                    spokenCorrectionLine = "Very good! You can also say, \"$natural\"",
+                    shortTip = "Try natural phrasing like \"$natural\"."
+                )
+            }
+
+        Regex("""\bmy\s+favourite?\s+(?:subject|sport|food|color)\s+is\s+([A-Za-z ]{2,20})""", RegexOption.IGNORE_CASE)
+            .find(trimmed)?.let { m ->
+                val item = m.groupValues[1].trim().trimEnd('.', '!')
+                val natural = "I really enjoy $item."
+                return GrammarAnalysis(
+                    hasError = false,
+                    naturalExpression = natural,
+                    spokenCorrectionLine = "Excellent! Your sentence is correct. You can also say, \"$natural\""
+                )
+            }
+
+        if (domain == TopicDomain.ROUTINE &&
+            Regex("""\bi\s+wake\s+up\s+at\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower) &&
+            !lower.contains("usually")
+        ) {
+            val timePart = extractTimeMention(trimmed)
+            if (timePart != null) {
+                return GrammarAnalysis(
+                    hasError = false,
+                    naturalExpression = "I usually wake up at $timePart.",
+                    spokenCorrectionLine = "Excellent! Your sentence is correct. Adding \"usually\" makes it sound even more natural."
+                )
+            }
+        }
+
+        return GrammarAnalysis(hasError = false)
+    }
+
+    // =========================================================================
+    // CONTEXTUAL TOPIC-ANCHORED RESPONSE BUILDER
+    // =========================================================================
+
+    private fun buildTopicAnchoredResponse(
+        cleanSpoken: String,
+        lower: String,
+        words: List<String>,
+        topic: SpeakingPrompt,
+        domain: TopicDomain,
+        lastNovaQuestion: String,
+        previousMessages: List<NovaChatMessage>,
+        studentName: String?,
+        currentTurn: Int
+    ): Triple<String, List<String>, String?> {
+        val extractedName = extractSpokenPersonName(cleanSpoken)
+        val extractedPlace = extractPlace(cleanSpoken, lower)
+        val hobbyMatch = findHobbyMatch(lower)
+        val foodMatch = findFoodMatch(lower)
+        val timeMatch = extractTimeMention(cleanSpoken)
+        val studyMatch = findStudyOrWorkMatch(lower)
+        val personMention = findPersonMention(lower)
+        val positiveMood = hasAnyWord(lower, listOf("fine", "good", "great", "awesome", "wonderful", "fantastic", "happy", "amazing", "excited", "well", "blessed")) ||
+            lower.contains("not bad") || lower.contains("pretty good") || lower.contains("doing well")
+        val tiredMood = hasAnyWord(lower, listOf("tired", "sleepy", "exhausted", "busy", "stressed", "sad", "bored", "sick", "bad", "rough", "hard"))
+        val knownName = extractedName ?: extractCleanFirstName(studentName)
+
+        // Pure short greeting ("Hi", "Hello")
+        val pureGreeting = words.size <= 3 && hasAnyWord(lower, listOf("hi", "hello", "hey", "namaskar", "good morning", "good evening", "good afternoon"))
+        if (pureGreeting) {
+            val nameBit = if (knownName != null) " $knownName" else ""
+            return Triple(
+                "Hello$nameBit! Glad to practise with you.",
+                getDomainQuestionPool(topic, domain, knownName, null).map { it.first },
+                "Answer in 1 or 2 clear sentences about ${topic.title.ifBlank { "this topic" }}."
+            )
+        }
+
+        // Student introduced their name ("My name is Rahat" / "My name Ali")
+        if (extractedName != null) {
+            val placeTail = if (extractedPlace != null) " $extractedPlace sounds like a wonderful place!" else ""
+            val reaction = if (domain == TopicDomain.INTRODUCTION) {
+                "Nice to meet you, $extractedName!$placeTail"
+            } else {
+                "Nice to meet you, $extractedName!"
+            }
+            val qs = when (domain) {
+                TopicDomain.INTRODUCTION -> listOf(
+                    "How old are you, $extractedName?",
+                    "Which class do you study in, $extractedName?",
+                    "Where do you live, $extractedName?",
+                    "What is your favourite subject or hobby, $extractedName?"
+                )
+                else -> getDomainQuestionPool(topic, domain, extractedName, null).map { it.first }
+            }
+            return Triple(reaction, qs, "Answer clearly in 1 or 2 full sentences.")
+        }
+
+        // Student answered a mood / "How are you?" opener
+        val lastAskedHowAreYou = lastNovaQuestion.contains("how are you", ignoreCase = true) ||
+            lastNovaQuestion.contains("how's your day", ignoreCase = true) ||
+            lastNovaQuestion.contains("how has your day", ignoreCase = true)
+        if ((positiveMood || tiredMood) && words.size <= 12 && hobbyMatch == null && foodMatch == null && extractedPlace == null && studyMatch == null && timeMatch == null && personMention == null) {
+            if (tiredMood) {
+                val qs = if (domain == TopicDomain.ROUTINE) {
+                    listOf(
+                        "What time do you usually get some rest in the evening?",
+                        "What helps you relax after a busy day?"
+                    )
+                } else {
+                    getDomainQuestionPool(topic, domain, knownName, null).map { it.first }
+                }
+                return Triple(
+                    "I understand, busy days can be tiring.",
+                    qs,
+                    "Take a breath and reply in one simple sentence."
+                )
+            }
+            if (positiveMood) {
+                val reaction = if (lastAskedHowAreYou) {
+                    "I am glad to hear you are doing well!"
+                } else {
+                    "That is great to hear!"
+                }
+                val qs = if (domain == TopicDomain.INTRODUCTION) {
+                    val hasAskedName = previousMessages.any { !it.isNova && extractSpokenPersonName(it.text) != null }
+                    if (!hasAskedName) {
+                        listOf(
+                            "What is your name?",
+                            "Where do you live?",
+                            "Which class do you study in?",
+                            "What do you enjoy doing in your free time?"
+                        )
+                    } else {
+                        listOf(
+                            "Which class do you study in?",
+                            "What is your favourite subject?",
+                            "What do you enjoy doing in your free time?"
+                        )
+                    }
+                } else {
+                    getDomainQuestionPool(topic, domain, knownName, null).map { it.first }
+                }
+                return Triple(reaction, qs, "Share a simple, clear sentence about yourself.")
+            }
+        }
+
+        // Domain-specific contextual logic (keeps topic strictly locked!)
+        return when (domain) {
+            TopicDomain.INTRODUCTION -> buildIntroductionFollowUp(
+                cleanSpoken, lower, words, extractedPlace, hobbyMatch, foodMatch, studyMatch, personMention, knownName, currentTurn
+            )
+            TopicDomain.FAMILY -> buildFamilyFollowUp(
+                cleanSpoken, lower, words, personMention, foodMatch, hobbyMatch, studyMatch, topic
+            )
+            TopicDomain.SCHOOL -> buildSchoolFollowUp(
+                cleanSpoken, lower, words, studyMatch, hobbyMatch, personMention, timeMatch, topic
+            )
+            TopicDomain.ROUTINE -> buildRoutineFollowUp(
+                cleanSpoken, lower, words, timeMatch, foodMatch, studyMatch, hobbyMatch, topic
+            )
+            TopicDomain.HOBBIES -> buildHobbiesFollowUp(
+                cleanSpoken, lower, words, hobbyMatch, timeMatch, personMention, topic
+            )
+            TopicDomain.TRAVEL -> buildTravelFollowUp(
+                cleanSpoken, lower, words, extractedPlace, foodMatch, personMention, topic
+            )
+            TopicDomain.FOOD -> buildFoodFollowUp(
+                cleanSpoken, lower, words, foodMatch, personMention, timeMatch, topic
+            )
+            TopicDomain.CAREER -> buildCareerFollowUp(
+                cleanSpoken, lower, words, studyMatch, personMention, topic
+            )
+            TopicDomain.TECHNOLOGY -> buildTechnologyFollowUp(
+                cleanSpoken, lower, words, studyMatch, hobbyMatch, topic
+            )
+            TopicDomain.NATURE -> buildNatureFollowUp(
+                cleanSpoken, lower, words, extractedPlace, timeMatch, topic
+            )
+            TopicDomain.CUSTOM -> buildCustomTopicFollowUp(
+                cleanSpoken, lower, words, topic, hobbyMatch, studyMatch, personMention
+            )
+        }
+    }
+
+    private fun buildIntroductionFollowUp(
+        cleanSpoken: String,
+        lower: String,
+        words: List<String>,
+        extractedPlace: String?,
+        hobbyMatch: ContextualMatch?,
+        foodMatch: String?,
+        studyMatch: ContextualMatch?,
+        personMention: String?,
+        knownName: String?,
+        currentTurn: Int
+    ): Triple<String, List<String>, String?> {
+        // Age mentioned ("I am 15 years old")
+        if (Regex("""\b\d{1,2}\s+years?\s+old\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
+            return Triple(
+                "Excellent! Your sentence is correct.",
+                listOf(
+                    "Which class do you study in?",
+                    "Where do you live?",
+                    "What is your favourite subject?"
+                ),
+                "Answer using 'I am in Class...' or 'I study in Class...'."
+            )
+        }
+        // Class / grade mentioned ("I study in class 9")
+        if (Regex("""\bclass\s+\d{1,2}\b|\bgrade\s+\d{1,2}\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
+            return Triple(
+                "Very good!",
+                listOf(
+                    "What is your favourite subject?",
+                    "Where do you live?",
+                    "What do you enjoy doing in your free time?"
+                ),
+                "Name one subject you enjoy and share a short reason."
+            )
+        }
+        if (hobbyMatch != null) {
+            return Triple(hobbyMatch.reaction, hobbyMatch.questions, hobbyMatch.hint)
+        }
+        if (studyMatch != null) {
+            return Triple(studyMatch.reaction, studyMatch.questions, studyMatch.hint)
+        }
+        if (extractedPlace != null) {
+            return Triple(
+                "Oh, $extractedPlace sounds like a nice place!",
+                listOf(
+                    "What do you like most about living in $extractedPlace?",
+                    "Who do you live with in $extractedPlace?",
+                    "What do you usually do on weekends in $extractedPlace?"
+                ),
+                "Share one detail you enjoy about $extractedPlace."
+            )
+        }
+        if (personMention != null) {
+            return Triple(
+                "It is lovely that you mentioned your $personMention!",
+                listOf(
+                    "What do you enjoy doing together with your $personMention?",
+                    "What is your favourite hobby in your free time?"
+                ),
+                "Describe one activity in a full sentence."
+            )
+        }
+        if (foodMatch != null) {
+            return Triple(
+                "Ooh, $foodMatch sounds delicious!",
+                listOf(
+                    "Who makes $foodMatch best at your home?",
+                    "What do you usually enjoy doing in your free time?"
+                ),
+                "Reply in 1 or 2 clear sentences."
+            )
+        }
+        val focus = extractFocusPhrase(cleanSpoken)
+        val qs = if (focus != null && words.size >= 3) {
+            listOf(
+                "Why do you like $focus?",
+                "What do you enjoy doing in your free time?",
+                "What is one goal you have for learning English?"
+            )
+        } else {
+            listOf(
+                "Which class do you study in?",
+                "What is your favourite subject?",
+                "What do you enjoy doing in your free time?",
+                "Where do you live?"
+            )
+        }
+        val praise = if (currentTurn <= 2) "Good! Thanks for sharing." else "Nice! Keep going."
+        return Triple(praise, qs, "Answer clearly in 1 or 2 simple sentences.")
+    }
+
+    private fun buildFamilyFollowUp(
+        cleanSpoken: String,
+        lower: String,
+        words: List<String>,
+        personMention: String?,
+        foodMatch: String?,
+        hobbyMatch: ContextualMatch?,
+        studyMatch: ContextualMatch?,
+        topic: SpeakingPrompt
+    ): Triple<String, List<String>, String?> {
+        if (Regex("""\b\d+\s+(?:people|members|persons)\b|\bbrothers?\b|\bsisters?\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
+            return Triple(
+                "Thank you for sharing about your family!",
+                listOf(
+                    "What does your father or mother do?",
+                    "What do you enjoy doing together with your family?",
+                    "Who are you closest to in your family?"
+                ),
+                "Talk about one family member using simple present tense."
+            )
+        }
+        if (personMention != null) {
+            return Triple(
+                "It sounds like your $personMention means a lot to you!",
+                listOf(
+                    "What is one nice quality you admire in your $personMention?",
+                    "What do you and your $personMention usually do together?",
+                    "How do you help your family at home?"
+                ),
+                "Describe what you enjoy doing together in 1–2 sentences."
+            )
+        }
+        if (foodMatch != null) {
+            return Triple(
+                "Yum, sharing $foodMatch with family is always special!",
+                listOf(
+                    "Who usually cooks $foodMatch in your family?",
+                    "Do you all eat dinner together every evening?"
+                ),
+                "Tell Nova who cooks or shares meals in your family."
+            )
+        }
+        if (hobbyMatch != null) {
+            return Triple(
+                "Oh nice, ${hobbyMatch.display} sounds fun! Bringing it back to your family:",
+                listOf(
+                    "Does anyone in your family enjoy ${hobbyMatch.display} with you?",
+                    "What does your family like doing together on Sundays?"
+                ),
+                "Connect your answer back to your family."
+            )
+        }
+        if (studyMatch != null) {
+            return Triple(
+                "That's great!",
+                listOf(
+                    "Who in your family helps you most with your studies?",
+                    "What is a favourite memory you have with your family?"
+                ),
+                "Mention a family member and how they support you."
+            )
+        }
+        val focus = extractFocusPhrase(cleanSpoken)
+        return Triple(
+            "Thanks for sharing that about your family!",
+            if (focus != null) listOf(
+                "What do you enjoy doing with your family on weekends?",
+                "How do you help your parents at home?",
+                "What is a happy memory you share with your family?"
+            ) else getDomainQuestionPool(topic, TopicDomain.FAMILY, null, null).map { it.first },
+            "Share a real detail about your family in 1 or 2 full sentences."
         )
-        val transition = transitions[(previousMessages.size) % transitions.size]
-        val fullText = "$transition\n\n${fresh.first}"
-        val audioText = "$transition ${fresh.first}"
-        return Triple(fresh.first, fullText, "${fresh.second}|||$audioText")
+    }
+
+    private fun buildSchoolFollowUp(
+        cleanSpoken: String,
+        lower: String,
+        words: List<String>,
+        studyMatch: ContextualMatch?,
+        hobbyMatch: ContextualMatch?,
+        personMention: String?,
+        timeMatch: String?,
+        topic: SpeakingPrompt
+    ): Triple<String, List<String>, String?> {
+        if (Regex("""\bclass\s+\d{1,2}\b|\bgrade\s+\d{1,2}\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
+            return Triple(
+                "Very good!",
+                listOf(
+                    "Which subject do you like the most at school?",
+                    "How do you usually go to school in the morning?",
+                    "Who is your favourite teacher at school?"
+                ),
+                "Name a subject or teacher and give one short reason."
+            )
+        }
+        if (studyMatch != null) {
+            return Triple(
+                studyMatch.reaction,
+                listOf(
+                    "Why do you find ${studyMatch.display} interesting?",
+                    "Who is your ${studyMatch.display} teacher, and what do you like about their class?",
+                    "What other activities do you enjoy at school?"
+                ),
+                "Give one simple reason using 'because'."
+            )
+        }
+        if (hobbyMatch != null) {
+            return Triple(
+                "Nice, ${hobbyMatch.display} is great! Keeping our chat focused on your school:",
+                listOf(
+                    "Do you get to enjoy ${hobbyMatch.display} at school with your classmates?",
+                    "What is your favourite part of a normal school day?"
+                ),
+                "Tell Nova how that activity connects to your school life."
+            )
+        }
+        if (personMention != null) {
+            return Triple(
+                "Having supportive $personMention makes school much happier!",
+                listOf(
+                    "What do you and your school friends usually do during lunch break?",
+                    "Which subject do you enjoy studying with them?"
+                ),
+                "Describe your break time or class activity at school."
+            )
+        }
+        if (timeMatch != null) {
+            return Triple(
+                "Nice, $timeMatch sounds like a steady school timing!",
+                listOf(
+                    "What is your first class when you reach school?",
+                    "What do you enjoy most about your school?"
+                ),
+                "Share your first class or favourite school activity."
+            )
+        }
+        return Triple(
+            "Thanks for sharing about your school!",
+            getDomainQuestionPool(topic, TopicDomain.SCHOOL, null, null).map { it.first },
+            "Answer in 1 or 2 simple sentences about your school."
+        )
+    }
+
+    private fun buildRoutineFollowUp(
+        cleanSpoken: String,
+        lower: String,
+        words: List<String>,
+        timeMatch: String?,
+        foodMatch: String?,
+        studyMatch: ContextualMatch?,
+        hobbyMatch: ContextualMatch?,
+        topic: SpeakingPrompt
+    ): Triple<String, List<String>, String?> {
+        if (timeMatch != null) {
+            return Triple(
+                "Got it — around $timeMatch is a clear daily habit!",
+                listOf(
+                    "What is the first thing you do right after $timeMatch?",
+                    "What time do you usually eat lunch or take a break?",
+                    "What do you normally do in the evening?",
+                    "What time do you go to bed at night?"
+                ),
+                "Use clear time words like 'then', 'after that', 'in the evening', or 'at 9 PM'."
+            )
+        }
+        if (foodMatch != null) {
+            return Triple(
+                "Sounds tasty! Having $foodMatch is a nice part of the day.",
+                listOf(
+                    "What time do you usually eat your meals?",
+                    "What do you do after finishing your studies in the evening?"
+                ),
+                "Use 'at' before clock times and 'in the evening/morning' for parts of the day."
+            )
+        }
+        if (studyMatch != null) {
+            return Triple(
+                "Good focus on your studies!",
+                listOf(
+                    "How many hours do you usually study each evening?",
+                    "What do you do to relax before going to sleep?"
+                ),
+                "Mention the time you study and what you do afterward."
+            )
+        }
+        if (hobbyMatch != null) {
+            return Triple(
+                "Nice way to spend part of your day with ${hobbyMatch.display}!",
+                listOf(
+                    "At what time of day do you usually do ${hobbyMatch.display}?",
+                    "How is your Sunday routine different from school days?"
+                ),
+                "Use 'on Sundays' or 'in the afternoon' in your reply."
+            )
+        }
+        return Triple(
+            "That sounds like a good routine!",
+            getDomainQuestionPool(topic, TopicDomain.ROUTINE, null, null).map { it.first },
+            "Share a clear time or daily habit using 'at', 'in', or 'on'."
+        )
+    }
+
+    private fun buildHobbiesFollowUp(
+        cleanSpoken: String,
+        lower: String,
+        words: List<String>,
+        hobbyMatch: ContextualMatch?,
+        timeMatch: String?,
+        personMention: String?,
+        topic: SpeakingPrompt
+    ): Triple<String, List<String>, String?> {
+        if (hobbyMatch != null) {
+            return Triple(hobbyMatch.reaction, hobbyMatch.questions, hobbyMatch.hint)
+        }
+        if (personMention != null) {
+            return Triple(
+                "Spending free time with your $personMention sounds fun!",
+                listOf(
+                    "What game or hobby do you and your $personMention enjoy the most?",
+                    "How often do you get time for your favourite hobby?"
+                ),
+                "Name one activity and say why you like it."
+            )
+        }
+        if (timeMatch != null) {
+            return Triple(
+                "Making time around $timeMatch sounds relaxing!",
+                listOf(
+                    "Why do you enjoy doing that hobby?",
+                    "Is there any new hobby you would like to try?"
+                ),
+                "Give a simple reason using 'because'."
+            )
+        }
+        return Triple(
+            "Nice! Free time activities keep us energized.",
+            getDomainQuestionPool(topic, TopicDomain.HOBBIES, null, null).map { it.first },
+            "Talk about one hobby you enjoy and when you do it."
+        )
+    }
+
+    private fun buildTravelFollowUp(
+        cleanSpoken: String,
+        lower: String,
+        words: List<String>,
+        extractedPlace: String?,
+        foodMatch: String?,
+        personMention: String?,
+        topic: SpeakingPrompt
+    ): Triple<String, List<String>, String?> {
+        if (extractedPlace != null) {
+            return Triple(
+                "$extractedPlace sounds like a wonderful place to visit!",
+                listOf(
+                    "What would you love to see first in $extractedPlace?",
+                    "Who would you like to travel to $extractedPlace with?",
+                    "How would you prefer to travel there — by train, bus, or plane?"
+                ),
+                "Describe one place or reason you want to visit $extractedPlace."
+            )
+        }
+        if (personMention != null) {
+            return Triple(
+                "Traveling with your $personMention makes every trip more memorable!",
+                listOf(
+                    "What is the best trip you have taken so far?",
+                    "Do you prefer visiting quiet mountains or busy cities?"
+                ),
+                "Share one memory or place you enjoyed visiting."
+            )
+        }
+        if (foodMatch != null) {
+            return Triple(
+                "Trying local $foodMatch is one of the best parts of traveling!",
+                listOf(
+                    "Which place would you love to visit next for its food and sights?",
+                    "What do you always pack when going on a trip?"
+                ),
+                "Name a destination or a favorite travel memory."
+            )
+        }
+        return Triple(
+            "That sounds like a lovely travel idea!",
+            getDomainQuestionPool(topic, TopicDomain.TRAVEL, null, null).map { it.first },
+            "Use 'I want to visit...' or 'Last year I went to...'."
+        )
+    }
+
+    private fun buildFoodFollowUp(
+        cleanSpoken: String,
+        lower: String,
+        words: List<String>,
+        foodMatch: String?,
+        personMention: String?,
+        timeMatch: String?,
+        topic: SpeakingPrompt
+    ): Triple<String, List<String>, String?> {
+        if (foodMatch != null) {
+            return Triple(
+                "Ooh, $foodMatch sounds delicious!",
+                listOf(
+                    "Who cooks $foodMatch best at your home?",
+                    "How often do you enjoy eating $foodMatch?",
+                    "What makes $foodMatch taste so good to you?"
+                ),
+                "Describe the taste or who prepares $foodMatch."
+            )
+        }
+        if (personMention != null) {
+            return Triple(
+                "Eating together with your $personMention is always warm and cheerful!",
+                listOf(
+                    "What dish does your $personMention cook best?",
+                    "Do you prefer sweet snacks or spicy dishes?"
+                ),
+                "Name a dish and tell why you like it."
+            )
+        }
+        return Triple(
+            "Food brings everyone together!",
+            getDomainQuestionPool(topic, TopicDomain.FOOD, null, null).map { it.first },
+            "Describe a meal you enjoy using simple taste words like 'tasty', 'spicy', or 'sweet'."
+        )
+    }
+
+    private fun buildCareerFollowUp(
+        cleanSpoken: String,
+        lower: String,
+        words: List<String>,
+        studyMatch: ContextualMatch?,
+        personMention: String?,
+        topic: SpeakingPrompt
+    ): Triple<String, List<String>, String?> {
+        if (studyMatch != null) {
+            return Triple(
+                "Working hard on ${studyMatch.display} is a smart step toward your future!",
+                listOf(
+                    "What career or job do you dream of in the future?",
+                    "Why does that goal inspire you?"
+                ),
+                "Use 'I want to become...' and give one clear reason."
+            )
+        }
+        if (personMention != null) {
+            return Triple(
+                "Learning from your $personMention can really inspire your goals!",
+                listOf(
+                    "What skills do you want to improve to reach your future goal?",
+                    "How can speaking good English help you in that career?"
+                ),
+                "Explain in 1 or 2 simple sentences."
+            )
+        }
+        return Triple(
+            "That is a thoughtful goal!",
+            getDomainQuestionPool(topic, TopicDomain.CAREER, null, null).map { it.first },
+            "Use phrases like 'I hope to become...' or 'I want to work in...'."
+        )
+    }
+
+    private fun buildTechnologyFollowUp(
+        cleanSpoken: String,
+        lower: String,
+        words: List<String>,
+        studyMatch: ContextualMatch?,
+        hobbyMatch: ContextualMatch?,
+        topic: SpeakingPrompt
+    ): Triple<String, List<String>, String?> {
+        val focus = extractFocusPhrase(cleanSpoken)
+        if (focus != null && words.size >= 3) {
+            return Triple(
+                "Good point about $focus!",
+                listOf(
+                    "How does $focus help you with school or learning?",
+                    "How much time do you spend using a phone or computer each day?",
+                    "What is one helpful rule students should follow when using technology?"
+                ),
+                "Explain one benefit or good habit about technology."
+            )
+        }
+        return Triple(
+            "Technology is part of everyday student life today!",
+            getDomainQuestionPool(topic, TopicDomain.TECHNOLOGY, null, null).map { it.first },
+            "Give a simple example of how you use a phone or computer."
+        )
+    }
+
+    private fun buildNatureFollowUp(
+        cleanSpoken: String,
+        lower: String,
+        words: List<String>,
+        extractedPlace: String?,
+        timeMatch: String?,
+        topic: SpeakingPrompt
+    ): Triple<String, List<String>, String?> {
+        val focus = extractFocusPhrase(cleanSpoken)
+        if (extractedPlace != null) {
+            return Triple(
+                "The nature around $extractedPlace sounds lovely!",
+                listOf(
+                    "What season or weather is nicest in $extractedPlace?",
+                    "What is one easy way students can help keep nature clean?"
+                ),
+                "Describe the weather, trees, or seasons in simple words."
+            )
+        }
+        if (focus != null && words.size >= 3) {
+            return Triple(
+                "Yes, $focus is so refreshing!",
+                listOf(
+                    "Why do you enjoy $focus in nature?",
+                    "How can we take better care of our environment every day?"
+                ),
+                "Share one reason or small habit for protecting nature."
+            )
+        }
+        return Triple(
+            "Spending time close to nature is really refreshing!",
+            getDomainQuestionPool(topic, TopicDomain.NATURE, null, null).map { it.first },
+            "Describe a place in nature or your favourite season."
+        )
+    }
+
+    private fun buildCustomTopicFollowUp(
+        cleanSpoken: String,
+        lower: String,
+        words: List<String>,
+        topic: SpeakingPrompt,
+        hobbyMatch: ContextualMatch?,
+        studyMatch: ContextualMatch?,
+        personMention: String?
+    ): Triple<String, List<String>, String?> {
+        val label = topic.title.trim().ifBlank { "this topic" }
+        val focus = extractFocusPhrase(cleanSpoken)
+        val qs = buildList {
+            if (focus != null && words.size >= 3) {
+                add("What makes $focus important when thinking about $label?")
+            }
+            add("Can you give a short real-life example related to $label?")
+            add("Why is $label useful or interesting for students today?")
+            add("How has your experience with $label been so far?")
+        }
+        val reaction = when {
+            hobbyMatch != null -> "Nice! Linking that to $label,"
+            studyMatch != null -> "Good point about ${studyMatch.display}!"
+            personMention != null -> "Nice that you mentioned your $personMention!"
+            focus != null -> "Good answer about $focus!"
+            else -> "Thank you for sharing clearly!"
+        }
+        return Triple(
+            reaction,
+            qs,
+            topic.followUpTip.ifBlank { "Stay on '$label' and answer in 1 or 2 complete sentences." }
+        )
+    }
+
+    // =========================================================================
+    // TOPIC RESOLUTION & STRUCTURED QUESTION POOLS
+    // =========================================================================
+
+    private fun resolveTopicDomain(topic: SpeakingPrompt): TopicDomain {
+        val text = "${topic.title} ${topic.category}".lowercase()
+        return when {
+            text.contains("intro") || text.contains("greeting") || text.contains("myself") || text.contains("about me") -> TopicDomain.INTRODUCTION
+            text.contains("family") || text.contains("parent") -> TopicDomain.FAMILY
+            text.contains("school") || text.contains("college") || text.contains("class") || text.contains("study") || text.contains("education") -> TopicDomain.SCHOOL
+            text.contains("time") || text.contains("routine") || text.contains("daily") || text.contains("habit") || text.contains("schedule") -> TopicDomain.ROUTINE
+            text.contains("hobby") || text.contains("hobbies") || text.contains("free time") || text.contains("sport") -> TopicDomain.HOBBIES
+            text.contains("travel") || text.contains("vacation") || text.contains("trip") -> TopicDomain.TRAVEL
+            text.contains("food") || text.contains("dish") || text.contains("meal") || text.contains("cook") -> TopicDomain.FOOD
+            text.contains("career") || text.contains("ambition") || text.contains("future") || text.contains("job") -> TopicDomain.CAREER
+            text.contains("tech") || text.contains("phone") || text.contains("internet") || text.contains("computer") -> TopicDomain.TECHNOLOGY
+            text.contains("nature") || text.contains("weather") || text.contains("environment") -> TopicDomain.NATURE
+            else -> TopicDomain.CUSTOM
+        }
+    }
+
+    private fun getDomainQuestionPool(
+        topic: SpeakingPrompt,
+        domain: TopicDomain,
+        studentName: String?,
+        knownWord: String?
+    ): List<Pair<String, String>> {
+        val nameSuffix = if (!studentName.isNullOrBlank()) ", $studentName" else ""
+        return when (domain) {
+            TopicDomain.INTRODUCTION -> listOf(
+                "What is your name$nameSuffix?" to "Say 'My name is...' cleanly.",
+                "How old are you?" to "Say 'I am ... years old.'",
+                "Which class do you study in?" to "Try 'I study in Class...' or 'I am in Class...'",
+                "What is your favourite subject?" to "Name one subject and say why you like it.",
+                "Where do you live?" to "Use 'in' before your city or town, like 'I live in...'.",
+                "What do you enjoy doing in your free time?" to "Mention one hobby in a full sentence."
+            )
+            TopicDomain.FAMILY -> listOf(
+                "How many people are in your family?" to "Say 'There are ... people in my family.'",
+                "Who do you spend the most time with at home?" to "Mention a parent, sibling, or grandparent.",
+                "What do you and your family enjoy doing together on weekends?" to "Share one simple activity you do together.",
+                "How do you help your family at home?" to "Give one everyday example using present simple.",
+                "What is a happy memory you have with your family?" to "Use simple past verbs like 'went', 'ate', or 'laughed'."
+            )
+            TopicDomain.SCHOOL -> listOf(
+                "Which class do you study in?" to "Say 'I am in Class...'.",
+                "What is your favourite subject at school?" to "Mention one subject and give a short reason.",
+                "How do you go to school each morning?" to "Use 'by bus', 'by bicycle', or 'on foot'.",
+                "Who is your best friend at school?" to "Share their name and one thing you do together.",
+                "What do you enjoy doing during your school break?" to "Talk about talking with friends, eating, or playing."
+            )
+            TopicDomain.ROUTINE -> listOf(
+                "What time do you usually wake up on weekdays?" to "Use 'at' before the time, e.g., 'I wake up at 6 AM.'",
+                "What do you usually eat for breakfast?" to "Say 'I usually have... for breakfast.'",
+                "What time do you reach school or start studying?" to "Use 'at' with your exact timing.",
+                "What do you usually do in the evening?" to "Remember to say 'in the evening'.",
+                "How is your Sunday routine different from weekdays?" to "Use 'on Sundays' to describe one relaxing habit."
+            )
+            TopicDomain.HOBBIES -> listOf(
+                "What is your favourite hobby?" to "Say 'My favourite hobby is...' or 'I love...'.",
+                "When did you start enjoying that hobby?" to "Say 'I started...' or 'For two years'.",
+                "Who do you usually share this hobby with?" to "Talk about friends or family members.",
+                "How do you feel when you spend time on your hobby?" to "Use feeling words like 'relaxed', 'happy', or 'excited'.",
+                "Is there a new skill or hobby you want to learn next?" to "Use 'I want to learn...'."
+            )
+            TopicDomain.TRAVEL -> listOf(
+                "What is one place you would love to visit?" to "Say 'I would love to visit...'.",
+                "What makes that place special or interesting to you?" to "Mention nature, food, or famous sights.",
+                "Who would you love to go with on that trip?" to "Say 'I would go with my...'.",
+                "What is the best trip you have taken so far?" to "Share one real travel memory using past tense.",
+                "Do you prefer mountains or beaches for a holiday?" to "Pick one and explain briefly using 'because'."
+            )
+            TopicDomain.FOOD -> listOf(
+                "What is your favourite dish or meal?" to "Name one food you really enjoy.",
+                "Who makes that dish best?" to "Mention your mother, father, or a favourite shop.",
+                "What do you usually eat for dinner at home?" to "Keep your sentence simple and clear.",
+                "Do you prefer homemade food or restaurant food?" to "Give one short reason using 'because'.",
+                "Have you ever tried cooking any simple dish yourself?" to "Share what you cooked or want to learn to cook."
+            )
+            TopicDomain.CAREER -> listOf(
+                "What job or career do you dream of in the future?" to "Say 'I want to become a...'.",
+                "Why does that profession interest you?" to "Share one reason using 'because'.",
+                "Which school subject helps the most with that goal?" to "Connect your studies to your goal.",
+                "Who inspires you the most when thinking about your future?" to "Mention a parent, teacher, or role model.",
+                "How will speaking fluent English help you in that career?" to "Give one practical example."
+            )
+            TopicDomain.TECHNOLOGY -> listOf(
+                "What do you use a phone or computer for most often?" to "Share one study or everyday use.",
+                "Which app or website helps you most with learning?" to "Name one helpful tool and why.",
+                "How much time do you spend on screens each day?" to "Reply using 'about' or 'around'.",
+                "What is one advantage of learning English using technology?" to "Mention practice, videos, or speaking.",
+                "Why is it good to take breaks from phones every day?" to "Give one simple reason."
+            )
+            TopicDomain.NATURE -> listOf(
+                "What kind of weather or season do you like the most?" to "Say 'My favourite season is... because...'.",
+                "Is there a park, river, or hill near your home that you like?" to "Describe it in 1 or 2 simple sentences.",
+                "What do you enjoy doing outdoors on a sunny day?" to "Mention walking, playing, or relaxing outside.",
+                "Why are trees and clean water important for everyone?" to "Give one clear, simple reason.",
+                "What small habit can students follow to keep their surroundings clean?" to "Share one practical action."
+            )
+            TopicDomain.CUSTOM -> {
+                val label = topic.title.trim().ifBlank { "this topic" }
+                val kwCue = topic.recommendedKeywords.firstOrNull { it.isNotBlank() }
+                buildList {
+                    add("What comes to your mind first when you hear about $label?" to "Share one clear idea about $label.")
+                    if (kwCue != null) {
+                        add("How would you describe $kwCue in $label?" to "Try using '$kwCue' inside a full sentence.")
+                    }
+                    add("Can you share a short personal experience related to $label?" to "Tell a brief 1–2 sentence story.")
+                    add("Why is $label important in everyday life?" to "Explain using 'because'.")
+                    add("What is one question or thought you find most interesting about $label?" to "Keep your answer clear and simple.")
+                }
+            }
+        }
+    }
+
+    private fun pickFreshTopicQuestion(
+        candidates: List<String>,
+        previouslyAsked: Set<String>,
+        topic: SpeakingPrompt,
+        domain: TopicDomain,
+        cleanSpoken: String,
+        currentTurn: Int
+    ): String {
+        for (q in candidates) {
+            val single = ensureSingleQuestion(q)
+            if (single.isNotBlank() && !isAlreadyAsked(single, previouslyAsked)) {
+                return single
+            }
+        }
+        val pool = getDomainQuestionPool(topic, domain, studentName = null, knownWord = null)
+        for ((q, _) in pool) {
+            val single = ensureSingleQuestion(q)
+            if (single.isNotBlank() && !isAlreadyAsked(single, previouslyAsked)) {
+                return single
+            }
+        }
+        val label = topic.title.trim().ifBlank { "this topic" }
+        val fallbackPool = listOf(
+            "What else would you like to share about $label?",
+            "Can you give one short example about $label from your life?",
+            "What do you enjoy most when talking about $label?"
+        )
+        return fallbackPool.firstOrNull { !isAlreadyAsked(it, previouslyAsked) } ?: ensureSingleQuestion(candidates.first())
+    }
+
+    // =========================================================================
+    // HELPERS & TEXT SANITIZATION
+    // =========================================================================
+
+    /**
+     * Guarantees Nova asks at most ONE question per message.
+     */
+    private fun ensureSingleQuestion(raw: String): String {
+        val cleaned = raw.trim().replace(Regex("\\s+"), " ")
+        val firstQMark = cleaned.indexOf('?')
+        if (firstQMark == -1) return if (cleaned.endsWith(".")) cleaned else "$cleaned?"
+        // Keep only the single sentence containing the first '?'
+        val upToFirstQ = cleaned.substring(0, firstQMark + 1)
+        val sentenceStart = maxOf(
+            upToFirstQ.lastIndexOf(". "),
+            upToFirstQ.lastIndexOf("! "),
+            upToFirstQ.lastIndexOf("\n")
+        )
+        val singleSentence = if (sentenceStart >= 0) {
+            upToFirstQ.substring(sentenceStart + 1).trim()
+        } else {
+            upToFirstQ.trim()
+        }
+        // Also simplify stacked ", and what..." or " and where..." within the same question
+        return singleSentence
+            .replace(Regex(",\\s*and\\s+(?:what|where|when|who|why|how)\\b[^?]*\\?", RegexOption.IGNORE_CASE), "?")
+            .trim()
+    }
+
+    private fun String.ensureSentencePeriod(): String {
+        val t = trim()
+        if (t.isEmpty()) return t
+        return if (t.endsWith(".") || t.endsWith("!") || t.endsWith("?")) t else "$t."
+    }
+
+    private fun isGenericPraise(reaction: String): Boolean {
+        val l = reaction.lowercase()
+        return l.startsWith("good!") || l.startsWith("nice!") || l.startsWith("thank you for sharing")
     }
 
     private fun extractCleanFirstName(name: String?): String? {
@@ -214,7 +1516,6 @@ object HumanConversationEngine {
         previousMessages.filter { it.isNova }.forEach { msg ->
             addNormalized(msg.evaluation?.followUpQuestion)
             addNormalized(msg.text)
-            // Also extract any sentence ending with '?'
             Regex("[^.!?\\n]+\\?").findAll(msg.text).forEach { match ->
                 addNormalized(match.value)
             }
@@ -229,63 +1530,38 @@ object HumanConversationEngine {
         val norm = normalizeQ(candidate)
         if (norm in previouslyAsked) return true
         return previouslyAsked.any { prev ->
-            prev.length > 15 && (prev.contains(norm) || norm.contains(prev))
+            prev.length > 12 && (prev.contains(norm) || norm.contains(prev))
         }
     }
 
-    private fun pickFreshQuestion(
-        candidates: List<String>,
-        previouslyAsked: Set<String>,
-        topic: SpeakingPrompt,
-        cleanSpoken: String
-    ): String {
-        for (q in candidates) {
-            if (!isAlreadyAsked(q, previouslyAsked)) {
-                return q
-            }
-        }
-        // Final fallback still grounded in the student's actual words rather than generic topic boilerplate
-        val focus = extractFocusPhrase(cleanSpoken)
-        val extraPool = if (focus != null) {
-            listOf(
-                "How did you first get interested in $focus?",
-                "What's your favorite memory involving $focus?",
-                "Who do you usually share $focus with?"
-            )
-        } else {
-            listOf(
-                "What's been the best part of your week so far?",
-                "What's something fun you're looking forward to soon?",
-                "Tell me more — how do you usually feel when doing that?"
-            )
-        }
-        return extraPool.firstOrNull { !isAlreadyAsked(it, previouslyAsked) } ?: candidates.first()
-    }
-
-    private fun detectAndAnswerStudentQuestion(cleanSpoken: String, lower: String): String? {
+    private fun detectAndAnswerStudentQuestion(
+        cleanSpoken: String,
+        lower: String,
+        topic: SpeakingPrompt
+    ): String? {
         return when {
             lower.contains("how about you") ||
                 lower.contains("what about you") ||
                 lower.contains("and you") ||
                 lower.contains("how are you") ||
                 lower.contains("how r u") ->
-                "I'm doing great, thanks so much for asking! Chatting with you always makes my day brighter."
+                "I'm doing great, thanks so much for asking!"
 
             lower.contains("who are you") || lower.contains("what is your name") || lower.contains("what's your name") ->
-                "I'm Nova, your speaking partner! I love helping people feel comfortable chatting in English."
+                "I'm Nova, your English speaking teacher!"
 
             lower.contains("where are you from") || lower.contains("where do you live") ->
-                "I'm right here online whenever you want to chat — though I hear so many cool stories from learners in Assam and across India!"
+                "I'm right here online to help you practise English anytime."
 
             lower.contains("do you like ") -> {
                 val likedThing = cleanSpoken.substringAfter("like ", "")
                     .replace("?", "")
                     .trim()
-                    .take(35)
+                    .take(30)
                 if (likedThing.isNotBlank()) {
-                    "Oh, I definitely think $likedThing is awesome! There's so much to love about it."
+                    "Yes, I think $likedThing is great!"
                 } else {
-                    "Yes, I think that sounds really cool!"
+                    "Yes, I think that sounds great!"
                 }
             }
 
@@ -293,294 +1569,10 @@ object HumanConversationEngine {
         }
     }
 
-    private fun buildContextReactionAndQuestions(
-        cleanSpoken: String,
-        lower: String,
-        words: List<String>,
-        topic: SpeakingPrompt,
-        lastNovaQuestion: String,
-        previousMessages: List<NovaChatMessage>,
-        studentName: String?
-    ): Triple<String, List<String>, String?> {
-
-        // 1. Check if the student introduced their name (e.g., "My name is Rahat", "I'm Priya", "I am Bodaruddin")
-        val extractedName = extractSpokenPersonName(cleanSpoken)
-        // 2. Check hometown / place
-        val extractedPlace = extractPlace(cleanSpoken, lower)
-        // 3. Check hobby / sport / activity
-        val hobbyMatch = findHobbyMatch(lower)
-        // 4. Check food / drink
-        val foodMatch = findFoodMatch(lower)
-        // 5. Check time / routine expression
-        val timeMatch = extractTimeMention(cleanSpoken)
-        // 6. Check school / study / job
-        val studyOrWorkMatch = findStudyOrWorkMatch(lower)
-        // 7. Check family / friends
-        val personMention = findPersonMention(lower)
-        // 8. Check mood / greeting
-        val positiveMood = hasAnyWord(lower, listOf("fine", "good", "great", "awesome", "wonderful", "fantastic", "happy", "amazing", "excited", "well", "blessed")) ||
-            lower.contains("not bad") || lower.contains("pretty good") || lower.contains("doing well")
-        val tiredOrNegativeMood = hasAnyWord(lower, listOf("tired", "sleepy", "exhausted", "busy", "stressed", "sad", "bored", "sick", "bad", "rough", "hard"))
-
-        // Check if student's name is already known in history or profile
-        val knownName = extractedName ?: extractCleanFirstName(studentName)
-        val hasNameAlreadyBeenDiscussed = previousMessages.any { msg ->
-            !msg.isNova && extractSpokenPersonName(msg.text) != null
-        } || lastNovaQuestion.contains("what's your name", ignoreCase = true)
-
-        // Priority 1: Student just said their name!
-        if (extractedName != null) {
-            val placeTail = if (extractedPlace != null) " And $extractedPlace sounds like a really nice place!" else ""
-            val hobbyTail = if (hobbyMatch != null) " Plus, ${hobbyMatch.display} is awesome!" else ""
-            val reaction = "Oh, nice to meet you, $extractedName!$placeTail$hobbyTail"
-            val questions = when {
-                hobbyMatch != null -> hobbyMatch.questions
-                extractedPlace != null -> listOf(
-                    "What do you enjoy most about living in $extractedPlace, $extractedName?",
-                    "What do you usually like doing for fun around $extractedPlace?"
-                )
-                studyOrWorkMatch != null -> studyOrWorkMatch.questions
-                else -> listOf(
-                    "Where are you joining me from today, $extractedName?",
-                    "So tell me, $extractedName, what do you usually enjoy doing in your free time?",
-                    "Are you focusing on school or work right now, $extractedName?"
-                )
-            }
-            return Triple(reaction, questions, "Respond naturally in 1 or 2 full sentences—share real details just like chatting with a friend.")
-        }
-
-        // Priority 2: Pure short greeting ("Hi", "Hello", "Hey Nova")
-        val pureGreeting = words.size <= 3 && hasAnyWord(lower, listOf("hi", "hello", "hey", "namaskar", "good morning", "good evening", "good afternoon"))
-        if (pureGreeting) {
-            val nameBit = if (knownName != null) " $knownName" else ""
-            return Triple(
-                "Hey$nameBit! So glad you jumped on to chat with me.",
-                listOf(
-                    "How has your day been treating you so far?",
-                    "What's something interesting you did or saw today?"
-                ),
-                "Tell Nova how your day is going and add one small detail about what you did today."
-            )
-        }
-
-        // Priority 3: Student shared how they feel / mood ("I am fine", "Doing great", "A bit tired today")
-        val lastAskedHowAreYou = lastNovaQuestion.contains("how are you", ignoreCase = true) ||
-            lastNovaQuestion.contains("how has your day", ignoreCase = true) ||
-            lastNovaQuestion.contains("how's your day", ignoreCase = true)
-        if ((positiveMood || tiredOrNegativeMood) && words.size <= 14 && hobbyMatch == null && foodMatch == null && extractedPlace == null && studyOrWorkMatch == null) {
-            if (tiredOrNegativeMood) {
-                return Triple(
-                    "Aw, I hear you — those tiring days definitely catch up with us.",
-                    listOf(
-                        "What's been keeping you so busy or worn out lately?",
-                        "When you finally get a break, what helps you relax the most?",
-                        "Did you at least get a chance to grab something good to eat today?"
-                    ),
-                    "Share what made today tiring or what helps you recharge afterward."
-                )
-            }
-            if (positiveMood) {
-                val reaction = if (lastAskedHowAreYou) {
-                    "I'm really glad to hear you're doing well!"
-                } else {
-                    "Love that positive energy!"
-                }
-                val qs = if (topic.title.contains("Introduction", ignoreCase = true) && !hasNameAlreadyBeenDiscussed && knownName == null) {
-                    listOf(
-                        "Since we're just getting to know each other, what's your name and where are you from?",
-                        "What's been the highlight of your day so far?",
-                        "What do you usually enjoy doing when you get some free time?"
-                    )
-                } else {
-                    listOf(
-                        "What's been the best part of your day so far?",
-                        "What do you enjoy doing most in your free time lately?",
-                        "Have you got any fun plans coming up this week?"
-                    )
-                }
-                return Triple(reaction, qs, "Share a specific detail about your day or one thing you're looking forward to.")
-            }
-        }
-
-        // Priority 4: Student mentioned a specific hobby / sport / activity
-        if (hobbyMatch != null) {
-            return Triple(
-                hobbyMatch.reaction,
-                hobbyMatch.questions,
-                hobbyMatch.hint
-            )
-        }
-
-        // Priority 5: Student mentioned a hometown / city / country / travel spot
-        if (extractedPlace != null) {
-            val isTravelWant = lower.contains("visit") || lower.contains("travel") || lower.contains("go to") || lower.contains("dream")
-            val reaction = if (isTravelWant) {
-                "Ooh, $extractedPlace would be such an exciting place to visit!"
-            } else {
-                "Oh nice, $extractedPlace sounds like a really warm place to live!"
-            }
-            val qs = if (isTravelWant) {
-                listOf(
-                    "What's the very first thing you'd want to see or try in $extractedPlace?",
-                    "Who would you love to take along with you to $extractedPlace?"
-                )
-            } else {
-                listOf(
-                    "What's your favorite spot or thing to do around $extractedPlace?",
-                    "What kind of local food is $extractedPlace best known for?",
-                    "Have you lived in $extractedPlace for a long time?"
-                )
-            }
-            return Triple(reaction, qs, "Describe a specific sight, food, or place you love about $extractedPlace.")
-        }
-
-        // Priority 6: Student talked about Food or Drink
-        if (foodMatch != null) {
-            return Triple(
-                "Ooh, $foodMatch sounds delicious — you're making me hungry!",
-                listOf(
-                    "Do you prefer eating $foodMatch homemade, or is there a favorite spot you get it from?",
-                    "How often do you usually have $foodMatch, and who do you share it with?",
-                    "What's another dish you could never get tired of eating?"
-                ),
-                "Describe the taste, how it's cooked, or who makes it best."
-            )
-        }
-
-        // Priority 7: Student talked about School, Studies, Subject, or Work
-        if (studyOrWorkMatch != null) {
-            return Triple(
-                studyOrWorkMatch.reaction,
-                studyOrWorkMatch.questions,
-                studyOrWorkMatch.hint
-            )
-        }
-
-        // Priority 8: Student mentioned specific clock times or daily routine moments
-        if (timeMatch != null) {
-            return Triple(
-                "Got it — around $timeMatch! That sounds like a solid rhythm.",
-                listOf(
-                    "What's the very first thing you do right after $timeMatch?",
-                    "Do you keep that same schedule on weekends too, or sleep in a bit?",
-                    "And how do you usually spend the rest of your afternoon?"
-                ),
-                "Try using natural time phrases like 'right after that', 'usually around', or 'on weekends'."
-            )
-        }
-
-        // Priority 9: Student mentioned family or friends
-        if (personMention != null) {
-            return Triple(
-                "Aww, it's always special spending time with your $personMention!",
-                listOf(
-                    "What's something fun you and your $personMention did together recently?",
-                    "What do you guys usually talk about or enjoy doing together?"
-                ),
-                "Tell a quick story using past tense like 'we went', 'we talked', or 'we laughed'."
-            )
-        }
-
-        // Priority 10: Student used "because" or shared a personal goal / reason / past story
-        if (lower.contains("because ")) {
-            val reasonPart = cleanSpoken.substringAfter("because ", "").trim().take(50).trimEnd('.', '!')
-            val reaction = if (reasonPart.length >= 6) {
-                "That makes total sense — saying \"$reasonPart\" really puts it into perspective."
-            } else {
-                "I totally get why you feel that way!"
-            }
-            return Triple(
-                reaction,
-                listOf(
-                    "Have you always felt that way, or did an experience change how you see it?",
-                    "How does that affect what you do day to day?"
-                ),
-                "Explain with a quick example from your own life."
-            )
-        }
-
-        if (hasAnyWord(lower, listOf("yesterday", "last week", "last night", "last month", "last year", "weekend", "went", "visited", "watched", "played", "bought"))) {
-            val focus = extractFocusPhrase(cleanSpoken)
-            val reaction = if (focus != null) {
-                "Oh nice, sounds like $focus made things interesting!"
-            } else {
-                "Sounds like you had quite an eventful time!"
-            }
-            return Triple(
-                reaction,
-                listOf(
-                    "What was the best or funniest part of that?",
-                    "Who was there with you, and would you do it again?"
-                ),
-                "Practice past tense verbs like 'we saw', 'I felt', or 'it was'."
-            )
-        }
-
-        // Priority 11: Very short reply ("yes", "no", "maybe", 1-2 words)
-        if (words.size <= 2) {
-            return when {
-                lower in setOf("yes", "yeah", "yep", "yup", "sure", "of course", "definitely") -> Triple(
-                    "Nice! I'd love to hear a bit more than just a quick yes though.",
-                    listOf(
-                        "What makes you say yes — can you tell me in a full sentence?",
-                        "Tell me a quick example behind that!"
-                    ),
-                    "Expand your 'yes' into a full sentence using 'Yes, because...'."
-                )
-                lower in setOf("no", "nope", "not really", "nah", "never") -> Triple(
-                    "Fair enough, nothing wrong with that!",
-                    listOf(
-                        "What would you rather spend time on instead?",
-                        "Tell me something you really do enjoy doing these days!"
-                    ),
-                    "Share what you prefer instead using 'I prefer...' or 'I actually like...'."
-                )
-                lower in setOf("nothing", "idk", "don't know", "not sure", "maybe") -> Triple(
-                    "Haha, totally fine — no rush at all!",
-                    listOf(
-                        "Let's keep it easy: what's one thing that made you smile this week?",
-                        "What's your favorite way to relax after a long day?"
-                    ),
-                    "Pick any small everyday moment and describe it in one or two sentences."
-                )
-                else -> Triple(
-                    "Ooh, \"$cleanSpoken\" — now you've got me curious!",
-                    listOf(
-                        "Tell me more about $cleanSpoken — what makes it stand out to you?",
-                        "How does $cleanSpoken fit into your everyday life?"
-                    ),
-                    "Try putting '$cleanSpoken' inside a complete sentence with why you mentioned it."
-                )
-            }
-        }
-
-        // Priority 12: General rich sentence -> Mirror their key focus phrase directly like an attentive listener!
-        val focus = extractFocusPhrase(cleanSpoken)
-        return if (focus != null) {
-            Triple(
-                "Oh, interesting that you brought up $focus!",
-                listOf(
-                    "What do you enjoy or notice most about $focus?",
-                    "Have you been into $focus for a while, or is it something new for you?",
-                    "How does $focus usually play into your day?"
-                ),
-                "Build directly on '$focus' using words like 'actually', 'usually', or 'especially'."
-            )
-        } else {
-            Triple(
-                "I really appreciate how clearly you shared that!",
-                listOf(
-                    "What made you think of that just now?",
-                    "Tell me a bit more — what usually happens next after that?"
-                ),
-                "Add one extra detail or reason using 'because' or 'for example'."
-            )
-        }
-    }
-
     private fun extractSpokenPersonName(text: String): String? {
         val patterns = listOf(
             Regex("""\bmy name is\s+([A-Za-z]{2,20})\b""", RegexOption.IGNORE_CASE),
+            Regex("""\bmy name\s+(?!is\b|was\b)([A-Za-z]{2,20})\b""", RegexOption.IGNORE_CASE),
             Regex("""\bcall me\s+([A-Za-z]{2,20})\b""", RegexOption.IGNORE_CASE),
             Regex("""\bi am\s+([A-Za-z]{2,20})\b""", RegexOption.IGNORE_CASE),
             Regex("""\bi['’]m\s+([A-Za-z]{2,20})\b""", RegexOption.IGNORE_CASE)
@@ -608,13 +1600,13 @@ object HumanConversationEngine {
             ?.let { return it }
 
         val placePatterns = listOf(
-            Regex("""\b(?:live in|stay in|located in|am from|i'm from|come from|hometown is)\s+([A-Za-z][A-Za-z ]{1,24}?)(?=[.,!?]|\band\b|\bbut\b|\bwith\b|\bwhere\b|$)""", RegexOption.IGNORE_CASE),
+            Regex("""\b(?:live in|live|stay in|located in|am from|i'm from|come from|hometown is)\s+([A-Za-z][A-Za-z ]{1,24}?)(?=[.,!?]|\band\b|\bbut\b|\bwith\b|\bwhere\b|$)""", RegexOption.IGNORE_CASE),
             Regex("""\b(?:visit|travel to|go to)\s+([A-Z][a-z]{2,20}(?:\s+[A-Z][a-z]{2,20})?)""")
         )
         for (p in placePatterns) {
             val raw = p.find(text)?.groupValues?.getOrNull(1)?.trim() ?: continue
             val firstWordLower = raw.lowercase().split(" ").firstOrNull().orEmpty()
-            if (raw.length >= 3 && firstWordLower !in setOf("a", "an", "the", "my", "school", "home", "bed", "work", "class")) {
+            if (raw.length >= 3 && firstWordLower !in setOf("a", "an", "the", "my", "in", "at", "school", "home", "bed", "work", "class")) {
                 return raw.split(" ").joinToString(" ") { w ->
                     w.replaceFirstChar { it.uppercaseChar() }
                 }
@@ -639,99 +1631,80 @@ object HumanConversationEngine {
                     display = sport,
                     reaction = "Oh nice, $sport is so much fun!",
                     questions = listOf(
-                        "Do you usually play $sport with your friends, or enjoy watching big matches more?",
-                        "Who's your favorite $sport player or team to cheer for?",
-                        "How long have you been into $sport?"
+                        "How often do you play $sport?",
+                        "Who is your favourite $sport player?",
+                        "Where do you usually play $sport with your friends?"
                     ),
-                    hint = "Talk about who you play with, how often, or your favorite player/team."
+                    hint = "Talk about how often you play $sport or who you play with."
                 )
             }
             hasAnyWord(lower, listOf("reading", "read", "book", "books", "novel", "novels", "stories")) -> ContextualMatch(
                 display = "reading books",
-                reaction = "I love that you enjoy reading — there's nothing like getting lost in a good story!",
+                reaction = "Reading books is a wonderful habit!",
                 questions = listOf(
-                    "What kind of books or stories pull you in the most?",
-                    "What's the best book you've read recently, and what was it about?",
-                    "Do you usually prefer reading in the morning or right before bed?"
+                    "What kind of books do you enjoy reading the most?",
+                    "What is the best book you have read recently?",
+                    "Do you prefer reading in the evening or before bed?"
                 ),
-                hint = "Share a book genre (fiction, biography, mystery) or a title you liked."
+                hint = "Share a book type or story you liked."
             )
             hasAnyWord(lower, listOf("music", "song", "songs", "sing", "singing", "guitar", "piano", "listening")) -> ContextualMatch(
                 display = "music",
-                reaction = "Music is such a great mood booster!",
+                reaction = "Music is a great way to relax!",
                 questions = listOf(
-                    "What kind of songs or singers have you been listening to lately?",
-                    "Do you like singing along or playing any instrument yourself?",
-                    "When do you listen to music the most — while relaxing, traveling, or studying?"
+                    "What kind of songs do you like listening to?",
+                    "Do you play any musical instrument?",
+                    "When do you listen to music the most?"
                 ),
-                hint = "Name a music style, artist, or when you love putting headphones on."
+                hint = "Name a music style or singer you like."
             )
             hasAnyWord(lower, listOf("movie", "movies", "film", "films", "cinema", "anime", "series", "show")) -> ContextualMatch(
-                display = "movies and shows",
-                reaction = "Ooh, I love a great movie or series too!",
+                display = "movies",
+                reaction = "Watching a good movie is always enjoyable!",
                 questions = listOf(
-                    "What's a movie or show you watched recently that really stayed with you?",
-                    "Do you enjoy action, comedy, or mystery stories the most?",
-                    "Do you prefer watching at the theater or cozying up at home?"
+                    "What kind of movies do you like the most?",
+                    "Which movie did you enjoy watching recently?"
                 ),
-                hint = "Briefly mention the story or why a favorite movie stood out to you."
+                hint = "Mention a movie type like comedy, action, or family."
             )
             hasAnyWord(lower, listOf("drawing", "painting", "sketch", "sketching", "art", "craft")) -> ContextualMatch(
-                display = "art and drawing",
-                reaction = "That's awesome — being creative with art is so relaxing!",
+                display = "drawing",
+                reaction = "Drawing is such a creative hobby!",
                 questions = listOf(
-                    "What do you love drawing or painting the most — nature, portraits, or designs?",
-                    "How did you first get interested in art?"
+                    "What do you enjoy drawing the most?",
+                    "How did you get interested in drawing?"
                 ),
-                hint = "Describe what you enjoy creating and what inspires your sketches."
+                hint = "Describe what you enjoy drawing."
             )
             hasAnyWord(lower, listOf("cooking", "cook", "baking", "bake")) -> ContextualMatch(
                 display = "cooking",
-                reaction = "Cooking is such an awesome skill to have!",
+                reaction = "Cooking is a very useful skill!",
                 questions = listOf(
-                    "What's your signature dish that you love cooking?",
-                    "Who taught you how to cook, or did you learn by experimenting?"
+                    "What dish do you enjoy cooking the most?",
+                    "Who taught you how to cook?"
                 ),
-                hint = "Mention the dish, its ingredients, and who enjoys eating it."
+                hint = "Name one dish you can cook."
             )
             hasAnyWord(lower, listOf("game", "games", "gaming", "pubg", "free fire", "minecraft")) -> ContextualMatch(
-                display = "gaming",
-                reaction = "Haha, gaming can be super fun when you're unwinding!",
+                display = "games",
+                reaction = "Playing games can be fun in your free time!",
                 questions = listOf(
-                    "Which game have you been playing the most lately, and do you team up with friends?",
-                    "What do you like best about playing games — the teamwork or the challenge?"
+                    "Which game do you enjoy playing the most?",
+                    "Do you usually play with your friends?"
                 ),
-                hint = "Talk about your favorite game and whether you play solo or with friends."
-            )
-            hasAnyWord(lower, listOf("travel", "traveling", "travelling", "trip", "explore", "mountains", "beach")) -> ContextualMatch(
-                display = "traveling",
-                reaction = "Traveling opens up so many cool memories!",
-                questions = listOf(
-                    "What's the most memorable trip you've ever taken so far?",
-                    "Are you more of a mountain person or a beach person?"
-                ),
-                hint = "Share a place you visited or would love to explore soon."
-            )
-            hasAnyWord(lower, listOf("coding", "programming", "software", "app", "website", "tech")) -> ContextualMatch(
-                display = "coding and tech",
-                reaction = "Oh cool! Building things with code is super rewarding.",
-                questions = listOf(
-                    "What kind of apps or projects are you most excited to build?",
-                    "How did you first get into programming?"
-                ),
-                hint = "Describe a project or skill you're practicing right now."
+                hint = "Tell which game you like and why."
             )
             hasAnyWord(lower, listOf("cycling", "swimming", "running", "gym", "workout", "yoga", "walking")) -> {
                 val act = listOf("cycling", "swimming", "running", "gym", "workout", "yoga", "walking")
                     .first { Regex("""\b$it\b""").containsMatchIn(lower) }
                 ContextualMatch(
                     display = act,
-                    reaction = "Staying active with $act is awesome for energy!",
+                    reaction = "Staying active with $act is great for health!",
                     questions = listOf(
-                        "Do you usually do $act early in the morning or in the evening?",
-                        "Do you feel a big difference in your energy on days you do $act?"
+                        "Do you usually do $act in the morning or evening?",
+                        "How does $act make you feel afterward?"
                     ),
-                    hint = "Mention what time of day you do it and how it makes you feel."
+                    hint = "Mention what time of day you do it."
                 )
             }
             else -> null
@@ -742,7 +1715,7 @@ object HumanConversationEngine {
         val foods = listOf(
             "biryani", "fish curry", "rice", "curry", "chicken", "mutton", "pitha", "momo",
             "noodles", "pizza", "burger", "pasta", "sandwich", "tea", "chai", "coffee",
-            "chocolate", "ice cream", "mango", "paneer", "samosa", "dosa", "dal"
+            "chocolate", "ice cream", "mango", "paneer", "samosa", "dosa", "dal", "roti", "breakfast"
         )
         return foods.firstOrNull { Regex("""\b${Regex.escape(it)}\b""").containsMatchIn(lower) }
     }
@@ -760,56 +1733,51 @@ object HumanConversationEngine {
     }
 
     private fun findStudyOrWorkMatch(lower: String): ContextualMatch? {
-        val subjects = listOf("english", "math", "mathematics", "science", "physics", "chemistry", "biology", "history", "geography", "computer science", "computer")
+        val subjects = listOf(
+            "english", "math", "mathematics", "science", "physics",
+            "chemistry", "biology", "history", "geography", "computer science", "computer"
+        )
         val matchedSub = subjects.firstOrNull { Regex("""\b${Regex.escape(it)}\b""").containsMatchIn(lower) }
         if (matchedSub != null) {
             val pretty = matchedSub.replaceFirstChar { it.uppercaseChar() }
-            if (matchedSub == "english") {
-                return ContextualMatch(
-                    display = "English",
-                    reaction = "That's great that you're focusing on English!",
-                    questions = listOf(
-                        "Which part feels easiest for you right now — speaking, listening, or writing?",
-                        "What kind of situations do you want to speak English confidently in?"
-                    ),
-                    hint = "Share your favorite way to practice or where you hope to use English."
-                )
-            }
             return ContextualMatch(
                 display = pretty,
-                reaction = "Oh nice, $pretty is a fascinating subject!",
+                reaction = "Oh nice, $pretty is a great subject!",
                 questions = listOf(
-                    "What makes $pretty interesting to you — is there a topic you liked recently?",
-                    "Do you find $pretty easy or does it challenge you?"
+                    "Why do you like $pretty?",
+                    "What topic in $pretty did you enjoy learning recently?"
                 ),
-                hint = "Share what you enjoy about studying $pretty."
+                hint = "Share why you enjoy studying $pretty."
             )
         }
         return when {
             hasAnyWord(lower, listOf("school", "college", "university", "class", "studying", "study", "student", "exam", "homework")) -> ContextualMatch(
                 display = "school",
-                reaction = "Got it! Keeping up with classes definitely keeps your days full.",
+                reaction = "That's great!",
                 questions = listOf(
-                    "Which subject or part of the day at school do you look forward to the most?",
-                    "Do you usually study with friends or prefer quiet focus on your own?"
+                    "What is your favourite subject at school?",
+                    "What do you enjoy most about your school?"
                 ),
-                hint = "Mention a favorite subject, teacher, or activity at school."
+                hint = "Mention a favourite subject or activity."
             )
             hasAnyWord(lower, listOf("work", "job", "office", "career", "company", "business", "engineer", "teacher", "doctor")) -> ContextualMatch(
-                display = "work",
+                display = "career",
                 reaction = "That sounds like meaningful work!",
                 questions = listOf(
-                    "What does a typical day at work look like for you?",
-                    "What part of your job gives you the biggest sense of achievement?"
+                    "What inspired you to choose that path?",
+                    "What skills are most useful for that work?"
                 ),
-                hint = "Describe one daily task or what you enjoy most about your work."
+                hint = "Describe one reason or skill for that career."
             )
             else -> null
         }
     }
 
     private fun findPersonMention(lower: String): String? {
-        val people = listOf("family", "parents", "mother", "mom", "father", "dad", "brother", "sister", "friends", "friend", "cousin", "grandparents", "classmates")
+        val people = listOf(
+            "family", "parents", "mother", "mom", "father", "dad",
+            "brother", "sister", "friends", "friend", "cousin", "grandparents", "classmates", "teacher"
+        )
         return people.firstOrNull { Regex("""\b$it\b""").containsMatchIn(lower) }
     }
 
@@ -828,35 +1796,27 @@ object HumanConversationEngine {
         return tokens.takeLast(2).joinToString(" ").lowercase()
     }
 
-    private fun detectFriendlyGrammarTip(spoken: String): String? {
-        val lower = spoken.lowercase()
-        return when {
-            Regex("""\bi\s+is\b""").containsMatchIn(lower) ->
-                "Quick friendly tip: we usually say 'I am' instead of 'I is'."
-            Regex("""\byesterday\s+i\s+go\b""").containsMatchIn(lower) ||
-                Regex("""\bi\s+go\s+.*\byesterday\b""").containsMatchIn(lower) ->
-                "Quick friendly tip: for yesterday, use past tense 'I went' instead of 'I go'."
-            Regex("""\b(?:she|he)\s+have\b""").containsMatchIn(lower) ->
-                "Quick tip: with 'he' or 'she', say 'has' instead of 'have'."
-            Regex("""\bin\s+night\b""").containsMatchIn(lower) ->
-                "Quick natural tip: in English we say 'at night' instead of 'in night'."
-            Regex("""\bin\s+morning\b""").containsMatchIn(lower) ->
-                "Quick tip: remember 'the' here — 'in the morning' sounds super natural."
-            Regex("""\bi\s+am\s+go\b""").containsMatchIn(lower) ->
-                "Quick tip: say either 'I go' or 'I am going'!"
-            else -> null
-        }
-    }
-
-    private fun buildHintForQuestion(question: String): String {
+    private fun buildHintForQuestion(question: String, topic: SpeakingPrompt): String {
         val qLower = question.lowercase()
         return when {
-            qLower.contains("where are you") -> "Say your city, town, or state in a full sentence, like 'I live in...'."
-            qLower.contains("name") -> "Introduce yourself warmly: 'My name is..., and I enjoy...'."
-            qLower.contains("free time") || qLower.contains("hobby") -> "Share one activity you enjoy and why it makes you happy."
-            qLower.contains("yesterday") || qLower.contains("last") || qLower.contains("memory") -> "Use past tense verbs like 'went', 'played', 'saw', or 'felt'."
-            qLower.contains("morning") || qLower.contains("evening") || qLower.contains("schedule") -> "Use time words like 'at 7 AM', 'in the morning', or 'on weekends'."
-            else -> "Answer naturally in 1 or 2 full sentences with one extra detail or reason."
+            qLower.contains("where do you live") || qLower.contains("where are you") ->
+                "Say your city or town in a full sentence, like 'I live in...'."
+            qLower.contains("name") ->
+                "Introduce yourself clearly: 'My name is...'."
+            qLower.contains("how old") ->
+                "Reply using a full sentence: 'I am ... years old.'"
+            qLower.contains("which class") ->
+                "Reply using 'I am in Class...' or 'I study in Class...'."
+            qLower.contains("subject") ->
+                "Name one subject and say why using 'because'."
+            qLower.contains("family") || qLower.contains("parents") ->
+                "Talk about how many people are in your family or what you do together."
+            qLower.contains("time") || qLower.contains("morning") || qLower.contains("evening") || qLower.contains("routine") ->
+                "Use clear time words like 'at 7 AM', 'in the morning', or 'on Sundays'."
+            qLower.contains("free time") || qLower.contains("hobby") ->
+                "Share one hobby you enjoy and why."
+            else ->
+                topic.followUpTip.ifBlank { "Answer naturally in 1 or 2 simple, complete sentences." }
         }
     }
 }

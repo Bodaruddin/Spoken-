@@ -498,7 +498,9 @@ fun NovaAiChatScreen(
                                     delay(700)
                                     manualTtsPlaying = false
                                 }
-                            }
+                            },
+                            onChooseAnotherTopic = { showTopicPickerDialog = true },
+                            onRestartSession = { showRestartConfirmDialog = true }
                         )
                     } else {
                         StudentChatBubble(message = msg)
@@ -1591,7 +1593,9 @@ fun NovaAiChatScreen(
 fun NovaChatBubble(
     message: ChatMessage,
     isPlayingAudio: Boolean,
-    onPlayAudio: (String) -> Unit
+    onPlayAudio: (String) -> Unit,
+    onChooseAnotherTopic: (() -> Unit)? = null,
+    onRestartSession: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1633,8 +1637,8 @@ fun NovaChatBubble(
             Column(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
             ) {
-                if (message.evaluation != null) {
-                    val eval = message.evaluation
+                val eval = message.evaluation
+                if (eval != null) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         color = Color(0xFF311A60),
@@ -1658,6 +1662,128 @@ fun NovaChatBubble(
                     lineHeight = 22.sp,
                     fontWeight = if (message.isQuestion) FontWeight.Medium else FontWeight.Normal
                 )
+
+                // Corrected Sentence feedback pill when grammar error detected
+                if (eval != null && !eval.correctedSentence.isNullOrBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF14332B),
+                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.65f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "✏️ Better Sentence: \"${eval.correctedSentence}\"",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF6EE7B7),
+                            lineHeight = 18.sp,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                        )
+                    }
+                }
+
+                // Natural Everyday Expression pill when helpful
+                if (eval != null && !eval.naturalExpression.isNullOrBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF172554),
+                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "✨ More Natural: \"${eval.naturalExpression}\"",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFBAE6FD),
+                            lineHeight = 18.sp,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                        )
+                    }
+                }
+
+                // Closing Session Summary Card (2-3 suggestions + switch topic / restart CTA)
+                if (eval != null && eval.isSessionSummary) {
+                    Spacer(Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF281954),
+                        border = BorderStroke(1.2.dp, Color(0xFFA855F7).copy(alpha = 0.8f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("nova_session_summary_card")
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "🏆 Session Summary & Next Steps",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFDE68A)
+                            )
+                            eval.improvementSuggestions.take(3).forEach { tip ->
+                                Text(
+                                    text = "• $tip",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFE9D5FF),
+                                    lineHeight = 17.sp
+                                )
+                            }
+                            if (onChooseAnotherTopic != null || onRestartSession != null) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (onChooseAnotherTopic != null) {
+                                        Button(
+                                            onClick = onChooseAnotherTopic,
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B5CF6)),
+                                            shape = RoundedCornerShape(10.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .heightIn(min = 48.dp)
+                                                .testTag("summary_choose_topic_btn")
+                                        ) {
+                                            Text(
+                                                "Next Topic",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                    if (onRestartSession != null) {
+                                        OutlinedButton(
+                                            onClick = onRestartSession,
+                                            border = BorderStroke(1.dp, Color(0xFFC084FC)),
+                                            shape = RoundedCornerShape(10.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .heightIn(min = 48.dp)
+                                                .testTag("summary_restart_btn")
+                                        ) {
+                                            Text(
+                                                "Practise Again",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFE9D5FF),
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // If audio prompt is available, render clean audio button
                 if (!message.audioPrompt.isNullOrBlank()) {

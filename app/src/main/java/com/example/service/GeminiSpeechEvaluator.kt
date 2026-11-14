@@ -219,7 +219,13 @@ object GeminiSpeechEvaluator {
         conversationContext: String? = null,
         conversationHistory: List<com.example.data.model.NovaChatMessage> = emptyList(),
         previousNovaQuestion: String? = null,
-        model: String = DEFAULT_MODEL
+        model: String = DEFAULT_MODEL,
+        topicTitle: String? = null,
+        topicCategory: String? = null,
+        difficultyLevel: String? = null,
+        currentTurn: Int = 1,
+        targetTurns: Int = 6,
+        studentCefrLevel: String = "B1"
     ): Result<SpeakingEvaluation> = withContext(Dispatchers.IO) {
         val cleanKey = apiKey.trim()
         val cleanSpoken = spokenText.trim()
@@ -251,7 +257,13 @@ object GeminiSpeechEvaluator {
                     conversationContext = conversationContext,
                     conversationHistory = conversationHistory,
                     previousNovaQuestion = previousNovaQuestion,
-                    model = activeModel
+                    model = activeModel,
+                    topicTitle = topicTitle,
+                    topicCategory = topicCategory,
+                    difficultyLevel = difficultyLevel,
+                    currentTurn = currentTurn,
+                    targetTurns = targetTurns,
+                    studentCefrLevel = studentCefrLevel
                 )
                 if (evalResult.isSuccess) {
                     return@withContext evalResult
@@ -277,7 +289,13 @@ object GeminiSpeechEvaluator {
         targetPhrase: String? = null,
         conversationContext: String? = null,
         conversationHistory: List<com.example.data.model.NovaChatMessage> = emptyList(),
-        previousNovaQuestion: String? = null
+        previousNovaQuestion: String? = null,
+        topicTitle: String? = null,
+        topicCategory: String? = null,
+        difficultyLevel: String? = null,
+        currentTurn: Int = 1,
+        targetTurns: Int = 6,
+        studentCefrLevel: String = "B1"
     ): Result<SpeakingEvaluation> = withContext(Dispatchers.IO) {
         val cleanUrl = endpointUrl.trim().removeSuffix("/")
         val cleanKey = apiKey.trim()
@@ -294,8 +312,16 @@ object GeminiSpeechEvaluator {
         val completionsUrl = if (cleanUrl.endsWith("/chat/completions")) cleanUrl else "$cleanUrl/chat/completions"
 
         try {
-            val systemInstructions = buildSystemInstructions()
+            val systemInstructions = buildSystemInstructions(
+                topicTitle = topicTitle,
+                topicCategory = topicCategory,
+                difficultyLevel = difficultyLevel,
+                currentTurn = currentTurn,
+                targetTurns = targetTurns,
+                studentCefrLevel = studentCefrLevel
+            )
             val priorHistory = stripTrailingDuplicateStudentTurn(conversationHistory, cleanSpoken)
+            val previouslyAsked = collectPreviouslyAskedQuestions(priorHistory, previousNovaQuestion)
             val jsonBody = JSONObject().apply {
                 put("model", cleanModel)
                 val messages = JSONArray().apply {
@@ -324,11 +350,23 @@ object GeminiSpeechEvaluator {
                     // Current student input
                     put(JSONObject().apply {
                         put("role", "user")
-                        put("content", buildUserPrompt(cleanSpoken, targetPhrase, conversationContext, previousNovaQuestion))
+                        put(
+                            "content",
+                            buildUserPrompt(
+                                cleanSpoken = cleanSpoken,
+                                targetPhrase = targetPhrase,
+                                conversationContext = conversationContext,
+                                previousNovaQuestion = previousNovaQuestion,
+                                topicTitle = topicTitle,
+                                currentTurn = currentTurn,
+                                targetTurns = targetTurns,
+                                previouslyAskedQuestions = previouslyAsked
+                            )
+                        )
                     })
                 }
                 put("messages", messages)
-                put("temperature", 0.65)
+                put("temperature", 0.45)
             }
 
             val request = Request.Builder()
@@ -357,7 +395,13 @@ object GeminiSpeechEvaluator {
             val message = firstChoice?.optJSONObject("message")
             val textOutput = message?.optString("content") ?: ""
 
-            parseEvaluationOutput(textOutput, cleanSpoken, targetPhrase, cleanModel)
+            parseEvaluationOutput(
+                textOutput = textOutput,
+                cleanSpoken = cleanSpoken,
+                targetPhrase = targetPhrase,
+                model = cleanModel,
+                isClosingTurn = !topicTitle.isNullOrBlank() && currentTurn >= targetTurns
+            )
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -376,45 +420,116 @@ object GeminiSpeechEvaluator {
         }
     }
 
-    private fun buildSystemInstructions(): String = buildString {
-        append("You are 'Nova', a warm, curious, and natural-sounding human-like Spoken English partner having a real live conversation with a student. ")
-        append("Your goal is to talk like a real friend — listening closely to what the student just said, responding directly to their details, and keeping the conversation flowing naturally.\n\n")
+    private fun collectPreviouslyAskedQuestions(
+        history: List<com.example.data.model.NovaChatMessage>,
+        previousNovaQuestion: String?
+    ): List<String> {
+        val seen = linkedSetOf<String>()
+        history.filter { it.isNova }.forEach { msg ->
+            msg.evaluation?.followUpQuestion?.trim()?.takeIf { it.isNotBlank() }?.let { seen.add(it) }
+            Regex("[^.!?\\n]+\\?").findAll(msg.text).forEach { m ->
+                val q = m.value.trim()
+                if (q.length >= 6) seen.add(q)
+            }
+        }
+        previousNovaQuestion?.trim()?.takeIf { it.isNotBlank() }?.let { prev ->
+            val cleanPrev = Regex("[^.!?\\n]+\\?").find(prev)?.value?.trim() ?: prev
+            if (cleanPrev.length >= 6) seen.add(cleanPrev)
+        }
+        return seen.toList()
+    }
+
+    private fun buildSystemInstructions(
+        topicTitle: String? = null,
+        topicCategory: String? = null,
+        difficultyLevel: String? = null,
+        currentTurn: Int = 1,
+        targetTurns: Int = 6,
+        studentCefrLevel: String = "B1"
+    ): String = buildString {
+        val isTopicChat = !topicTitle.isNullOrBlank()
+        val isClosingTurn = isTopicChat && currentTurn >= targetTurns
+
+        append("You are 'Nova', a professional, warm, and encouraging English-speaking teacher tutoring a school student ($studentCefrLevel level) in spoken English.\n")
+        append("Your goal is NOT to generate random questions — every reply must help the student learn, correct mistakes gently, and practise natural English in a focused conversation.\n\n")
+
+        if (isTopicChat) {
+            append("STRICT TOPIC & TEACHING RULES:\n")
+            append("1. FOLLOW THE SELECTED TOPIC STRICTLY: Stay 100% focused on \"$topicTitle\"")
+            if (!topicCategory.isNullOrBlank()) append(" (Category: $topicCategory)")
+            if (!difficultyLevel.isNullOrBlank()) append(" [Target Difficulty: $difficultyLevel]")
+            append(". NEVER ask unrelated, random, or off-topic questions. If the student briefly mentions something unrelated, acknowledge kindly in 1 short phrase and guide the next question smoothly back to \"$topicTitle\".\n")
+            append("2. NATURAL CONVERSATION FLOW:\n")
+            append("   - Ask ONLY ONE clear, relevant question at a time.\n")
+            append("   - Logically connect your next question directly to what the student just said.\n")
+            append("   - NEVER repeat any question from ALREADY ASKED QUESTIONS.\n")
+            append("   - NEVER ask multiple questions in one message (no double '?' or stacked 'and what/where...?').\n")
+            append("   - NEVER answer your own question before the student responds.\n")
+            append("   - Gradually progress depth across turns (Turn $currentTurn of $targetTurns): start simple, then ask follow-up reasons/details/examples within \"$topicTitle\".\n")
+            append("3. CORRECT THE STUDENT'S ENGLISH:\n")
+            append("   - Understand the student's intended meaning first.\n")
+            append("   - Identify grammatical mistakes (missing 'is/am/are', wrong verb tense, articles 'a/an/the', prepositions 'in/on/at', singular/plural, agreement).\n")
+            append("   - If there IS a mistake: set \"correctedSentence\" to the exact corrected English sentence, explain the fix in 1 short, simple sentence inside \"aiCoachResponse\" (e.g., 'Good try! A better sentence is: \"My name is Ali.\" Remember to use \"is\" here.'), and never embarrass the student.\n")
+            append("   - If the sentence is grammatically fine: praise warmly (e.g., 'Excellent! Your sentence is correct.' or 'Very good!') and if helpful, put a more natural everyday expression in \"naturalExpression\" (e.g., 'You can also say, \"I am in Class 9.\"').\n")
+            append("4. TEACHING STYLE:\n")
+            append("   - Use simple, practical everyday English suitable for school students.\n")
+            append("   - Avoid difficult vocabulary for beginners or lengthy grammar lectures.\n")
+            append("   - Plain text only in \"aiCoachResponse\" (NO markdown asterisks, bullet points, headers, or emojis, because it is spoken aloud by TTS).\n\n")
+
+            if (isClosingTurn) {
+                append("5. SESSION COMPLETION (FINAL SUMMARY TURN - Turn $currentTurn of $targetTurns):\n")
+                append("   - Set \"isSessionSummary\": true.\n")
+                append("   - First give brief praise/correction on the student's final answer.\n")
+                append("   - Then give a warm, concise performance summary (max 90 words total in \"aiCoachResponse\") highlighting grammar and vocabulary progress from this \"$topicTitle\" conversation, give an encouraging closing line, and end with the single question: \"Would you like to practise another topic?\"\n")
+                append("   - Set \"followUpQuestion\" to \"Would you like to practise another topic?\" and populate \"improvementSuggestions\" with 2 to 3 short, practical tips tailored to this student.\n\n")
+            } else {
+                append("5. TURN REPLY FORMAT:\n")
+                append("   - Keep \"aiCoachResponse\" short and natural (2 to 4 brief plain sentences, max 50 words total), ending with ONE connected question on \"$topicTitle\".\n")
+                append("   - Set \"isSessionSummary\": false and \"followUpQuestion\" to that exact single question.\n\n")
+            }
+        } else {
+            append("EVALUATE THE STUDENT'S SPOKEN ENGLISH AND PROVIDE HELPFUL TEACHER FEEDBACK:\n")
+            append("- Correct any clear grammatical errors gently in \"correctedSentence\" and offer a natural alternative in \"naturalExpression\".\n")
+            append("- Keep \"aiCoachResponse\" concise, warm, plain English (max 45 words, no markdown/emojis for TTS) ending with ONE relevant follow-up question.\n\n")
+        }
+
         append("ASSESSMENT CRITERIA (Score 0-100 each):\n")
         append("1. pronunciationScore: phoneme clarity, intelligibility, natural sentence stress.\n")
-        append("2. fluencyScore: natural conversational pacing, absence of awkward long hesitations.\n")
-        append("3. grammarScore: correct verb tense, prepositions, subject-verb agreement.\n")
-        append("4. vocabularyScore: natural expression, relevance, and variety.\n")
+        append("2. fluencyScore: natural conversational pacing, coherence.\n")
+        append("3. grammarScore: verb tense, linking verbs, prepositions, articles, agreement.\n")
+        append("4. vocabularyScore: natural expression, topic relevance, variety.\n")
         append("5. overallScore: weighted overall score out of 100.\n")
         append("6. cefrLevel: CEFR proficiency level ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].\n")
-        append("7. feedback: 1 encouraging, supportive sentence evaluating what the student just spoke.\n")
-        append("8. suggestedImprovement: 1 actionable, gentle tip for pronunciation or grammar.\n\n")
-        append("CONVERSATION RULES FOR NOVA (aiCoachResponse) - CRITICAL FOR REAL HUMAN FLOW:\n")
-        append("Formulate Nova's spoken reply ('aiCoachResponse') in 2 to 3 natural spoken English sentences (max 45 words total, NO markdown, NO bullet points, NO emojis, because it is read aloud by TTS):\n")
-        append("- Sound like a REAL human: Vary your reactions naturally ('Oh nice!', 'That sounds fun!', 'I totally get that!', 'Haha, awesome!'). NEVER use robotic clichés like 'Well spoken!', 'Let's continue practicing:', or 'What is another detail you would like to share about <topic>?'.\n")
-        append("- Answer back first if the student asked YOU a question (e.g., 'How are you?', 'How about you?', 'Do you like cricket?'), then smoothly continue.\n")
-        append("- React directly to the specific name, city, hobby, feeling, food, time, person, or reason the student shared.\n")
-        append("- Light grammar nudge (optional): Only mention a quick gentle correction if there is an obvious grammar slip; otherwise skip lecturing and just connect warmly.\n")
-        append("- End with ONE specific, curiosity-driven followUpQuestion that grows directly out of what the student just answered. NEVER repeat a question already asked earlier in the conversation.\n\n")
-        append("CONTEXTUAL AIDS:\n")
-        append("- followUpQuestion: The exact single question string asked at the end of aiCoachResponse.\n")
-        append("- hint: 1 short sentence guiding the student on how to answer your NEW followUpQuestion.\n")
-        append("- exampleAnswers: A JSON array of 2 realistic, natural example answers directly replying to your NEW followUpQuestion.\n")
-        append("- detectedWeakWords: A list of up to 3 words from their speech to practice pronouncing better.\n\n")
+        append("7. feedback: 1 encouraging sentence evaluating what the student spoke.\n")
+        append("8. suggestedImprovement: 1 clear, actionable tip in simple English.\n")
+        append("9. correctedSentence: Exact corrected sentence if there was a grammar error, otherwise \"\".\n")
+        append("10. naturalExpression: A more natural everyday phrasing if useful, otherwise \"\".\n")
+        append("11. followUpQuestion: The exact SINGLE question asked at the end of aiCoachResponse.\n")
+        append("12. hint: 1 short simple tip guiding how to answer followUpQuestion.\n")
+        append("13. exampleAnswers: JSON array of 2 realistic, level-appropriate example answers replying directly to followUpQuestion.\n")
+        append("14. detectedWeakWords: Up to 3 words from the student's speech to practice.\n")
+        append("15. isSessionSummary: boolean (true ONLY on the final closing turn).\n")
+        append("16. improvementSuggestions: JSON array of 2-3 specific English improvement tips (required when isSessionSummary is true).\n\n")
+
         append("Return ONLY a valid JSON object matching this schema:\n")
         append("{\n")
         append("  \"overallScore\": 85,\n")
-        append("  \"pronunciationScore\": 82,\n")
-        append("  \"fluencyScore\": 80,\n")
-        append("  \"grammarScore\": 88,\n")
+        append("  \"pronunciationScore\": 84,\n")
+        append("  \"fluencyScore\": 82,\n")
+        append("  \"grammarScore\": 80,\n")
         append("  \"vocabularyScore\": 86,\n")
         append("  \"cefrLevel\": \"B1\",\n")
         append("  \"feedback\": \"...\",\n")
         append("  \"suggestedImprovement\": \"...\",\n")
+        append("  \"correctedSentence\": \"...\",\n")
+        append("  \"naturalExpression\": \"...\",\n")
         append("  \"aiCoachResponse\": \"...\",\n")
         append("  \"followUpQuestion\": \"...\",\n")
         append("  \"hint\": \"...\",\n")
         append("  \"exampleAnswers\": [\"...\", \"...\"],\n")
-        append("  \"detectedWeakWords\": [\"...\"]\n")
+        append("  \"detectedWeakWords\": [\"...\"],\n")
+        append("  \"isSessionSummary\": ${isClosingTurn},\n")
+        append("  \"improvementSuggestions\": [\"...\", \"...\"]\n")
         append("}")
     }
 
@@ -422,19 +537,41 @@ object GeminiSpeechEvaluator {
         cleanSpoken: String,
         targetPhrase: String?,
         conversationContext: String?,
-        previousNovaQuestion: String? = null
+        previousNovaQuestion: String? = null,
+        topicTitle: String? = null,
+        currentTurn: Int = 1,
+        targetTurns: Int = 6,
+        previouslyAskedQuestions: List<String> = emptyList()
     ): String = buildString {
+        if (!topicTitle.isNullOrBlank()) {
+            append("Selected Topic: \"$topicTitle\"\n")
+            append("Turn Progress: Student response #$currentTurn of $targetTurns")
+            if (currentTurn >= targetTurns) {
+                append(" (FINAL TURN — provide performance summary & 2-3 improvement suggestions)")
+            }
+            append("\n")
+        }
         if (!previousNovaQuestion.isNullOrBlank()) {
-            append("Previous Question Nova Asked: \"${previousNovaQuestion.trim()}\"\n")
+            append("Question Nova Just Asked: \"${previousNovaQuestion.trim()}\"\n")
+        }
+        if (previouslyAskedQuestions.isNotEmpty()) {
+            append("ALREADY ASKED QUESTIONS (DO NOT REPEAT ANY OF THESE):\n")
+            previouslyAskedQuestions.takeLast(10).forEachIndexed { idx, q ->
+                append("${idx + 1}. $q\n")
+            }
         }
         append("Student's Spoken Answer: \"$cleanSpoken\"\n")
         if (!targetPhrase.isNullOrBlank()) {
             append("Target / Expected Context: \"$targetPhrase\"\n")
         }
         if (!conversationContext.isNullOrBlank()) {
-            append("Conversation Topic / Context: \"$conversationContext\"\n")
+            append("Topic Coaching Details: \"$conversationContext\"\n")
         }
-        append("Respond naturally like a real human partner based directly on the student's spoken answer, and ask ONE specific follow-up question that builds on what they just said.")
+        if (!topicTitle.isNullOrBlank() && currentTurn >= targetTurns) {
+            append("Evaluate the student's final answer, summarize their performance across this session cleanly, share 2-3 practical improvement suggestions, and ask if they want to practise another topic.")
+        } else {
+            append("First evaluate and gently correct grammar or offer a more natural sentence in simple English, then respond encouragingly and ask ONE connected, non-repeated question strictly on the selected topic.")
+        }
     }
 
     private fun executeSingleEvaluation(
@@ -444,12 +581,26 @@ object GeminiSpeechEvaluator {
         conversationContext: String?,
         conversationHistory: List<com.example.data.model.NovaChatMessage>,
         previousNovaQuestion: String?,
-        model: String
+        model: String,
+        topicTitle: String? = null,
+        topicCategory: String? = null,
+        difficultyLevel: String? = null,
+        currentTurn: Int = 1,
+        targetTurns: Int = 6,
+        studentCefrLevel: String = "B1"
     ): Result<SpeakingEvaluation> {
         try {
-            val systemInstructions = buildSystemInstructions()
+            val systemInstructions = buildSystemInstructions(
+                topicTitle = topicTitle,
+                topicCategory = topicCategory,
+                difficultyLevel = difficultyLevel,
+                currentTurn = currentTurn,
+                targetTurns = targetTurns,
+                studentCefrLevel = studentCefrLevel
+            )
             val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$cleanKey"
             val priorHistory = stripTrailingDuplicateStudentTurn(conversationHistory, cleanSpoken)
+            val previouslyAsked = collectPreviouslyAskedQuestions(priorHistory, previousNovaQuestion)
 
             val jsonBody = JSONObject().apply {
                 // System Instruction block for Gemini API
@@ -464,9 +615,8 @@ object GeminiSpeechEvaluator {
 
                 // If we have multi-turn history, build authentic alternating contents turns
                 if (priorHistory.isNotEmpty()) {
-                    // Turn 0: User starts the session topic
-                    val initialContextText = "Hello Nova! Let's start a natural English conversation.\n" +
-                        (conversationContext ?: "Topic: English Conversation Practice")
+                    val initialContextText = "Hello Nova! Let's practise speaking English on the selected topic.\n" +
+                        (conversationContext ?: topicTitle?.let { "Selected Topic: $it" } ?: "Topic: English Conversation Practice")
                     contents.put(JSONObject().apply {
                         put("role", "user")
                         put("parts", JSONArray().apply {
@@ -476,7 +626,7 @@ object GeminiSpeechEvaluator {
 
                     // Previous turns: alternating model and user
                     var lastRole = "user"
-                    for (msg in priorHistory) {
+                    for (msg in priorHistory.takeLast(16)) {
                         val role = if (msg.isNova) "model" else "user"
                         val text = msg.audioPrompt.ifBlank { msg.text }.trim()
                         if (text.isNotBlank()) {
@@ -498,8 +648,17 @@ object GeminiSpeechEvaluator {
                         }
                     }
 
-                    // Final Turn: Current student spoken response to evaluate
-                    val currentTurnPrompt = buildUserPrompt(cleanSpoken, targetPhrase, null, previousNovaQuestion)
+                    // Final Turn: Current student spoken response + strict topic & turn guardrails
+                    val currentTurnPrompt = buildUserPrompt(
+                        cleanSpoken = cleanSpoken,
+                        targetPhrase = targetPhrase,
+                        conversationContext = conversationContext,
+                        previousNovaQuestion = previousNovaQuestion,
+                        topicTitle = topicTitle,
+                        currentTurn = currentTurn,
+                        targetTurns = targetTurns,
+                        previouslyAskedQuestions = previouslyAsked
+                    )
                     if (lastRole == "user") {
                         val lastObj = contents.getJSONObject(contents.length() - 1)
                         val partsArr = lastObj.getJSONArray("parts")
@@ -516,7 +675,16 @@ object GeminiSpeechEvaluator {
                     }
                 } else {
                     // Single-turn fallback when no history exists yet
-                    val userPrompt = buildUserPrompt(cleanSpoken, targetPhrase, conversationContext, previousNovaQuestion)
+                    val userPrompt = buildUserPrompt(
+                        cleanSpoken = cleanSpoken,
+                        targetPhrase = targetPhrase,
+                        conversationContext = conversationContext,
+                        previousNovaQuestion = previousNovaQuestion,
+                        topicTitle = topicTitle,
+                        currentTurn = currentTurn,
+                        targetTurns = targetTurns,
+                        previouslyAskedQuestions = previouslyAsked
+                    )
                     contents.put(JSONObject().apply {
                         put("role", "user")
                         put("parts", JSONArray().apply {
@@ -527,7 +695,7 @@ object GeminiSpeechEvaluator {
 
                 put("contents", contents)
                 put("generationConfig", JSONObject().apply {
-                    put("temperature", 0.65)
+                    put("temperature", 0.45)
                     put("maxOutputTokens", 1024)
                     put("responseMimeType", "application/json")
                 })
@@ -563,17 +731,31 @@ object GeminiSpeechEvaluator {
                 return Result.failure(Exception("Gemini returned an empty response."))
             }
 
-            return parseEvaluationOutput(textOutput, cleanSpoken, targetPhrase, model)
+            return parseEvaluationOutput(
+                textOutput = textOutput,
+                cleanSpoken = cleanSpoken,
+                targetPhrase = targetPhrase,
+                model = model,
+                isClosingTurn = !topicTitle.isNullOrBlank() && currentTurn >= targetTurns
+            )
         } catch (e: Exception) {
             return Result.failure(e)
         }
+    }
+
+    private fun extractSingleQuestion(rawQuestion: String?): String? {
+        val clean = rawQuestion?.trim()?.replace(Regex("\\s+"), " ") ?: return null
+        if (clean.isBlank()) return null
+        val firstQ = Regex("[^.!?]+\\?").find(clean)?.value?.trim()
+        return (firstQ ?: clean).takeIf { it.isNotBlank() }
     }
 
     private fun parseEvaluationOutput(
         textOutput: String,
         cleanSpoken: String,
         targetPhrase: String?,
-        model: String
+        model: String,
+        isClosingTurn: Boolean = false
     ): Result<SpeakingEvaluation> {
         return try {
             val trimmedOutput = textOutput.trim()
@@ -596,9 +778,22 @@ object GeminiSpeechEvaluator {
             val grammarScore = parsedJson.optInt("grammarScore", 80).coerceIn(10, 100)
             val vocabularyScore = parsedJson.optInt("vocabularyScore", 80).coerceIn(10, 100)
             val cefrLevel = parsedJson.optString("cefrLevel", "B1")
-            val feedback = parsedJson.optString("feedback", "Good effort! Keep speaking consistently.")
-            val suggestedImprovement = parsedJson.optString("suggestedImprovement", "Focus on clear syllable pronunciation.")
-            val aiCoachResponse = parsedJson.optString("aiCoachResponse", "Nice job! Let's continue practicing.")
+            val feedback = parsedJson.optString("feedback", "Good try! Keep speaking clearly.")
+            val suggestedImprovement = parsedJson.optString("suggestedImprovement", "Practice full sentences with clear verbs.")
+            val aiCoachResponseRaw = parsedJson.optString("aiCoachResponse", "Good effort! Let's keep going.")
+                .replace("**", "")
+                .trim()
+            val correctedSentence = parsedJson.optString("correctedSentence", "")
+                .trim()
+                .takeIf { it.isNotBlank() && !it.equals(cleanSpoken, ignoreCase = true) }
+            val naturalExpression = parsedJson.optString("naturalExpression", "")
+                .trim()
+                .takeIf {
+                    it.isNotBlank() &&
+                        !it.equals(cleanSpoken, ignoreCase = true) &&
+                        !it.equals(correctedSentence.orEmpty(), ignoreCase = true)
+                }
+            val isSessionSummary = parsedJson.optBoolean("isSessionSummary", isClosingTurn) || isClosingTurn
 
             val weakWordsArray = parsedJson.optJSONArray("detectedWeakWords")
             val weakWords = mutableListOf<String>()
@@ -609,7 +804,21 @@ object GeminiSpeechEvaluator {
                 }
             }
 
-            val followUpQuestion = parsedJson.optString("followUpQuestion", "").ifBlank { null }
+            val suggestionsArray = parsedJson.optJSONArray("improvementSuggestions")
+            val improvementSuggestions = mutableListOf<String>()
+            if (suggestionsArray != null) {
+                for (i in 0 until suggestionsArray.length()) {
+                    val item = suggestionsArray.optString(i).trim()
+                    if (item.isNotBlank()) improvementSuggestions.add(item)
+                }
+            }
+
+            val rawFollowUp = parsedJson.optString("followUpQuestion", "").ifBlank { null }
+            val followUpQuestion = if (isSessionSummary) {
+                "Would you like to practise another topic?"
+            } else {
+                extractSingleQuestion(rawFollowUp)
+            }
             val hint = parsedJson.optString("hint", "").ifBlank { null }
             val exampleAnswersArray = parsedJson.optJSONArray("exampleAnswers")
             val exampleAnswers = mutableListOf<String>()
@@ -643,12 +852,16 @@ object GeminiSpeechEvaluator {
                 phonemeAccuracy = phonemeMatches,
                 isAiEvaluated = true,
                 aiModelUsed = model,
-                aiCoachResponse = aiCoachResponse,
+                aiCoachResponse = aiCoachResponseRaw,
                 cefrLevel = cefrLevel,
                 detectedWeakWords = weakWords,
                 followUpQuestion = followUpQuestion,
                 hint = hint,
-                exampleAnswers = exampleAnswers
+                exampleAnswers = exampleAnswers,
+                correctedSentence = correctedSentence,
+                naturalExpression = naturalExpression,
+                isSessionSummary = isSessionSummary,
+                improvementSuggestions = improvementSuggestions
             )
 
             Result.success(evaluation)
