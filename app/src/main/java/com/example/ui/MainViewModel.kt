@@ -22,6 +22,7 @@ enum class StudentTab(val label: String, val iconEmoji: String) {
     HOME("Home", "🏠"),
     EXAMS("Exams", "📝"),
     PRACTICE("Speaking", "🎙️"),
+    NOVA_AI("Nova AI", "✨"),
     GAMES("Games", "🎮"),
     LEADERBOARD("Ranks", "🏆"),
     PROFILE("Profile", "👤")
@@ -1275,6 +1276,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _novaCurrentExamples = MutableStateFlow<List<String>>(emptyList())
     val novaCurrentExamples: StateFlow<List<String>> = _novaCurrentExamples.asStateFlow()
 
+    // Nova Gemini-style General AI Assistant State
+    private val _novaGeminiMessages = MutableStateFlow<List<NovaChatMessage>>(emptyList())
+    val novaGeminiMessages: StateFlow<List<NovaChatMessage>> = _novaGeminiMessages.asStateFlow()
+
+    private val _isNovaGeminiThinking = MutableStateFlow(false)
+    val isNovaGeminiThinking: StateFlow<Boolean> = _isNovaGeminiThinking.asStateFlow()
+
+    private val _novaGeminiMode = MutableStateFlow("General AI")
+    val novaGeminiMode: StateFlow<String> = _novaGeminiMode.asStateFlow()
+
+    private val _novaGeminiModelUsed = MutableStateFlow("")
+    val novaGeminiModelUsed: StateFlow<String> = _novaGeminiModelUsed.asStateFlow()
+
     // Celebration modal state
     private val _celebrationReward = MutableStateFlow<Pair<Int, Int>?>(null) // XP, Coins
     val celebrationReward: StateFlow<Pair<Int, Int>?> = _celebrationReward.asStateFlow()
@@ -1315,11 +1329,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // 3. Collect speech success and evaluate automatically
+        // 3. Collect speech success and evaluate automatically (or send to Nova Gemini Assistant)
         viewModelScope.launch {
             speechManager.speechState.collect { state ->
                 if (state is SpeechState.Success) {
-                    evaluateInputSpeech(state.spokenText)
+                    if (_currentStudentTab.value == StudentTab.NOVA_AI) {
+                        sendNovaGeminiMessage(state.spokenText)
+                        speechManager.reset()
+                    } else {
+                        evaluateInputSpeech(state.spokenText)
+                    }
                 }
             }
         }
@@ -1334,12 +1353,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _activeConversationTopic.value = initialTopic
             loadNovaSession(initialTopic)
         }
+        loadNovaGeminiSession()
     }
 
 
     fun selectStudentTab(tab: StudentTab) {
         if (tab == StudentTab.PRACTICE) {
             _speakingSubTab.value = SpeakingSubTab.TOPICS_ROADMAP
+        } else if (tab == StudentTab.NOVA_AI) {
+            loadNovaGeminiSession()
         }
         _currentStudentTab.value = tab
     }
@@ -2119,6 +2141,205 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val studentId = currentUser.value.id.ifBlank { "default_student" }
         appPreferences.clearNovaSession(studentId, topic.id)
         loadNovaSession(topic)
+    }
+
+    // =========================================================================
+    // NOVA GEMINI-STYLE PERSONAL AI ASSISTANT (STUDENT FOOTER AI TAB)
+    // =========================================================================
+
+    fun loadNovaGeminiSession() {
+        val studentId = currentUser.value.id.ifBlank { "default_student" }
+        val saved = appPreferences.getNovaSession(studentId, "nova_gemini_assistant_v1")
+        if (!saved.isNullOrEmpty()) {
+            _novaGeminiMessages.value = saved
+        } else {
+            val studentName = currentUser.value.name.ifBlank { "Friend" }
+            val welcome = NovaChatMessage(
+                id = "nova_gemini_welcome_${System.currentTimeMillis()}",
+                isNova = true,
+                text = "Hi $studentName! I'm Nova AI, your Gemini-style learning companion.\n\nAsk me anything — fix grammar, explain tenses, translate into Assamese or Hindi, write speeches & essays, or help with your studies!",
+                audioPrompt = "Hi $studentName! I'm Nova AI. Ask me anything about English, grammar, writing, translation, or your studies!",
+                isQuestion = false,
+                questionNumber = 1
+            )
+            _novaGeminiMessages.value = listOf(welcome)
+        }
+    }
+
+    fun clearNovaGeminiSession() {
+        val studentId = currentUser.value.id.ifBlank { "default_student" }
+        appPreferences.clearNovaSession(studentId, "nova_gemini_assistant_v1")
+        _novaGeminiModelUsed.value = ""
+        val studentName = currentUser.value.name.ifBlank { "Friend" }
+        val welcome = NovaChatMessage(
+            id = "nova_gemini_welcome_${System.currentTimeMillis()}",
+            isNova = true,
+            text = "Started a fresh chat, $studentName! What would you like to explore or learn with Nova AI today?",
+            audioPrompt = "Started a fresh chat! What would you like to explore today?",
+            isQuestion = false,
+            questionNumber = 1
+        )
+        _novaGeminiMessages.value = listOf(welcome)
+        appPreferences.saveNovaSession(studentId, "nova_gemini_assistant_v1", listOf(welcome))
+    }
+
+    fun setNovaGeminiMode(mode: String) {
+        _novaGeminiMode.value = mode
+    }
+
+    fun sendNovaGeminiMessage(promptText: String) {
+        val cleanPrompt = promptText.trim()
+        if (cleanPrompt.isBlank() || _isNovaGeminiThinking.value) return
+
+        val studentId = currentUser.value.id.ifBlank { "default_student" }
+        val priorHistory = _novaGeminiMessages.value
+        val userTurn = NovaChatMessage(
+            id = "student_gem_${System.currentTimeMillis()}",
+            isNova = false,
+            text = cleanPrompt,
+            isQuestion = false,
+            questionNumber = priorHistory.size + 1
+        )
+        val updatedWithUser = priorHistory + userTurn
+        _novaGeminiMessages.value = updatedWithUser
+        appPreferences.saveNovaSession(studentId, "nova_gemini_assistant_v1", updatedWithUser)
+
+        viewModelScope.launch {
+            _isNovaGeminiThinking.value = true
+            val effectiveKey = getEffectiveGeminiApiKey()
+            val studentName = currentUser.value.name.ifBlank { "Student" }
+            val studentClass = currentUser.value.studentClass
+            val cefrLevel = studentProfile.value.currentLevel.cefr.ifBlank { "B1" }
+            val activeMode = _novaGeminiMode.value
+
+            val (replyText, usedModel) = if (isGeminiApiKeyConfigured()) {
+                val aiResult = kotlinx.coroutines.withTimeoutOrNull(22000L) {
+                    if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
+                        GeminiSpeechEvaluator.askNovaGeminiCustomEndpoint(
+                            endpointUrl = _customEndpointUrl.value,
+                            apiKey = effectiveKey,
+                            modelName = _customModelName.value,
+                            userPrompt = cleanPrompt,
+                            chatHistory = priorHistory,
+                            studentName = studentName,
+                            studentClass = studentClass,
+                            cefrLevel = cefrLevel,
+                            mode = activeMode
+                        )
+                    } else {
+                        GeminiSpeechEvaluator.askNovaGemini(
+                            apiKey = effectiveKey,
+                            userPrompt = cleanPrompt,
+                            chatHistory = priorHistory,
+                            studentName = studentName,
+                            studentClass = studentClass,
+                            cefrLevel = cefrLevel,
+                            mode = activeMode,
+                            model = _activeAiModel.value
+                        )
+                    }
+                } ?: Result.failure(Exception("Request timed out."))
+
+                if (aiResult.isSuccess) {
+                    aiResult.getOrThrow()
+                } else {
+                    val err = aiResult.exceptionOrNull()?.message ?: "Network error"
+                    buildLocalNovaAssistantFallback(cleanPrompt, activeMode, studentName, err) to "On-Device Tutor"
+                }
+            } else {
+                buildLocalNovaAssistantFallback(cleanPrompt, activeMode, studentName, null) to "On-Device Tutor"
+            }
+
+            _novaGeminiModelUsed.value = usedModel
+            val novaTurn = NovaChatMessage(
+                id = "nova_gem_${System.currentTimeMillis()}",
+                isNova = true,
+                text = replyText,
+                audioPrompt = replyText,
+                isQuestion = false,
+                questionNumber = updatedWithUser.size + 1,
+                hint = usedModel
+            )
+            val finalHistory = updatedWithUser + novaTurn
+            _novaGeminiMessages.value = finalHistory
+            appPreferences.saveNovaSession(studentId, "nova_gemini_assistant_v1", finalHistory)
+            _isNovaGeminiThinking.value = false
+
+            if (_aiVoiceReplyEnabled.value) {
+                val spokenPreview = replyText.lineSequence().take(4).joinToString(" ").take(320)
+                if (spokenPreview.isNotBlank()) speakAudio(spokenPreview)
+            }
+        }
+    }
+
+    private fun buildLocalNovaAssistantFallback(
+        prompt: String,
+        mode: String,
+        studentName: String,
+        cloudNotice: String?
+    ): String {
+        val lower = prompt.lowercase()
+        val noticeHeader = if (!cloudNotice.isNullOrBlank()) {
+            "Cloud Gemini Note: $cloudNotice\n\n"
+        } else {
+            ""
+        }
+        val body = when {
+            lower.contains("translate") || mode == "Translator" -> {
+                val targetSentence = prompt
+                    .replace(Regex("(?i)translate( this)?( into| to)?( assamese| hindi| bengali)?[:\\s-]*"), "")
+                    .trim()
+                    .ifBlank { prompt }
+                val translated = com.example.util.AssameseTranslator.translate(targetSentence)
+                buildString {
+                    append("Translation Helper\n\n")
+                    append("English: \"$targetSentence\"\n")
+                    if (translated.assameseText.isNotBlank()) {
+                        append("Assamese: ${translated.assameseText}\n")
+                    }
+                    append("\nTip: Tap 'Setup Gemini' at the top to connect a Gemini API key for full multi-language translations.")
+                }
+            }
+            lower.contains("grammar") || lower.contains("fix") || lower.contains("correct") || mode == "Grammar Fix" -> {
+                val eval = EvaluationEngine.evaluateSpeech(prompt, null)
+                buildString {
+                    append("Grammar & Clarity Check\n\n")
+                    append("• Quick Feedback: ${eval.feedback}\n")
+                    append("• Suggestion: ${eval.suggestedImprovement}\n")
+                    append("• Quick Checklist: Verify subject-verb agreement (he/she + verb-s), consistent past/present tense, and articles (a/an/the).\n\n")
+                    append("Connect a Gemini API key in the top bar for detailed line-by-line AI corrections.")
+                }
+            }
+            lower.contains("tense") -> {
+                buildString {
+                    append("Quick English Tenses Guide\n\n")
+                    append("1. Present Simple (habits/facts): \"I study English every day.\"\n")
+                    append("2. Past Simple (finished action): \"I studied English yesterday.\"\n")
+                    append("3. Present Perfect (past action connected to now): \"I have studied English for two years.\"\n")
+                    append("4. Future Simple (plans/promises): \"I will practice speaking tomorrow.\"\n\n")
+                    append("Connect a Gemini API key at the top to ask follow-up exercises on any tense!")
+                }
+            }
+            lower.contains("idiom") || lower.contains("vocabulary") || lower.contains("words") -> {
+                buildString {
+                    append("5 Useful Daily English Expressions\n\n")
+                    append("• Break the ice — start a friendly conversation\n")
+                    append("• Piece of cake — something very easy to do\n")
+                    append("• Once in a blue moon — happens very rarely\n")
+                    append("• Hit the books — start studying seriously\n")
+                    append("• Keep it up — continue doing great work\n\n")
+                    append("Connect your Gemini API key at the top to unlock unlimited custom vocabulary lists!")
+                }
+            }
+            else -> {
+                buildString {
+                    append("Hi $studentName! I'm currently running in On-Device Tutor mode.\n\n")
+                    append("• To unlock full Gemini AI answers on any subject (essays, Q&A, grammar fixes, coding, science, and live conversation), tap the 'Setup Gemini' pill in the top bar or configure GEMINI_API_KEY in AI Studio Secrets.\n")
+                    append("• Meanwhile, you can also try Grammar Fix, Assamese Translation, or Tenses Guide right here!")
+                }
+            }
+        }
+        return "$noticeHeader$body"
     }
 
     fun advanceToNextNovaPrompt() {

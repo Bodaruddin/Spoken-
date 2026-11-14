@@ -58,6 +58,7 @@ fun StudentBottomBar(
         val studentTabs = listOf(
             StudentTabItem(StudentTab.HOME, "Home", Icons.Rounded.Home),
             StudentTabItem(StudentTab.EXAMS, "Exams", Icons.Rounded.Quiz),
+            StudentTabItem(StudentTab.NOVA_AI, "Nova AI", Icons.Rounded.AutoAwesome),
             StudentTabItem(StudentTab.PRACTICE, "Speak", Icons.Rounded.Mic),
             StudentTabItem(StudentTab.GAMES, "Games", Icons.Rounded.SportsEsports),
             StudentTabItem(StudentTab.LEADERBOARD, "Ranks", Icons.Rounded.EmojiEvents),
@@ -74,21 +75,24 @@ fun StudentBottomBar(
             studentTabs.forEach { item ->
                 val isSelected = currentTab == item.tab
                 val isCenterPractice = item.tab == StudentTab.PRACTICE
+                val isNovaAiTab = item.tab == StudentTab.NOVA_AI
 
                 if (isCenterPractice) {
                     // Center Hero Action: Elevated Radiant Mic Button for Speaking Hub
                     Column(
                         modifier = Modifier
+                            .weight(1f)
+                            .defaultMinSize(minHeight = 48.dp)
                             .clip(CircleShape)
                             .clickable { onTabSelected(item.tab) }
-                            .padding(horizontal = 2.dp, vertical = 2.dp)
+                            .padding(horizontal = 1.dp, vertical = 2.dp)
                             .testTag("student_tab_${item.tab.name.lowercase()}"),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(46.dp)
+                                .size(42.dp)
                                 .clip(CircleShape)
                                 .background(
                                     Brush.linearGradient(
@@ -109,16 +113,80 @@ fun StudentBottomBar(
                                 imageVector = item.icon,
                                 contentDescription = item.label,
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(22.dp)
                             )
                         }
                         Spacer(Modifier.height(2.dp))
                         Text(
                             text = item.label,
-                            fontSize = 9.sp,
+                            fontSize = 8.5.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = if (isSelected) Color(0xFF38BDF8) else Color(0xFFC084FC),
                             maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                } else if (isNovaAiTab) {
+                    // Dedicated Gemini-style Nova AI Button in Student Footer
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .defaultMinSize(minHeight = 48.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable { onTabSelected(item.tab) }
+                            .padding(horizontal = 1.dp, vertical = 4.dp)
+                            .testTag("student_tab_${item.tab.name.lowercase()}"),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(width = 40.dp, height = 30.dp)
+                                .clip(RoundedCornerShape(15.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        if (isSelected) {
+                                            listOf(
+                                                Color(0xFF06B6D4).copy(alpha = 0.78f),
+                                                Color(0xFF6366F1).copy(alpha = 0.85f),
+                                                Color(0xFFEC4899).copy(alpha = 0.72f)
+                                            )
+                                        } else {
+                                            listOf(
+                                                Color(0xFF0EA5E9).copy(alpha = 0.22f),
+                                                Color(0xFF8B5CF6).copy(alpha = 0.28f)
+                                            )
+                                        }
+                                    )
+                                )
+                                .border(
+                                    width = if (isSelected) 1.3.dp else 1.dp,
+                                    brush = Brush.horizontalGradient(
+                                        listOf(
+                                            Color(0xFF38BDF8).copy(alpha = if (isSelected) 1f else 0.55f),
+                                            Color(0xFFC084FC).copy(alpha = if (isSelected) 1f else 0.55f)
+                                        )
+                                    ),
+                                    shape = RoundedCornerShape(15.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = "Nova AI Assistant",
+                                tint = if (isSelected) Color.White else Color(0xFF67E8F9),
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = item.label,
+                            fontSize = 8.5.sp,
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
+                            color = if (isSelected) Color(0xFF67E8F9) else Color(0xFFBAE6FD),
+                            maxLines = 1,
+                            softWrap = false,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -126,15 +194,17 @@ fun StudentBottomBar(
                     // Standard Tab Item with dynamic active capsule pill and notification badge
                     Column(
                         modifier = Modifier
+                            .weight(1f)
+                            .defaultMinSize(minHeight = 48.dp)
                             .clip(RoundedCornerShape(16.dp))
                             .clickable { onTabSelected(item.tab) }
-                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                            .padding(horizontal = 1.dp, vertical = 4.dp)
                             .testTag("student_tab_${item.tab.name.lowercase()}"),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
                         Box(
-                            modifier = Modifier.size(width = 44.dp, height = 30.dp),
+                            modifier = Modifier.size(width = 38.dp, height = 30.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             if (isSelected) {
@@ -162,7 +232,7 @@ fun StudentBottomBar(
                                 imageVector = item.icon,
                                 contentDescription = item.label,
                                 tint = if (isSelected) Color.White else Color(0xFF94A3B8),
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(19.dp)
                             )
 
                             // Pending exams notification badge dot
@@ -171,7 +241,7 @@ fun StudentBottomBar(
                                     modifier = Modifier
                                         .size(8.dp)
                                         .align(Alignment.TopEnd)
-                                        .offset(x = (-4).dp, y = 2.dp)
+                                        .offset(x = (-3).dp, y = 2.dp)
                                         .clip(CircleShape)
                                         .background(Color(0xFFEF4444))
                                         .border(1.dp, Color.White, CircleShape)
@@ -182,10 +252,11 @@ fun StudentBottomBar(
                         Spacer(Modifier.height(2.dp))
                         Text(
                             text = item.label,
-                            fontSize = 9.5.sp,
+                            fontSize = 8.5.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = if (isSelected) Color.White else Color(0xFF94A3B8),
                             maxLines = 1,
+                            softWrap = false,
                             overflow = TextOverflow.Ellipsis
                         )
                     }

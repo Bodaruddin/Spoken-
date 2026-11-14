@@ -656,4 +656,256 @@ object GeminiSpeechEvaluator {
             Result.failure(e)
         }
     }
+
+    /**
+     * General-purpose Gemini-style conversational AI assistant for students ("Nova AI").
+     * Supports multi-turn context, Q&A, grammar correction, writing help, translation, and study guidance.
+     */
+    suspend fun askNovaGemini(
+        apiKey: String,
+        userPrompt: String,
+        chatHistory: List<com.example.data.model.NovaChatMessage> = emptyList(),
+        studentName: String = "Student",
+        studentClass: String = "",
+        cefrLevel: String = "B1",
+        mode: String = "General AI",
+        model: String = DEFAULT_MODEL
+    ): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
+        val cleanKey = apiKey.trim()
+        val cleanPrompt = userPrompt.trim()
+        if (cleanKey.isEmpty()) {
+            return@withContext Result.failure(IllegalStateException("Gemini API key is not configured."))
+        }
+        if (cleanPrompt.isEmpty()) {
+            return@withContext Result.failure(IllegalArgumentException("Prompt cannot be empty."))
+        }
+
+        val modelsToTry = mutableListOf<String>()
+        val preferred = model.trim().ifEmpty { DEFAULT_MODEL }
+        modelsToTry.add(preferred)
+        listOf("gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-latest").forEach { fallback ->
+            if (!modelsToTry.contains(fallback)) modelsToTry.add(fallback)
+        }
+
+        val systemPrompt = buildNovaGeminiSystemPrompt(studentName, studentClass, cefrLevel, mode)
+        var lastError: Exception? = null
+
+        for (activeModel in modelsToTry) {
+            try {
+                val url = "https://generativelanguage.googleapis.com/v1beta/models/$activeModel:generateContent?key=$cleanKey"
+                val contents = JSONArray()
+
+                val recentHistory = chatHistory.takeLast(14)
+                var lastRole = ""
+                for (msg in recentHistory) {
+                    val role = if (msg.isNova) "model" else "user"
+                    val text = msg.text.trim()
+                    if (text.isBlank()) continue
+                    if (contents.length() == 0 && role == "model") {
+                        // Gemini requires first turn to be user; skip initial greeting bubble
+                        continue
+                    }
+                    if (role == lastRole && contents.length() > 0) {
+                        val lastObj = contents.getJSONObject(contents.length() - 1)
+                        val partsArr = lastObj.getJSONArray("parts")
+                        val existingPart = partsArr.getJSONObject(0)
+                        existingPart.put("text", "${existingPart.getString("text")}\n\n$text")
+                    } else {
+                        contents.put(JSONObject().apply {
+                            put("role", role)
+                            put("parts", JSONArray().apply {
+                                put(JSONObject().apply { put("text", text) })
+                            })
+                        })
+                        lastRole = role
+                    }
+                }
+
+                if (lastRole == "user" && contents.length() > 0) {
+                    val lastObj = contents.getJSONObject(contents.length() - 1)
+                    val partsArr = lastObj.getJSONArray("parts")
+                    val existingPart = partsArr.getJSONObject(0)
+                    existingPart.put("text", "${existingPart.getString("text")}\n\n$cleanPrompt")
+                } else {
+                    contents.put(JSONObject().apply {
+                        put("role", "user")
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().apply { put("text", cleanPrompt) })
+                        })
+                    })
+                }
+
+                val jsonBody = JSONObject().apply {
+                    put("system_instruction", JSONObject().apply {
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().apply { put("text", systemPrompt) })
+                        })
+                    })
+                    put("contents", contents)
+                    put("generationConfig", JSONObject().apply {
+                        put("temperature", 0.7)
+                        put("maxOutputTokens", 2048)
+                    })
+                }
+
+                val request = Request.Builder()
+                    .url(url)
+                    .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                val responseBody = response.body?.string() ?: ""
+                if (!response.isSuccessful) {
+                    val errorMsg = try {
+                        val errJson = JSONObject(responseBody)
+                        errJson.optJSONObject("error")?.optString("message")
+                            ?: "Gemini API HTTP ${response.code}"
+                    } catch (_: Exception) {
+                        "Gemini API HTTP ${response.code}"
+                    }
+                    lastError = Exception(errorMsg)
+                    continue
+                }
+
+                val rootJson = JSONObject(responseBody)
+                val textOutput = rootJson.optJSONArray("candidates")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("content")
+                    ?.optJSONArray("parts")
+                    ?.optJSONObject(0)
+                    ?.optString("text")
+                    ?.trim()
+                    ?: ""
+
+                if (textOutput.isNotBlank()) {
+                    return@withContext Result.success(textOutput to activeModel)
+                } else {
+                    lastError = Exception("Gemini returned an empty response.")
+                }
+            } catch (e: Exception) {
+                lastError = e
+            }
+        }
+
+        Result.failure(lastError ?: Exception("Unable to reach Gemini right now."))
+    }
+
+    /**
+     * OpenAI-compatible custom endpoint version of Nova Gemini Assistant.
+     */
+    suspend fun askNovaGeminiCustomEndpoint(
+        endpointUrl: String,
+        apiKey: String,
+        modelName: String,
+        userPrompt: String,
+        chatHistory: List<com.example.data.model.NovaChatMessage> = emptyList(),
+        studentName: String = "Student",
+        studentClass: String = "",
+        cefrLevel: String = "B1",
+        mode: String = "General AI"
+    ): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
+        val cleanUrl = endpointUrl.trim().removeSuffix("/")
+        val cleanKey = apiKey.trim()
+        val cleanPrompt = userPrompt.trim()
+        val cleanModel = modelName.trim().ifEmpty { "gpt-4o-mini" }
+
+        if (cleanUrl.isEmpty() || cleanKey.isEmpty()) {
+            return@withContext Result.failure(IllegalStateException("Custom endpoint or API key is not configured."))
+        }
+        if (cleanPrompt.isEmpty()) {
+            return@withContext Result.failure(IllegalArgumentException("Prompt cannot be empty."))
+        }
+
+        val completionsUrl = if (cleanUrl.endsWith("/chat/completions")) cleanUrl else "$cleanUrl/chat/completions"
+
+        try {
+            val systemPrompt = buildNovaGeminiSystemPrompt(studentName, studentClass, cefrLevel, mode)
+            val messages = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("role", "system")
+                    put("content", systemPrompt)
+                })
+                chatHistory.takeLast(14).forEach { msg ->
+                    val text = msg.text.trim()
+                    if (text.isNotBlank()) {
+                        put(JSONObject().apply {
+                            put("role", if (msg.isNova) "assistant" else "user")
+                            put("content", text)
+                        })
+                    }
+                }
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("content", cleanPrompt)
+                })
+            }
+
+            val jsonBody = JSONObject().apply {
+                put("model", cleanModel)
+                put("messages", messages)
+                put("temperature", 0.7)
+            }
+
+            val request = Request.Builder()
+                .url(completionsUrl)
+                .addHeader("Authorization", "Bearer $cleanKey")
+                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                val errorMsg = try {
+                    val errJson = JSONObject(responseBody)
+                    errJson.optJSONObject("error")?.optString("message")
+                        ?: "Custom endpoint HTTP ${response.code}"
+                } catch (_: Exception) {
+                    "Custom endpoint HTTP ${response.code}"
+                }
+                return@withContext Result.failure(Exception(errorMsg))
+            }
+
+            val rootJson = JSONObject(responseBody)
+            val textOutput = rootJson.optJSONArray("choices")
+                ?.optJSONObject(0)
+                ?.optJSONObject("message")
+                ?.optString("content")
+                ?.trim()
+                ?: ""
+
+            if (textOutput.isBlank()) {
+                return@withContext Result.failure(Exception("Endpoint returned an empty response."))
+            }
+            Result.success(textOutput to cleanModel)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun buildNovaGeminiSystemPrompt(
+        studentName: String,
+        studentClass: String,
+        cefrLevel: String,
+        mode: String
+    ): String = buildString {
+        append("You are Nova AI, an intelligent, friendly, Gemini-powered personal AI assistant inside the Speakly learning app.\n")
+        append("Student Profile: Name = ${studentName.ifBlank { "Student" }}")
+        if (studentClass.isNotBlank()) append(", Class/Batch = $studentClass")
+        if (cefrLevel.isNotBlank()) append(", English CEFR Level = $cefrLevel")
+        append(".\nActive Assistant Mode: $mode.\n\n")
+        append("INSTRUCTIONS:\n")
+        append("- Behave like Google Gemini: helpful, accurate, creative, and easy to understand for a student.\n")
+        append("- Answer ANY question the student asks — including English grammar, vocabulary, sentence correction, pronunciation tips, essay/letter/speech writing, translations (Assamese, Hindi, Bengali, etc.), exam preparation, science, math, coding, or general knowledge.\n")
+        when (mode) {
+            "Grammar Fix" -> append("- Mode focus: Analyze any sentence the student sends, show the corrected version clearly, and briefly explain why.\n")
+            "Translator" -> append("- Mode focus: Provide clear, natural translations (especially English <-> Assamese / Hindi / Bengali when requested) along with pronunciation/usage notes.\n")
+            "Writing Coach" -> append("- Mode focus: Help brainstorm, draft, or polish speeches, essays, paragraphs, emails, and dialogues tailored to their level.\n")
+            "Speaking Tutor" -> append("- Mode focus: Give natural spoken English phrases, sample answers, and friendly conversational practice.\n")
+            else -> append("- Mode focus: General-purpose AI assistant like Gemini.\n")
+        }
+        append("- Format cleanly for mobile reading using short paragraphs, numbered lists or '•' bullets, and clear labels instead of messy raw markdown symbols (avoid **bold** asterisks or ### headers; use clear section titles and clean spacing).\n")
+        append("- Keep answers concise yet complete, encouraging, and directly useful.")
+    }
 }
+
