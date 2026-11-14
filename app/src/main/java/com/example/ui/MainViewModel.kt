@@ -1267,6 +1267,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
 
     fun selectStudentTab(tab: StudentTab) {
+        if (tab == StudentTab.PRACTICE) {
+            _speakingSubTab.value = SpeakingSubTab.TOPICS_ROADMAP
+        }
         _currentStudentTab.value = tab
     }
 

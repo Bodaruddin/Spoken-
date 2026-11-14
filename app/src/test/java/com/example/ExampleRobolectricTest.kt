@@ -9,11 +9,20 @@ import com.example.data.model.ExamQuestion
 import com.example.data.model.NovaChatMessage
 import com.example.data.model.Role
 import com.example.data.model.SpeakingPrompt
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import com.example.ui.MainViewModel
+import com.example.ui.SpeakingSubTab
+import com.example.ui.StudentTab
+import com.example.ui.screens.student.StudentHomeScreen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -22,6 +31,9 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class ExampleRobolectricTest {
+
+  @get:Rule
+  val composeTestRule = createComposeRule()
 
   @Test
   fun `verify application name resource`() {
@@ -312,6 +324,36 @@ class ExampleRobolectricTest {
     assertTrue(newPack.id in savedProgress!!.playedPackIds)
     assertEquals(75, savedProgress.totalXpEarned)
     assertEquals(100, savedProgress.bestScorePercent)
+  }
+
+  @Test
+  fun `tapping ai speaking opens challenge topic selection roadmap before nova chat`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val vm = MainViewModel(app)
+    vm.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
+    vm.selectStudentTab(StudentTab.HOME)
+
+    composeTestRule.setContent {
+      StudentHomeScreen(viewModel = vm)
+    }
+
+    composeTestRule.onNodeWithTag("student_home_screen")
+      .performScrollToNode(hasTestTag("home_ai_speaking_card"))
+    composeTestRule.onNodeWithTag("home_ai_speaking_card").performClick()
+
+    assertEquals(StudentTab.PRACTICE, vm.currentStudentTab.value)
+    assertEquals(SpeakingSubTab.TOPICS_ROADMAP, vm.speakingSubTab.value)
+
+    // Selecting a topic from the challenge roadmap launches Nova AI Chat for that topic
+    val chosenTopic = vm.speakingPrompts.value.first()
+    vm.startTopicConversation(chosenTopic)
+    assertEquals(SpeakingSubTab.AI_PARTNER, vm.speakingSubTab.value)
+    assertEquals(chosenTopic.id, vm.activeConversationTopic.value?.id)
+
+    // Re-entering Practice tab via bottom nav or footer returns to the challenge selection page
+    vm.selectStudentTab(StudentTab.HOME)
+    vm.selectStudentTab(StudentTab.PRACTICE)
+    assertEquals(SpeakingSubTab.TOPICS_ROADMAP, vm.speakingSubTab.value)
   }
 }
 

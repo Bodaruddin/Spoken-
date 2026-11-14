@@ -449,9 +449,11 @@ fun StudentHomeScreen(
                     isMicIcon = true,
                     gradient = AISpeakingCardGrad,
                     borderColor = Color(0xFF38BDF8),
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("home_ai_speaking_card"),
                     onClick = {
-                        viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
+                        viewModel.selectSpeakingSubTab(SpeakingSubTab.TOPICS_ROADMAP)
                     }
                 )
 
