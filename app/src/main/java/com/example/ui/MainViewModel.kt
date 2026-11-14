@@ -332,6 +332,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val sentenceBuilderChallenges = repository.sentenceBuilderChallenges
     val listenChooseChallenges = repository.listenChooseChallenges
     val pronunciationBattleChallenges = repository.pronunciationBattleChallenges
+    val fastVocabularyPacks = repository.fastVocabularyPacks
+    val fastVocabularyProgress = repository.fastVocabularyProgress
     val fastVocabularyChallenges = repository.fastVocabularyChallenges
     val grammarChallengePacks = repository.grammarChallengePacks
     val grammarChallenges = repository.grammarChallenges
@@ -748,8 +750,77 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addFastVocabularyChallenge(word: String, prompt: String, options: List<String>, correctIndex: Int, createdBy: String) {
-        val created = repository.addFastVocabularyChallenge(word, prompt, options, correctIndex, createdBy)
+    fun addFastVocabularyPack(
+        title: String,
+        description: String,
+        themeStyle: String = "Easy",
+        durationSeconds: Int = 60,
+        xpReward: Int = 40,
+        createdBy: String
+    ): FastVocabularyPack {
+        val created = repository.addFastVocabularyPack(title, description, themeStyle, durationSeconds, xpReward, createdBy)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = created.id,
+                    type = "FAST_VOCABULARY_PACK",
+                    titleOrWord = created.title,
+                    hintOrMeaning = created.description,
+                    category = created.themeStyle,
+                    correctIndex = created.xpReward,
+                    extraData = created.durationSeconds.toString(),
+                    createdBy = created.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
+        return created
+    }
+
+    fun updateFastVocabularyPack(updated: FastVocabularyPack) {
+        repository.updateFastVocabularyPack(updated)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = updated.id,
+                    type = "FAST_VOCABULARY_PACK",
+                    titleOrWord = updated.title,
+                    hintOrMeaning = updated.description,
+                    category = updated.themeStyle,
+                    correctIndex = updated.xpReward,
+                    extraData = updated.durationSeconds.toString(),
+                    createdBy = updated.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
+    }
+
+    fun deleteFastVocabularyPack(packId: String) {
+        val removedQuestionIds = repository.deleteFastVocabularyPack(packId)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteGameChallenge(packId)
+                removedQuestionIds.forEach { qId ->
+                    supabaseService.deleteGameChallenge(qId)
+                }
+            }
+        }
+    }
+
+    fun recordFastVocabularyResult(packId: String, correctCount: Int, totalCount: Int, xpAwarded: Int) {
+        repository.recordFastVocabularyResult(packId, correctCount, totalCount, xpAwarded)
+    }
+
+    fun addFastVocabularyChallenge(
+        word: String,
+        prompt: String,
+        options: List<String>,
+        correctIndex: Int,
+        createdBy: String,
+        packId: String = "fv_pack_easy"
+    ) {
+        val created = repository.addFastVocabularyChallenge(word, prompt, options, correctIndex, createdBy, packId)
         if (supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
                 val challenge = com.example.data.model.SupabaseGameChallenge(
@@ -759,6 +830,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     hintOrMeaning = created.prompt,
                     options = created.options,
                     correctIndex = created.correctIndex,
+                    extraData = created.packId,
                     createdBy = created.createdBy
                 )
                 supabaseService.saveGameChallenge(challenge)
@@ -960,6 +1032,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     hintOrMeaning = updated.prompt,
                     options = updated.options,
                     correctIndex = updated.correctIndex,
+                    extraData = updated.packId,
                     createdBy = updated.createdBy
                 )
                 supabaseService.saveGameChallenge(challenge)

@@ -921,8 +921,12 @@ fun ActiveGameRunner(
     modifier: Modifier = Modifier
 ) {
     // Intercept system Back button so student returns to catalog instead of exiting app
-    // (SentenceBuilderGame & GrammarChallengeGame manage their own 2-level BackHandler internally)
-    if (gameType != ActiveGameType.SENTENCE_BUILDER && gameType != ActiveGameType.GRAMMAR_CHALLENGE) {
+    // (SentenceBuilderGame, GrammarChallengeGame & FastVocabularyGame manage their own 2-level BackHandler internally)
+    if (
+        gameType != ActiveGameType.SENTENCE_BUILDER &&
+        gameType != ActiveGameType.GRAMMAR_CHALLENGE &&
+        gameType != ActiveGameType.FAST_VOCABULARY
+    ) {
         BackHandler {
             onClose()
         }
@@ -938,6 +942,13 @@ fun ActiveGameRunner(
         }
         ActiveGameType.GRAMMAR_CHALLENGE -> {
             GrammarChallengeGame(
+                viewModel = viewModel,
+                onClose = onClose,
+                modifier = modifier
+            )
+        }
+        ActiveGameType.FAST_VOCABULARY -> {
+            FastVocabularyGame(
                 viewModel = viewModel,
                 onClose = onClose,
                 modifier = modifier
@@ -3430,233 +3441,1407 @@ fun PronunciationBattleGame(
 }
 
 // =========================================================================
-// 6. FAST VOCABULARY GAME - Real 30-Second Rapid Blitz with streak and score
+// 6. FAST VOCABULARY GAME - Cosmic Challenge Selection + Timed Word Blitz
 // =========================================================================
-@Composable
-fun FastVocabularyGame(viewModel: MainViewModel) {
-    val challenges by viewModel.fastVocabularyChallenges.collectAsState()
-    var isBlitzActive by remember { mutableStateOf(false) }
-    var isBlitzFinished by remember { mutableStateOf(false) }
-    var timeLeft by remember { mutableIntStateOf(30) }
-    var currentIdx by remember { mutableIntStateOf(0) }
-    var score by remember { mutableIntStateOf(0) }
-    var correctCount by remember { mutableIntStateOf(0) }
-    var streak by remember { mutableIntStateOf(1) }
-    var selectedOption by remember { mutableStateOf<Int?>(null) }
+private data class FastVocabCardStyle(
+    val gradientColors: List<Color>,
+    val borderColor: Color,
+    val pillGradient: List<Color>,
+    val buttonGradient: List<Color>,
+    val buttonBorderColor: Color,
+    val themeKey: String
+)
 
-    // 30-Second Countdown Timer
-    LaunchedEffect(isBlitzActive, timeLeft) {
-        if (isBlitzActive && timeLeft > 0) {
-            delay(1000)
-            timeLeft--
-        } else if (isBlitzActive && timeLeft == 0) {
-            isBlitzActive = false
-            isBlitzFinished = true
-            // Reward blitz completion
-            if (score > 0) {
-                viewModel.rewardGameWin(maxOf(30, score), maxOf(10, score / 4))
+private fun resolveFastVocabCardStyle(pack: FastVocabularyPack, index: Int): FastVocabCardStyle {
+    return when (pack.themeStyle.lowercase().trim()) {
+        "easy" -> FastVocabCardStyle(
+            gradientColors = listOf(Color(0xFF22C55E), Color(0xFF047857)),
+            borderColor = Color(0xFF86EFAC),
+            pillGradient = listOf(Color(0xFF16A34A), Color(0xFF065F46)),
+            buttonGradient = listOf(Color(0xFF4ADE80), Color(0xFF15803D)),
+            buttonBorderColor = Color(0xFFDCFCE7),
+            themeKey = "easy"
+        )
+        "medium" -> FastVocabCardStyle(
+            gradientColors = listOf(Color(0xFF2563EB), Color(0xFF1E3A8A)),
+            borderColor = Color(0xFF93C5FD),
+            pillGradient = listOf(Color(0xFF2563EB), Color(0xFF1E40AF)),
+            buttonGradient = listOf(Color(0xFF38BDF8), Color(0xFF1D4ED8)),
+            buttonBorderColor = Color(0xFFDBEAFE),
+            themeKey = "medium"
+        )
+        "hard" -> FastVocabCardStyle(
+            gradientColors = listOf(Color(0xFFA855F7), Color(0xFF6B21A8)),
+            borderColor = Color(0xFFE9D5FF),
+            pillGradient = listOf(Color(0xFF9333EA), Color(0xFF581C87)),
+            buttonGradient = listOf(Color(0xFFE879F9), Color(0xFF7E22CE)),
+            buttonBorderColor = Color(0xFFFAE8FF),
+            themeKey = "hard"
+        )
+        "mixed" -> FastVocabCardStyle(
+            gradientColors = listOf(Color(0xFFF59E0B), Color(0xFFC2410C)),
+            borderColor = Color(0xFFFDE68A),
+            pillGradient = listOf(Color(0xFFD97706), Color(0xFF9A3412)),
+            buttonGradient = listOf(Color(0xFFFBBF24), Color(0xFFEA580C)),
+            buttonBorderColor = Color(0xFFFEF3C7),
+            themeKey = "mixed"
+        )
+        else -> when (index % 4) {
+            0 -> FastVocabCardStyle(
+                gradientColors = listOf(Color(0xFF22C55E), Color(0xFF047857)),
+                borderColor = Color(0xFF86EFAC),
+                pillGradient = listOf(Color(0xFF16A34A), Color(0xFF065F46)),
+                buttonGradient = listOf(Color(0xFF4ADE80), Color(0xFF15803D)),
+                buttonBorderColor = Color(0xFFDCFCE7),
+                themeKey = "easy"
+            )
+            1 -> FastVocabCardStyle(
+                gradientColors = listOf(Color(0xFF2563EB), Color(0xFF1E3A8A)),
+                borderColor = Color(0xFF93C5FD),
+                pillGradient = listOf(Color(0xFF2563EB), Color(0xFF1E40AF)),
+                buttonGradient = listOf(Color(0xFF38BDF8), Color(0xFF1D4ED8)),
+                buttonBorderColor = Color(0xFFDBEAFE),
+                themeKey = "medium"
+            )
+            2 -> FastVocabCardStyle(
+                gradientColors = listOf(Color(0xFFA855F7), Color(0xFF6B21A8)),
+                borderColor = Color(0xFFE9D5FF),
+                pillGradient = listOf(Color(0xFF9333EA), Color(0xFF581C87)),
+                buttonGradient = listOf(Color(0xFFE879F9), Color(0xFF7E22CE)),
+                buttonBorderColor = Color(0xFFFAE8FF),
+                themeKey = "hard"
+            )
+            else -> FastVocabCardStyle(
+                gradientColors = listOf(Color(0xFFF59E0B), Color(0xFFC2410C)),
+                borderColor = Color(0xFFFDE68A),
+                pillGradient = listOf(Color(0xFFD97706), Color(0xFF9A3412)),
+                buttonGradient = listOf(Color(0xFFFBBF24), Color(0xFFEA580C)),
+                buttonBorderColor = Color(0xFFFEF3C7),
+                themeKey = "mixed"
+            )
+        }
+    }
+}
+
+@Composable
+private fun FastVocabThemeIllustration(themeKey: String, modifier: Modifier = Modifier) {
+    when (themeKey) {
+        "easy" -> {
+            // Glossy Red Apple with Green Leaf
+            Canvas(modifier = modifier) {
+                val w = size.width
+                val h = size.height
+
+                // Stem
+                drawLine(
+                    color = Color(0xFF78350F),
+                    start = Offset(w * 0.50f, h * 0.28f),
+                    end = Offset(w * 0.56f, h * 0.12f),
+                    strokeWidth = 4.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+
+                // Green leaf
+                val leaf = Path().apply {
+                    moveTo(w * 0.52f, h * 0.24f)
+                    cubicTo(w * 0.62f, h * 0.08f, w * 0.84f, h * 0.14f, w * 0.78f, h * 0.28f)
+                    cubicTo(w * 0.70f, h * 0.34f, w * 0.58f, h * 0.30f, w * 0.52f, h * 0.24f)
+                    close()
+                }
+                drawPath(leaf, Brush.linearGradient(listOf(Color(0xFF86EFAC), Color(0xFF16A34A))))
+
+                // Apple left & right lobes
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        listOf(Color(0xFFFF6B6B), Color(0xFFDC2626), Color(0xFF991B1B)),
+                        center = Offset(w * 0.38f, h * 0.45f),
+                        radius = w * 0.42f
+                    ),
+                    radius = w * 0.26f,
+                    center = Offset(w * 0.37f, h * 0.54f)
+                )
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        listOf(Color(0xFFEF4444), Color(0xFFB91C1C)),
+                        center = Offset(w * 0.58f, h * 0.48f),
+                        radius = w * 0.40f
+                    ),
+                    radius = w * 0.26f,
+                    center = Offset(w * 0.63f, h * 0.54f)
+                )
+                drawOval(
+                    brush = Brush.verticalGradient(listOf(Color(0xFFEF4444), Color(0xFF991B1B))),
+                    topLeft = Offset(w * 0.20f, h * 0.36f),
+                    size = Size(w * 0.60f, h * 0.52f)
+                )
+                // Specular highlight
+                drawOval(
+                    color = Color.White.copy(alpha = 0.55f),
+                    topLeft = Offset(w * 0.24f, h * 0.40f),
+                    size = Size(w * 0.14f, h * 0.22f)
+                )
+            }
+        }
+        "medium" -> {
+            // Open Book with "ABC"
+            Box(modifier = modifier, contentAlignment = Alignment.Center) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+
+                    // Gold cover
+                    drawRoundRect(
+                        color = Color(0xFFF59E0B),
+                        topLeft = Offset(w * 0.06f, h * 0.28f),
+                        size = Size(w * 0.88f, h * 0.54f),
+                        cornerRadius = CornerRadius(10f, 10f)
+                    )
+
+                    val leftPage = Path().apply {
+                        moveTo(w * 0.11f, h * 0.24f)
+                        cubicTo(w * 0.24f, h * 0.18f, w * 0.40f, h * 0.20f, w * 0.50f, h * 0.29f)
+                        lineTo(w * 0.50f, h * 0.76f)
+                        cubicTo(w * 0.36f, h * 0.69f, w * 0.22f, h * 0.68f, w * 0.11f, h * 0.73f)
+                        close()
+                    }
+                    drawPath(leftPage, Color(0xFFF8FAFC))
+
+                    val rightPage = Path().apply {
+                        moveTo(w * 0.50f, h * 0.29f)
+                        cubicTo(w * 0.60f, h * 0.20f, w * 0.76f, h * 0.18f, w * 0.89f, h * 0.24f)
+                        lineTo(w * 0.89f, h * 0.73f)
+                        cubicTo(w * 0.78f, h * 0.68f, w * 0.64f, h * 0.69f, w * 0.50f, h * 0.76f)
+                        close()
+                    }
+                    drawPath(rightPage, Color(0xFFE2E8F0))
+                }
+                Text(
+                    text = "ABC",
+                    color = Color(0xFF0284C7),
+                    fontWeight = FontWeight.Black,
+                    fontSize = 13.sp,
+                    modifier = Modifier.offset(y = (-2).dp)
+                )
+            }
+        }
+        "hard" -> {
+            // Golden Star Trophy with Laurel Wreath
+            Box(modifier = modifier, contentAlignment = Alignment.Center) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val w = size.width
+                    val h = size.height
+
+                    // Laurel arcs
+                    drawArc(
+                        color = Color(0xFFFDE047),
+                        startAngle = 125f,
+                        sweepAngle = 110f,
+                        useCenter = false,
+                        topLeft = Offset(w * 0.08f, h * 0.22f),
+                        size = Size(w * 0.34f, h * 0.62f),
+                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                    )
+                    drawArc(
+                        color = Color(0xFFFDE047),
+                        startAngle = -55f,
+                        sweepAngle = 110f,
+                        useCenter = false,
+                        topLeft = Offset(w * 0.58f, h * 0.22f),
+                        size = Size(w * 0.34f, h * 0.62f),
+                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                    )
+                    // Trophy pedestal
+                    drawRoundRect(
+                        color = Color(0xFFD97706),
+                        topLeft = Offset(w * 0.34f, h * 0.78f),
+                        size = Size(w * 0.32f, h * 0.12f),
+                        cornerRadius = CornerRadius(6f, 6f)
+                    )
+                    drawRect(
+                        color = Color(0xFFF59E0B),
+                        topLeft = Offset(w * 0.45f, h * 0.65f),
+                        size = Size(w * 0.10f, h * 0.14f)
+                    )
+                    // Trophy cup
+                    val cup = Path().apply {
+                        moveTo(w * 0.26f, h * 0.22f)
+                        lineTo(w * 0.74f, h * 0.22f)
+                        cubicTo(w * 0.72f, h * 0.54f, w * 0.58f, h * 0.67f, w * 0.50f, h * 0.67f)
+                        cubicTo(w * 0.42f, h * 0.67f, w * 0.28f, h * 0.54f, w * 0.26f, h * 0.22f)
+                        close()
+                    }
+                    drawPath(cup, Brush.verticalGradient(listOf(Color(0xFFFEF08A), Color(0xFFF59E0B))))
+                }
+                Icon(
+                    imageVector = Icons.Rounded.Star,
+                    contentDescription = null,
+                    tint = Color(0xFFB45309),
+                    modifier = Modifier
+                        .size(16.dp)
+                        .offset(y = (-6).dp)
+                )
+            }
+        }
+        else -> {
+            // Tilted A / B / C colored blocks
+            Box(modifier = modifier, contentAlignment = Alignment.Center) {
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0xFFEF4444),
+                    border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                    modifier = Modifier
+                        .size(22.dp)
+                        .offset(x = (-2).dp, y = (-11).dp)
+                        .rotate(-6f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("A", color = Color.White, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0xFF2563EB),
+                    border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                    modifier = Modifier
+                        .size(22.dp)
+                        .offset(x = (-12).dp, y = 9.dp)
+                        .rotate(8f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("B", color = Color.White, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0xFF16A34A),
+                    border = BorderStroke(1.dp, Color(0xFFBBF7D0)),
+                    modifier = Modifier
+                        .size(22.dp)
+                        .offset(x = 12.dp, y = 9.dp)
+                        .rotate(-7f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("C", color = Color.White, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    }
+                }
             }
         }
     }
+}
 
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth()
+@Composable
+private fun FastVocabBottomHorizonBook(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // Glowing aura behind book
+        drawCircle(
+            brush = Brush.radialGradient(
+                listOf(Color(0xFFFACC15).copy(alpha = 0.55f), Color(0xFF9333EA).copy(alpha = 0.25f), Color.Transparent),
+                center = Offset(w * 0.5f, h * 0.62f),
+                radius = w * 0.35f
+            ),
+            center = Offset(w * 0.5f, h * 0.62f),
+            radius = w * 0.35f
+        )
+
+        // Purple decorative clouds/hills along horizon
+        val hillLeft = Path().apply {
+            moveTo(0f, h)
+            cubicTo(w * 0.14f, h * 0.30f, w * 0.32f, h * 0.52f, w * 0.44f, h)
+            close()
+        }
+        drawPath(hillLeft, Color(0xFF4C1D95).copy(alpha = 0.72f))
+
+        val hillRight = Path().apply {
+            moveTo(w * 0.56f, h)
+            cubicTo(w * 0.68f, h * 0.52f, w * 0.86f, h * 0.30f, w, h)
+            close()
+        }
+        drawPath(hillRight, Color(0xFF4C1D95).copy(alpha = 0.72f))
+
+        // Left & right stylized purple leaves
+        val leafLeft = Path().apply {
+            moveTo(w * 0.03f, h * 0.96f)
+            cubicTo(w * 0.01f, h * 0.42f, w * 0.12f, h * 0.18f, w * 0.15f, h * 0.52f)
+            cubicTo(w * 0.15f, h * 0.78f, w * 0.09f, h * 0.92f, w * 0.03f, h * 0.96f)
+            close()
+        }
+        drawPath(leafLeft, Color(0xFFA855F7).copy(alpha = 0.78f))
+
+        val leafRight = Path().apply {
+            moveTo(w * 0.97f, h * 0.96f)
+            cubicTo(w * 0.99f, h * 0.42f, w * 0.88f, h * 0.18f, w * 0.85f, h * 0.52f)
+            cubicTo(w * 0.85f, h * 0.78f, w * 0.91f, h * 0.92f, w * 0.97f, h * 0.96f)
+            close()
+        }
+        drawPath(leafRight, Color(0xFFA855F7).copy(alpha = 0.78f))
+
+        // Open Glowing Book in Center
+        val cover = Path().apply {
+            moveTo(w * 0.29f, h * 0.80f)
+            lineTo(w * 0.50f, h * 0.94f)
+            lineTo(w * 0.71f, h * 0.80f)
+            lineTo(w * 0.68f, h * 0.64f)
+            lineTo(w * 0.50f, h * 0.76f)
+            lineTo(w * 0.32f, h * 0.64f)
+            close()
+        }
+        drawPath(cover, Color(0xFF2563EB))
+
+        val leftOpen = Path().apply {
+            moveTo(w * 0.32f, h * 0.62f)
+            cubicTo(w * 0.39f, h * 0.52f, w * 0.45f, h * 0.55f, w * 0.50f, h * 0.69f)
+            lineTo(w * 0.50f, h * 0.88f)
+            cubicTo(w * 0.43f, h * 0.78f, w * 0.37f, h * 0.76f, w * 0.30f, h * 0.78f)
+            close()
+        }
+        drawPath(leftOpen, Color(0xFFF8FAFC))
+
+        val rightOpen = Path().apply {
+            moveTo(w * 0.50f, h * 0.69f)
+            cubicTo(w * 0.55f, h * 0.55f, w * 0.61f, h * 0.52f, w * 0.68f, h * 0.62f)
+            lineTo(w * 0.70f, h * 0.78f)
+            cubicTo(w * 0.63f, h * 0.76f, w * 0.57f, h * 0.78f, w * 0.50f, h * 0.88f)
+            close()
+        }
+        drawPath(rightOpen, Color(0xFFE2E8F0))
+    }
+}
+
+@Composable
+fun FastVocabularyGame(
+    viewModel: MainViewModel,
+    onClose: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val packs by viewModel.fastVocabularyPacks.collectAsState()
+    val allChallenges by viewModel.fastVocabularyChallenges.collectAsState()
+    val progress by viewModel.fastVocabularyProgress.collectAsState()
+    val studentProfile by viewModel.studentProfile.collectAsState()
+
+    var activePlayingPackId by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(packs) {
+        if (activePlayingPackId != null && packs.none { it.id == activePlayingPackId }) {
+            activePlayingPackId = null
+        }
+    }
+
+    BackHandler {
+        if (activePlayingPackId != null) {
+            activePlayingPackId = null
+        } else {
+            onClose()
+        }
+    }
+
+    val activePack = remember(packs, activePlayingPackId) {
+        packs.firstOrNull { it.id == activePlayingPackId }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xFF0E0429),
+                        Color(0xFF1A0948),
+                        Color(0xFF130638),
+                        Color(0xFF09021C)
+                    )
+                )
+            )
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        ArcadeBackgroundWaves()
+
+        if (activePack == null) {
+            // =========================================================================
+            // PAGE 1: FAST VOCABULARY CHALLENGE SELECTION (Matches Reference Screenshot)
+            // =========================================================================
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("⏱️ Rapid Vocabulary Blitz", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = OrangeVibrant)
-                if (isBlitzActive) {
-                    Text(
-                        "⏳ ${timeLeft}s",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 16.sp,
-                        color = if (timeLeft <= 5) CoralAccent else RoyalBlue
-                    )
-                }
-            }
-
-            if (!isBlitzActive && !isBlitzFinished) {
-                // Intro Screen
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF0F1E42),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("⚡ 30-Second Word Speed Test", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                        Text(
-                            "Recognize words as fast as possible! Keep up a combo streak for multiplied bonus points.",
-                            fontSize = 12.sp,
-                            color = Color(0xFFCBD5E1),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-
-                Button(
-                    onClick = {
-                        isBlitzActive = true
-                        isBlitzFinished = false
-                        timeLeft = 30
-                        score = 0
-                        correctCount = 0
-                        streak = 1
-                        currentIdx = 0
-                    },
+                // Top Bar: Back Button, Bolt + Title, XP Pill
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = OrangeVibrant)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Start Blitz Now 🚀", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                }
-            } else if (isBlitzFinished) {
-                // Results Screen
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFFDCFCE7),
-                    border = BorderStroke(1.5.dp, EmeraldSuccess),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("🎉 Blitz Complete!", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color(0xFF166534))
-                        Text(
-                            "Score: $score Points • $correctCount Correct Words",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            color = Color(0xFF15803D)
-                        )
-                        Text(
-                            "+${maxOf(30, score)} XP & +${maxOf(10, score / 4)} Coins Earned!",
-                            fontSize = 12.sp,
-                            color = Color(0xFF166534)
-                        )
-                    }
-                }
-
-                Button(
-                    onClick = {
-                        isBlitzActive = true
-                        isBlitzFinished = false
-                        timeLeft = 30
-                        score = 0
-                        correctCount = 0
-                        streak = 1
-                        currentIdx = 0
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
-                ) {
-                    Text("Play Blitz Again 🔄")
-                }
-            } else {
-                // Active Blitz Running
-                val current = challenges.getOrNull(currentIdx % maxOf(1, challenges.size))
-                if (current != null) {
-                    LinearProgressIndicator(
-                        progress = { timeLeft / 30f },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
-                        color = if (timeLeft <= 5) CoralAccent else OrangeVibrant,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("Score: $score pts", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoyalBlue)
-                        if (streak > 1) {
-                            Text("🔥 ${streak}x Combo!", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = AmberGold)
-                        }
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFF0F1E42),
-                        border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Target Word:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
-                            Text(current.word, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                            Text(current.prompt, fontSize = 12.sp, color = Color(0xFFCBD5E1))
-                        }
-                    }
-
-                    // Options
-                    current.options.forEachIndexed { idx, opt ->
-                        val isSelected = selectedOption == idx
-                        val isCorrect = idx == current.correctIndex
-
                         Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = when {
-                                isSelected && isCorrect -> Color(0xFFDCFCE7)
-                                isSelected && !isCorrect -> Color(0xFFFEE2E2)
-                                else -> MaterialTheme.colorScheme.surfaceVariant
-                            },
-                            border = BorderStroke(
-                                1.dp,
-                                when {
-                                    isSelected && isCorrect -> EmeraldSuccess
-                                    isSelected && !isCorrect -> CoralAccent
-                                    else -> Color.Transparent
-                                }
-                            ),
+                            shape = CircleShape,
+                            color = Color(0xFF28175A),
+                            border = BorderStroke(1.3.dp, Color(0xFF8B5CF6).copy(alpha = 0.75f)),
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(enabled = selectedOption == null) {
-                                    selectedOption = idx
-                                    if (isCorrect) {
-                                        score += 20 * streak
-                                        correctCount++
-                                        streak = minOf(4, streak + 1)
-                                        viewModel.speakAudio(current.word)
-                                    } else {
-                                        streak = 1
-                                    }
-                                }
+                                .size(48.dp)
+                                .clickable { onClose() }
+                                .testTag("fv_back_button")
                         ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = "Back to Games Hub",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Bolt,
+                                contentDescription = null,
+                                tint = Color(0xFFFACC15),
+                                modifier = Modifier.size(24.dp)
+                            )
                             Text(
-                                text = opt,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
-                                color = when {
-                                    isSelected && isCorrect -> Color(0xFF166534)
-                                    isSelected && !isCorrect -> Color(0xFF991B1B)
-                                    else -> MaterialTheme.colorScheme.onSurface
-                                },
-                                modifier = Modifier.padding(12.dp)
+                                text = "Fast Vocabulary Challenge",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.sp,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
-                    // Auto-advance quickly after selection
-                    LaunchedEffect(selectedOption) {
-                        if (selectedOption != null) {
-                            delay(450)
-                            selectedOption = null
-                            currentIdx++
+                    Spacer(Modifier.width(8.dp))
+
+                    // XP Pill
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFF1D1047),
+                        border = BorderStroke(1.2.dp, Color(0xFF8B5CF6).copy(alpha = 0.7f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text("⭐", fontSize = 13.sp)
+                            Text(
+                                text = "${studentProfile.xpPoints} XP",
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+
+                // Hero Banner: Cosmic Owl on Left + Angled Ribbon & Subtitle on Right
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(176.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color(0xFF140738))
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.img_grammar_challenge_hero),
+                        contentDescription = "Fast Vocabulary Challenge Cosmic Owl",
+                        contentScale = ContentScale.Crop,
+                        alignment = Alignment.CenterStart,
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(0.62f)
+                            .align(Alignment.CenterStart)
+                    )
+                    // Smooth horizontal cosmic blend into right ribbon area
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.horizontalGradient(
+                                    0.0f to Color.Transparent,
+                                    0.36f to Color.Transparent,
+                                    0.58f to Color(0xFF17083E).copy(alpha = 0.92f),
+                                    1.0f to Color(0xFF120634)
+                                )
+                            )
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(0.62f)
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 10.dp, top = 12.dp, bottom = 10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        // Tilted Purple-Magenta Banner Ribbon
+                        Box(
+                            modifier = Modifier
+                                .rotate(-2.5f)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            Color(0xFF7E22CE),
+                                            Color(0xFFC026D3),
+                                            Color(0xFF9333EA)
+                                        )
+                                    )
+                                )
+                                .border(1.5.dp, Color(0xFFF5D0FE).copy(alpha = 0.8f), RoundedCornerShape(16.dp))
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Fast Vocabulary",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 17.sp,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = "Challenge",
+                                    color = Color(0xFFFDE047),
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 19.sp,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(10.dp))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text("»", color = Color(0xFFFACC15), fontWeight = FontWeight.Black, fontSize = 14.sp)
+                            Text(
+                                text = "Think Fast! Choose a challenge\nand test your vocabulary skills!",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFF8FAFC),
+                                textAlign = TextAlign.Center,
+                                lineHeight = 14.sp
+                            )
+                            Text("«", color = Color(0xFFFACC15), fontWeight = FontWeight.Black, fontSize = 14.sp)
+                        }
+                    }
+                }
+
+                // 2-Column Grid of Challenge Packs
+                if (packs.isEmpty()) {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A103D)),
+                        border = BorderStroke(1.dp, Color(0xFF6366F1).copy(alpha = 0.45f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("⚡", fontSize = 36.sp)
+                            Text(
+                                "No Fast Vocabulary Challenges Yet",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                "Teachers can add vocabulary challenges and questions from the Teacher Panel.",
+                                fontSize = 12.sp,
+                                color = Color(0xFFCBD5E1),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    val rows = remember(packs) { packs.chunked(2) }
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("fv_challenge_packs_grid")
+                    ) {
+                        rows.forEachIndexed { rowIdx, rowPacks ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                rowPacks.forEachIndexed { colIdx, pack ->
+                                    val absoluteIdx = rowIdx * 2 + colIdx
+                                    val questionCount = allChallenges.count { it.packId == pack.id }
+                                    val style = resolveFastVocabCardStyle(pack, absoluteIdx)
+
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(top = 12.dp)
+                                            .testTag("fv_pack_card_${pack.id}")
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(20.dp),
+                                            color = Color.Transparent,
+                                            border = BorderStroke(1.5.dp, style.borderColor.copy(alpha = 0.9f)),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(20.dp))
+                                                .clickable { activePlayingPackId = pack.id }
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(Brush.verticalGradient(style.gradientColors))
+                                                    .padding(start = 10.dp, end = 10.dp, top = 20.dp, bottom = 10.dp),
+                                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                // Artwork on left + Q Count / Timer / XP on right
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    FastVocabThemeIllustration(
+                                                        themeKey = style.themeKey,
+                                                        modifier = Modifier.size(56.dp)
+                                                    )
+                                                    Column(
+                                                        modifier = Modifier.weight(1f),
+                                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "$questionCount ${if (questionCount == 1) "Question" else "Questions"}",
+                                                            color = Color.White,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            fontSize = 12.sp,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Rounded.Schedule,
+                                                                contentDescription = null,
+                                                                tint = Color(0xFFDBEAFE),
+                                                                modifier = Modifier.size(14.dp)
+                                                            )
+                                                            Text(
+                                                                text = "${pack.durationSeconds}s",
+                                                                color = Color.White,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 11.5.sp
+                                                            )
+                                                        }
+                                                        Row(
+                                                            verticalAlignment = Alignment.CenterVertically,
+                                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                        ) {
+                                                            Icon(
+                                                                imageVector = Icons.Rounded.Star,
+                                                                contentDescription = null,
+                                                                tint = Color(0xFFFDE047),
+                                                                modifier = Modifier.size(14.dp)
+                                                            )
+                                                            Text(
+                                                                text = "+${pack.xpReward} XP",
+                                                                color = Color(0xFFFEF08A),
+                                                                fontWeight = FontWeight.ExtraBold,
+                                                                fontSize = 11.5.sp
+                                                            )
+                                                        }
+                                                    }
+                                                }
+
+                                                // Glossy Full-Width Start Button
+                                                Surface(
+                                                    shape = RoundedCornerShape(14.dp),
+                                                    color = Color.Transparent,
+                                                    border = BorderStroke(1.2.dp, style.buttonBorderColor.copy(alpha = 0.85f)),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .defaultMinSize(minHeight = 48.dp)
+                                                        .clip(RoundedCornerShape(14.dp))
+                                                        .clickable { activePlayingPackId = pack.id }
+                                                        .testTag("fv_start_btn_${pack.id}")
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .background(Brush.verticalGradient(style.buttonGradient))
+                                                            .padding(vertical = 11.dp),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.Center
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.PlayArrow,
+                                                            contentDescription = "Start ${pack.title}",
+                                                            tint = Color.White,
+                                                            modifier = Modifier.size(18.dp)
+                                                        )
+                                                        Spacer(Modifier.width(4.dp))
+                                                        Text(
+                                                            text = "Start",
+                                                            color = Color.White,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            fontSize = 14.sp
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Overlapping Top Pill Header Tab ("Easy", "Medium", etc.)
+                                        Surface(
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = Color.Transparent,
+                                            border = BorderStroke(1.2.dp, style.borderColor.copy(alpha = 0.9f)),
+                                            modifier = Modifier
+                                                .align(Alignment.TopCenter)
+                                                .offset(y = (-11).dp)
+                                                .widthIn(max = 128.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(Brush.verticalGradient(style.pillGradient))
+                                                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = pack.title,
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 13.5.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                if (rowPacks.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // My Progress Summary Card (Challenges Played, Total XP, Best Score %)
+                val packIdsSet = remember(packs) { packs.map { it.id }.toSet() }
+                val playedCount = progress.playedPackIds.count { it in packIdsSet }
+
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFF1A0E3F).copy(alpha = 0.92f),
+                    border = BorderStroke(1.3.dp, Color(0xFF7C3AED).copy(alpha = 0.8f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("fv_my_progress_card")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(1.dp)
+                                    .background(Color(0xFF7C3AED).copy(alpha = 0.55f))
+                            )
+                            Icon(
+                                imageVector = Icons.Rounded.EmojiEvents,
+                                contentDescription = null,
+                                tint = Color(0xFFFACC15),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "My Progress",
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(1.dp)
+                                    .background(Color(0xFF7C3AED).copy(alpha = 0.55f))
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Min),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 1. Challenges Played
+                            Row(
+                                modifier = Modifier.weight(1.1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.BarChart,
+                                    contentDescription = "Challenges Played",
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Challenges Played",
+                                        color = Color(0xFFCBD5E1),
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "$playedCount / ${packs.size}",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 15.sp
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .fillMaxHeight()
+                                    .padding(vertical = 4.dp)
+                                    .background(Color(0xFF4C1D95))
+                            )
+
+                            // 2. Total XP
+                            Row(
+                                modifier = Modifier
+                                    .weight(0.95f)
+                                    .padding(horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Star,
+                                    contentDescription = "Total XP",
+                                    tint = Color(0xFFFACC15),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Total XP",
+                                        color = Color(0xFFCBD5E1),
+                                        fontSize = 10.sp,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "${progress.totalXpEarned}",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 15.sp
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .fillMaxHeight()
+                                    .padding(vertical = 4.dp)
+                                    .background(Color(0xFF4C1D95))
+                            )
+
+                            // 3. Best Score
+                            Row(
+                                modifier = Modifier
+                                    .weight(0.95f)
+                                    .padding(start = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.MilitaryTech,
+                                    contentDescription = "Best Score",
+                                    tint = Color(0xFFF59E0B),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Best Score",
+                                        color = Color(0xFFCBD5E1),
+                                        fontSize = 10.sp,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "${progress.bestScorePercent}%",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 15.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Bottom Glowing Book & Purple Leaves Horizon
+                FastVocabBottomHorizonBook(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(62.dp)
+                )
+            }
+        } else {
+            // =========================================================================
+            // PAGE 2: TIMED BLITZ GAMEPLAY SCOPED TO SELECTED CHALLENGE PACK
+            // =========================================================================
+            val packQuestions = remember(allChallenges, activePack.id) {
+                allChallenges.filter { it.packId == activePack.id }
+            }
+            val totalSeconds = activePack.durationSeconds.coerceAtLeast(15)
+
+            var sessionRunId by remember(activePack.id) { mutableIntStateOf(0) }
+            var timeLeft by remember(activePack.id, sessionRunId) { mutableIntStateOf(totalSeconds) }
+            var currentIdx by remember(activePack.id, sessionRunId) { mutableIntStateOf(0) }
+            var correctCount by remember(activePack.id, sessionRunId) { mutableIntStateOf(0) }
+            var answeredCount by remember(activePack.id, sessionRunId) { mutableIntStateOf(0) }
+            var streak by remember(activePack.id, sessionRunId) { mutableIntStateOf(0) }
+            var maxStreak by remember(activePack.id, sessionRunId) { mutableIntStateOf(0) }
+            var selectedOption by remember(activePack.id, sessionRunId) { mutableStateOf<Int?>(null) }
+            var isFinished by remember(activePack.id, sessionRunId) { mutableStateOf(false) }
+            var hasRecordedResult by remember(activePack.id, sessionRunId) { mutableStateOf(false) }
+
+            // Countdown timer while game is active
+            LaunchedEffect(activePack.id, sessionRunId, isFinished, packQuestions.size) {
+                if (packQuestions.isNotEmpty() && !isFinished) {
+                    while (timeLeft > 0 && !isFinished) {
+                        delay(1000)
+                        if (!isFinished && timeLeft > 0) {
+                            timeLeft--
+                        }
+                    }
+                    if (timeLeft == 0 && !isFinished) {
+                        isFinished = true
+                    }
+                }
+            }
+
+            // Record completion once per run
+            LaunchedEffect(isFinished, activePack.id, sessionRunId) {
+                if (isFinished && !hasRecordedResult && packQuestions.isNotEmpty()) {
+                    hasRecordedResult = true
+                    val accuracyPercent = (correctCount * 100) / packQuestions.size.coerceAtLeast(1)
+                    val earnedXp = if (correctCount == 0) 0 else maxOf(10, (activePack.xpReward * accuracyPercent) / 100) + (maxStreak * 2)
+                    val earnedCoins = maxOf(5, earnedXp / 4)
+                    viewModel.recordFastVocabularyResult(
+                        packId = activePack.id,
+                        correctCount = correctCount,
+                        totalCount = packQuestions.size,
+                        xpAwarded = earnedXp
+                    )
+                    if (earnedXp > 0) {
+                        viewModel.rewardGameWin(earnedXp, earnedCoins)
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header Bar with Back to Challenges + Pack Info + Timer Pill
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF28175A),
+                        border = BorderStroke(1.dp, Color(0xFF7C3AED).copy(alpha = 0.7f)),
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 48.dp)
+                            .clickable { activePlayingPackId = null }
+                            .testTag("fv_back_to_challenges_btn")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back to Challenges",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Challenges",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 8.dp)
+                    ) {
+                        Text(
+                            text = "${activePack.title} Blitz",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "${packQuestions.size} ${if (packQuestions.size == 1) "Question" else "Questions"} • +${activePack.xpReward} XP",
+                            fontSize = 11.sp,
+                            color = Color(0xFFCBD5E1)
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (timeLeft <= 10 && !isFinished) Color(0xFF7F1D1D) else Color(0xFF1F1147),
+                        border = BorderStroke(
+                            1.dp,
+                            if (timeLeft <= 10 && !isFinished) CoralAccent else Color(0xFF38BDF8).copy(alpha = 0.65f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Schedule,
+                                contentDescription = null,
+                                tint = if (timeLeft <= 10 && !isFinished) Color(0xFFFCA5A5) else Color(0xFF7DD3FC),
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text = "${timeLeft}s",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+
+                if (packQuestions.isEmpty()) {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text("⚡ No Questions in This Challenge", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(
+                                "Ask your teacher to add questions to '${activePack.title}', or select another challenge.",
+                                fontSize = 12.sp,
+                                color = MutedGray,
+                                textAlign = TextAlign.Center
+                            )
+                            Button(
+                                onClick = { activePlayingPackId = null },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                            ) {
+                                Text("Choose Another Challenge")
+                            }
+                        }
+                    }
+                } else if (isFinished) {
+                    val accuracy = (correctCount * 100) / packQuestions.size.coerceAtLeast(1)
+                    val earnedXp = if (correctCount == 0) 0 else maxOf(10, (activePack.xpReward * accuracy) / 100) + (maxStreak * 2)
+
+                    Card(
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A103D)),
+                        border = BorderStroke(1.5.dp, Color(0xFFFACC15).copy(alpha = 0.75f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("fv_challenge_completed_card")
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text("🏆", fontSize = 48.sp)
+                            Text(
+                                text = "${activePack.title} Challenge Complete!",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 20.sp,
+                                color = Color(0xFFFDE047),
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "$correctCount / ${packQuestions.size} Correct ($accuracy% Accuracy) • Best Combo ${maxStreak}x",
+                                fontSize = 13.sp,
+                                color = Color.White,
+                                textAlign = TextAlign.Center
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF28175A),
+                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f))
+                            ) {
+                                Text(
+                                    text = "⚡ Reward Earned: +$earnedXp XP",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF6EE7B7),
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                )
+                            }
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { sessionRunId++ },
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.2.dp, Color(0xFF8B5CF6)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .defaultMinSize(minHeight = 48.dp)
+                                ) {
+                                    Text("Play Again", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                                Button(
+                                    onClick = { activePlayingPackId = null },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .defaultMinSize(minHeight = 48.dp)
+                                ) {
+                                    Text("Other Challenges", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    val safeIdx = currentIdx.coerceIn(0, packQuestions.lastIndex)
+                    val current = packQuestions[safeIdx]
+
+                    LinearProgressIndicator(
+                        progress = { timeLeft.toFloat() / totalSeconds.toFloat() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = if (timeLeft <= 10) CoralAccent else Color(0xFFFACC15),
+                        trackColor = Color(0xFF28175A)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Question ${safeIdx + 1} of ${packQuestions.size} • Score: $correctCount",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = Color(0xFF7DD3FC)
+                        )
+                        if (streak > 1) {
+                            Text(
+                                text = "🔥 ${streak}x Combo!",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp,
+                                color = Color(0xFFFDE047)
+                            )
+                        }
+                    }
+
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("fv_question_card")
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF0F1E42),
+                                border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "TARGET WORD",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF60A5FA)
+                                        )
+                                        Text(
+                                            text = current.word,
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = current.prompt,
+                                            fontSize = 12.5.sp,
+                                            color = Color(0xFFCBD5E1)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { viewModel.speakAudio(current.word) },
+                                        modifier = Modifier.size(48.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.VolumeUp,
+                                            contentDescription = "Pronounce ${current.word}",
+                                            tint = Color(0xFF38BDF8)
+                                        )
+                                    }
+                                }
+                            }
+
+                            val optionLetters = listOf("A", "B", "C", "D", "E")
+                            current.options.forEachIndexed { idx, opt ->
+                                val isSelected = selectedOption == idx
+                                val isCorrect = idx == current.correctIndex
+                                val hasAnswered = selectedOption != null
+
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = when {
+                                        hasAnswered && isCorrect -> Color(0xFFDCFCE7)
+                                        isSelected && !isCorrect -> Color(0xFFFEE2E2)
+                                        else -> MaterialTheme.colorScheme.surfaceVariant
+                                    },
+                                    border = BorderStroke(
+                                        1.2.dp,
+                                        when {
+                                            hasAnswered && isCorrect -> EmeraldSuccess
+                                            isSelected && !isCorrect -> CoralAccent
+                                            else -> Color.Transparent
+                                        }
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .defaultMinSize(minHeight = 48.dp)
+                                        .clickable(enabled = selectedOption == null) {
+                                            selectedOption = idx
+                                            answeredCount++
+                                            if (isCorrect) {
+                                                correctCount++
+                                                streak++
+                                                if (streak > maxStreak) maxStreak = streak
+                                                viewModel.speakAudio(current.word)
+                                            } else {
+                                                streak = 0
+                                            }
+                                        }
+                                        .testTag("fv_option_$idx")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = when {
+                                                hasAnswered && isCorrect -> EmeraldSuccess
+                                                isSelected && !isCorrect -> CoralAccent
+                                                else -> Color(0xFF312E81)
+                                            },
+                                            modifier = Modifier.size(26.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    text = optionLetters.getOrElse(idx) { "${idx + 1}" },
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = opt,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 13.5.sp,
+                                            color = when {
+                                                hasAnswered && isCorrect -> Color(0xFF166534)
+                                                isSelected && !isCorrect -> Color(0xFF991B1B)
+                                                else -> MaterialTheme.colorScheme.onSurface
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Auto-advance after brief feedback or complete when last question answered
+                            LaunchedEffect(selectedOption, currentIdx, activePack.id, sessionRunId) {
+                                if (selectedOption != null) {
+                                    delay(500)
+                                    selectedOption = null
+                                    if (currentIdx + 1 >= packQuestions.size) {
+                                        isFinished = true
+                                    } else {
+                                        currentIdx++
+                                    }
+                                }
+                            }
                         }
                     }
                 }

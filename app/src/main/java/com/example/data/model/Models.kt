@@ -435,13 +435,30 @@ data class PronunciationBattleChallenge(
     val createdBy: String = "System"
 )
 
+data class FastVocabularyPack(
+    val id: String,
+    val title: String,
+    val description: String = "Think fast & pick the right meaning!",
+    val themeStyle: String = "Easy", // "Easy", "Medium", "Hard", "Mixed"
+    val durationSeconds: Int = 60,
+    val xpReward: Int = 40,
+    val createdBy: String = "System"
+)
+
 data class FastVocabularyChallenge(
     val id: String,
     val word: String,
     val prompt: String,
     val options: List<String>,
     val correctIndex: Int,
-    val createdBy: String = "System"
+    val createdBy: String = "System",
+    val packId: String = "fv_pack_easy"
+)
+
+data class FastVocabularyProgress(
+    val playedPackIds: Set<String> = emptySet(),
+    val totalXpEarned: Int = 0,
+    val bestScorePercent: Int = 0
 )
 
 data class GrammarChallengePack(

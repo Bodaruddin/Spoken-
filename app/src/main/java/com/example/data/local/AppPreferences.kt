@@ -47,6 +47,8 @@ class AppPreferences(context: Context) {
         private const val KEY_LISTEN_CHOOSE_LIST = "key_listen_choose_list"
         private const val KEY_PRONUNCIATION_BATTLE_LIST = "key_pronunciation_battle_list"
         private const val KEY_FAST_VOCABULARY_LIST = "key_fast_vocabulary_list"
+        private const val KEY_FAST_VOCABULARY_PACKS = "key_fast_vocabulary_packs"
+        private const val KEY_FAST_VOCABULARY_PROGRESS = "key_fast_vocabulary_progress"
         private const val KEY_GRAMMAR_CHALLENGE_LIST = "key_grammar_challenge_list"
         private const val KEY_GRAMMAR_CHALLENGE_PACKS = "key_grammar_challenge_packs"
         private const val KEY_PICTURE_VOCAB_LIST = "key_picture_vocab_list"
@@ -650,6 +652,83 @@ class AppPreferences(context: Context) {
         }
     }
 
+    fun saveFastVocabularyPacks(packs: List<FastVocabularyPack>) {
+        try {
+            val array = JSONArray()
+            for (p in packs) {
+                val obj = JSONObject()
+                obj.put("id", p.id)
+                obj.put("title", p.title)
+                obj.put("description", p.description)
+                obj.put("themeStyle", p.themeStyle)
+                obj.put("durationSeconds", p.durationSeconds)
+                obj.put("xpReward", p.xpReward)
+                obj.put("createdBy", p.createdBy)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_FAST_VOCABULARY_PACKS, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getFastVocabularyPacks(): List<FastVocabularyPack>? {
+        val raw = prefs.getString(KEY_FAST_VOCABULARY_PACKS, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<FastVocabularyPack>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    FastVocabularyPack(
+                        id = obj.optString("id", ""),
+                        title = obj.optString("title", "Easy"),
+                        description = obj.optString("description", "Think fast & pick the right meaning!"),
+                        themeStyle = obj.optString("themeStyle", "Easy"),
+                        durationSeconds = obj.optInt("durationSeconds", 60),
+                        xpReward = obj.optInt("xpReward", 40),
+                        createdBy = obj.optString("createdBy", "System")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveFastVocabularyProgress(progress: FastVocabularyProgress) {
+        try {
+            val obj = JSONObject()
+            val playedArr = JSONArray()
+            progress.playedPackIds.forEach { playedArr.put(it) }
+            obj.put("playedPackIds", playedArr)
+            obj.put("totalXpEarned", progress.totalXpEarned)
+            obj.put("bestScorePercent", progress.bestScorePercent)
+            prefs.edit().putString(KEY_FAST_VOCABULARY_PROGRESS, obj.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getFastVocabularyProgress(): FastVocabularyProgress? {
+        val raw = prefs.getString(KEY_FAST_VOCABULARY_PROGRESS, null) ?: return null
+        return try {
+            val obj = JSONObject(raw)
+            val playedArr = obj.optJSONArray("playedPackIds")
+            val playedIds = mutableSetOf<String>()
+            if (playedArr != null) {
+                for (i in 0 until playedArr.length()) {
+                    val id = playedArr.optString(i, "")
+                    if (id.isNotBlank()) playedIds.add(id)
+                }
+            }
+            FastVocabularyProgress(
+                playedPackIds = playedIds,
+                totalXpEarned = obj.optInt("totalXpEarned", 0),
+                bestScorePercent = obj.optInt("bestScorePercent", 0)
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun saveFastVocabularyChallenges(challenges: List<FastVocabularyChallenge>) {
         try {
             val array = JSONArray()
@@ -663,6 +742,7 @@ class AppPreferences(context: Context) {
                 obj.put("options", optArr)
                 obj.put("correctIndex", c.correctIndex)
                 obj.put("createdBy", c.createdBy)
+                obj.put("packId", c.packId)
                 array.put(obj)
             }
             prefs.edit().putString(KEY_FAST_VOCABULARY_LIST, array.toString()).apply()
@@ -681,6 +761,7 @@ class AppPreferences(context: Context) {
                 if (optArr != null) {
                     for (j in 0 until optArr.length()) options.add(optArr.getString(j))
                 }
+                val storedPackId = obj.optString("packId", "").ifBlank { "fv_pack_easy" }
                 list.add(
                     FastVocabularyChallenge(
                         id = obj.optString("id", ""),
@@ -688,7 +769,8 @@ class AppPreferences(context: Context) {
                         prompt = obj.optString("prompt", ""),
                         options = options,
                         correctIndex = obj.optInt("correctIndex", 0),
-                        createdBy = obj.optString("createdBy", "System")
+                        createdBy = obj.optString("createdBy", "System"),
+                        packId = storedPackId
                     )
                 )
             }

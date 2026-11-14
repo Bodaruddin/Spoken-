@@ -1417,6 +1417,12 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     var selectedGrammarPackId by remember { mutableStateOf<String?>(null) }
     var showCreateGrammarQuestionDialog by remember { mutableStateOf(false) }
     var editingGrammarQuestion by remember { mutableStateOf<GrammarChallengeQuestion?>(null) }
+    var showCreateFastVocabPackDialog by remember { mutableStateOf(false) }
+    var editingFastVocabPack by remember { mutableStateOf<FastVocabularyPack?>(null) }
+    var fastVocabPackPendingDelete by remember { mutableStateOf<FastVocabularyPack?>(null) }
+    var selectedFastVocabPackId by remember { mutableStateOf<String?>(null) }
+    var showCreateFastVocabQuestionDialog by remember { mutableStateOf(false) }
+    var editingFastVocabQuestion by remember { mutableStateOf<FastVocabularyChallenge?>(null) }
     var showBulkImportMissingLettersDialog by remember { mutableStateOf(false) }
     var showBulkImportSentenceBuilderDialog by remember { mutableStateOf(false) }
     var showManageCategoriesDialog by remember { mutableStateOf(false) }
@@ -1444,6 +1450,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     val sentenceBuilders by viewModel.sentenceBuilderChallenges.collectAsState()
     val listenChooses by viewModel.listenChooseChallenges.collectAsState()
     val pronunciationBattles by viewModel.pronunciationBattleChallenges.collectAsState()
+    val fastVocabPacks by viewModel.fastVocabularyPacks.collectAsState()
     val fastVocabs by viewModel.fastVocabularyChallenges.collectAsState()
     val pictureVocabs by viewModel.pictureVocabChallenges.collectAsState()
     val grammarChallengePacks by viewModel.grammarChallengePacks.collectAsState()
@@ -1455,6 +1462,9 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     val activeGrammarPack = remember(grammarChallengePacks, selectedGrammarPackId) {
         grammarChallengePacks.firstOrNull { it.id == selectedGrammarPackId }
     }
+    val activeFastVocabPack = remember(fastVocabPacks, selectedFastVocabPackId) {
+        fastVocabPacks.firstOrNull { it.id == selectedFastVocabPackId }
+    }
 
     if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack != null) {
         BackHandler {
@@ -1464,6 +1474,11 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     if (selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack != null) {
         BackHandler {
             selectedGrammarPackId = null
+        }
+    }
+    if (selectedCategory == GameCategoryFilter.FAST_VOCABULARY && activeFastVocabPack != null) {
+        BackHandler {
+            selectedFastVocabPackId = null
         }
     }
 
@@ -1507,9 +1522,22 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         if (searchQuery.isBlank()) pronunciationBattles
         else pronunciationBattles.filter { it.challengeSentence.contains(searchQuery.trim(), ignoreCase = true) || it.targetPhonemeFocus.contains(searchQuery.trim(), ignoreCase = true) }
     }
-    val filteredFastVocabs = remember(fastVocabs, searchQuery) {
-        if (searchQuery.isBlank()) fastVocabs
-        else fastVocabs.filter { it.word.contains(searchQuery.trim(), ignoreCase = true) || it.prompt.contains(searchQuery.trim(), ignoreCase = true) }
+    val filteredFastVocabPacks = remember(fastVocabPacks, searchQuery) {
+        if (searchQuery.isBlank()) fastVocabPacks
+        else fastVocabPacks.filter {
+            it.title.contains(searchQuery.trim(), ignoreCase = true) ||
+            it.description.contains(searchQuery.trim(), ignoreCase = true) ||
+            it.themeStyle.contains(searchQuery.trim(), ignoreCase = true)
+        }
+    }
+    val filteredFastVocabs = remember(fastVocabs, activeFastVocabPack, searchQuery) {
+        val scoped = if (activeFastVocabPack != null) {
+            fastVocabs.filter { it.packId == activeFastVocabPack.id }
+        } else {
+            fastVocabs
+        }
+        if (searchQuery.isBlank()) scoped
+        else scoped.filter { it.word.contains(searchQuery.trim(), ignoreCase = true) || it.prompt.contains(searchQuery.trim(), ignoreCase = true) }
     }
     val filteredPictureVocabs = remember(pictureVocabs, searchQuery) {
         if (searchQuery.isBlank()) pictureVocabs
@@ -1686,6 +1714,8 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                                     selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack == null -> showCreatePackDialog = true
                                     selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack == null -> showCreateGrammarPackDialog = true
                                     selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack != null -> showCreateGrammarQuestionDialog = true
+                                    selectedCategory == GameCategoryFilter.FAST_VOCABULARY && activeFastVocabPack == null -> showCreateFastVocabPackDialog = true
+                                    selectedCategory == GameCategoryFilter.FAST_VOCABULARY && activeFastVocabPack != null -> showCreateFastVocabQuestionDialog = true
                                     else -> showCreateDialog = true
                                 }
                             },
@@ -1759,6 +1789,9 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                                 if (cat != GameCategoryFilter.GRAMMAR_CHALLENGE) {
                                     selectedGrammarPackId = null
                                 }
+                                if (cat != GameCategoryFilter.FAST_VOCABULARY) {
+                                    selectedFastVocabPackId = null
+                                }
                             }
                             .padding(horizontal = 14.dp, vertical = 9.dp),
                         contentAlignment = Alignment.Center
@@ -1828,11 +1861,15 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             val isInsideSentencePack = selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack != null
             val isGrammarPackList = selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack == null
             val isInsideGrammarPack = selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack != null
+            val isFastVocabPackList = selectedCategory == GameCategoryFilter.FAST_VOCABULARY && activeFastVocabPack == null
+            val isInsideFastVocabPack = selectedCategory == GameCategoryFilter.FAST_VOCABULARY && activeFastVocabPack != null
             val bannerAction = {
                 when {
                     isSentencePackList -> showCreatePackDialog = true
                     isGrammarPackList -> showCreateGrammarPackDialog = true
                     isInsideGrammarPack -> showCreateGrammarQuestionDialog = true
+                    isFastVocabPackList -> showCreateFastVocabPackDialog = true
+                    isInsideFastVocabPack -> showCreateFastVocabQuestionDialog = true
                     else -> showCreateDialog = true
                 }
             }
@@ -1841,6 +1878,8 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 isInsideSentencePack -> "+ Add Sentences to ${activeSentencePack!!.title}"
                 isGrammarPackList -> "+ Add New Grammar Challenge"
                 isInsideGrammarPack -> "+ Add Questions to ${activeGrammarPack!!.title}"
+                isFastVocabPackList -> "+ Add New Fast Vocabulary Challenge"
+                isInsideFastVocabPack -> "+ Add Questions to ${activeFastVocabPack!!.title}"
                 else -> "+ Add New ${selectedCategory.title}"
             }
             val bannerSubtitle = when {
@@ -1848,6 +1887,8 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 isInsideSentencePack -> "Add one or multiple sentences into this challenge"
                 isGrammarPackList -> "Create a grammar challenge topic & add many questions inside"
                 isInsideGrammarPack -> "Add one or multiple quiz questions inside this challenge"
+                isFastVocabPackList -> "Create a blitz challenge card & add many vocabulary questions inside"
+                isInsideFastVocabPack -> "Add one or multiple timed vocabulary questions into this challenge"
                 else -> "Create a question or drill to publish"
             }
 
@@ -1863,6 +1904,8 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                             isSentencePackList -> "add_sentence_pack_banner"
                             isGrammarPackList -> "add_grammar_pack_banner"
                             isInsideGrammarPack -> "add_grammar_question_banner"
+                            isFastVocabPackList -> "add_fast_vocab_pack_banner"
+                            isInsideFastVocabPack -> "add_fast_vocab_question_banner"
                             else -> "add_game_item_banner"
                         }
                     )
@@ -2394,6 +2437,99 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             }
         }
 
+        if (selectedCategory == GameCategoryFilter.FAST_VOCABULARY && activeFastVocabPack != null) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1A103D)),
+                    border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.65f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("teacher_active_fast_vocab_pack_header")
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF2E1B69),
+                                border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.6f)),
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clickable { selectedFastVocabPackId = null }
+                                    .testTag("teacher_back_to_fast_vocab_packs_btn")
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.ArrowBack,
+                                        contentDescription = "Back to Fast Vocabulary Challenges",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = activeFastVocabPack.title,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFFFACC15).copy(alpha = 0.18f),
+                                        border = BorderStroke(0.8.dp, Color(0xFFFACC15).copy(alpha = 0.6f))
+                                    ) {
+                                        Text(
+                                            text = "${activeFastVocabPack.durationSeconds}s • +${activeFastVocabPack.xpReward} XP",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFFDE047),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = activeFastVocabPack.description,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFCBD5E1),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { editingFastVocabPack = activeFastVocabPack },
+                            modifier = Modifier.testTag("edit_active_fast_vocab_pack_btn")
+                        ) {
+                            Icon(
+                                Icons.Filled.Edit,
+                                contentDescription = "Edit Fast Vocabulary Challenge",
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         statusMsg?.let { msg ->
             item {
                 Surface(
@@ -2417,7 +2553,11 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             }
             GameCategoryFilter.LISTEN_CHOOSE -> "Existing Listen & Choose Drills" to filteredListenChooses.size
             GameCategoryFilter.PRONUNCIATION_BATTLE -> "Existing Pronunciation Battles" to filteredPronunciationBattles.size
-            GameCategoryFilter.FAST_VOCABULARY -> "Existing Fast Vocabulary Blitzes" to filteredFastVocabs.size
+            GameCategoryFilter.FAST_VOCABULARY -> if (activeFastVocabPack == null) {
+                "Fast Vocabulary Challenges" to filteredFastVocabPacks.size
+            } else {
+                "Questions in ${activeFastVocabPack.title}" to filteredFastVocabs.size
+            }
             GameCategoryFilter.GRAMMAR_CHALLENGE -> if (activeGrammarPack == null) {
                 "Grammar Challenges" to filteredGrammarPacks.size
             } else {
@@ -2829,32 +2969,228 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 }
             }
             GameCategoryFilter.FAST_VOCABULARY -> {
-                itemsIndexed(filteredFastVocabs) { index, item ->
-                    GameItemCard(
-                        title = item.word,
-                        subtitle = item.prompt,
-                        tag = "Answer: ${item.options.getOrNull(item.correctIndex) ?: ""}",
-                        createdBy = item.createdBy,
-                        index = index,
-                        onPlayAudio = { viewModel.speakAudio(item.word) },
-                        onEdit = {
-                            activeEditingChallenge = ActiveEditingChallenge(
-                                category = GameCategoryFilter.FAST_VOCABULARY,
-                                id = item.id,
-                                field1 = item.word,
-                                field2 = item.prompt,
-                                field3 = item.options.getOrNull(0) ?: "",
-                                field4 = item.options.getOrNull(1) ?: "",
-                                field5 = item.options.getOrNull(2) ?: "",
-                                onSave = { f1, f2, f3, f4, f5 ->
-                                    val opts = listOf(f3, f4, f5)
-                                    viewModel.updateFastVocabularyChallenge(item.copy(word = f1, prompt = f2, options = opts))
-                                    statusMsg = "Updated fast vocabulary item '${f1}'!"
+                if (activeFastVocabPack == null) {
+                    itemsIndexed(filteredFastVocabPacks) { index, pack ->
+                        val questionCount = fastVocabs.count { it.packId == pack.id }
+                        val packAccent = when (pack.themeStyle.lowercase().trim()) {
+                            "easy" -> Color(0xFF22C55E)
+                            "medium" -> Color(0xFF38BDF8)
+                            "hard" -> Color(0xFFA855F7)
+                            "mixed" -> Color(0xFFF59E0B)
+                            else -> listOf(
+                                Color(0xFF22C55E),
+                                Color(0xFF38BDF8),
+                                Color(0xFFA855F7),
+                                Color(0xFFF59E0B)
+                            )[index % 4]
+                        }
+                        val packEmoji = when (pack.themeStyle.lowercase().trim()) {
+                            "easy" -> "🍏"
+                            "medium" -> "📖"
+                            "hard" -> "🏆"
+                            "mixed" -> "🔤"
+                            else -> "⚡"
+                        }
+
+                        Card(
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1633).copy(alpha = 0.94f)),
+                            border = BorderStroke(1.3.dp, packAccent.copy(alpha = 0.6f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedFastVocabPackId = pack.id }
+                                .testTag("teacher_fast_vocab_pack_card_${pack.id}")
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = packAccent.copy(alpha = 0.18f),
+                                            border = BorderStroke(1.dp, packAccent.copy(alpha = 0.6f)),
+                                            modifier = Modifier.size(width = 54.dp, height = 46.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(packEmoji, fontSize = 20.sp)
+                                            }
+                                        }
+                                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Text(
+                                                text = pack.title,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 15.sp,
+                                                color = Color.White,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = pack.description,
+                                                fontSize = 12.sp,
+                                                color = Color(0xFFCBD5E1),
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        IconButton(
+                                            onClick = { editingFastVocabPack = pack },
+                                            modifier = Modifier.testTag("edit_fast_vocab_pack_${pack.id}")
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Edit,
+                                                contentDescription = "Edit Fast Vocabulary Challenge",
+                                                tint = Color(0xFF38BDF8),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { fastVocabPackPendingDelete = pack },
+                                            modifier = Modifier.testTag("delete_fast_vocab_pack_${pack.id}")
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Delete,
+                                                contentDescription = "Delete Fast Vocabulary Challenge",
+                                                tint = CoralAccent,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
                                 }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = packAccent.copy(alpha = 0.16f),
+                                            border = BorderStroke(0.8.dp, packAccent.copy(alpha = 0.5f))
+                                        ) {
+                                            Text(
+                                                text = "🎯 $questionCount ${if (questionCount == 1) "Q" else "Qs"}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color(0xFF0F1E42),
+                                            border = BorderStroke(0.8.dp, Color(0xFF38BDF8).copy(alpha = 0.45f))
+                                        ) {
+                                            Text(
+                                                text = "⏱️ ${pack.durationSeconds}s",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF7DD3FC),
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color(0xFF1F1638),
+                                            border = BorderStroke(0.8.dp, Color(0xFFFACC15).copy(alpha = 0.45f))
+                                        ) {
+                                            Text(
+                                                text = "⚡ +${pack.xpReward} XP",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFFDE047),
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Button(
+                                        onClick = { selectedFastVocabPackId = pack.id },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = packAccent),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                        modifier = Modifier
+                                            .defaultMinSize(minHeight = 40.dp)
+                                            .testTag("open_fast_vocab_pack_${pack.id}")
+                                    ) {
+                                        Text(
+                                            text = "Add / Edit Qs →",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    if (filteredFastVocabs.isEmpty()) {
+                        item {
+                            Card(
+                                shape = RoundedCornerShape(18.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1633)),
+                                border = BorderStroke(1.dp, Color(0xFF334155)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("⚡", fontSize = 32.sp)
+                                    Text(
+                                        "No questions inside '${activeFastVocabPack.title}' yet",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Color.White,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Text(
+                                        "Tap '+ Add Questions' above to add many vocabulary questions inside this challenge.",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF94A3B8),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        itemsIndexed(filteredFastVocabs) { index, item ->
+                            val answerText = item.options.getOrNull(item.correctIndex) ?: ""
+                            GameItemCard(
+                                title = item.word,
+                                subtitle = "${item.prompt}\nAnswer: $answerText",
+                                tag = "${activeFastVocabPack.title} • ${item.options.size} options",
+                                createdBy = item.createdBy,
+                                index = index,
+                                onPlayAudio = { viewModel.speakAudio(item.word) },
+                                onEdit = { editingFastVocabQuestion = item },
+                                onDelete = { viewModel.deleteFastVocabularyChallenge(item.id) }
                             )
-                        },
-                        onDelete = { viewModel.deleteFastVocabularyChallenge(item.id) }
-                    )
+                        }
+                    }
                 }
             }
             GameCategoryFilter.GRAMMAR_CHALLENGE -> {
@@ -3367,6 +3703,124 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 )
                 statusMsg = "Updated grammar question!"
                 editingGrammarQuestion = null
+            }
+        )
+    }
+
+    if (showCreateFastVocabPackDialog) {
+        FastVocabPackEditorDialog(
+            initialPack = null,
+            onDismiss = { showCreateFastVocabPackDialog = false },
+            onSave = { title, description, themeStyle, durationSeconds, xpReward ->
+                val created = viewModel.addFastVocabularyPack(
+                    title = title,
+                    description = description,
+                    themeStyle = themeStyle,
+                    durationSeconds = durationSeconds,
+                    xpReward = xpReward,
+                    createdBy = currentUser.name.ifBlank { "Faculty Instructor" }
+                )
+                statusMsg = "Created '${created.title}'! Now add vocabulary questions inside it."
+                selectedFastVocabPackId = created.id
+                showCreateFastVocabPackDialog = false
+            }
+        )
+    }
+
+    editingFastVocabPack?.let { pack ->
+        FastVocabPackEditorDialog(
+            initialPack = pack,
+            onDismiss = { editingFastVocabPack = null },
+            onSave = { title, description, themeStyle, durationSeconds, xpReward ->
+                viewModel.updateFastVocabularyPack(
+                    pack.copy(
+                        title = title,
+                        description = description,
+                        themeStyle = themeStyle,
+                        durationSeconds = durationSeconds,
+                        xpReward = xpReward
+                    )
+                )
+                statusMsg = "Updated fast vocabulary challenge '$title'!"
+                editingFastVocabPack = null
+            }
+        )
+    }
+
+    fastVocabPackPendingDelete?.let { pack ->
+        val questionCount = fastVocabs.count { it.packId == pack.id }
+        AlertDialog(
+            onDismissRequest = { fastVocabPackPendingDelete = null },
+            title = { Text("Delete Vocabulary Challenge?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    if (questionCount > 0) {
+                        "Are you sure you want to delete '${pack.title}' and its $questionCount ${if (questionCount == 1) "question" else "questions"}?"
+                    } else {
+                        "Are you sure you want to delete '${pack.title}'?"
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteFastVocabularyPack(pack.id)
+                        if (selectedFastVocabPackId == pack.id) selectedFastVocabPackId = null
+                        statusMsg = "Deleted fast vocabulary challenge '${pack.title}'."
+                        fastVocabPackPendingDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CoralAccent),
+                    modifier = Modifier.testTag("confirm_delete_fast_vocab_pack_btn")
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { fastVocabPackPendingDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showCreateFastVocabQuestionDialog && activeFastVocabPack != null) {
+        FastVocabQuestionEditorDialog(
+            pack = activeFastVocabPack,
+            initialQuestion = null,
+            onDismiss = { showCreateFastVocabQuestionDialog = false },
+            onAddQuestion = { word, prompt, options, correctIdx ->
+                viewModel.addFastVocabularyChallenge(
+                    word = word,
+                    prompt = prompt,
+                    options = options,
+                    correctIndex = correctIdx,
+                    createdBy = currentUser.name.ifBlank { "Faculty Instructor" },
+                    packId = activeFastVocabPack.id
+                )
+                statusMsg = "Added question '$word' to '${activeFastVocabPack.title}' & synced to students!"
+            },
+            onSaveEdit = { _, _, _, _ -> }
+        )
+    }
+
+    editingFastVocabQuestion?.let { question ->
+        val owningPack = fastVocabPacks.firstOrNull { it.id == question.packId } ?: activeFastVocabPack
+        FastVocabQuestionEditorDialog(
+            pack = owningPack,
+            initialQuestion = question,
+            onDismiss = { editingFastVocabQuestion = null },
+            onAddQuestion = { _, _, _, _ -> },
+            onSaveEdit = { word, prompt, options, correctIdx ->
+                viewModel.updateFastVocabularyChallenge(
+                    question.copy(
+                        word = word,
+                        prompt = prompt,
+                        options = options,
+                        correctIndex = correctIdx
+                    )
+                )
+                statusMsg = "Updated fast vocabulary question '$word'!"
+                editingFastVocabQuestion = null
             }
         )
     }
@@ -7154,6 +7608,310 @@ fun GrammarQuestionEditorDialog(
                         },
                         enabled = payload != null,
                         modifier = Modifier.testTag("save_and_add_another_grammar_btn")
+                    ) {
+                        Text("+ Add Another")
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(if (addedCount > 0) "Close" else "Cancel")
+                }
+            }
+        }
+    )
+}
+
+// -------------------------------------------------------------
+// CREATE / EDIT FAST VOCABULARY CHALLENGE PACK DIALOG
+// -------------------------------------------------------------
+@Composable
+fun FastVocabPackEditorDialog(
+    initialPack: FastVocabularyPack?,
+    onDismiss: () -> Unit,
+    onSave: (title: String, description: String, themeStyle: String, durationSeconds: Int, xpReward: Int) -> Unit
+) {
+    val themes = listOf(
+        "Easy" to "🍏",
+        "Medium" to "📖",
+        "Hard" to "🏆",
+        "Mixed" to "🔤"
+    )
+    var title by remember { mutableStateOf(initialPack?.title ?: "") }
+    var description by remember { mutableStateOf(initialPack?.description ?: "") }
+    var themeStyle by remember { mutableStateOf(initialPack?.themeStyle ?: "Easy") }
+    var durationText by remember { mutableStateOf((initialPack?.durationSeconds ?: 60).toString()) }
+    var xpText by remember { mutableStateOf((initialPack?.xpReward ?: 40).toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("⚡", fontSize = 22.sp)
+                Text(
+                    if (initialPack == null) "Create Vocabulary Challenge" else "Edit Vocabulary Challenge",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Challenge Title (e.g. Easy, Idioms Blitz)") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("fast_vocab_pack_title_input")
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description (e.g. Everyday core vocabulary)") },
+                    maxLines = 2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("fast_vocab_pack_desc_input")
+                )
+
+                Text("Card Color & Artwork Style:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    themes.forEach { (styleName, iconEmoji) ->
+                        val isSel = themeStyle.equals(styleName, ignoreCase = true)
+                        FilterChip(
+                            selected = isSel,
+                            onClick = { themeStyle = styleName },
+                            label = {
+                                Text("$iconEmoji $styleName", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        )
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = durationText,
+                        onValueChange = { input -> durationText = input.filter { it.isDigit() } },
+                        label = { Text("Time (sec)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = xpText,
+                        onValueChange = { input -> xpText = input.filter { it.isDigit() } },
+                        label = { Text("XP Reward") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val secs = (durationText.toIntOrNull() ?: 60).coerceIn(15, 300)
+                    val xp = (xpText.toIntOrNull() ?: 40).coerceIn(10, 500)
+                    onSave(
+                        title.trim().ifBlank { themeStyle },
+                        description.trim().ifBlank { "Think fast & pick the right meaning!" },
+                        themeStyle,
+                        secs,
+                        xp
+                    )
+                },
+                enabled = title.trim().isNotEmpty(),
+                modifier = Modifier.testTag("save_fast_vocab_pack_btn")
+            ) {
+                Text(if (initialPack == null) "Create Challenge 🚀" else "Save Changes")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+// -------------------------------------------------------------
+// CREATE / EDIT FAST VOCABULARY QUESTION INSIDE A CHALLENGE PACK
+// -------------------------------------------------------------
+@Composable
+fun FastVocabQuestionEditorDialog(
+    pack: FastVocabularyPack?,
+    initialQuestion: FastVocabularyChallenge?,
+    onDismiss: () -> Unit,
+    onAddQuestion: (word: String, prompt: String, options: List<String>, correctIndex: Int) -> Unit,
+    onSaveEdit: (word: String, prompt: String, options: List<String>, correctIndex: Int) -> Unit
+) {
+    val isEditing = initialQuestion != null
+    var wordText by remember { mutableStateOf(initialQuestion?.word ?: "") }
+    var promptText by remember { mutableStateOf(initialQuestion?.prompt ?: "") }
+    var opt1 by remember { mutableStateOf(initialQuestion?.options?.getOrNull(0) ?: "") }
+    var opt2 by remember { mutableStateOf(initialQuestion?.options?.getOrNull(1) ?: "") }
+    var opt3 by remember { mutableStateOf(initialQuestion?.options?.getOrNull(2) ?: "") }
+    var opt4 by remember { mutableStateOf(initialQuestion?.options?.getOrNull(3) ?: "") }
+    var correctIndex by remember { mutableIntStateOf((initialQuestion?.correctIndex ?: 0).coerceIn(0, 3)) }
+    var addedCount by remember { mutableIntStateOf(0) }
+
+    fun buildValidPayload(): Triple<String, List<String>, Int>? {
+        val raw = listOf(opt1.trim(), opt2.trim(), opt3.trim(), opt4.trim())
+        val indexedNonBlank = raw.mapIndexedNotNull { idx, value ->
+            if (value.isNotBlank()) idx to value else null
+        }
+        if (wordText.isBlank() || indexedNonBlank.size < 2) return null
+        val mappedCorrect = indexedNonBlank.indexOfFirst { it.first == correctIndex }.let {
+            if (it >= 0) it else 0
+        }
+        val cleanPrompt = promptText.trim().ifBlank { "Choose the closest meaning for '${wordText.trim()}':" }
+        return Triple(cleanPrompt, indexedNonBlank.map { it.second }, mappedCorrect)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = if (isEditing) "Edit Vocabulary Question" else "Add Question to ${pack?.title ?: "Challenge"}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                if (!isEditing && addedCount > 0) {
+                    Text(
+                        text = "✓ $addedCount ${if (addedCount == 1) "question" else "questions"} added so far",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = EmeraldSuccess
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
+                OutlinedTextField(
+                    value = wordText,
+                    onValueChange = { wordText = it },
+                    label = { Text("Target Word (e.g. Radiant)") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("fast_vocab_word_input")
+                )
+                OutlinedTextField(
+                    value = promptText,
+                    onValueChange = { promptText = it },
+                    label = { Text("Question Prompt (optional)") },
+                    maxLines = 2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("fast_vocab_prompt_input")
+                )
+                OutlinedTextField(
+                    value = opt1,
+                    onValueChange = { opt1 = it },
+                    label = { Text("Option A") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = opt2,
+                    onValueChange = { opt2 = it },
+                    label = { Text("Option B") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = opt3,
+                    onValueChange = { opt3 = it },
+                    label = { Text("Option C (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = opt4,
+                    onValueChange = { opt4 = it },
+                    label = { Text("Option D (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text("Select Correct Answer:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val labels = listOf("A", "B", "C", "D")
+                    labels.forEachIndexed { idx, letter ->
+                        FilterChip(
+                            selected = correctIndex == idx,
+                            onClick = { correctIndex = idx },
+                            label = {
+                                Text(letter, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            val payload = buildValidPayload()
+            Button(
+                onClick = {
+                    if (isEditing && payload != null) {
+                        onSaveEdit(wordText.trim(), payload.first, payload.second, payload.third)
+                    } else if (!isEditing && payload != null) {
+                        onAddQuestion(wordText.trim(), payload.first, payload.second, payload.third)
+                        onDismiss()
+                    } else if (!isEditing && addedCount > 0 && wordText.isBlank()) {
+                        onDismiss()
+                    }
+                },
+                enabled = payload != null || (!isEditing && addedCount > 0 && wordText.isBlank()),
+                modifier = Modifier.testTag("save_fast_vocab_question_btn")
+            ) {
+                Text(
+                    when {
+                        isEditing -> "Save Changes"
+                        addedCount > 0 && wordText.isBlank() -> "Done ✓"
+                        else -> "Publish Question 🚀"
+                    }
+                )
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (!isEditing) {
+                    val payload = buildValidPayload()
+                    OutlinedButton(
+                        onClick = {
+                            if (payload != null) {
+                                onAddQuestion(wordText.trim(), payload.first, payload.second, payload.third)
+                                wordText = ""
+                                promptText = ""
+                                opt1 = ""
+                                opt2 = ""
+                                opt3 = ""
+                                opt4 = ""
+                                correctIndex = 0
+                                addedCount++
+                            }
+                        },
+                        enabled = payload != null,
+                        modifier = Modifier.testTag("save_and_add_another_fast_vocab_btn")
                     ) {
                         Text("+ Add Another")
                     }

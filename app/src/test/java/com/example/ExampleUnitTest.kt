@@ -702,5 +702,114 @@ class ExampleUnitTest {
         assertFalse(repository.grammarChallengePacks.value.any { it.id == createdPack.id })
         assertTrue(repository.grammarChallenges.value.none { it.packId == createdPack.id })
     }
+
+    @Test
+    fun `fast vocabulary packs default counts, multi-question CRUD, progress tracking, remote sync, and cascade delete`() {
+        val repository = LinguaQuestRepository()
+
+        // 1. Default 4 challenge packs match screenshot defaults (Easy 10/60s/+40XP, Medium 15/90s/+60XP, Hard 20/120s/+80XP, Mixed 15/90s/+70XP)
+        val packs = repository.fastVocabularyPacks.value
+        assertEquals(4, packs.size)
+        assertEquals(10, repository.fastVocabularyChallenges.value.count { it.packId == "fv_pack_easy" })
+        assertEquals(15, repository.fastVocabularyChallenges.value.count { it.packId == "fv_pack_medium" })
+        assertEquals(20, repository.fastVocabularyChallenges.value.count { it.packId == "fv_pack_hard" })
+        assertEquals(15, repository.fastVocabularyChallenges.value.count { it.packId == "fv_pack_mixed" })
+
+        val easyPack = packs.first { it.id == "fv_pack_easy" }
+        assertEquals(60, easyPack.durationSeconds)
+        assertEquals(40, easyPack.xpReward)
+
+        // 2. Teacher adds a new challenge pack and edits its duration & XP
+        val createdPack = repository.addFastVocabularyPack(
+            title = "Idioms Blitz",
+            description = "Common spoken English idioms.",
+            themeStyle = "Mixed",
+            durationSeconds = 75,
+            xpReward = 90,
+            createdBy = "Prof. Eleanor Vance"
+        )
+        assertTrue(repository.fastVocabularyPacks.value.any { it.id == createdPack.id && it.title == "Idioms Blitz" })
+
+        repository.updateFastVocabularyPack(createdPack.copy(title = "Idioms & Phrasal Verbs", durationSeconds = 100, xpReward = 110))
+        val updatedPack = repository.fastVocabularyPacks.value.first { it.id == createdPack.id }
+        assertEquals("Idioms & Phrasal Verbs", updatedPack.title)
+        assertEquals(100, updatedPack.durationSeconds)
+        assertEquals(110, updatedPack.xpReward)
+
+        // 3. Teacher adds many questions inside that single challenge pack
+        val q1 = repository.addFastVocabularyChallenge(
+            word = "Hit the books",
+            prompt = "What does 'Hit the books' mean?",
+            options = listOf("Study hard", "Throw textbooks", "Close the library", "Skip class"),
+            correctIndex = 0,
+            createdBy = "Prof. Eleanor Vance",
+            packId = createdPack.id
+        )
+        val q2 = repository.addFastVocabularyChallenge(
+            word = "Piece of cake",
+            prompt = "A 'Piece of cake' task is:",
+            options = listOf("Very difficult", "Very easy", "Sweet food only", "Impossible to finish"),
+            correctIndex = 1,
+            createdBy = "Prof. Eleanor Vance",
+            packId = createdPack.id
+        )
+        val questionsInPack = repository.fastVocabularyChallenges.value.filter { it.packId == createdPack.id }
+        assertEquals(2, questionsInPack.size)
+        assertEquals(0, questionsInPack.first { it.id == q1.id }.correctIndex)
+        assertEquals(1, questionsInPack.first { it.id == q2.id }.correctIndex)
+
+        // 4. Student completing a challenge updates My Progress stats
+        repository.recordFastVocabularyResult(
+            packId = createdPack.id,
+            correctCount = 9,
+            totalCount = 10,
+            xpAwarded = 95
+        )
+        val progress = repository.fastVocabularyProgress.value
+        assertTrue(createdPack.id in progress.playedPackIds)
+        assertEquals(95, progress.totalXpEarned)
+        assertEquals(90, progress.bestScorePercent)
+
+        // 5. Remote merge syncs FAST_VOCABULARY_PACK and scoped FAST_VOCABULARY questions
+        repository.mergeRemoteGameChallenges(
+            listOf(
+                com.example.data.model.SupabaseGameChallenge(
+                    id = "fv_pack_remote_1",
+                    type = "FAST_VOCABULARY_PACK",
+                    titleOrWord = "Exam Boost",
+                    hintOrMeaning = "High-frequency academic words.",
+                    category = "Hard",
+                    correctIndex = 85,
+                    extraData = "90",
+                    createdBy = "Remote Teacher"
+                ),
+                com.example.data.model.SupabaseGameChallenge(
+                    id = "fv_remote_q_1",
+                    type = "FAST_VOCABULARY",
+                    titleOrWord = "Lucid",
+                    hintOrMeaning = "Choose the meaning of 'Lucid':",
+                    options = listOf("Obscure", "Clear & easy to understand", "Verbose", "Rushed"),
+                    correctIndex = 1,
+                    extraData = "fv_pack_remote_1",
+                    createdBy = "Remote Teacher"
+                )
+            )
+        )
+        val remotePack = repository.fastVocabularyPacks.value.firstOrNull { it.id == "fv_pack_remote_1" }
+        assertNotNull(remotePack)
+        assertEquals(90, remotePack?.durationSeconds)
+        assertEquals(85, remotePack?.xpReward)
+
+        val remoteQ = repository.fastVocabularyChallenges.value.firstOrNull { it.id == "fv_remote_q_1" }
+        assertNotNull(remoteQ)
+        assertEquals("fv_pack_remote_1", remoteQ?.packId)
+        assertEquals(1, remoteQ?.correctIndex)
+
+        // 6. Deleting a challenge pack removes it and cascades to its questions
+        val removedIds = repository.deleteFastVocabularyPack(createdPack.id)
+        assertEquals(2, removedIds.size)
+        assertFalse(repository.fastVocabularyPacks.value.any { it.id == createdPack.id })
+        assertTrue(repository.fastVocabularyChallenges.value.none { it.packId == createdPack.id })
+    }
 }
 

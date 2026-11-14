@@ -1940,12 +1940,132 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     private val _pronunciationBattleChallenges = MutableStateFlow(loadInitialPronunciationBattles())
     val pronunciationBattleChallenges: StateFlow<List<PronunciationBattleChallenge>> = _pronunciationBattleChallenges.asStateFlow()
 
+    private val defaultFastVocabularyPacks = listOf(
+        FastVocabularyPack(
+            id = "fv_pack_easy",
+            title = "Easy",
+            description = "Core everyday words for quick recall.",
+            themeStyle = "Easy",
+            durationSeconds = 60,
+            xpReward = 40,
+            createdBy = "System"
+        ),
+        FastVocabularyPack(
+            id = "fv_pack_medium",
+            title = "Medium",
+            description = "Expressive academic vocabulary at speed.",
+            themeStyle = "Medium",
+            durationSeconds = 90,
+            xpReward = 60,
+            createdBy = "System"
+        ),
+        FastVocabularyPack(
+            id = "fv_pack_hard",
+            title = "Hard",
+            description = "Advanced precision & formal words.",
+            themeStyle = "Hard",
+            durationSeconds = 120,
+            xpReward = 80,
+            createdBy = "System"
+        ),
+        FastVocabularyPack(
+            id = "fv_pack_mixed",
+            title = "Mixed",
+            description = "Mixed synonyms, meanings & smart contexts.",
+            themeStyle = "Mixed",
+            durationSeconds = 90,
+            xpReward = 70,
+            createdBy = "System"
+        )
+    )
+
+    private fun loadInitialFastVocabularyPacks(): List<FastVocabularyPack> {
+        val saved = appPreferences?.getFastVocabularyPacks()
+        if (!saved.isNullOrEmpty()) {
+            return saved
+        }
+        appPreferences?.saveFastVocabularyPacks(defaultFastVocabularyPacks)
+        return defaultFastVocabularyPacks
+    }
+
+    private val _fastVocabularyPacks = MutableStateFlow(loadInitialFastVocabularyPacks())
+    val fastVocabularyPacks: StateFlow<List<FastVocabularyPack>> = _fastVocabularyPacks.asStateFlow()
+
+    private fun loadInitialFastVocabularyProgress(): FastVocabularyProgress {
+        return appPreferences?.getFastVocabularyProgress() ?: FastVocabularyProgress()
+    }
+
+    private val _fastVocabularyProgress = MutableStateFlow(loadInitialFastVocabularyProgress())
+    val fastVocabularyProgress: StateFlow<FastVocabularyProgress> = _fastVocabularyProgress.asStateFlow()
+
     private val defaultFastVocabularyChallenges = listOf(
-        FastVocabularyChallenge("fv_1", "Articulate", "Choose the closest synonym for 'Articulate':", listOf("Expressive & clear", "Confused & hesitant", "Quiet & shy", "Angry & rude"), 0, "System"),
-        FastVocabularyChallenge("fv_2", "Eloquent", "What does 'Eloquent' describe?", listOf("Persuasive & graceful speaking", "Very fast running", "Complicated math", "Ancient architecture"), 0, "System"),
-        FastVocabularyChallenge("fv_3", "Pragmatic", "A 'Pragmatic' solution is one that is:", listOf("Practical & realistic", "Expensive & luxurious", "Theoretical & untested", "Careless & hurried"), 0, "Prof. Eleanor Vance"),
-        FastVocabularyChallenge("fv_4", "Resilience", "What is the best definition of 'Resilience'?", listOf("Bouncing back from hardship", "Forgetting the past", "Giving up easily", "Avoiding all conflict"), 0, "System"),
-        FastVocabularyChallenge("fv_5", "Collaborate", "When two people 'Collaborate', they:", listOf("Work jointly on a task", "Argue loudly", "Compete against each other", "Work completely alone"), 0, "Dean Arthur Pendelton")
+        // --- 1. Easy Pack (10 Questions) ---
+        FastVocabularyChallenge("fv_1", "Articulate", "Choose the closest synonym for 'Articulate':", listOf("Expressive & clear", "Confused & hesitant", "Quiet & shy", "Angry & rude"), 0, "System", "fv_pack_easy"),
+        FastVocabularyChallenge("fv_2", "Eloquent", "What does 'Eloquent' describe?", listOf("Persuasive & graceful speaking", "Very fast running", "Complicated math", "Ancient architecture"), 0, "System", "fv_pack_easy"),
+        FastVocabularyChallenge("fv_3", "Pragmatic", "A 'Pragmatic' solution is one that is:", listOf("Practical & realistic", "Expensive & luxurious", "Theoretical & untested", "Careless & hurried"), 0, "Prof. Eleanor Vance", "fv_pack_easy"),
+        FastVocabularyChallenge("fv_4", "Resilience", "What is the best definition of 'Resilience'?", listOf("Bouncing back from hardship", "Forgetting the past", "Giving up easily", "Avoiding all conflict"), 0, "System", "fv_pack_easy"),
+        FastVocabularyChallenge("fv_5", "Collaborate", "When two people 'Collaborate', they:", listOf("Work jointly on a task", "Argue loudly", "Compete against each other", "Work completely alone"), 0, "Dean Arthur Pendelton", "fv_pack_easy"),
+        FastVocabularyChallenge("fv_e6", "Generous", "Choose the best meaning of 'Generous':", listOf("Willing to share freely", "Selfish & greedy", "Extremely tired", "Afraid of crowds"), 0, "System", "fv_pack_easy"),
+        FastVocabularyChallenge("fv_e7", "Curious", "A 'Curious' learner is eager to:", listOf("Learn and explore new things", "Sleep during class", "Avoid all questions", "Copy someone else"), 0, "System", "fv_pack_easy"),
+        FastVocabularyChallenge("fv_e8", "Diligent", "Someone who is 'Diligent' works in a way that is:", listOf("Careful & hardworking", "Lazy & late", "Noisy & careless", "Quick & sloppy"), 0, "System", "fv_pack_easy"),
+        FastVocabularyChallenge("fv_e9", "Brief", "Choose the closest synonym for 'Brief':", listOf("Short in duration", "Endless & slow", "Heavy to carry", "Brightly colored"), 0, "System", "fv_pack_easy"),
+        FastVocabularyChallenge("fv_e10", "Grateful", "Feeling 'Grateful' means feeling:", listOf("Thankful & appreciative", "Bored & annoyed", "Jealous of others", "Uncertain about plans"), 0, "System", "fv_pack_easy"),
+
+        // --- 2. Medium Pack (15 Questions) ---
+        FastVocabularyChallenge("fv_m1", "Ambiguous", "What does 'Ambiguous' mean?", listOf("Open to more than one meaning", "Crystal clear & direct", "Completely impossible", "Happening every morning"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m2", "Candid", "A 'Candid' remark is always:", listOf("Honest & straightforward", "Secretive & coded", "Rude & dishonest", "Repeated too often"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m3", "Coherent", "An essay is 'Coherent' when its ideas are:", listOf("Logical & well connected", "Random & confusing", "Written in capital letters", "Very short"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m4", "Alleviate", "To 'Alleviate' stress means to:", listOf("Make it less severe", "Make it twice as strong", "Ignore it forever", "Write a report about it"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m5", "Innovative", "An 'Innovative' product introduces:", listOf("Fresh & original ideas", "Broken old parts", "Strict classroom rules", "Heavy metal boxes"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m6", "Lucid", "Choose the closest synonym for 'Lucid':", listOf("Clear & easy to understand", "Dark & stormy", "Silent & lonely", "Slow & clumsy"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m7", "Meticulous", "A 'Meticulous' researcher pays great attention to:", listOf("Small details & accuracy", "Loud music", "Gossip & rumors", "Fast shortcuts"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m8", "Persistent", "What describes a 'Persistent' student?", listOf("Continues trying despite difficulty", "Quits after one mistake", "Rarely attends school", "Forgets homework"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m9", "Plausible", "A 'Plausible' explanation seems:", listOf("Believable & reasonable", "Completely absurd", "Funny & playful", "Outdated by centuries"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m10", "Redundant", "Information is 'Redundant' if it is:", listOf("Unnecessarily repetitive", "Top secret", "Proven by science", "Inspired by poetry"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m11", "Skeptical", "Being 'Skeptical' means feeling:", listOf("Doubtful & questioning", "Immediately convinced", "Overjoyed & excited", "Sleepy & calm"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m12", "Substantial", "A 'Substantial' improvement is:", listOf("Considerable & significant", "Barely noticeable", "Imaginary", "Temporary for a second"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m13", "Tactful", "A 'Tactful' speaker shows skill in:", listOf("Avoiding unnecessary offense", "Shouting across the room", "Solving math puzzles", "Memorizing dates"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m14", "Versatile", "A 'Versatile' tool can be used for:", listOf("Many different tasks", "Only one tiny screw", "Decoration in winter", "Nothing practical"), 0, "System", "fv_pack_medium"),
+        FastVocabularyChallenge("fv_m15", "Vivid", "A 'Vivid' memory is:", listOf("Clear & lively in detail", "Faded & forgotten", "Boring & dull", "Impossible to describe"), 0, "System", "fv_pack_medium"),
+
+        // --- 3. Hard Pack (20 Questions) ---
+        FastVocabularyChallenge("fv_h1", "Ubiquitous", "Something 'Ubiquitous' appears to be:", listOf("Found everywhere", "Extremely rare", "Hidden underground", "Broken beyond repair"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h2", "Ephemeral", "Choose the best meaning of 'Ephemeral':", listOf("Lasting a very short time", "Surviving for centuries", "Carved into marble", "Heavy & immovable"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h3", "Fastidious", "A 'Fastidious' editor is:", listOf("Very attentive to accuracy", "Reckless with facts", "Unable to read quickly", "Indifferent to quality"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h4", "Magnanimous", "A 'Magnanimous' winner is:", listOf("Generous & forgiving", "Petty & vengeful", "Boastful & proud", "Fearful of losing"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h5", "Obfuscate", "To 'Obfuscate' a topic is to:", listOf("Make it unclear & confusing", "Explain it with diagrams", "Summarize it cleanly", "Publish it worldwide"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h6", "Pernicious", "A 'Pernicious' habit causes:", listOf("Gradual & serious harm", "Instant happiness", "Mild amusement", "Athletic stamina"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h7", "Quixotic", "A 'Quixotic' plan is:", listOf("Idealistic & impractical", "Simple & profitable", "Scientifically tested", "Strict & military"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h8", "Reticent", "A 'Reticent' person tends to be:", listOf("Reserved & slow to speak", "Loud & talkative", "Quick to interrupt", "Fond of debates"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h9", "Sagacious", "Choose the synonym for 'Sagacious':", listOf("Wise & insightful", "Foolish & hasty", "Timid & fragile", "Noisy & restless"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h10", "Tenacious", "A 'Tenacious' debater is:", listOf("Firm & determined to hold on", "Quick to surrender", "Absent-minded", "Fond of jokes"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h11", "Venerable", "A 'Venerable' scholar deserves:", listOf("Deep respect for wisdom", "Frequent punishment", "Sudden replacement", "Silent suspicion"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h12", "Zealous", "A 'Zealous' volunteer feels:", listOf("Great energy & enthusiasm", "Total indifference", "Mild irritation", "Constant exhaustion"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h13", "Acumen", "Business 'Acumen' refers to:", listOf("Keen insight & quick judgment", "Heavy debt", "Office furniture", "Slow paperwork"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h14", "Benevolent", "A 'Benevolent' mentor acts with:", listOf("Kindness & goodwill", "Harshness & anger", "Suspicion & greed", "Cold indifference"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h15", "Capricious", "Weather that is 'Capricious' changes:", listOf("Suddenly & unpredictably", "Once every hundred years", "According to a schedule", "Never at all"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h16", "Didactic", "A 'Didactic' story is intended to:", listOf("Teach a moral or lesson", "Frighten the reader", "Sell luxury goods", "Hide historical facts"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h17", "Erudite", "An 'Erudite' lecture displays:", listOf("Deep scholarly knowledge", "Childish humor", "Lack of preparation", "Simple slang"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h18", "Frugal", "Living a 'Frugal' life means being:", listOf("Careful & economical with money", "Wasteful & extravagant", "Loud at parties", "Afraid of travel"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h19", "Gregarious", "A 'Gregarious' host is naturally:", listOf("Sociable & fond of company", "Reclusive & shy", "Rude to visitors", "Strict with silence"), 0, "System", "fv_pack_hard"),
+        FastVocabularyChallenge("fv_h20", "Impeccable", "An 'Impeccable' performance has:", listOf("Zero flaws or faults", "Many careless errors", "Poor sound quality", "Low audience interest"), 0, "System", "fv_pack_hard"),
+
+        // --- 4. Mixed Pack (15 Questions) ---
+        FastVocabularyChallenge("fv_x1", "Concise", "A 'Concise' summary gives info:", listOf("Briefly & clearly", "With endless repetition", "In secret code", "Without verbs"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x2", "Empathy", "Showing 'Empathy' means:", listOf("Understanding another's feelings", "Ignoring everyone nearby", "Debating every rule", "Memorizing poems"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x3", "Nuance", "A subtle 'Nuance' in tone is a:", listOf("Slight shade of difference", "Giant shout", "Spelling typo", "Loud echo"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x4", "Paradox", "Which describes a 'Paradox'?", listOf("A seemingly contradictory truth", "A simple arithmetic sum", "A pair of shoes", "A map legend"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x5", "Catalyst", "A 'Catalyst' for change:", listOf("Sparks or speeds up action", "Stops all movement", "Hides the outcome", "Collects old dust"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x6", "Antonym:Expand", "Choose the antonym (opposite) of 'Expand':", listOf("Shrink", "Enlarge", "Stretch", "Broadcast"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x7", "Antonym:Scarce", "Choose the antonym (opposite) of 'Scarce':", listOf("Abundant", "Tiny", "Costly", "Hidden"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x8", "Break the ice", "The idiom 'Break the ice' means to:", listOf("Start friendly conversation", "Drop ice cubes outdoors", "End a friendship", "Freeze lake water"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x9", "On cloud nine", "If someone is 'On cloud nine', they feel:", listOf("Extremely happy", "Deeply worried", "Fast asleep", "Hungry for lunch"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x10", "Prolific", "A 'Prolific' author produces:", listOf("Many works abundantly", "One page per decade", "Only blank notebooks", "Silent films"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x11", "Discern", "To 'Discern' the truth is to:", listOf("Perceive or recognize clearly", "Invent a wild rumor", "Forget yesterday", "Shout blindly"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x12", "Reconcile", "To 'Reconcile' two friends means to:", listOf("Restore harmony between them", "Start a louder fight", "Separate them forever", "Write a test"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x13", "Dilemma", "Facing a 'Dilemma' means choosing between:", listOf("Two difficult alternatives", "Ten free desserts", "Simple colors", "Warm jackets"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x14", "Foster", "Schools 'Foster' creativity when they:", listOf("Encourage its growth", "Ban drawing & art", "Punish curiosity", "Close the library"), 0, "System", "fv_pack_mixed"),
+        FastVocabularyChallenge("fv_x15", "Exemplify", "To 'Exemplify' a rule is to:", listOf("Illustrate it by example", "Erase it completely", "Break it on purpose", "Keep it secret"), 0, "System", "fv_pack_mixed")
     )
 
     private fun loadInitialFastVocabulary(): List<FastVocabularyChallenge> {
@@ -1953,7 +2073,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (!saved.isNullOrEmpty()) {
             val savedIds = saved.map { it.id }.toSet()
             val missingDefaults = defaultFastVocabularyChallenges.filter { it.id !in savedIds }
-            return saved + missingDefaults
+            val normalizedSaved = saved.map { q ->
+                if (q.packId.isBlank()) q.copy(packId = "fv_pack_easy") else q
+            }
+            return normalizedSaved + missingDefaults
         }
         appPreferences?.saveFastVocabularyChallenges(defaultFastVocabularyChallenges)
         return defaultFastVocabularyChallenges
@@ -2874,9 +2997,88 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         appPreferences?.savePronunciationBattleChallenges(_pronunciationBattleChallenges.value)
     }
 
-    fun addFastVocabularyChallenge(word: String, prompt: String, options: List<String>, correctIndex: Int, createdBy: String): FastVocabularyChallenge {
-        val id = "fv_${System.currentTimeMillis()}"
-        val item = FastVocabularyChallenge(id, word.trim(), prompt.trim(), options.map { it.trim() }, correctIndex, createdBy)
+    fun addFastVocabularyPack(
+        title: String,
+        description: String,
+        themeStyle: String = "Easy",
+        durationSeconds: Int = 60,
+        xpReward: Int = 40,
+        createdBy: String
+    ): FastVocabularyPack {
+        val id = "fv_pack_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(6)}"
+        val pack = FastVocabularyPack(
+            id = id,
+            title = title.trim().ifBlank { "Vocabulary Blitz" },
+            description = description.trim().ifBlank { "Think fast & pick the right meaning!" },
+            themeStyle = themeStyle.trim().ifBlank { "Easy" },
+            durationSeconds = durationSeconds.coerceIn(15, 300),
+            xpReward = xpReward.coerceIn(10, 500),
+            createdBy = createdBy
+        )
+        _fastVocabularyPacks.update { it + pack }
+        appPreferences?.saveFastVocabularyPacks(_fastVocabularyPacks.value)
+        return pack
+    }
+
+    fun updateFastVocabularyPack(updated: FastVocabularyPack) {
+        _fastVocabularyPacks.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
+        }
+        appPreferences?.saveFastVocabularyPacks(_fastVocabularyPacks.value)
+    }
+
+    fun deleteFastVocabularyPack(packId: String): List<String> {
+        val removedQuestionIds = _fastVocabularyChallenges.value
+            .filter { it.packId == packId }
+            .map { it.id }
+        _fastVocabularyPacks.update { it.filterNot { pack -> pack.id == packId } }
+        appPreferences?.saveFastVocabularyPacks(_fastVocabularyPacks.value)
+
+        if (removedQuestionIds.isNotEmpty()) {
+            _fastVocabularyChallenges.update { it.filterNot { item -> item.packId == packId } }
+            appPreferences?.saveFastVocabularyChallenges(_fastVocabularyChallenges.value)
+        }
+        return removedQuestionIds
+    }
+
+    fun recordFastVocabularyResult(
+        packId: String,
+        correctCount: Int,
+        totalCount: Int,
+        xpAwarded: Int
+    ) {
+        val scorePercent = if (totalCount > 0) ((correctCount * 100) / totalCount).coerceIn(0, 100) else 0
+        _fastVocabularyProgress.update { current ->
+            val updated = current.copy(
+                playedPackIds = current.playedPackIds + packId,
+                totalXpEarned = current.totalXpEarned + xpAwarded.coerceAtLeast(0),
+                bestScorePercent = maxOf(current.bestScorePercent, scorePercent)
+            )
+            appPreferences?.saveFastVocabularyProgress(updated)
+            updated
+        }
+    }
+
+    fun addFastVocabularyChallenge(
+        word: String,
+        prompt: String,
+        options: List<String>,
+        correctIndex: Int,
+        createdBy: String,
+        packId: String = "fv_pack_easy"
+    ): FastVocabularyChallenge {
+        val id = "fv_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(6)}"
+        val cleanOptions = options.map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { listOf("Option A", "Option B") }
+        val safeIndex = correctIndex.coerceIn(0, cleanOptions.lastIndex)
+        val item = FastVocabularyChallenge(
+            id = id,
+            word = word.trim(),
+            prompt = prompt.trim().ifBlank { "Choose the closest meaning:" },
+            options = cleanOptions,
+            correctIndex = safeIndex,
+            createdBy = createdBy,
+            packId = packId.ifBlank { "fv_pack_easy" }
+        )
         _fastVocabularyChallenges.update { it + item }
         appPreferences?.saveFastVocabularyChallenges(_fastVocabularyChallenges.value)
         return item
@@ -3348,6 +3550,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         var mlChanged = false
         var lcChanged = false
         var pbChanged = false
+        var fvPackChanged = false
         var fvChanged = false
         var gcPackChanged = false
         var gcChanged = false
@@ -3359,6 +3562,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         val currentMl = _missingLettersChallenges.value.toMutableList()
         val currentLc = _listenChooseChallenges.value.toMutableList()
         val currentPb = _pronunciationBattleChallenges.value.toMutableList()
+        val currentFvPacks = _fastVocabularyPacks.value.toMutableList()
         val currentFv = _fastVocabularyChallenges.value.toMutableList()
         val currentGcPacks = _grammarChallengePacks.value.toMutableList()
         val currentGc = _grammarChallenges.value.toMutableList()
@@ -3487,15 +3691,36 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                     }
                     pbChanged = true
                 }
+                "FAST_VOCABULARY_PACK" -> {
+                    val idx = currentFvPacks.indexOfFirst { it.id == rc.id }
+                    val duration = rc.extraData.toIntOrNull()?.coerceIn(15, 300) ?: 60
+                    val pack = FastVocabularyPack(
+                        id = rc.id,
+                        title = rc.titleOrWord.ifBlank { "Easy" },
+                        description = rc.hintOrMeaning.ifBlank { "Think fast & pick the right meaning!" },
+                        themeStyle = rc.category.ifBlank { "Easy" },
+                        durationSeconds = duration,
+                        xpReward = if (rc.correctIndex > 0) rc.correctIndex else 40,
+                        createdBy = rc.createdBy
+                    )
+                    if (idx >= 0) {
+                        currentFvPacks[idx] = pack
+                    } else {
+                        currentFvPacks.add(pack)
+                    }
+                    fvPackChanged = true
+                }
                 "FAST_VOCABULARY" -> {
                     val idx = currentFv.indexOfFirst { it.id == rc.id }
+                    val resolvedPackId = rc.extraData.ifBlank { "fv_pack_easy" }
                     val item = FastVocabularyChallenge(
                         id = rc.id,
                         word = rc.titleOrWord,
                         prompt = rc.hintOrMeaning,
                         options = rc.options,
                         correctIndex = rc.correctIndex,
-                        createdBy = rc.createdBy
+                        createdBy = rc.createdBy,
+                        packId = resolvedPackId
                     )
                     if (idx >= 0) {
                         currentFv[idx] = item
@@ -3586,6 +3811,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (pbChanged) {
             _pronunciationBattleChallenges.value = currentPb
             appPreferences?.savePronunciationBattleChallenges(currentPb)
+        }
+        if (fvPackChanged) {
+            _fastVocabularyPacks.value = currentFvPacks
+            appPreferences?.saveFastVocabularyPacks(currentFvPacks)
         }
         if (fvChanged) {
             _fastVocabularyChallenges.value = currentFv

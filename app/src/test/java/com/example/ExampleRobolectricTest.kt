@@ -260,5 +260,58 @@ class ExampleRobolectricTest {
     val packQuestions = savedQuestions!!.filter { it.packId == newPack.id }
     assertEquals(2, packQuestions.size)
   }
+
+  @Test
+  fun `fast vocabulary packs, multi-question items, and progress persist across preferences`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val prefs = AppPreferences(app)
+    val vm = MainViewModel(app)
+
+    val newPack = vm.addFastVocabularyPack(
+      title = "Business English",
+      description = "Essential workplace & interview vocabulary.",
+      themeStyle = "Medium",
+      durationSeconds = 90,
+      xpReward = 75,
+      createdBy = "Prof. Eleanor Vance"
+    )
+    vm.addFastVocabularyChallenge(
+      word = "Consensus",
+      prompt = "What does 'Consensus' mean?",
+      options = listOf("General agreement", "Formal complaint", "Strict rule", "Sudden delay"),
+      correctIndex = 0,
+      createdBy = "Prof. Eleanor Vance",
+      packId = newPack.id
+    )
+    vm.addFastVocabularyChallenge(
+      word = "Delegate",
+      prompt = "To 'Delegate' a task means to:",
+      options = listOf("Ignore it completely", "Entrust it to someone else", "Delete the file", "Refuse to participate"),
+      correctIndex = 1,
+      createdBy = "Prof. Eleanor Vance",
+      packId = newPack.id
+    )
+    vm.recordFastVocabularyResult(
+      packId = newPack.id,
+      correctCount = 2,
+      totalCount = 2,
+      xpAwarded = 75
+    )
+
+    val savedPacks = prefs.getFastVocabularyPacks()
+    assertNotNull(savedPacks)
+    assertTrue(savedPacks!!.any { it.id == newPack.id && it.title == "Business English" && it.durationSeconds == 90 && it.xpReward == 75 })
+
+    val savedQuestions = prefs.getFastVocabularyChallenges()
+    assertNotNull(savedQuestions)
+    val packQuestions = savedQuestions!!.filter { it.packId == newPack.id }
+    assertEquals(2, packQuestions.size)
+
+    val savedProgress = prefs.getFastVocabularyProgress()
+    assertNotNull(savedProgress)
+    assertTrue(newPack.id in savedProgress!!.playedPackIds)
+    assertEquals(75, savedProgress.totalXpEarned)
+    assertEquals(100, savedProgress.bestScorePercent)
+  }
 }
 
