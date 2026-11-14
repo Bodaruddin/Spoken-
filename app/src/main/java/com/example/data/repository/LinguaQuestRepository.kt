@@ -1705,14 +1705,215 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         _allowTeacherRegistration.value = allow
     }
 
-    // Dynamic Game Content Collections
+    // Dynamic Game Content Collections - 5 Interactive Vocabulary Challenge Modes
     private val defaultWordMatchChallenges = listOf(
-        WordMatchChallenge("wm_1", "Eloquence", "Fluent or persuasive speech", "Communication", "System"),
-        WordMatchChallenge("wm_2", "Resilience", "Ability to recover quickly from hardship", "Mindset", "System"),
-        WordMatchChallenge("wm_3", "Articulation", "Clear and effective pronunciation", "Communication", "System"),
-        WordMatchChallenge("wm_4", "Pragmatic", "Sensible and practical rather than theoretical", "Academic", "System"),
-        WordMatchChallenge("wm_5", "Meticulous", "Showing great attention to detail and care", "General", "Prof. Eleanor Vance"),
-        WordMatchChallenge("wm_6", "Serendipity", "Finding pleasant things unexpectedly", "General", "Dean Arthur Pendelton")
+        // 1. Meaning Matching (wm_1..6 preserved for backward compatibility)
+        WordMatchChallenge(
+            id = "wm_1", word = "Eloquence", definition = "Fluent or persuasive speaking and writing",
+            category = "Communication", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "🎙️",
+            synonym = "Fluency", antonym = "Inarticulateness",
+            distractors = listOf("Physical strength and speed", "Quiet hesitation in speech", "Written mathematical proof")
+        ),
+        WordMatchChallenge(
+            id = "wm_2", word = "Resilience", definition = "Ability to recover quickly from hardship",
+            category = "Mindset", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "🌱",
+            synonym = "Toughness", antonym = "Fragility",
+            distractors = listOf("Giving up after the first mistake", "Speaking without thinking", "Avoiding every challenge")
+        ),
+        WordMatchChallenge(
+            id = "wm_3", word = "Articulation", definition = "Clear and effective pronunciation of words",
+            category = "Communication", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "🗣️",
+            synonym = "Clarity", antonym = "Mumbling",
+            distractors = listOf("Reading silently in a library", "Writing in cursive script", "Drawing geometric diagrams")
+        ),
+        WordMatchChallenge(
+            id = "wm_4", word = "Pragmatic", definition = "Sensible and practical rather than theoretical",
+            category = "Academic", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "🧭",
+            synonym = "Practical", antonym = "Idealistic",
+            distractors = listOf("Filled with wild imagination", "Impossible to understand", "Strictly following old traditions")
+        ),
+        WordMatchChallenge(
+            id = "wm_5", word = "Meticulous", definition = "Showing great attention to detail and care",
+            category = "General", createdBy = "Prof. Eleanor Vance",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "🔍",
+            synonym = "Thorough", antonym = "Careless",
+            distractors = listOf("Doing work in a rush", "Forgetting key instructions", "Guessing without checking")
+        ),
+        WordMatchChallenge(
+            id = "wm_6", word = "Serendipity", definition = "Finding pleasant things unexpectedly",
+            category = "General", createdBy = "Dean Arthur Pendelton",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "🍀",
+            synonym = "Good fortune", antonym = "Misfortune",
+            distractors = listOf("Careful long-term scheduling", "Disappointment after hard work", "Losing something valuable")
+        ),
+
+        // 2. Picture Matching
+        WordMatchChallenge(
+            id = "wm_pic_1", word = "Telescope", definition = "Optical instrument for viewing distant stars",
+            category = "Science", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🔭",
+            distractors = listOf("Microscope", "Compass", "Thermometer")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_2", word = "Compass", definition = "Navigation tool showing magnetic north",
+            category = "Travel", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🧭",
+            distractors = listOf("Stopwatch", "Telescope", "Anchor")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_3", word = "Volcano", definition = "Mountain with an opening that erupts lava",
+            category = "Nature", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🌋",
+            distractors = listOf("Waterfall", "Glacier", "Desert")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_4", word = "Microscope", definition = "Lab instrument used to magnify tiny cells",
+            category = "Science", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🔬",
+            distractors = listOf("Binoculars", "Stethoscope", "Camera")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_5", word = "Trophy", definition = "Award cup given for winning a competition",
+            category = "Achievements", createdBy = "Prof. Eleanor Vance",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🏆",
+            distractors = listOf("Briefcase", "Lantern", "Hourglass")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_6", word = "Lighthouse", definition = "Tall coastal tower guiding ships safely",
+            category = "Travel", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🗼",
+            distractors = listOf("Windmill", "Bridge", "Fountain")
+        ),
+
+        // 3. Synonyms
+        WordMatchChallenge(
+            id = "wm_syn_1", word = "Vibrant", definition = "Full of energy, brightness, and life",
+            category = "Descriptive", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🌈",
+            synonym = "Lively", antonym = "Dull",
+            distractors = listOf("Sluggish", "Faded", "Silent")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_2", word = "Diligent", definition = "Showing steady and careful effort in work",
+            category = "Mindset", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "📚",
+            synonym = "Hardworking", antonym = "Lazy",
+            distractors = listOf("Negligent", "Reluctant", "Hasty")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_3", word = "Brief", definition = "Lasting for only a short time",
+            category = "Communication", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "⏱️",
+            synonym = "Concise", antonym = "Lengthy",
+            distractors = listOf("Endless", "Detailed", "Slow")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_4", word = "Courageous", definition = "Not deterred by danger or fear",
+            category = "Character", createdBy = "Prof. Eleanor Vance",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🦁",
+            synonym = "Brave", antonym = "Timid",
+            distractors = listOf("Fearful", "Shy", "Doubtful")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_5", word = "Genuine", definition = "Truly what something is said to be; real",
+            category = "Values", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "💎",
+            synonym = "Authentic", antonym = "Fake",
+            distractors = listOf("Artificial", "Uncertain", "Shallow")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_6", word = "Enormous", definition = "Very large in size, quantity, or extent",
+            category = "Descriptive", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🐋",
+            synonym = "Immense", antonym = "Tiny",
+            distractors = listOf("Minute", "Narrow", "Fragile")
+        ),
+
+        // 4. Opposite Words
+        WordMatchChallenge(
+            id = "wm_opp_1", word = "Ancient", definition = "Belonging to the very distant past",
+            category = "History", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🏛️",
+            synonym = "Antique", antonym = "Modern",
+            distractors = listOf("Historic", "Classic", "Old")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_2", word = "Abundant", definition = "Existing in very large quantities",
+            category = "Academic", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🌾",
+            synonym = "Plentiful", antonym = "Scarce",
+            distractors = listOf("Generous", "Rich", "Common")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_3", word = "Optimistic", definition = "Hopeful and confident about the future",
+            category = "Mindset", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "☀️",
+            synonym = "Hopeful", antonym = "Pessimistic",
+            distractors = listOf("Cheerful", "Positive", "Confident")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_4", word = "Transparent", definition = "Allowing light through; easy to perceive",
+            category = "Descriptive", createdBy = "Prof. Eleanor Vance",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🔮",
+            synonym = "Clear", antonym = "Opaque",
+            distractors = listOf("Bright", "Smooth", "Visible")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_5", word = "Expand", definition = "Become or make larger or more extensive",
+            category = "Actions", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🎈",
+            synonym = "Grow", antonym = "Shrink",
+            distractors = listOf("Spread", "Extend", "Widen")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_6", word = "Permanent", definition = "Lasting or intended to remain unchanged",
+            category = "General", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🪨",
+            synonym = "Lasting", antonym = "Temporary",
+            distractors = listOf("Steady", "Fixed", "Constant")
+        ),
+
+        // 5. Word Scramble
+        WordMatchChallenge(
+            id = "wm_scr_1", word = "FLUENCY", definition = "Ability to speak smoothly and effortlessly",
+            category = "Communication", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "💬",
+            scrambleHint = "Speaking English smoothly without awkward pauses"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_2", word = "COURAGE", definition = "Strength in the face of fear or difficulty",
+            category = "Character", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🛡️",
+            scrambleHint = "Bravery when facing a tough speaking stage"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_3", word = "HARMONY", definition = "Pleasant agreement or peaceful combination",
+            category = "Values", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🎶",
+            scrambleHint = "When people or musical notes blend peacefully"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_4", word = "JOURNEY", definition = "Act of traveling or progressing from place to place",
+            category = "Travel", createdBy = "Prof. Eleanor Vance",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "✈️",
+            scrambleHint = "A long trip or learning adventure"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_5", word = "WISDOM", definition = "Quality of having experience, knowledge, and good judgment",
+            category = "Mindset", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🦉",
+            scrambleHint = "Deep understanding gained from learning"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_6", word = "VICTORY", definition = "Act of defeating an opponent or overcoming a challenge",
+            category = "Achievements", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🥇",
+            scrambleHint = "Winning a competition or milestone"
+        )
     )
 
     private fun loadInitialWordMatches(): List<WordMatchChallenge> {
@@ -1720,7 +1921,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (!saved.isNullOrEmpty()) {
             val savedIds = saved.map { it.id }.toSet()
             val missingDefaults = defaultWordMatchChallenges.filter { it.id !in savedIds }
-            return saved + missingDefaults
+            val merged = saved + missingDefaults
+            if (missingDefaults.isNotEmpty()) {
+                appPreferences?.saveWordMatchChallenges(merged)
+            }
+            return merged
         }
         appPreferences?.saveWordMatchChallenges(defaultWordMatchChallenges)
         return defaultWordMatchChallenges
@@ -1728,6 +1933,46 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
 
     private val _wordMatchChallenges = MutableStateFlow(loadInitialWordMatches())
     val wordMatchChallenges: StateFlow<List<WordMatchChallenge>> = _wordMatchChallenges.asStateFlow()
+
+    private val defaultVocabularyModeConfigs = VocabularyActivityType.values().map { type ->
+        VocabularyModeConfig(
+            activityType = type,
+            title = type.title,
+            subtitle = type.subtitle,
+            xpReward = when (type) {
+                VocabularyActivityType.PICTURE_MATCHING -> 45
+                VocabularyActivityType.MEANING_MATCHING -> 50
+                VocabularyActivityType.SYNONYMS -> 55
+                VocabularyActivityType.OPPOSITE_WORDS -> 55
+                VocabularyActivityType.WORD_SCRAMBLE -> 65
+            },
+            questionsPerRound = 5,
+            isEnabled = true
+        )
+    }
+
+    private fun loadInitialVocabularyModeConfigs(): List<VocabularyModeConfig> {
+        val saved = appPreferences?.getVocabularyModeConfigs()
+        if (!saved.isNullOrEmpty()) {
+            val savedTypes = saved.map { it.activityType }.toSet()
+            val missing = defaultVocabularyModeConfigs.filter { it.activityType !in savedTypes }
+            val merged = (saved + missing).sortedBy { it.activityType.ordinal }
+            if (missing.isNotEmpty()) {
+                appPreferences?.saveVocabularyModeConfigs(merged)
+            }
+            return merged
+        }
+        appPreferences?.saveVocabularyModeConfigs(defaultVocabularyModeConfigs)
+        return defaultVocabularyModeConfigs
+    }
+
+    private val _vocabularyModeConfigs = MutableStateFlow(loadInitialVocabularyModeConfigs())
+    val vocabularyModeConfigs: StateFlow<List<VocabularyModeConfig>> = _vocabularyModeConfigs.asStateFlow()
+
+    private val _vocabularyChallengeProgress = MutableStateFlow(
+        appPreferences?.getVocabularyChallengeProgress() ?: VocabularyChallengeProgress()
+    )
+    val vocabularyChallengeProgress: StateFlow<VocabularyChallengeProgress> = _vocabularyChallengeProgress.asStateFlow()
 
     private val defaultMissingLettersChallenges = listOf(
         // Animals Category
@@ -2752,9 +2997,32 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     }
 
     // --- GAME ADDITION & MANAGEMENT METHODS ---
-    fun addWordMatchChallenge(word: String, definition: String, category: String = "General", createdBy: String): WordMatchChallenge {
-        val id = "wm_${System.currentTimeMillis()}"
-        val item = WordMatchChallenge(id, word.trim(), definition.trim(), category.trim(), createdBy)
+    fun addWordMatchChallenge(
+        word: String,
+        definition: String,
+        category: String = "General",
+        createdBy: String,
+        activityType: String = VocabularyActivityType.MEANING_MATCHING.name,
+        pictureEmoji: String = "✨",
+        synonym: String = "",
+        antonym: String = "",
+        distractors: List<String> = emptyList(),
+        scrambleHint: String = ""
+    ): WordMatchChallenge {
+        val id = "wm_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(4)}"
+        val item = WordMatchChallenge(
+            id = id,
+            word = word.trim(),
+            definition = definition.trim(),
+            category = category.trim().ifBlank { "General" },
+            createdBy = createdBy,
+            activityType = VocabularyActivityType.fromName(activityType).name,
+            pictureEmoji = pictureEmoji.trim().ifBlank { "✨" },
+            synonym = synonym.trim(),
+            antonym = antonym.trim(),
+            distractors = distractors.map { it.trim() }.filter { it.isNotEmpty() },
+            scrambleHint = scrambleHint.trim()
+        )
         _wordMatchChallenges.update { it + item }
         appPreferences?.saveWordMatchChallenges(_wordMatchChallenges.value)
         return item
@@ -2766,10 +3034,52 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     }
 
     fun updateWordMatchChallenge(updated: WordMatchChallenge) {
+        val normalized = updated.copy(
+            word = updated.word.trim(),
+            definition = updated.definition.trim(),
+            category = updated.category.trim().ifBlank { "General" },
+            activityType = VocabularyActivityType.fromName(updated.activityType).name,
+            pictureEmoji = updated.pictureEmoji.trim().ifBlank { "✨" },
+            synonym = updated.synonym.trim(),
+            antonym = updated.antonym.trim(),
+            distractors = updated.distractors.map { it.trim() }.filter { it.isNotEmpty() },
+            scrambleHint = updated.scrambleHint.trim()
+        )
         _wordMatchChallenges.update { list ->
-            list.map { if (it.id == updated.id) updated else it }
+            list.map { if (it.id == normalized.id) normalized else it }
         }
         appPreferences?.saveWordMatchChallenges(_wordMatchChallenges.value)
+    }
+
+    fun updateVocabularyModeConfig(updated: VocabularyModeConfig) {
+        val normalized = updated.copy(
+            title = updated.title.trim().ifBlank { updated.activityType.title },
+            subtitle = updated.subtitle.trim().ifBlank { updated.activityType.subtitle },
+            xpReward = updated.xpReward.coerceIn(10, 500),
+            questionsPerRound = updated.questionsPerRound.coerceIn(1, 30)
+        )
+        _vocabularyModeConfigs.update { list ->
+            list.map { if (it.activityType == normalized.activityType) normalized else it }
+        }
+        appPreferences?.saveVocabularyModeConfigs(_vocabularyModeConfigs.value)
+    }
+
+    fun recordVocabularyChallengeResult(
+        activityType: VocabularyActivityType,
+        correctCount: Int,
+        totalCount: Int,
+        xpAwarded: Int
+    ) {
+        val accuracy = if (totalCount > 0) ((correctCount * 100f) / totalCount).toInt().coerceIn(0, 100) else 0
+        _vocabularyChallengeProgress.update { current ->
+            current.copy(
+                completedModes = current.completedModes + activityType.name,
+                totalRoundsPlayed = current.totalRoundsPlayed + 1,
+                totalXpEarned = current.totalXpEarned + xpAwarded.coerceAtLeast(0),
+                bestAccuracyPercent = maxOf(current.bestAccuracyPercent, accuracy)
+            )
+        }
+        appPreferences?.saveVocabularyChallengeProgress(_vocabularyChallengeProgress.value)
     }
 
     fun addMissingLettersChallenge(
@@ -3547,6 +3857,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         var sbPackChanged = false
         var sbChanged = false
         var wmChanged = false
+        var vocabModeChanged = false
         var mlChanged = false
         var lcChanged = false
         var pbChanged = false
@@ -3559,6 +3870,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         val currentSbPacks = _sentenceBuilderPacks.value.toMutableList()
         val currentSb = _sentenceBuilderChallenges.value.toMutableList()
         val currentWm = _wordMatchChallenges.value.toMutableList()
+        val currentVocabModes = _vocabularyModeConfigs.value.toMutableList()
         val currentMl = _missingLettersChallenges.value.toMutableList()
         val currentLc = _listenChooseChallenges.value.toMutableList()
         val currentPb = _pronunciationBattleChallenges.value.toMutableList()
@@ -3614,13 +3926,36 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                     sbChanged = true
                 }
                 "WORD_MATCH" -> {
-                    val idx = currentWm.indexOfFirst { it.id == rc.id || (it.word.isNotBlank() && it.word.equals(rc.titleOrWord, ignoreCase = true)) }
+                    var parsedActivity = VocabularyActivityType.MEANING_MATCHING.name
+                    var parsedEmoji = "✨"
+                    var parsedSynonym = ""
+                    var parsedAntonym = ""
+                    var parsedScrambleHint = ""
+                    if (rc.extraData.trim().startsWith("{")) {
+                        try {
+                            val obj = org.json.JSONObject(rc.extraData)
+                            parsedActivity = VocabularyActivityType.fromName(obj.optString("activityType", "")).name
+                            parsedEmoji = obj.optString("pictureEmoji", "✨").ifBlank { "✨" }
+                            parsedSynonym = obj.optString("synonym", "")
+                            parsedAntonym = obj.optString("antonym", "")
+                            parsedScrambleHint = obj.optString("scrambleHint", "")
+                        } catch (_: Exception) {}
+                    }
+                    val idx = currentWm.indexOfFirst {
+                        it.id == rc.id || (it.word.isNotBlank() && it.word.equals(rc.titleOrWord, ignoreCase = true) && it.activityType == parsedActivity)
+                    }
                     val item = WordMatchChallenge(
                         id = rc.id,
                         word = rc.titleOrWord,
                         definition = rc.hintOrMeaning,
-                        category = rc.category,
-                        createdBy = rc.createdBy
+                        category = rc.category.ifBlank { "General" },
+                        createdBy = rc.createdBy,
+                        activityType = parsedActivity,
+                        pictureEmoji = parsedEmoji,
+                        synonym = parsedSynonym,
+                        antonym = parsedAntonym,
+                        distractors = rc.options,
+                        scrambleHint = parsedScrambleHint
                     )
                     if (idx >= 0) {
                         currentWm[idx] = item
@@ -3628,6 +3963,33 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                         currentWm.add(item)
                     }
                     wmChanged = true
+                }
+                "VOCAB_MODE_CONFIG" -> {
+                    val modeType = VocabularyActivityType.fromName(rc.category.ifBlank { rc.id.removePrefix("vm_mode_") })
+                    var parsedQuestions = 5
+                    var parsedEnabled = true
+                    if (rc.extraData.trim().startsWith("{")) {
+                        try {
+                            val obj = org.json.JSONObject(rc.extraData)
+                            parsedQuestions = obj.optInt("questionsPerRound", 5).coerceIn(1, 30)
+                            parsedEnabled = obj.optBoolean("isEnabled", true)
+                        } catch (_: Exception) {}
+                    }
+                    val cfg = VocabularyModeConfig(
+                        activityType = modeType,
+                        title = rc.titleOrWord.ifBlank { modeType.title },
+                        subtitle = rc.hintOrMeaning.ifBlank { modeType.subtitle },
+                        xpReward = if (rc.correctIndex > 0) rc.correctIndex.coerceIn(10, 500) else 50,
+                        questionsPerRound = parsedQuestions,
+                        isEnabled = parsedEnabled
+                    )
+                    val idx = currentVocabModes.indexOfFirst { it.activityType == modeType }
+                    if (idx >= 0) {
+                        currentVocabModes[idx] = cfg
+                    } else {
+                        currentVocabModes.add(cfg)
+                    }
+                    vocabModeChanged = true
                 }
                 "MISSING_LETTERS" -> {
                     val idx = currentMl.indexOfFirst { it.id == rc.id || (it.fullWord.isNotBlank() && it.fullWord.equals(rc.titleOrWord, ignoreCase = true) && it.category.equals(rc.category, ignoreCase = true)) }
@@ -3799,6 +4161,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (wmChanged) {
             _wordMatchChallenges.value = currentWm
             appPreferences?.saveWordMatchChallenges(currentWm)
+        }
+        if (vocabModeChanged) {
+            _vocabularyModeConfigs.value = currentVocabModes.sortedBy { it.activityType.ordinal }
+            appPreferences?.saveVocabularyModeConfigs(_vocabularyModeConfigs.value)
         }
         if (mlChanged) {
             _missingLettersChallenges.value = currentMl

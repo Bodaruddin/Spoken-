@@ -9,15 +9,19 @@ import com.example.data.model.ExamQuestion
 import com.example.data.model.NovaChatMessage
 import com.example.data.model.Role
 import com.example.data.model.SpeakingPrompt
+import com.example.data.model.VocabularyActivityType
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import com.example.ui.MainViewModel
 import com.example.ui.SpeakingSubTab
 import com.example.ui.StudentTab
 import com.example.ui.screens.student.StudentHomeScreen
+import com.example.ui.screens.student.VocabularyChallengeGame
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -354,6 +358,158 @@ class ExampleRobolectricTest {
     vm.selectStudentTab(StudentTab.HOME)
     vm.selectStudentTab(StudentTab.PRACTICE)
     assertEquals(SpeakingSubTab.TOPICS_ROADMAP, vm.speakingSubTab.value)
+  }
+
+  @Test
+  fun `vocabulary challenge 5-activity items, mode configs, and progress persist across preferences`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val prefs = AppPreferences(app)
+    val vm = MainViewModel(app)
+
+    val createdPic = vm.addWordMatchChallenge(
+      word = "Rainbow",
+      definition = "Colorful arc in the sky after rain",
+      category = "Nature",
+      createdBy = "Prof. Eleanor Vance",
+      activityType = VocabularyActivityType.PICTURE_MATCHING.name,
+      pictureEmoji = "🌈",
+      distractors = listOf("Volcano", "Anchor", "Glacier")
+    )
+    val createdScramble = vm.addWordMatchChallenge(
+      word = "Horizon",
+      definition = "Line where the earth meets the sky",
+      category = "Nature",
+      createdBy = "Prof. Eleanor Vance",
+      activityType = VocabularyActivityType.WORD_SCRAMBLE.name,
+      pictureEmoji = "🌅",
+      scrambleHint = "Where sky and land seem to touch"
+    )
+
+    val picMode = vm.vocabularyModeConfigs.value.first { it.activityType == VocabularyActivityType.PICTURE_MATCHING }
+    val oppMode = vm.vocabularyModeConfigs.value.first { it.activityType == VocabularyActivityType.OPPOSITE_WORDS }
+    vm.updateVocabularyModeConfig(picMode.copy(title = "Picture Blitz", questionsPerRound = 6, xpReward = 70))
+    vm.updateVocabularyModeConfig(oppMode.copy(isEnabled = false))
+
+    vm.recordVocabularyChallengeResult(
+      activityType = VocabularyActivityType.SYNONYMS,
+      correctCount = 4,
+      totalCount = 5,
+      xpAwarded = 45
+    )
+
+    val savedItems = prefs.getWordMatchChallenges()
+    assertNotNull(savedItems)
+    assertTrue(savedItems!!.any { it.id == createdPic.id && it.pictureEmoji == "🌈" && it.activityType == "PICTURE_MATCHING" })
+    assertTrue(savedItems.any { it.id == createdScramble.id && it.scrambleHint == "Where sky and land seem to touch" && it.activityType == "WORD_SCRAMBLE" })
+
+    val savedConfigs = prefs.getVocabularyModeConfigs()
+    assertNotNull(savedConfigs)
+    val persistedPic = savedConfigs!!.first { it.activityType == VocabularyActivityType.PICTURE_MATCHING }
+    val persistedOpp = savedConfigs.first { it.activityType == VocabularyActivityType.OPPOSITE_WORDS }
+    assertEquals("Picture Blitz", persistedPic.title)
+    assertEquals(6, persistedPic.questionsPerRound)
+    assertEquals(70, persistedPic.xpReward)
+    assertFalse(persistedOpp.isEnabled)
+
+    val savedProgress = prefs.getVocabularyChallengeProgress()
+    assertNotNull(savedProgress)
+    assertTrue(VocabularyActivityType.SYNONYMS.name in savedProgress!!.completedModes)
+    assertEquals(45, savedProgress.totalXpEarned)
+    assertEquals(80, savedProgress.bestAccuracyPercent)
+  }
+
+  @Test
+  fun `vocabulary challenge UI renders 5 modes, plays picture matching, and respects teacher toggle`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val vm = MainViewModel(app)
+
+    composeTestRule.setContent {
+      VocabularyChallengeGame(
+        viewModel = vm,
+        onClose = {}
+      )
+    }
+
+    composeTestRule.onNodeWithTag("vocab_challenge_modes_list")
+      .performScrollToNode(hasTestTag("vocab_mode_card_picture_matching"))
+    composeTestRule.onNodeWithTag("vocab_mode_card_picture_matching").assertIsDisplayed()
+
+    composeTestRule.onNodeWithTag("vocab_challenge_modes_list")
+      .performScrollToNode(hasTestTag("vocab_mode_card_synonyms"))
+    composeTestRule.onNodeWithTag("vocab_mode_card_synonyms").assertIsDisplayed()
+
+    // Teacher disables Synonyms mode -> immediately removed from Student Portal selection list
+    val synMode = vm.vocabularyModeConfigs.value.first { it.activityType == VocabularyActivityType.SYNONYMS }
+    vm.updateVocabularyModeConfig(synMode.copy(isEnabled = false))
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("vocab_mode_card_synonyms").assertDoesNotExist()
+
+    // Launch Picture Matching activity
+    composeTestRule.onNodeWithTag("vocab_challenge_modes_list")
+      .performScrollToNode(hasTestTag("vocab_play_btn_picture_matching"))
+    composeTestRule.onNodeWithTag("vocab_play_btn_picture_matching").performClick()
+
+    composeTestRule.onNodeWithTag("vocab_question_card").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("vocab_option_0").performScrollTo().assertIsDisplayed()
+
+    // Back button returns to modes list
+    composeTestRule.onNodeWithTag("vocab_play_back_btn").performClick()
+    composeTestRule.onNodeWithTag("vocab_challenge_modes_list").assertIsDisplayed()
+  }
+
+  @Test
+  fun `remote merge decodes vocabulary 5-activity metadata and mode config`() {
+    val repository = com.example.data.repository.LinguaQuestRepository(null)
+    val extraJson = org.json.JSONObject().apply {
+      put("activityType", "OPPOSITE_WORDS")
+      put("pictureEmoji", "⚖️")
+      put("synonym", "")
+      put("antonym", "Fragile")
+      put("scrambleHint", "")
+    }.toString()
+    val modeExtraJson = org.json.JSONObject().apply {
+      put("questionsPerRound", 8)
+      put("isEnabled", true)
+    }.toString()
+
+    repository.mergeRemoteGameChallenges(
+      listOf(
+        com.example.data.model.SupabaseGameChallenge(
+          id = "wm_remote_1",
+          type = "WORD_MATCH",
+          titleOrWord = "Durable",
+          hintOrMeaning = "Able to withstand wear and damage",
+          category = "Materials",
+          options = listOf("Strong", "Heavy", "Bright"),
+          extraData = extraJson,
+          createdBy = "Remote Teacher"
+        ),
+        com.example.data.model.SupabaseGameChallenge(
+          id = "vm_mode_OPPOSITE_WORDS",
+          type = "VOCAB_MODE_CONFIG",
+          titleOrWord = "Antonym Arena",
+          hintOrMeaning = "Master opposite pairs",
+          category = "OPPOSITE_WORDS",
+          correctIndex = 90,
+          extraData = modeExtraJson,
+          createdBy = "Remote Teacher"
+        )
+      )
+    )
+
+    val mergedItem = repository.wordMatchChallenges.value.firstOrNull { it.id == "wm_remote_1" }
+    assertNotNull(mergedItem)
+    assertEquals("OPPOSITE_WORDS", mergedItem?.activityType)
+    assertEquals("Fragile", mergedItem?.antonym)
+    assertEquals(listOf("Strong", "Heavy", "Bright"), mergedItem?.distractors)
+
+    val mergedMode = repository.vocabularyModeConfigs.value.first {
+      it.activityType == VocabularyActivityType.OPPOSITE_WORDS
+    }
+    assertEquals("Antonym Arena", mergedMode.title)
+    assertEquals(8, mergedMode.questionsPerRound)
+    assertEquals(90, mergedMode.xpReward)
+    assertTrue(mergedMode.isEnabled)
   }
 }
 

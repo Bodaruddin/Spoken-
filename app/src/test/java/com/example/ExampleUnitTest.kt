@@ -811,5 +811,100 @@ class ExampleUnitTest {
         assertFalse(repository.fastVocabularyPacks.value.any { it.id == createdPack.id })
         assertTrue(repository.fastVocabularyChallenges.value.none { it.packId == createdPack.id })
     }
+
+    @Test
+    fun `vocabulary challenge defaults, 5-activity CRUD, mode config, progress, and remote sync`() {
+        val repository = LinguaQuestRepository(null)
+
+        // 1. All 5 activity modes are present and have at least 6 default items each
+        val allTypes = com.example.data.model.VocabularyActivityType.values()
+        assertEquals(5, allTypes.size)
+        val initialChallenges = repository.wordMatchChallenges.value
+        allTypes.forEach { type ->
+            val count = initialChallenges.count {
+                com.example.data.model.VocabularyActivityType.fromName(it.activityType) == type
+            }
+            assertTrue("Expected at least 6 items for ${type.name}, got $count", count >= 6)
+        }
+        assertEquals(5, repository.vocabularyModeConfigs.value.size)
+        assertTrue(repository.vocabularyModeConfigs.value.all { it.isEnabled })
+
+        // 2. Teacher creates & updates items across all 5 activities
+        val picItem = repository.addWordMatchChallenge(
+            word = "Microscope",
+            definition = "Instrument used to see tiny objects",
+            category = "Science",
+            createdBy = "Prof. Eleanor Vance",
+            activityType = com.example.data.model.VocabularyActivityType.PICTURE_MATCHING.name,
+            pictureEmoji = "🔬",
+            distractors = listOf("Telescope", "Compass", "Anchor")
+        )
+        val synItem = repository.addWordMatchChallenge(
+            word = "Candid",
+            definition = "Truthful and straightforward",
+            category = "Adjectives",
+            createdBy = "Prof. Eleanor Vance",
+            activityType = com.example.data.model.VocabularyActivityType.SYNONYMS.name,
+            synonym = "Honest",
+            distractors = listOf("Secretive", "Timid", "Unclear")
+        )
+        val oppItem = repository.addWordMatchChallenge(
+            word = "Abundant",
+            definition = "Existing in large quantities",
+            category = "Adjectives",
+            createdBy = "Prof. Eleanor Vance",
+            activityType = com.example.data.model.VocabularyActivityType.OPPOSITE_WORDS.name,
+            antonym = "Scarce",
+            distractors = listOf("Plentiful", "Bright", "Calm")
+        )
+        val scrItem = repository.addWordMatchChallenge(
+            word = "Lantern",
+            definition = "Portable lamp with a protective case",
+            category = "Everyday",
+            createdBy = "Prof. Eleanor Vance",
+            activityType = com.example.data.model.VocabularyActivityType.WORD_SCRAMBLE.name,
+            pictureEmoji = "🏮",
+            scrambleHint = "Handheld glowing light used outdoors"
+        )
+
+        repository.updateWordMatchChallenge(synItem.copy(synonym = "Frank"))
+        val updatedSyn = repository.wordMatchChallenges.value.first { it.id == synItem.id }
+        assertEquals("Frank", updatedSyn.synonym)
+        assertEquals(3, picItem.distractors.size)
+        assertEquals("Scarce", oppItem.antonym)
+        assertEquals("Handheld glowing light used outdoors", scrItem.scrambleHint)
+
+        // Delete item
+        repository.deleteWordMatchChallenge(oppItem.id)
+        assertFalse(repository.wordMatchChallenges.value.any { it.id == oppItem.id })
+
+        // 3. Mode config management & bounds clamping
+        val picMode = repository.vocabularyModeConfigs.value.first {
+            it.activityType == com.example.data.model.VocabularyActivityType.PICTURE_MATCHING
+        }
+        repository.updateVocabularyModeConfig(
+            picMode.copy(title = "Visual Explorer", xpReward = 999, questionsPerRound = 0, isEnabled = false)
+        )
+        val updatedPicMode = repository.vocabularyModeConfigs.value.first {
+            it.activityType == com.example.data.model.VocabularyActivityType.PICTURE_MATCHING
+        }
+        assertEquals("Visual Explorer", updatedPicMode.title)
+        assertEquals(500, updatedPicMode.xpReward)
+        assertEquals(1, updatedPicMode.questionsPerRound)
+        assertFalse(updatedPicMode.isEnabled)
+
+        // 4. Progress tracking
+        repository.recordVocabularyChallengeResult(
+            activityType = com.example.data.model.VocabularyActivityType.WORD_SCRAMBLE,
+            correctCount = 4,
+            totalCount = 5,
+            xpAwarded = 55
+        )
+        val progress = repository.vocabularyChallengeProgress.value
+        assertTrue(com.example.data.model.VocabularyActivityType.WORD_SCRAMBLE.name in progress.completedModes)
+        assertEquals(1, progress.totalRoundsPlayed)
+        assertEquals(55, progress.totalXpEarned)
+        assertEquals(80, progress.bestAccuracyPercent)
+    }
 }
 

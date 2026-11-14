@@ -1380,7 +1380,7 @@ fun TeacherStudentCard(
 // TEACHER GAME & CHALLENGE CREATOR
 // -------------------------------------------------------------
 enum class GameCategoryFilter(val title: String, val emoji: String) {
-    WORD_MATCH("Word Match", "🧩"),
+    WORD_MATCH("Vocabulary Challenge", "🧩"),
     MISSING_LETTERS("Missing Letters", "🔤"),
     SENTENCE_BUILDER("Sentence Builder", "🏗️"),
     LISTEN_CHOOSE("Listen & Choose", "🎧"),
@@ -1423,6 +1423,10 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     var selectedFastVocabPackId by remember { mutableStateOf<String?>(null) }
     var showCreateFastVocabQuestionDialog by remember { mutableStateOf(false) }
     var editingFastVocabQuestion by remember { mutableStateOf<FastVocabularyChallenge?>(null) }
+    var selectedVocabActivityFilter by remember { mutableStateOf<VocabularyActivityType?>(null) }
+    var editingVocabModeConfig by remember { mutableStateOf<VocabularyModeConfig?>(null) }
+    var showCreateVocabChallengeDialog by remember { mutableStateOf(false) }
+    var editingVocabChallenge by remember { mutableStateOf<WordMatchChallenge?>(null) }
     var showBulkImportMissingLettersDialog by remember { mutableStateOf(false) }
     var showBulkImportSentenceBuilderDialog by remember { mutableStateOf(false) }
     var showManageCategoriesDialog by remember { mutableStateOf(false) }
@@ -1443,6 +1447,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     val currentUser by viewModel.currentUser.collectAsState()
 
     val wordMatches by viewModel.wordMatchChallenges.collectAsState()
+    val vocabularyModeConfigs by viewModel.vocabularyModeConfigs.collectAsState()
     val missingLetters by viewModel.missingLettersChallenges.collectAsState()
     val missingLettersCategories by viewModel.missingLettersCategories.collectAsState()
     var selectedMissingLettersCategory by remember { mutableStateOf("All") }
@@ -1482,9 +1487,21 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         }
     }
 
-    val filteredWordMatches = remember(wordMatches, searchQuery) {
-        if (searchQuery.isBlank()) wordMatches
-        else wordMatches.filter { it.word.contains(searchQuery.trim(), ignoreCase = true) || it.definition.contains(searchQuery.trim(), ignoreCase = true) || it.category.contains(searchQuery.trim(), ignoreCase = true) }
+    val filteredWordMatches = remember(wordMatches, searchQuery, selectedVocabActivityFilter) {
+        val q = searchQuery.trim()
+        wordMatches.filter { item ->
+            val type = VocabularyActivityType.fromName(item.activityType)
+            val matchesMode = selectedVocabActivityFilter == null || type == selectedVocabActivityFilter
+            val matchesQuery = q.isBlank() ||
+                item.word.contains(q, ignoreCase = true) ||
+                item.definition.contains(q, ignoreCase = true) ||
+                item.synonym.contains(q, ignoreCase = true) ||
+                item.antonym.contains(q, ignoreCase = true) ||
+                item.scrambleHint.contains(q, ignoreCase = true) ||
+                item.category.contains(q, ignoreCase = true) ||
+                type.title.contains(q, ignoreCase = true)
+            matchesMode && matchesQuery
+        }
     }
     val filteredMissingLetters = remember(missingLetters, searchQuery, selectedMissingLettersCategory) {
         missingLetters.filter { item ->
@@ -1711,6 +1728,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                         Button(
                             onClick = {
                                 when {
+                                    selectedCategory == GameCategoryFilter.WORD_MATCH -> showCreateVocabChallengeDialog = true
                                     selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack == null -> showCreatePackDialog = true
                                     selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack == null -> showCreateGrammarPackDialog = true
                                     selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack != null -> showCreateGrammarQuestionDialog = true
@@ -1865,6 +1883,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             val isInsideFastVocabPack = selectedCategory == GameCategoryFilter.FAST_VOCABULARY && activeFastVocabPack != null
             val bannerAction = {
                 when {
+                    selectedCategory == GameCategoryFilter.WORD_MATCH -> showCreateVocabChallengeDialog = true
                     isSentencePackList -> showCreatePackDialog = true
                     isGrammarPackList -> showCreateGrammarPackDialog = true
                     isInsideGrammarPack -> showCreateGrammarQuestionDialog = true
@@ -1874,6 +1893,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 }
             }
             val bannerTitle = when {
+                selectedCategory == GameCategoryFilter.WORD_MATCH -> "+ Add Vocabulary Challenge Item"
                 isSentencePackList -> "+ Add New Challenge"
                 isInsideSentencePack -> "+ Add Sentences to ${activeSentencePack!!.title}"
                 isGrammarPackList -> "+ Add New Grammar Challenge"
@@ -1883,6 +1903,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 else -> "+ Add New ${selectedCategory.title}"
             }
             val bannerSubtitle = when {
+                selectedCategory == GameCategoryFilter.WORD_MATCH -> "Add Picture Match, Meanings, Synonyms, Opposites or Scramble words"
                 isSentencePackList -> "Create a challenge level & add many sentences inside"
                 isInsideSentencePack -> "Add one or multiple sentences into this challenge"
                 isGrammarPackList -> "Create a grammar challenge topic & add many questions inside"
@@ -1997,6 +2018,28 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                         }
                     }
                 }
+            }
+        }
+
+        if (selectedCategory == GameCategoryFilter.WORD_MATCH) {
+            item {
+                TeacherVocabularyChallengeManagementHeader(
+                    modeConfigs = vocabularyModeConfigs,
+                    allChallenges = wordMatches,
+                    selectedFilter = selectedVocabActivityFilter,
+                    onSelectFilter = { selectedVocabActivityFilter = it },
+                    onToggleModeEnabled = { cfg, enabled ->
+                        viewModel.updateVocabularyModeConfig(cfg.copy(isEnabled = enabled))
+                        statusMsg = if (enabled) {
+                            "Enabled '${cfg.title}' on Student Portal."
+                        } else {
+                            "Disabled '${cfg.title}' on Student Portal."
+                        }
+                    },
+                    onEditModeConfig = { cfg ->
+                        editingVocabModeConfig = cfg
+                    }
+                )
             }
         }
 
@@ -2544,7 +2587,10 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
 
         // 4. Section Header with Layers Icon, Title, Count, and Search Button
         val (categoryHeaderLabel, currentCount) = when (selectedCategory) {
-            GameCategoryFilter.WORD_MATCH -> "Existing Word Match Pairs" to filteredWordMatches.size
+            GameCategoryFilter.WORD_MATCH -> {
+                val filterLabel = selectedVocabActivityFilter?.let { "${it.title} Items" } ?: "Vocabulary Challenge Items"
+                filterLabel to filteredWordMatches.size
+            }
             GameCategoryFilter.MISSING_LETTERS -> "Existing Missing Letters Challenges" to filteredMissingLetters.size
             GameCategoryFilter.SENTENCE_BUILDER -> if (activeSentencePack == null) {
                 "Sentence Builder Challenges" to filteredSentencePacks.size
@@ -2647,28 +2693,20 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         // Items based on selected category with Edit & Delete support and alternating cyber neon themes
         when (selectedCategory) {
             GameCategoryFilter.WORD_MATCH -> {
-                itemsIndexed(filteredWordMatches) { index, item ->
+                itemsIndexed(filteredWordMatches, key = { _, item -> item.id }) { index, item ->
+                    val (cardTitle, cardSubtitle, cardTag) = formatVocabularyChallengeCardContent(item)
                     GameItemCard(
-                        title = item.word,
-                        subtitle = item.definition,
-                        tag = item.category,
+                        title = cardTitle,
+                        subtitle = cardSubtitle,
+                        tag = cardTag,
                         createdBy = item.createdBy,
                         index = index,
                         onPlayAudio = { viewModel.speakAudio(item.word) },
-                        onEdit = {
-                            activeEditingChallenge = ActiveEditingChallenge(
-                                category = GameCategoryFilter.WORD_MATCH,
-                                id = item.id,
-                                field1 = item.word,
-                                field2 = item.definition,
-                                field3 = item.category,
-                                onSave = { f1, f2, f3, _, _ ->
-                                    viewModel.updateWordMatchChallenge(item.copy(word = f1, definition = f2, category = f3))
-                                    statusMsg = "Updated '${f1}' challenge successfully!"
-                                }
-                            )
-                        },
-                        onDelete = { viewModel.deleteWordMatchChallenge(item.id) }
+                        onEdit = { editingVocabChallenge = item },
+                        onDelete = {
+                            viewModel.deleteWordMatchChallenge(item.id)
+                            statusMsg = "Deleted '${item.word}' from Vocabulary Challenge."
+                        }
                     )
                 }
             }
@@ -3584,6 +3622,68 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             editing = editing,
             onDismiss = { activeEditingChallenge = null },
             onSaved = { activeEditingChallenge = null }
+        )
+    }
+
+    editingVocabModeConfig?.let { cfg ->
+        VocabularyChallengeModeConfigDialog(
+            config = cfg,
+            onDismiss = { editingVocabModeConfig = null },
+            onSave = { updated ->
+                viewModel.updateVocabularyModeConfig(updated)
+                statusMsg = "Updated '${updated.title}' mode settings & synced to Student Portal!"
+                editingVocabModeConfig = null
+            }
+        )
+    }
+
+    if (showCreateVocabChallengeDialog) {
+        VocabularyChallengeEditorDialog(
+            initialItem = null,
+            defaultActivityType = selectedVocabActivityFilter ?: VocabularyActivityType.PICTURE_MATCHING,
+            onDismiss = { showCreateVocabChallengeDialog = false },
+            onSave = { word, definition, category, activityType, emoji, synonym, antonym, distractors, scrambleHint, keepOpen ->
+                viewModel.addWordMatchChallenge(
+                    word = word,
+                    definition = definition,
+                    category = category,
+                    createdBy = currentUser.name.ifBlank { "Faculty Instructor" },
+                    activityType = activityType.name,
+                    pictureEmoji = emoji,
+                    synonym = synonym,
+                    antonym = antonym,
+                    distractors = distractors,
+                    scrambleHint = scrambleHint
+                )
+                statusMsg = "Published '$word' to ${activityType.title}!"
+                if (!keepOpen) {
+                    showCreateVocabChallengeDialog = false
+                }
+            }
+        )
+    }
+
+    editingVocabChallenge?.let { item ->
+        VocabularyChallengeEditorDialog(
+            initialItem = item,
+            onDismiss = { editingVocabChallenge = null },
+            onSave = { word, definition, category, activityType, emoji, synonym, antonym, distractors, scrambleHint, _ ->
+                viewModel.updateWordMatchChallenge(
+                    item.copy(
+                        word = word,
+                        definition = definition,
+                        category = category,
+                        activityType = activityType.name,
+                        pictureEmoji = emoji,
+                        synonym = synonym,
+                        antonym = antonym,
+                        distractors = distractors,
+                        scrambleHint = scrambleHint
+                    )
+                )
+                statusMsg = "Updated '$word' (${activityType.title})!"
+                editingVocabChallenge = null
+            }
         )
     }
 

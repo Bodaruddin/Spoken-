@@ -67,7 +67,7 @@ enum class SpeakingSubTab {
 }
 
 enum class ActiveGameType(val title: String, val desc: String, val emoji: String) {
-    WORD_MATCH("Word Match", "Match English words with correct definitions", "🧩"),
+    WORD_MATCH("Vocabulary Challenge", "Picture Match, Meanings, Synonyms, Opposites & Scramble", "🧩"),
     MISSING_LETTERS("Missing Letters", "Complete the word spelling correctly", "🔤"),
     SENTENCE_BUILDER("Sentence Builder", "Arrange words into grammatical syntax", "🏗️"),
     LISTEN_CHOOSE("Listen & Choose", "Listen to audio speech & select answer", "🎧"),
@@ -326,6 +326,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Dynamic Game Content Flows
     val wordMatchChallenges = repository.wordMatchChallenges
+    val vocabularyModeConfigs = repository.vocabularyModeConfigs
+    val vocabularyChallengeProgress = repository.vocabularyChallengeProgress
     val missingLettersChallenges = repository.missingLettersChallenges
     val missingLettersCategories = repository.missingLettersCustomCategories
     val sentenceBuilderPacks = repository.sentenceBuilderPacks
@@ -502,8 +504,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Game Management helpers
-    fun addWordMatchChallenge(word: String, definition: String, category: String, createdBy: String) {
-        val created = repository.addWordMatchChallenge(word, definition, category, createdBy)
+    private fun encodeWordMatchExtraData(item: WordMatchChallenge): String {
+        return org.json.JSONObject().apply {
+            put("activityType", item.activityType)
+            put("pictureEmoji", item.pictureEmoji)
+            put("synonym", item.synonym)
+            put("antonym", item.antonym)
+            put("scrambleHint", item.scrambleHint)
+        }.toString()
+    }
+
+    fun addWordMatchChallenge(
+        word: String,
+        definition: String,
+        category: String = "General",
+        createdBy: String,
+        activityType: String = VocabularyActivityType.MEANING_MATCHING.name,
+        pictureEmoji: String = "✨",
+        synonym: String = "",
+        antonym: String = "",
+        distractors: List<String> = emptyList(),
+        scrambleHint: String = ""
+    ): WordMatchChallenge {
+        val created = repository.addWordMatchChallenge(
+            word = word,
+            definition = definition,
+            category = category,
+            createdBy = createdBy,
+            activityType = activityType,
+            pictureEmoji = pictureEmoji,
+            synonym = synonym,
+            antonym = antonym,
+            distractors = distractors,
+            scrambleHint = scrambleHint
+        )
         if (supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
                 val challenge = com.example.data.model.SupabaseGameChallenge(
@@ -512,11 +546,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     titleOrWord = created.word,
                     hintOrMeaning = created.definition,
                     category = created.category,
+                    options = created.distractors,
+                    extraData = encodeWordMatchExtraData(created),
                     createdBy = created.createdBy
                 )
                 supabaseService.saveGameChallenge(challenge)
             }
         }
+        return created
     }
     fun deleteWordMatchChallenge(id: String) {
         repository.deleteWordMatchChallenge(id)
@@ -525,6 +562,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 supabaseService.deleteGameChallenge(id)
             }
         }
+    }
+    fun updateVocabularyModeConfig(config: VocabularyModeConfig) {
+        repository.updateVocabularyModeConfig(config)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val extra = org.json.JSONObject().apply {
+                    put("questionsPerRound", config.questionsPerRound)
+                    put("isEnabled", config.isEnabled)
+                }.toString()
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = "vm_mode_${config.activityType.name}",
+                    type = "VOCAB_MODE_CONFIG",
+                    titleOrWord = config.title,
+                    hintOrMeaning = config.subtitle,
+                    category = config.activityType.name,
+                    correctIndex = config.xpReward,
+                    extraData = extra,
+                    createdBy = currentUser.value.name
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
+    }
+    fun recordVocabularyChallengeResult(
+        activityType: VocabularyActivityType,
+        correctCount: Int,
+        totalCount: Int,
+        xpAwarded: Int
+    ) {
+        repository.recordVocabularyChallengeResult(activityType, correctCount, totalCount, xpAwarded)
+        val coins = (correctCount * 4).coerceAtLeast(5)
+        rewardGameWin(xpAwarded, coins)
     }
 
     fun addMissingLettersChallenge(fullWord: String, hint: String, category: String = "General", createdBy: String) {
@@ -947,6 +1016,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     titleOrWord = updated.word,
                     hintOrMeaning = updated.definition,
                     category = updated.category,
+                    options = updated.distractors,
+                    extraData = encodeWordMatchExtraData(updated),
                     createdBy = updated.createdBy
                 )
                 supabaseService.saveGameChallenge(challenge)

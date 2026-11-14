@@ -41,6 +41,8 @@ class AppPreferences(context: Context) {
         private const val KEY_EXAM_SUBMISSIONS = "key_exam_submissions"
         private const val KEY_ASSIGNMENTS_LIST = "key_assignments_list"
         private const val KEY_WORD_MATCH_LIST = "key_word_match_list"
+        private const val KEY_VOCABULARY_MODE_CONFIGS = "key_vocabulary_mode_configs"
+        private const val KEY_VOCABULARY_CHALLENGE_PROGRESS = "key_vocabulary_challenge_progress"
         private const val KEY_MISSING_LETTERS_LIST = "key_missing_letters_list"
         private const val KEY_SENTENCE_BUILDER_LIST = "key_sentence_builder_list"
         private const val KEY_SENTENCE_BUILDER_PACKS = "key_sentence_builder_packs"
@@ -451,6 +453,14 @@ class AppPreferences(context: Context) {
                 obj.put("definition", c.definition)
                 obj.put("category", c.category)
                 obj.put("createdBy", c.createdBy)
+                obj.put("activityType", c.activityType)
+                obj.put("pictureEmoji", c.pictureEmoji)
+                obj.put("synonym", c.synonym)
+                obj.put("antonym", c.antonym)
+                val distArr = JSONArray()
+                c.distractors.forEach { distArr.put(it) }
+                obj.put("distractors", distArr)
+                obj.put("scrambleHint", c.scrambleHint)
                 array.put(obj)
             }
             prefs.edit().putString(KEY_WORD_MATCH_LIST, array.toString()).apply()
@@ -464,17 +474,110 @@ class AppPreferences(context: Context) {
             val list = mutableListOf<WordMatchChallenge>()
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
+                val distList = mutableListOf<String>()
+                val distArr = obj.optJSONArray("distractors")
+                if (distArr != null) {
+                    for (j in 0 until distArr.length()) {
+                        val d = distArr.optString(j, "").trim()
+                        if (d.isNotEmpty()) distList.add(d)
+                    }
+                }
                 list.add(
                     WordMatchChallenge(
                         id = obj.optString("id", ""),
                         word = obj.optString("word", ""),
                         definition = obj.optString("definition", ""),
                         category = obj.optString("category", "General"),
-                        createdBy = obj.optString("createdBy", "System")
+                        createdBy = obj.optString("createdBy", "System"),
+                        activityType = obj.optString("activityType", VocabularyActivityType.MEANING_MATCHING.name)
+                            .ifBlank { VocabularyActivityType.MEANING_MATCHING.name },
+                        pictureEmoji = obj.optString("pictureEmoji", "✨").ifBlank { "✨" },
+                        synonym = obj.optString("synonym", ""),
+                        antonym = obj.optString("antonym", ""),
+                        distractors = distList,
+                        scrambleHint = obj.optString("scrambleHint", "")
                     )
                 )
             }
             list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveVocabularyModeConfigs(configs: List<VocabularyModeConfig>) {
+        try {
+            val array = JSONArray()
+            for (cfg in configs) {
+                val obj = JSONObject()
+                obj.put("activityType", cfg.activityType.name)
+                obj.put("title", cfg.title)
+                obj.put("subtitle", cfg.subtitle)
+                obj.put("xpReward", cfg.xpReward)
+                obj.put("questionsPerRound", cfg.questionsPerRound)
+                obj.put("isEnabled", cfg.isEnabled)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_VOCABULARY_MODE_CONFIGS, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getVocabularyModeConfigs(): List<VocabularyModeConfig>? {
+        val raw = prefs.getString(KEY_VOCABULARY_MODE_CONFIGS, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<VocabularyModeConfig>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val type = VocabularyActivityType.fromName(obj.optString("activityType", ""))
+                list.add(
+                    VocabularyModeConfig(
+                        activityType = type,
+                        title = obj.optString("title", type.title).ifBlank { type.title },
+                        subtitle = obj.optString("subtitle", type.subtitle).ifBlank { type.subtitle },
+                        xpReward = obj.optInt("xpReward", 50).coerceIn(10, 500),
+                        questionsPerRound = obj.optInt("questionsPerRound", 5).coerceIn(1, 30),
+                        isEnabled = obj.optBoolean("isEnabled", true)
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveVocabularyChallengeProgress(progress: VocabularyChallengeProgress) {
+        try {
+            val obj = JSONObject()
+            val modesArr = JSONArray()
+            progress.completedModes.forEach { modesArr.put(it) }
+            obj.put("completedModes", modesArr)
+            obj.put("totalRoundsPlayed", progress.totalRoundsPlayed)
+            obj.put("totalXpEarned", progress.totalXpEarned)
+            obj.put("bestAccuracyPercent", progress.bestAccuracyPercent)
+            prefs.edit().putString(KEY_VOCABULARY_CHALLENGE_PROGRESS, obj.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getVocabularyChallengeProgress(): VocabularyChallengeProgress? {
+        val raw = prefs.getString(KEY_VOCABULARY_CHALLENGE_PROGRESS, null) ?: return null
+        return try {
+            val obj = JSONObject(raw)
+            val modesArr = obj.optJSONArray("completedModes")
+            val modes = mutableSetOf<String>()
+            if (modesArr != null) {
+                for (i in 0 until modesArr.length()) {
+                    val m = modesArr.optString(i, "").trim()
+                    if (m.isNotEmpty()) modes.add(m)
+                }
+            }
+            VocabularyChallengeProgress(
+                completedModes = modes,
+                totalRoundsPlayed = obj.optInt("totalRoundsPlayed", 0),
+                totalXpEarned = obj.optInt("totalXpEarned", 0),
+                bestAccuracyPercent = obj.optInt("bestAccuracyPercent", 0)
+            )
         } catch (_: Exception) {
             null
         }

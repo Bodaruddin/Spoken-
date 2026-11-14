@@ -358,11 +358,11 @@ enum class ArcadeIconType {
  * Catalog list representing all 8 cards with exact radiant colors from the screenshot.
  */
 val arcadeGameCatalog = listOf(
-    // Row 1 Left: Word Match (Electric Cyan-Blue)
+    // Row 1 Left: Vocabulary Challenge (Electric Cyan-Blue)
     ArcadeGameCardConfig(
         gameType = ActiveGameType.WORD_MATCH,
-        title = "Word Match",
-        desc = "Match English words with correct definitions",
+        title = "Vocabulary Challenge",
+        desc = "Picture Match, Meanings, Synonyms, Opposites & Scramble",
         borderColor = Color(0xFF0084FF),
         accentColor = Color(0xFF0070F3),
         glowColor = Color(0xFF00D2FF),
@@ -921,8 +921,9 @@ fun ActiveGameRunner(
     modifier: Modifier = Modifier
 ) {
     // Intercept system Back button so student returns to catalog instead of exiting app
-    // (SentenceBuilderGame, GrammarChallengeGame & FastVocabularyGame manage their own 2-level BackHandler internally)
+    // (Word Match/Vocabulary Challenge, SentenceBuilderGame, GrammarChallengeGame & FastVocabularyGame manage their own 2-level BackHandler internally)
     if (
+        gameType != ActiveGameType.WORD_MATCH &&
         gameType != ActiveGameType.SENTENCE_BUILDER &&
         gameType != ActiveGameType.GRAMMAR_CHALLENGE &&
         gameType != ActiveGameType.FAST_VOCABULARY
@@ -933,6 +934,13 @@ fun ActiveGameRunner(
     }
 
     when (gameType) {
+        ActiveGameType.WORD_MATCH -> {
+            VocabularyChallengeGame(
+                viewModel = viewModel,
+                onClose = onClose,
+                modifier = modifier
+            )
+        }
         ActiveGameType.SENTENCE_BUILDER -> {
             SentenceBuilderGame(
                 viewModel = viewModel,
@@ -990,7 +998,7 @@ fun ActiveGameRunner(
 
                 // Dedicated games with real, validated logic
                 when (gameType) {
-                    ActiveGameType.WORD_MATCH -> WordMatchGame(viewModel)
+                    ActiveGameType.WORD_MATCH -> VocabularyChallengeGame(viewModel, onClose)
                     ActiveGameType.MISSING_LETTERS -> MissingLettersGame(viewModel)
                     ActiveGameType.SENTENCE_BUILDER -> SentenceBuilderGame(viewModel, onClose)
                     ActiveGameType.LISTEN_CHOOSE -> ListenAndChooseGame(viewModel)
@@ -1002,284 +1010,6 @@ fun ActiveGameRunner(
                     ActiveGameType.STORY_BUILDER -> StoryBuilderGame(viewModel)
                     ActiveGameType.CONVERSATION_CHALLENGE -> ConversationChallengeGame(viewModel)
                     ActiveGameType.SPELLING_CHALLENGE -> SpellingBeeGame(viewModel)
-                }
-            }
-        }
-    }
-}
-
-// =========================================================================
-// 1. WORD MATCH GAME - Correct two-column matching logic
-// =========================================================================
-@Composable
-fun WordMatchGame(viewModel: MainViewModel) {
-    val challenges by viewModel.wordMatchChallenges.collectAsState()
-    var roundOffset by remember { mutableIntStateOf(0) }
-
-    // Take 4 challenges per round
-    val activeBatch = remember(challenges, roundOffset) {
-        val dropCount = (roundOffset * 4) % maxOf(1, challenges.size)
-        val batch = challenges.drop(dropCount).take(4)
-        if (batch.isEmpty() && challenges.isNotEmpty()) challenges.take(4) else batch
-    }
-
-    // Shuffled words & definitions
-    val wordsList = remember(activeBatch) {
-        activeBatch.map { it.id to it.word }.shuffled()
-    }
-    val defsList = remember(activeBatch) {
-        activeBatch.map { it.id to it.definition }.shuffled()
-    }
-
-    var selectedWordId by remember(activeBatch) { mutableStateOf<String?>(null) }
-    var selectedDefId by remember(activeBatch) { mutableStateOf<String?>(null) }
-    var matchedIds by remember(activeBatch) { mutableStateOf(setOf<String>()) }
-    var mismatchWordId by remember(activeBatch) { mutableStateOf<String?>(null) }
-    var mismatchDefId by remember(activeBatch) { mutableStateOf<String?>(null) }
-    var hasAwarded by remember(activeBatch) { mutableStateOf(false) }
-
-    // Clear mismatch highlighting after a brief pause
-    LaunchedEffect(mismatchWordId, mismatchDefId) {
-        if (mismatchWordId != null || mismatchDefId != null) {
-            delay(900)
-            mismatchWordId = null
-            mismatchDefId = null
-        }
-    }
-
-    // Check match whenever both sides are selected
-    LaunchedEffect(selectedWordId, selectedDefId) {
-        val wId = selectedWordId
-        val dId = selectedDefId
-        if (wId != null && dId != null) {
-            if (wId == dId) {
-                // MATCH!
-                matchedIds = matchedIds + wId
-                val matchedWord = activeBatch.find { it.id == wId }?.word
-                if (matchedWord != null) {
-                    viewModel.speakAudio(matchedWord)
-                }
-                selectedWordId = null
-                selectedDefId = null
-                if (matchedIds.size == activeBatch.size && !hasAwarded && activeBatch.isNotEmpty()) {
-                    hasAwarded = true
-                    viewModel.rewardGameWin(50, 15)
-                }
-            } else {
-                // Mismatch
-                mismatchWordId = wId
-                mismatchDefId = dId
-                selectedWordId = null
-                selectedDefId = null
-            }
-        }
-    }
-
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Match Words with Definitions:", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text(
-                    "${matchedIds.size}/${activeBatch.size} Matched",
-                    fontSize = 12.sp,
-                    color = RoyalBlue,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Text(
-                "Tap a word on the left, then tap its corresponding definition on the right.",
-                fontSize = 12.sp,
-                color = MutedGray
-            )
-
-            // Split into two interactive columns
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Left Column: Words
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("Words", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoyalBlue)
-                    wordsList.forEach { (id, word) ->
-                        val isMatched = matchedIds.contains(id)
-                        val isSelected = selectedWordId == id
-                        val isMismatch = mismatchWordId == id
-
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = when {
-                                isMatched -> Color(0xFFDCFCE7)
-                                isMismatch -> Color(0xFFFEE2E2)
-                                isSelected -> Color(0xFFDBEAFE)
-                                else -> MaterialTheme.colorScheme.surfaceVariant
-                            },
-                            border = BorderStroke(
-                                1.5.dp,
-                                when {
-                                    isMatched -> EmeraldSuccess
-                                    isMismatch -> CoralAccent
-                                    isSelected -> RoyalBlue
-                                    else -> Color.Transparent
-                                }
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(enabled = !isMatched) {
-                                    if (selectedWordId == id) {
-                                        selectedWordId = null
-                                    } else {
-                                        selectedWordId = id
-                                        viewModel.speakAudio(word)
-                                    }
-                                }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = word,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = when {
-                                        isMatched -> Color(0xFF166534)
-                                        isMismatch -> Color(0xFF991B1B)
-                                        isSelected -> RoyalBlue
-                                        else -> MaterialTheme.colorScheme.onSurface
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (isMatched) {
-                                    Text("✓", color = EmeraldSuccess, fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
-                                } else {
-                                    IconButton(
-                                        onClick = { viewModel.speakAudio(word) },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Rounded.VolumeUp,
-                                            contentDescription = "Pronounce",
-                                            tint = RoyalBlue,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Right Column: Definitions
-                Column(
-                    modifier = Modifier.weight(1.3f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("Definitions", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoyalBlue)
-                    defsList.forEach { (id, def) ->
-                        val isMatched = matchedIds.contains(id)
-                        val isSelected = selectedDefId == id
-                        val isMismatch = mismatchDefId == id
-
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = when {
-                                isMatched -> Color(0xFFDCFCE7)
-                                isMismatch -> Color(0xFFFEE2E2)
-                                isSelected -> Color(0xFFDBEAFE)
-                                else -> MaterialTheme.colorScheme.surfaceVariant
-                            },
-                            border = BorderStroke(
-                                1.5.dp,
-                                when {
-                                    isMatched -> EmeraldSuccess
-                                    isMismatch -> CoralAccent
-                                    isSelected -> RoyalBlue
-                                    else -> Color.Transparent
-                                }
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(enabled = !isMatched) {
-                                    selectedDefId = if (selectedDefId == id) null else id
-                                }
-                        ) {
-                            Text(
-                                text = def,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = when {
-                                    isMatched -> Color(0xFF166534)
-                                    isMismatch -> Color(0xFF991B1B)
-                                    isSelected -> RoyalBlue
-                                    else -> MaterialTheme.colorScheme.onSurface
-                                },
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 12.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Feedback Message
-            if (mismatchWordId != null || mismatchDefId != null) {
-                Text(
-                    "❌ Not a match! Read definitions carefully and try again.",
-                    fontSize = 12.sp,
-                    color = CoralAccent,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Round Complete Banner
-            if (matchedIds.size == activeBatch.size && activeBatch.isNotEmpty()) {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFFDCFCE7),
-                    border = BorderStroke(1.dp, EmeraldSuccess),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text("🎉", fontSize = 24.sp)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Round Completed!", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF166534))
-                            Text("+50 XP & +15 Coins added to your profile", fontSize = 12.sp, color = Color(0xFF15803D))
-                        }
-                    }
-                }
-
-                Button(
-                    onClick = {
-                        selectedWordId = null
-                        selectedDefId = null
-                        matchedIds = emptySet()
-                        hasAwarded = false
-                        roundOffset = (roundOffset + 1) % maxOf(1, (challenges.size + 3) / 4)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
-                ) {
-                    Text("Play Next Round ➡️")
                 }
             }
         }

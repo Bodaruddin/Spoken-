@@ -382,12 +382,51 @@ data class StudentManagementInfo(
 }
 
 // Dynamic Game Content Models
+enum class VocabularyActivityType(
+    val title: String,
+    val emoji: String,
+    val subtitle: String
+) {
+    PICTURE_MATCHING("Picture Matching", "🖼️", "Match words with visual scenes & icons"),
+    MEANING_MATCHING("Meaning Matching", "📖", "Connect English words to accurate meanings"),
+    SYNONYMS("Synonyms", "🔁", "Find words with the same or similar meaning"),
+    OPPOSITE_WORDS("Opposite Words", "⚖️", "Match words with their exact antonyms"),
+    WORD_SCRAMBLE("Word Scramble", "🔀", "Unscramble letter tiles to form the word");
+
+    companion object {
+        fun fromName(raw: String?): VocabularyActivityType =
+            values().firstOrNull { it.name.equals(raw?.trim(), ignoreCase = true) } ?: MEANING_MATCHING
+    }
+}
+
 data class WordMatchChallenge(
     val id: String,
     val word: String,
     val definition: String,
     val category: String = "General",
-    val createdBy: String = "System"
+    val createdBy: String = "System",
+    val activityType: String = VocabularyActivityType.MEANING_MATCHING.name,
+    val pictureEmoji: String = "✨",
+    val synonym: String = "",
+    val antonym: String = "",
+    val distractors: List<String> = emptyList(),
+    val scrambleHint: String = ""
+)
+
+data class VocabularyModeConfig(
+    val activityType: VocabularyActivityType,
+    val title: String = activityType.title,
+    val subtitle: String = activityType.subtitle,
+    val xpReward: Int = 50,
+    val questionsPerRound: Int = 5,
+    val isEnabled: Boolean = true
+)
+
+data class VocabularyChallengeProgress(
+    val completedModes: Set<String> = emptySet(),
+    val totalRoundsPlayed: Int = 0,
+    val totalXpEarned: Int = 0,
+    val bestAccuracyPercent: Int = 0
 )
 
 data class MissingLettersChallenge(

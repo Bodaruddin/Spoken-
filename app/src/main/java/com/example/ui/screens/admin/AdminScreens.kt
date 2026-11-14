@@ -43,6 +43,9 @@ import com.example.data.model.LearningLevel
 import com.example.data.model.Role
 import com.example.data.model.StudentManagementInfo
 import com.example.data.model.User
+import com.example.data.model.VocabularyActivityType
+import com.example.data.model.VocabularyModeConfig
+import com.example.data.model.WordMatchChallenge
 import com.example.ui.AdminSpeakingSection
 import com.example.ui.AdminTab
 import com.example.ui.MainViewModel
@@ -53,6 +56,10 @@ import com.example.ui.screens.teacher.CreateGameChallengeDialog
 import com.example.ui.screens.teacher.EditGameChallengeDialog
 import com.example.ui.screens.teacher.GameCategoryFilter
 import com.example.ui.screens.teacher.GameItemCard
+import com.example.ui.screens.teacher.TeacherVocabularyChallengeManagementHeader
+import com.example.ui.screens.teacher.VocabularyChallengeEditorDialog
+import com.example.ui.screens.teacher.VocabularyChallengeModeConfigDialog
+import com.example.ui.screens.teacher.formatVocabularyChallengeCardContent
 import com.example.ui.theme.*
 
 @Composable
@@ -975,9 +982,18 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
     var selectedCategory by remember { mutableStateOf(GameCategoryFilter.WORD_MATCH) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var activeEditingChallenge by remember { mutableStateOf<ActiveEditingChallenge?>(null) }
+    var selectedVocabActivityFilter by remember { mutableStateOf<VocabularyActivityType?>(null) }
+    var editingVocabModeConfig by remember { mutableStateOf<VocabularyModeConfig?>(null) }
+    var showCreateVocabChallengeDialog by remember { mutableStateOf(false) }
+    var editingVocabChallenge by remember { mutableStateOf<WordMatchChallenge?>(null) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
 
     val wordMatches by viewModel.wordMatchChallenges.collectAsState()
+    val vocabularyModeConfigs by viewModel.vocabularyModeConfigs.collectAsState()
+    val filteredWordMatches = remember(wordMatches, selectedVocabActivityFilter) {
+        if (selectedVocabActivityFilter == null) wordMatches
+        else wordMatches.filter { VocabularyActivityType.fromName(it.activityType) == selectedVocabActivityFilter }
+    }
     val missingLetters by viewModel.missingLettersChallenges.collectAsState()
     val sentenceBuilders by viewModel.sentenceBuilderChallenges.collectAsState()
     val listenChooses by viewModel.listenChooseChallenges.collectAsState()
@@ -1045,7 +1061,13 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                     }
 
                     Button(
-                        onClick = { showCreateDialog = true },
+                        onClick = {
+                            if (selectedCategory == GameCategoryFilter.WORD_MATCH) {
+                                showCreateVocabChallengeDialog = true
+                            } else {
+                                showCreateDialog = true
+                            }
+                        },
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                     ) {
@@ -1098,7 +1120,13 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                     border = BorderStroke(1.5.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { showCreateDialog = true }
+                        .clickable {
+                            if (selectedCategory == GameCategoryFilter.WORD_MATCH) {
+                                showCreateVocabChallengeDialog = true
+                            } else {
+                                showCreateDialog = true
+                            }
+                        }
                 ) {
                 Row(
                     modifier = Modifier
@@ -1140,7 +1168,13 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
                         }
                     }
                     Button(
-                        onClick = { showCreateDialog = true },
+                        onClick = {
+                            if (selectedCategory == GameCategoryFilter.WORD_MATCH) {
+                                showCreateVocabChallengeDialog = true
+                            } else {
+                                showCreateDialog = true
+                            }
+                        },
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
@@ -1165,28 +1199,40 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
         // Category Content with Edit & Delete support
         when (selectedCategory) {
             GameCategoryFilter.WORD_MATCH -> {
-                item { Text("Word Match Challenges (${wordMatches.size} pairs registered)", fontWeight = FontWeight.Bold, fontSize = 14.sp) }
-                items(wordMatches) { item ->
+                item {
+                    TeacherVocabularyChallengeManagementHeader(
+                        modeConfigs = vocabularyModeConfigs,
+                        allChallenges = wordMatches,
+                        selectedFilter = selectedVocabActivityFilter,
+                        onSelectFilter = { selectedVocabActivityFilter = it },
+                        onToggleModeEnabled = { cfg, enabled ->
+                            viewModel.updateVocabularyModeConfig(cfg.copy(isEnabled = enabled))
+                            statusMsg = if (enabled) {
+                                "Dean Arthur Pendelton enabled '${cfg.title}'."
+                            } else {
+                                "Dean Arthur Pendelton disabled '${cfg.title}'."
+                            }
+                        },
+                        onEditModeConfig = { cfg -> editingVocabModeConfig = cfg }
+                    )
+                }
+                item {
+                    val filterLabel = selectedVocabActivityFilter?.let { "${it.title} Items" } ?: "Vocabulary Challenge Items"
+                    Text("$filterLabel (${filteredWordMatches.size})", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+                items(filteredWordMatches, key = { it.id }) { item ->
+                    val (cardTitle, cardSubtitle, cardTag) = formatVocabularyChallengeCardContent(item)
                     GameItemCard(
-                        title = item.word,
-                        subtitle = item.definition,
-                        tag = item.category,
+                        title = cardTitle,
+                        subtitle = cardSubtitle,
+                        tag = cardTag,
                         createdBy = item.createdBy,
                         onPlayAudio = { viewModel.speakAudio(item.word) },
-                        onEdit = {
-                            activeEditingChallenge = ActiveEditingChallenge(
-                                category = GameCategoryFilter.WORD_MATCH,
-                                id = item.id,
-                                field1 = item.word,
-                                field2 = item.definition,
-                                field3 = item.category,
-                                onSave = { f1, f2, f3, _, _ ->
-                                    viewModel.updateWordMatchChallenge(item.copy(word = f1, definition = f2, category = f3))
-                                    statusMsg = "Dean Arthur Pendelton updated '${f1}' challenge!"
-                                }
-                            )
-                        },
-                        onDelete = { viewModel.deleteWordMatchChallenge(item.id) }
+                        onEdit = { editingVocabChallenge = item },
+                        onDelete = {
+                            viewModel.deleteWordMatchChallenge(item.id)
+                            statusMsg = "Deleted '${item.word}' from Vocabulary Challenge."
+                        }
                     )
                 }
             }
@@ -1414,6 +1460,68 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
             editing = editing,
             onDismiss = { activeEditingChallenge = null },
             onSaved = { activeEditingChallenge = null }
+        )
+    }
+
+    editingVocabModeConfig?.let { cfg ->
+        VocabularyChallengeModeConfigDialog(
+            config = cfg,
+            onDismiss = { editingVocabModeConfig = null },
+            onSave = { updated ->
+                viewModel.updateVocabularyModeConfig(updated)
+                statusMsg = "Dean Arthur Pendelton updated '${updated.title}' mode settings!"
+                editingVocabModeConfig = null
+            }
+        )
+    }
+
+    if (showCreateVocabChallengeDialog) {
+        VocabularyChallengeEditorDialog(
+            initialItem = null,
+            defaultActivityType = selectedVocabActivityFilter ?: VocabularyActivityType.PICTURE_MATCHING,
+            onDismiss = { showCreateVocabChallengeDialog = false },
+            onSave = { word, definition, category, activityType, emoji, synonym, antonym, distractors, scrambleHint, keepOpen ->
+                viewModel.addWordMatchChallenge(
+                    word = word,
+                    definition = definition,
+                    category = category,
+                    createdBy = "Dean Arthur Pendelton",
+                    activityType = activityType.name,
+                    pictureEmoji = emoji,
+                    synonym = synonym,
+                    antonym = antonym,
+                    distractors = distractors,
+                    scrambleHint = scrambleHint
+                )
+                statusMsg = "Dean Arthur Pendelton published '$word' to ${activityType.title}!"
+                if (!keepOpen) {
+                    showCreateVocabChallengeDialog = false
+                }
+            }
+        )
+    }
+
+    editingVocabChallenge?.let { item ->
+        VocabularyChallengeEditorDialog(
+            initialItem = item,
+            onDismiss = { editingVocabChallenge = null },
+            onSave = { word, definition, category, activityType, emoji, synonym, antonym, distractors, scrambleHint, _ ->
+                viewModel.updateWordMatchChallenge(
+                    item.copy(
+                        word = word,
+                        definition = definition,
+                        category = category,
+                        activityType = activityType.name,
+                        pictureEmoji = emoji,
+                        synonym = synonym,
+                        antonym = antonym,
+                        distractors = distractors,
+                        scrambleHint = scrambleHint
+                    )
+                )
+                statusMsg = "Dean Arthur Pendelton updated '$word' (${activityType.title})!"
+                editingVocabChallenge = null
+            }
         )
     }
 }
