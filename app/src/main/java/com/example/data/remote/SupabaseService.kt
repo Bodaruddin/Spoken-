@@ -1355,7 +1355,8 @@ class SupabaseService {
                                     emoji = obj.optString("emoji", "💬"),
                                     difficultyLevel = obj.optString("difficulty_level", obj.optString("difficultyLevel", "Intermediate")),
                                     createdBy = obj.optString("created_by", obj.optString("createdBy", "Faculty")),
-                                    milestoneTurns = if (obj.has("milestone_turns")) obj.optInt("milestone_turns", 0) else obj.optInt("milestoneTurns", 0)
+                                    milestoneTurns = if (obj.has("milestone_turns")) obj.optInt("milestone_turns", 0) else obj.optInt("milestoneTurns", 0),
+                                    weekNumber = (if (obj.has("week_number")) obj.optInt("week_number", 1) else obj.optInt("weekNumber", 1)).coerceAtLeast(1)
                                 )
                             )
                             seenIds.add(id)
@@ -1388,6 +1389,7 @@ class SupabaseService {
                                 val id = obj.optString("id", targetId)
                                 if (id.isNotBlank()) {
                                     val syncMilestone = obj.optInt("milestoneTurns", obj.optInt("milestone_turns", 0))
+                                    val syncWeek = obj.optInt("weekNumber", obj.optInt("week_number", 1)).coerceAtLeast(1)
                                     if (id !in seenIds) {
                                         val kwArr = obj.optJSONArray("keywords")
                                         val kwList = mutableListOf<String>()
@@ -1406,14 +1408,22 @@ class SupabaseService {
                                                 emoji = obj.optString("emoji", "💬"),
                                                 difficultyLevel = obj.optString("difficultyLevel", obj.optString("difficulty_level", "Intermediate")),
                                                 createdBy = obj.optString("createdBy", obj.optString("created_by", "Faculty")),
-                                                milestoneTurns = syncMilestone
+                                                milestoneTurns = syncMilestone,
+                                                weekNumber = syncWeek
                                             )
                                         )
                                         seenIds.add(id)
-                                    } else if (syncMilestone > 0) {
+                                    } else {
                                         val idx = list.indexOfFirst { it.id == id }
-                                        if (idx >= 0 && list[idx].milestoneTurns <= 0) {
-                                            list[idx] = list[idx].copy(milestoneTurns = syncMilestone)
+                                        if (idx >= 0) {
+                                            var updatedItem = list[idx]
+                                            if (syncMilestone > 0 && updatedItem.milestoneTurns <= 0) {
+                                                updatedItem = updatedItem.copy(milestoneTurns = syncMilestone)
+                                            }
+                                            if (syncWeek > 1 && updatedItem.weekNumber <= 1) {
+                                                updatedItem = updatedItem.copy(weekNumber = syncWeek)
+                                            }
+                                            list[idx] = updatedItem
                                         }
                                     }
                                 }
@@ -1504,6 +1514,8 @@ class SupabaseService {
                 put("created_by", prompt.createdBy)
                 put("milestoneTurns", prompt.milestoneTurns)
                 put("milestone_turns", prompt.milestoneTurns)
+                put("weekNumber", prompt.weekNumber.coerceAtLeast(1))
+                put("week_number", prompt.weekNumber.coerceAtLeast(1))
             }
 
             val patchPayload = JSONObject().apply {
@@ -1560,6 +1572,115 @@ class SupabaseService {
         } catch (_: Exception) {}
 
         savedInPrimary || savedInFallback
+    }
+
+    suspend fun fetchSpeakingWeeks(): List<SpeakingWeek> = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext emptyList()
+        val list = mutableListOf<SpeakingWeek>()
+        try {
+            val req = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.WEEK_SYNC&select=*&limit=200")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .get()
+                .build()
+
+            client.newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    val arr = JSONArray(body)
+                    for (i in 0 until arr.length()) {
+                        val row = arr.getJSONObject(i)
+                        val feedback = row.optString("feedback", "")
+                        if (feedback.isNotBlank()) {
+                            try {
+                                val obj = JSONObject(feedback)
+                                val num = obj.optInt("weekNumber", row.optInt("overall_score", 1)).coerceAtLeast(1)
+                                list.add(
+                                    SpeakingWeek(
+                                        weekNumber = num,
+                                        title = obj.optString("title", row.optString("spoken_text", "Week $num")).ifBlank { "Week $num" },
+                                        subtitle = obj.optString("subtitle", "Tap any topic to speak with Nova AI Coach"),
+                                        sectionLabel = obj.optString("sectionLabel", "SECTION $num").ifBlank { "SECTION $num" },
+                                        createdBy = obj.optString("createdBy", "Faculty")
+                                    )
+                                )
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        list.distinctBy { it.weekNumber }.sortedBy { it.weekNumber }
+    }
+
+    suspend fun saveSpeakingWeek(week: SpeakingWeek): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        val num = week.weekNumber.coerceAtLeast(1)
+        val key = "week_$num"
+        val encodedKey = try { java.net.URLEncoder.encode(key, "UTF-8") } catch (_: Exception) { key }
+        val jsonPayload = JSONObject().apply {
+            put("weekNumber", num)
+            put("title", week.title.ifBlank { "Week $num" })
+            put("subtitle", week.subtitle.ifBlank { "Tap any topic to speak with Nova AI Coach" })
+            put("sectionLabel", week.sectionLabel.ifBlank { "SECTION $num" })
+            put("createdBy", week.createdBy.ifBlank { "Faculty" })
+        }
+        try {
+            val patchPayload = JSONObject().apply {
+                put("spoken_text", week.title.ifBlank { "Week $num" })
+                put("feedback", jsonPayload.toString())
+                put("overall_score", num)
+            }
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations?student_id=eq.WEEK_SYNC&target_phrase=eq.$encodedKey")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .addHeader("Prefer", "return=representation")
+                .patch(patchPayload.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        return@withContext true
+                    }
+                }
+            }
+
+            cleanSyncRows("WEEK_SYNC", key)
+            val evalObj = JSONObject().apply {
+                put("student_id", "WEEK_SYNC")
+                put("target_phrase", key)
+                put("spoken_text", week.title.ifBlank { "Week $num" })
+                put("feedback", jsonPayload.toString())
+                put("pronunciation_score", num)
+                put("fluency_score", num)
+                put("grammar_score", num)
+                put("vocabulary_score", num)
+                put("overall_score", num)
+            }
+            val postReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/speaking_evaluations")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .post(evalObj.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            client.newCall(postReq).execute().use { resp ->
+                return@withContext resp.isSuccessful
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    suspend fun deleteSpeakingWeek(weekNumber: Int): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        val key = "week_${weekNumber.coerceAtLeast(1)}"
+        cleanSyncRows("WEEK_SYNC", key)
+        true
     }
 
     suspend fun saveNovaMilestoneTarget(target: Int): Boolean = withContext(Dispatchers.IO) {

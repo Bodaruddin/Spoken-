@@ -37,6 +37,7 @@ import com.example.data.model.PronunciationDrill
 import com.example.data.model.Role
 import com.example.data.model.RoleplayScenario
 import com.example.data.model.SpeakingPrompt
+import com.example.data.model.SpeakingWeek
 import com.example.data.model.VocabularyWord
 import com.example.service.PhoneticsAiEngine
 import com.example.ui.MainViewModel
@@ -64,6 +65,11 @@ fun SpeakingAndPhoneticsManagement(
     var editingPrompt by remember { mutableStateOf<SpeakingPrompt?>(null) }
     var promptToDelete by remember { mutableStateOf<SpeakingPrompt?>(null) }
 
+    var selectedWeekFilter by remember { mutableStateOf<Int?>(null) }
+    var showCreateWeekDialog by remember { mutableStateOf(false) }
+    var editingWeek by remember { mutableStateOf<SpeakingWeek?>(null) }
+    var weekToDelete by remember { mutableStateOf<SpeakingWeek?>(null) }
+
     var showCreateDrillDialog by remember { mutableStateOf(false) }
     var editingDrill by remember { mutableStateOf<PronunciationDrill?>(null) }
     var drillToDelete by remember { mutableStateOf<PronunciationDrill?>(null) }
@@ -76,6 +82,7 @@ fun SpeakingAndPhoneticsManagement(
     var vocabToDelete by remember { mutableStateOf<VocabularyWord?>(null) }
 
     val prompts by viewModel.speakingPrompts.collectAsState()
+    val speakingWeeks by viewModel.speakingWeeks.collectAsState()
     val drills by viewModel.pronunciationDrills.collectAsState()
     val roleplays by viewModel.roleplays.collectAsState()
     val adventureWorlds by viewModel.adventureWorlds.collectAsState()
@@ -287,6 +294,12 @@ fun SpeakingAndPhoneticsManagement(
             SpeakingManageTab.SPEAKING_PROMPTS -> {
                 PromptsManagementList(
                     prompts = prompts,
+                    weeks = speakingWeeks,
+                    selectedWeekFilter = selectedWeekFilter,
+                    onSelectWeekFilter = { selectedWeekFilter = it },
+                    onAddWeekClick = { showCreateWeekDialog = true },
+                    onEditWeekClick = { editingWeek = it },
+                    onDeleteWeekClick = { weekToDelete = it },
                     milestoneTarget = milestoneTarget,
                     canManageMilestone = userRole == Role.TEACHER || userRole == Role.ADMIN,
                     onIncreaseMilestone = { viewModel.increaseNovaMilestone() },
@@ -400,8 +413,10 @@ fun SpeakingAndPhoneticsManagement(
     if (showCreatePromptDialog) {
         CreateSpeakingPromptDialog(
             defaultMilestone = milestoneTarget,
+            weeks = speakingWeeks,
+            defaultWeekNumber = selectedWeekFilter ?: (speakingWeeks.firstOrNull()?.weekNumber ?: 1),
             onDismiss = { showCreatePromptDialog = false },
-            onCreate = { title, cat, q, tip, kw, sec, emoji, diff, milestone ->
+            onCreate = { title, cat, q, tip, kw, sec, emoji, diff, milestone, weekNum ->
                 viewModel.addSpeakingPrompt(
                     title = title,
                     category = cat,
@@ -411,10 +426,11 @@ fun SpeakingAndPhoneticsManagement(
                     minSeconds = sec,
                     emoji = emoji,
                     difficultyLevel = diff,
-                    milestoneTurns = milestone
+                    milestoneTurns = milestone,
+                    weekNumber = weekNum
                 )
                 showCreatePromptDialog = false
-                toastMessage = "New Conversation Topic '$title' published for students!"
+                toastMessage = "New Conversation Topic '$title' published to Week $weekNum!"
             }
         )
     }
@@ -424,11 +440,86 @@ fun SpeakingAndPhoneticsManagement(
         EditSpeakingPromptDialog(
             prompt = prompt,
             defaultMilestone = milestoneTarget,
+            weeks = speakingWeeks,
             onDismiss = { editingPrompt = null },
             onSave = { updated ->
                 viewModel.updateSpeakingPrompt(updated)
                 editingPrompt = null
                 toastMessage = "Speaking prompt updated successfully!"
+            }
+        )
+    }
+
+    // Create New Weekly Challenge Dialog
+    if (showCreateWeekDialog) {
+        val nextNum = (speakingWeeks.maxOfOrNull { it.weekNumber } ?: 1) + 1
+        CreateOrEditSpeakingWeekDialog(
+            initialWeek = null,
+            suggestedWeekNumber = nextNum,
+            onDismiss = { showCreateWeekDialog = false },
+            onSave = { weekNum, title, subtitle, sectionLabel ->
+                val saved = viewModel.addOrUpdateSpeakingWeek(
+                    weekNumber = weekNum,
+                    title = title,
+                    subtitle = subtitle,
+                    sectionLabel = sectionLabel
+                )
+                selectedWeekFilter = saved.weekNumber
+                showCreateWeekDialog = false
+                toastMessage = "Added '${saved.title}'! Now tap '+ New Topic' to add challenges for it."
+            }
+        )
+    }
+
+    // Edit Weekly Challenge Dialog
+    editingWeek?.let { wk ->
+        CreateOrEditSpeakingWeekDialog(
+            initialWeek = wk,
+            suggestedWeekNumber = wk.weekNumber,
+            onDismiss = { editingWeek = null },
+            onSave = { weekNum, title, subtitle, sectionLabel ->
+                val saved = viewModel.addOrUpdateSpeakingWeek(
+                    weekNumber = weekNum,
+                    title = title,
+                    subtitle = subtitle,
+                    sectionLabel = sectionLabel
+                )
+                selectedWeekFilter = saved.weekNumber
+                editingWeek = null
+                toastMessage = "Updated '${saved.title}'!"
+            }
+        )
+    }
+
+    // Delete Week Confirmation
+    weekToDelete?.let { wk ->
+        AlertDialog(
+            onDismissRequest = { weekToDelete = null },
+            title = { Text("Delete ${wk.title}?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "Remove '${wk.title}' (Week ${wk.weekNumber})? Any speaking topics assigned to it will be safely moved to Week 1."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteSpeakingWeek(wk.weekNumber)
+                        if (selectedWeekFilter == wk.weekNumber) {
+                            selectedWeekFilter = null
+                        }
+                        weekToDelete = null
+                        toastMessage = "'${wk.title}' removed; topics moved to Week 1."
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { weekToDelete = null }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -557,6 +648,12 @@ fun SpeakingAndPhoneticsManagement(
 @Composable
 fun PromptsManagementList(
     prompts: List<SpeakingPrompt>,
+    weeks: List<SpeakingWeek> = emptyList(),
+    selectedWeekFilter: Int? = null,
+    onSelectWeekFilter: (Int?) -> Unit = {},
+    onAddWeekClick: () -> Unit = {},
+    onEditWeekClick: (SpeakingWeek) -> Unit = {},
+    onDeleteWeekClick: (SpeakingWeek) -> Unit = {},
     milestoneTarget: Int = 5,
     canManageMilestone: Boolean = true,
     onIncreaseMilestone: () -> Unit = {},
@@ -567,12 +664,14 @@ fun PromptsManagementList(
     onSpeakAudio: (String) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    val filtered = remember(prompts, searchQuery) {
-        if (searchQuery.isBlank()) prompts
-        else prompts.filter {
-            it.title.contains(searchQuery, ignoreCase = true) ||
-                    it.category.contains(searchQuery, ignoreCase = true) ||
-                    it.question.contains(searchQuery, ignoreCase = true)
+    val filtered = remember(prompts, searchQuery, selectedWeekFilter) {
+        prompts.filter { p ->
+            val matchesWeek = selectedWeekFilter == null || p.weekNumber == selectedWeekFilter
+            val matchesQuery = searchQuery.isBlank() ||
+                p.title.contains(searchQuery, ignoreCase = true) ||
+                p.category.contains(searchQuery, ignoreCase = true) ||
+                p.question.contains(searchQuery, ignoreCase = true)
+            matchesWeek && matchesQuery
         }
     }
 
@@ -699,6 +798,165 @@ fun PromptsManagementList(
         }
         }
 
+        // Weekly Challenges Curriculum Manager (Add Week 1, Week 2 Challenge, etc.)
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF15193B)),
+                border = BorderStroke(1.dp, Color(0xFF6366F1).copy(alpha = 0.45f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("teacher_weekly_challenges_card")
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "📅 Weekly Challenges",
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Organize speaking topics into Week 1, 2nd Week Challenge, etc.",
+                                fontSize = 11.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                        }
+
+                        Button(
+                            onClick = onAddWeekClick,
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PurpleAccent),
+                            modifier = Modifier.testTag("teacher_add_week_btn")
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Add Week", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val allSelected = selectedWeekFilter == null
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (allSelected) RoyalBlue else Color(0xFF1E254D),
+                            border = BorderStroke(
+                                1.dp,
+                                if (allSelected) Color.White.copy(alpha = 0.7f) else Color(0xFF334175)
+                            ),
+                            modifier = Modifier.clickable { onSelectWeekFilter(null) }
+                        ) {
+                            Text(
+                                text = "All (${prompts.size})",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp)
+                            )
+                        }
+
+                        weeks.forEach { wk ->
+                            val isSel = selectedWeekFilter == wk.weekNumber
+                            val countInWeek = prompts.count { it.weekNumber == wk.weekNumber }
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSel) Color(0xFF7C3AED) else Color(0xFF1E254D),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSel) Color(0xFFD8B4FE) else Color(0xFF334175)
+                                ),
+                                modifier = Modifier
+                                    .clickable { onSelectWeekFilter(wk.weekNumber) }
+                                    .testTag("teacher_week_chip_${wk.weekNumber}")
+                            ) {
+                                Text(
+                                    text = "${wk.title} ($countInWeek)",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    val activeWeekObj = weeks.firstOrNull { it.weekNumber == selectedWeekFilter }
+                    if (activeWeekObj != null) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF0E132F),
+                            border = BorderStroke(1.dp, Color(0xFF313D75))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "${activeWeekObj.sectionLabel} • ${activeWeekObj.title}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFE9D5FF)
+                                    )
+                                    Text(
+                                        text = activeWeekObj.subtitle,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF94A3B8),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    IconButton(
+                                        onClick = { onEditWeekClick(activeWeekObj) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Edit,
+                                            contentDescription = "Edit Week",
+                                            tint = Color(0xFF38BDF8),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    if (activeWeekObj.weekNumber > 1) {
+                                        IconButton(
+                                            onClick = { onDeleteWeekClick(activeWeekObj) },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Delete,
+                                                contentDescription = "Delete Week",
+                                                tint = CoralAccent,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             OutlinedTextField(
                 value = searchQuery,
@@ -727,10 +985,18 @@ fun PromptsManagementList(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(40.dp),
+                        .padding(36.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No speaking prompts found. Tap '+ New Prompt' to add one.", color = MutedGray, fontSize = 13.sp)
+                    Text(
+                        text = if (selectedWeekFilter != null) {
+                            "No topics in Week $selectedWeekFilter yet. Tap '+ New Topic' to add one."
+                        } else {
+                            "No speaking prompts found. Tap '+ New Topic' to add one."
+                        },
+                        color = MutedGray,
+                        fontSize = 13.sp
+                    )
                 }
             }
         }
@@ -759,6 +1025,19 @@ fun PromptsManagementList(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF6366F1).copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    text = "W${prompt.weekNumber}",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFA5B4FC),
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                )
+                            }
+
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
                                 color = RoyalBlue.copy(alpha = 0.12f)
@@ -1221,8 +1500,10 @@ fun RoleplayManagementList(
 @Composable
 fun CreateSpeakingPromptDialog(
     defaultMilestone: Int = 5,
+    weeks: List<SpeakingWeek> = emptyList(),
+    defaultWeekNumber: Int = 1,
     onDismiss: () -> Unit,
-    onCreate: (title: String, category: String, question: String, tip: String, keywords: List<String>, minSeconds: Int, emoji: String, difficultyLevel: String, milestoneTurns: Int) -> Unit
+    onCreate: (title: String, category: String, question: String, tip: String, keywords: List<String>, minSeconds: Int, emoji: String, difficultyLevel: String, milestoneTurns: Int, weekNumber: Int) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Personal Life") }
@@ -1231,11 +1512,17 @@ fun CreateSpeakingPromptDialog(
     var keywordsInput by remember { mutableStateOf("") }
     var minSeconds by remember { mutableIntStateOf(25) }
     var milestoneTurns by remember(defaultMilestone) { mutableIntStateOf(defaultMilestone.coerceIn(1, 30)) }
+    var weekNumber by remember(defaultWeekNumber) { mutableIntStateOf(defaultWeekNumber.coerceAtLeast(1)) }
     var emoji by remember { mutableStateOf("💬") }
     var difficultyLevel by remember { mutableStateOf("Intermediate") }
 
     val quickEmojis = listOf("💬", "💖", "💼", "✈️", "🍕", "🤖", "🎬", "⏰", "🎆", "🌿", "⚽", "💡", "📚", "☕", "🌟")
     val difficultyLevels = listOf("Beginner", "Intermediate", "Advanced")
+    val availableWeekNumbers = remember(weeks, weekNumber) {
+        val base = weeks.map { it.weekNumber }.ifEmpty { listOf(1) }
+        val maxKnown = maxOf(base.maxOrNull() ?: 1, weekNumber)
+        (base + listOf(weekNumber, maxKnown + 1)).distinct().sorted()
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1252,6 +1539,29 @@ fun CreateSpeakingPromptDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Week Challenge Assignment Selector
+                Text("Assign to Weekly Challenge:", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = MutedGray)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(availableWeekNumbers) { wkNum ->
+                        val wkTitle = weeks.firstOrNull { it.weekNumber == wkNum }?.title ?: "Week $wkNum"
+                        val isSelected = weekNumber == wkNum
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) PurpleAccent.copy(alpha = 0.28f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, if (isSelected) PurpleAccent else Color.Transparent),
+                            modifier = Modifier.clickable { weekNumber = wkNum }
+                        ) {
+                            Text(
+                                text = wkTitle,
+                                fontSize = 11.5.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+
                 // Quick Emoji Selector
                 Text("Select Topic Icon / Emoji:", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = MutedGray)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1378,7 +1688,7 @@ fun CreateSpeakingPromptDialog(
                 onClick = {
                     if (title.isNotBlank() && question.isNotBlank()) {
                         val kwList = keywordsInput.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                        onCreate(title, category, question, tip, kwList, minSeconds, emoji, difficultyLevel, milestoneTurns)
+                        onCreate(title, category, question, tip, kwList, minSeconds, emoji, difficultyLevel, milestoneTurns, weekNumber)
                     }
                 },
                 enabled = title.isNotBlank() && question.isNotBlank()
@@ -1396,6 +1706,7 @@ fun CreateSpeakingPromptDialog(
 fun EditSpeakingPromptDialog(
     prompt: SpeakingPrompt,
     defaultMilestone: Int = 5,
+    weeks: List<SpeakingWeek> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (SpeakingPrompt) -> Unit
 ) {
@@ -1408,11 +1719,17 @@ fun EditSpeakingPromptDialog(
     var milestoneTurns by remember(prompt.id) {
         mutableIntStateOf((if (prompt.milestoneTurns > 0) prompt.milestoneTurns else defaultMilestone).coerceIn(1, 30))
     }
+    var weekNumber by remember(prompt.id) { mutableIntStateOf(prompt.weekNumber.coerceAtLeast(1)) }
     var emoji by remember { mutableStateOf(prompt.emoji) }
     var difficultyLevel by remember { mutableStateOf(prompt.difficultyLevel) }
 
     val quickEmojis = listOf("💬", "💖", "💼", "✈️", "🍕", "🤖", "🎬", "⏰", "🎆", "🌿", "⚽", "💡", "📚", "☕", "🌟")
     val difficultyLevels = listOf("Beginner", "Intermediate", "Advanced")
+    val availableWeekNumbers = remember(weeks, weekNumber) {
+        val base = weeks.map { it.weekNumber }.ifEmpty { listOf(1) }
+        val maxKnown = maxOf(base.maxOrNull() ?: 1, weekNumber)
+        (base + listOf(weekNumber, maxKnown + 1)).distinct().sorted()
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1429,6 +1746,29 @@ fun EditSpeakingPromptDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // Week Assignment Selector
+                Text("Weekly Challenge:", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = MutedGray)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(availableWeekNumbers) { wkNum ->
+                        val wkTitle = weeks.firstOrNull { it.weekNumber == wkNum }?.title ?: "Week $wkNum"
+                        val isSelected = weekNumber == wkNum
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSelected) PurpleAccent.copy(alpha = 0.28f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, if (isSelected) PurpleAccent else Color.Transparent),
+                            modifier = Modifier.clickable { weekNumber = wkNum }
+                        ) {
+                            Text(
+                                text = wkTitle,
+                                fontSize = 11.5.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+
                 // Quick Emoji Selector
                 Text("Topic Icon / Emoji:", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = MutedGray)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1559,11 +1899,172 @@ fun EditSpeakingPromptDialog(
                         minSpeakingSeconds = minSeconds,
                         emoji = emoji,
                         difficultyLevel = difficultyLevel,
-                        milestoneTurns = milestoneTurns
+                        milestoneTurns = milestoneTurns,
+                        weekNumber = weekNumber
                     ))
                 }
             ) {
                 Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+fun CreateOrEditSpeakingWeekDialog(
+    initialWeek: SpeakingWeek?,
+    suggestedWeekNumber: Int,
+    onDismiss: () -> Unit,
+    onSave: (weekNumber: Int, title: String, subtitle: String, sectionLabel: String) -> Unit
+) {
+    val isEditing = initialWeek != null
+    var weekNumber by remember(initialWeek) {
+        mutableIntStateOf((initialWeek?.weekNumber ?: suggestedWeekNumber).coerceAtLeast(1))
+    }
+    var title by remember(initialWeek) {
+        mutableStateOf(
+            initialWeek?.title ?: when (weekNumber) {
+                1 -> "1st Week Challenge"
+                2 -> "2nd Week Challenge"
+                3 -> "3rd Week Challenge"
+                else -> "Week $weekNumber Challenge"
+            }
+        )
+    }
+    var sectionLabel by remember(initialWeek) {
+        mutableStateOf(initialWeek?.sectionLabel ?: "SECTION $weekNumber")
+    }
+    var subtitle by remember(initialWeek) {
+        mutableStateOf(initialWeek?.subtitle ?: "Tap any topic to speak with Nova AI Coach")
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (isEditing) "Edit Week $weekNumber" else "Add Weekly Challenge",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (!isEditing) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Week Number: $weekNumber", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Row {
+                            IconButton(
+                                onClick = {
+                                    if (weekNumber > 1) {
+                                        weekNumber -= 1
+                                        sectionLabel = "SECTION $weekNumber"
+                                        title = when (weekNumber) {
+                                            1 -> "1st Week Challenge"
+                                            2 -> "2nd Week Challenge"
+                                            3 -> "3rd Week Challenge"
+                                            else -> "Week $weekNumber Challenge"
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Filled.Remove, contentDescription = "Decrease Week")
+                            }
+                            IconButton(
+                                onClick = {
+                                    if (weekNumber < 52) {
+                                        weekNumber += 1
+                                        sectionLabel = "SECTION $weekNumber"
+                                        title = when (weekNumber) {
+                                            1 -> "1st Week Challenge"
+                                            2 -> "2nd Week Challenge"
+                                            3 -> "3rd Week Challenge"
+                                            else -> "Week $weekNumber Challenge"
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Filled.Add, contentDescription = "Increase Week")
+                            }
+                        }
+                    }
+                }
+
+                // Quick Week Naming Presets
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val presets = listOf(
+                        "Week $weekNumber",
+                        when (weekNumber) {
+                            1 -> "1st Week Challenge"
+                            2 -> "2nd Week Challenge"
+                            3 -> "3rd Week Challenge"
+                            else -> "${weekNumber}th Week Challenge"
+                        },
+                        "Week $weekNumber Mastery"
+                    )
+                    items(presets) { preset ->
+                        val isSel = title == preset
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSel) PurpleAccent.copy(alpha = 0.25f) else MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, if (isSel) PurpleAccent else Color.Transparent),
+                            modifier = Modifier.clickable { title = preset }
+                        ) {
+                            Text(
+                                text = preset,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Week Challenge Title *") },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = sectionLabel,
+                    onValueChange = { sectionLabel = it },
+                    label = { Text("Section Badge (e.g. SECTION $weekNumber)") },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = subtitle,
+                    onValueChange = { subtitle = it },
+                    label = { Text("Banner Subtitle") },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (title.isNotBlank()) {
+                        onSave(weekNumber, title, subtitle, sectionLabel)
+                    }
+                },
+                enabled = title.isNotBlank()
+            ) {
+                Text(if (isEditing) "Save Week" else "Create Week")
             }
         },
         dismissButton = {

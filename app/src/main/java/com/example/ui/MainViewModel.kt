@@ -187,6 +187,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         } catch (_: Exception) { }
         try {
+            val remoteWeeks = supabaseService.fetchSpeakingWeeks()
+            if (remoteWeeks.isNotEmpty()) {
+                withContext(Dispatchers.Main) {
+                    repository.mergeRemoteSpeakingWeeks(remoteWeeks)
+                }
+            }
+        } catch (_: Exception) { }
+        try {
             val remoteMilestone = supabaseService.fetchNovaMilestoneTarget()
             if (remoteMilestone != null && remoteMilestone in 1..30) {
                 withContext(Dispatchers.Main) {
@@ -284,6 +292,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val worlds = repository.worlds
     val stages = repository.stages
     val speakingPrompts = repository.speakingPrompts
+    val speakingWeeks = repository.speakingWeeks
     val roleplays = repository.roleplays
     val adventureWorlds = repository.adventureWorlds
     val adventureProgress = repository.adventureProgress
@@ -3098,7 +3107,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         emoji: String = "💬",
         difficultyLevel: String = "Intermediate",
         createdBy: String = "Faculty",
-        milestoneTurns: Int = 0
+        milestoneTurns: Int = 0,
+        weekNumber: Int = 1
     ): SpeakingPrompt {
         val prompt = repository.addSpeakingPrompt(
             title = title,
@@ -3110,15 +3120,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             emoji = emoji,
             difficultyLevel = difficultyLevel,
             createdBy = createdBy,
-            milestoneTurns = milestoneTurns
+            milestoneTurns = milestoneTurns,
+            weekNumber = weekNumber
         )
         if (supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
                 val ok = supabaseService.saveSpeakingPrompt(prompt)
-                if (ok) _cloudSyncNotice.value = "Published conversation topic to Supabase cloud & student panel!"
+                if (ok) _cloudSyncNotice.value = "Published conversation topic to Week ${prompt.weekNumber} & student panel!"
             }
         }
         return prompt
+    }
+
+    fun addOrUpdateSpeakingWeek(
+        weekNumber: Int,
+        title: String,
+        subtitle: String = "Tap any topic to speak with Nova AI Coach",
+        sectionLabel: String = "SECTION ${weekNumber.coerceAtLeast(1)}"
+    ): SpeakingWeek {
+        val creator = repository.currentUser.value?.name ?: "Faculty"
+        val week = repository.addOrUpdateSpeakingWeek(
+            weekNumber = weekNumber,
+            title = title,
+            subtitle = subtitle,
+            sectionLabel = sectionLabel,
+            createdBy = creator
+        )
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val ok = supabaseService.saveSpeakingWeek(week)
+                if (ok) _cloudSyncNotice.value = "Published '${week.title}' to Supabase cloud & student panel!"
+            }
+        }
+        return week
+    }
+
+    fun deleteSpeakingWeek(weekNumber: Int) {
+        val reassigned = repository.deleteSpeakingWeek(weekNumber)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteSpeakingWeek(weekNumber)
+                reassigned.forEach { supabaseService.saveSpeakingPrompt(it) }
+            }
+        }
     }
 
     fun updateSpeakingPrompt(prompt: SpeakingPrompt) {

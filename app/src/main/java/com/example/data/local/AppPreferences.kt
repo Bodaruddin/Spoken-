@@ -57,6 +57,7 @@ class AppPreferences(context: Context) {
         private const val KEY_VOCABULARY_WORDS_LIST = "key_vocabulary_words_list"
         private const val KEY_PRONUNCIATION_DRILLS_LIST = "key_pronunciation_drills_list"
         private const val KEY_SPEAKING_PROMPTS_LIST = "key_speaking_prompts_list"
+        private const val KEY_SPEAKING_WEEKS_LIST = "key_speaking_weeks_list"
         private const val KEY_ADVENTURE_PROGRESS = "key_adventure_progress"
         private const val KEY_ADVENTURE_WORLDS = "key_adventure_worlds"
 
@@ -1434,6 +1435,7 @@ class AppPreferences(context: Context) {
                     put("difficultyLevel", p.difficultyLevel)
                     put("createdBy", p.createdBy)
                     put("milestoneTurns", p.milestoneTurns)
+                    put("weekNumber", p.weekNumber.coerceAtLeast(1))
                 }
                 array.put(obj)
             }
@@ -1467,11 +1469,53 @@ class AppPreferences(context: Context) {
                         emoji = obj.optString("emoji", "💬"),
                         difficultyLevel = obj.optString("difficultyLevel", "Intermediate"),
                         createdBy = obj.optString("createdBy", "Faculty"),
-                        milestoneTurns = obj.optInt("milestoneTurns", 0)
+                        milestoneTurns = obj.optInt("milestoneTurns", 0),
+                        weekNumber = obj.optInt("weekNumber", 1).coerceAtLeast(1)
                     )
                 )
             }
             list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun saveSpeakingWeeks(weeks: List<SpeakingWeek>) {
+        try {
+            val array = JSONArray()
+            for (w in weeks.sortedBy { it.weekNumber }) {
+                val obj = JSONObject().apply {
+                    put("weekNumber", w.weekNumber.coerceAtLeast(1))
+                    put("title", w.title)
+                    put("subtitle", w.subtitle)
+                    put("sectionLabel", w.sectionLabel)
+                    put("createdBy", w.createdBy)
+                }
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_SPEAKING_WEEKS_LIST, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getSpeakingWeeks(): List<SpeakingWeek>? {
+        val raw = prefs.getString(KEY_SPEAKING_WEEKS_LIST, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<SpeakingWeek>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val num = obj.optInt("weekNumber", 1).coerceAtLeast(1)
+                list.add(
+                    SpeakingWeek(
+                        weekNumber = num,
+                        title = obj.optString("title", "Week $num").ifBlank { "Week $num" },
+                        subtitle = obj.optString("subtitle", "Tap any topic to speak with Nova AI Coach"),
+                        sectionLabel = obj.optString("sectionLabel", "SECTION $num").ifBlank { "SECTION $num" },
+                        createdBy = obj.optString("createdBy", "Faculty")
+                    )
+                )
+            }
+            list.sortedBy { it.weekNumber }
         } catch (_: Exception) {
             null
         }

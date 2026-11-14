@@ -177,7 +177,16 @@ data class SpeakingPrompt(
     val emoji: String = "💬",
     val difficultyLevel: String = "Intermediate", // Beginner, Intermediate, Advanced
     val createdBy: String = "Faculty",
-    val milestoneTurns: Int = 0 // 0 = follow global teacher milestone target
+    val milestoneTurns: Int = 0, // 0 = follow global teacher milestone target
+    val weekNumber: Int = 1
+)
+
+data class SpeakingWeek(
+    val weekNumber: Int,
+    val title: String,
+    val subtitle: String = "Tap any topic to speak with Nova AI Coach",
+    val sectionLabel: String = "SECTION $weekNumber",
+    val createdBy: String = "Faculty"
 )
 
 data class PronunciationDrill(

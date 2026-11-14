@@ -269,6 +269,33 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     )
     val speakingPrompts: StateFlow<List<SpeakingPrompt>> = _speakingPrompts.asStateFlow()
 
+    private fun loadInitialSpeakingWeeks(): List<SpeakingWeek> {
+        val base = appPreferences?.getSpeakingWeeks()?.takeIf { it.isNotEmpty() }
+            ?: listOf(
+                SpeakingWeek(
+                    weekNumber = 1,
+                    title = "Week 1",
+                    subtitle = "Tap any topic to speak with Nova AI Coach",
+                    sectionLabel = "SECTION 1",
+                    createdBy = "Faculty"
+                )
+            )
+        val merged = base.toMutableList()
+        if (merged.none { it.weekNumber == 1 }) {
+            merged.add(0, SpeakingWeek(weekNumber = 1, title = "Week 1", sectionLabel = "SECTION 1"))
+        }
+        _speakingPrompts.value.forEach { p ->
+            val wk = p.weekNumber.coerceAtLeast(1)
+            if (merged.none { it.weekNumber == wk }) {
+                merged.add(SpeakingWeek(weekNumber = wk, title = "Week $wk", sectionLabel = "SECTION $wk"))
+            }
+        }
+        return merged.sortedBy { it.weekNumber }
+    }
+
+    private val _speakingWeeks = MutableStateFlow(loadInitialSpeakingWeeks())
+    val speakingWeeks: StateFlow<List<SpeakingWeek>> = _speakingWeeks.asStateFlow()
+
     // Roleplay Scenarios
     private val _roleplays = MutableStateFlow(
         listOf(
@@ -3676,8 +3703,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         emoji: String = "💬",
         difficultyLevel: String = "Intermediate",
         createdBy: String = "Faculty",
-        milestoneTurns: Int = 0
+        milestoneTurns: Int = 0,
+        weekNumber: Int = 1
     ): SpeakingPrompt {
+        val cleanWeek = weekNumber.coerceAtLeast(1)
+        ensureSpeakingWeekExists(cleanWeek, createdBy)
         val newPrompt = SpeakingPrompt(
             id = "sp_${System.currentTimeMillis()}",
             title = title.trim(),
@@ -3689,7 +3719,8 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             emoji = emoji.trim().ifBlank { "💬" },
             difficultyLevel = difficultyLevel.trim().ifBlank { "Intermediate" },
             createdBy = createdBy.trim().ifBlank { "Faculty" },
-            milestoneTurns = if (milestoneTurns > 0) milestoneTurns.coerceIn(1, 30) else 0
+            milestoneTurns = if (milestoneTurns > 0) milestoneTurns.coerceIn(1, 30) else 0,
+            weekNumber = cleanWeek
         )
         _speakingPrompts.update { it + newPrompt }
         appPreferences?.saveSpeakingPrompts(_speakingPrompts.value)
@@ -3697,8 +3728,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     }
 
     fun updateSpeakingPrompt(prompt: SpeakingPrompt) {
+        val cleanWeek = prompt.weekNumber.coerceAtLeast(1)
+        ensureSpeakingWeekExists(cleanWeek, prompt.createdBy)
+        val normalized = prompt.copy(weekNumber = cleanWeek)
         _speakingPrompts.update { list ->
-            list.map { if (it.id == prompt.id) prompt else it }
+            list.map { if (it.id == normalized.id) normalized else it }
         }
         appPreferences?.saveSpeakingPrompts(_speakingPrompts.value)
     }
@@ -3708,6 +3742,71 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             list.filterNot { it.id == promptId }
         }
         appPreferences?.saveSpeakingPrompts(_speakingPrompts.value)
+    }
+
+    private fun ensureSpeakingWeekExists(weekNumber: Int, createdBy: String = "Faculty") {
+        val clean = weekNumber.coerceAtLeast(1)
+        if (_speakingWeeks.value.none { it.weekNumber == clean }) {
+            val added = SpeakingWeek(
+                weekNumber = clean,
+                title = "Week $clean",
+                subtitle = "Tap any topic to speak with Nova AI Coach",
+                sectionLabel = "SECTION $clean",
+                createdBy = createdBy.ifBlank { "Faculty" }
+            )
+            val next = (_speakingWeeks.value + added).sortedBy { it.weekNumber }
+            _speakingWeeks.value = next
+            appPreferences?.saveSpeakingWeeks(next)
+        }
+    }
+
+    fun addOrUpdateSpeakingWeek(
+        weekNumber: Int,
+        title: String,
+        subtitle: String = "Tap any topic to speak with Nova AI Coach",
+        sectionLabel: String = "SECTION ${weekNumber.coerceAtLeast(1)}",
+        createdBy: String = "Faculty"
+    ): SpeakingWeek {
+        val cleanNum = weekNumber.coerceAtLeast(1)
+        val item = SpeakingWeek(
+            weekNumber = cleanNum,
+            title = title.trim().ifBlank { "Week $cleanNum" },
+            subtitle = subtitle.trim().ifBlank { "Tap any topic to speak with Nova AI Coach" },
+            sectionLabel = sectionLabel.trim().ifBlank { "SECTION $cleanNum" },
+            createdBy = createdBy.trim().ifBlank { "Faculty" }
+        )
+        val updated = _speakingWeeks.value
+            .filterNot { it.weekNumber == cleanNum }
+            .plus(item)
+            .sortedBy { it.weekNumber }
+        _speakingWeeks.value = updated
+        appPreferences?.saveSpeakingWeeks(updated)
+        return item
+    }
+
+    fun deleteSpeakingWeek(weekNumber: Int): List<SpeakingPrompt> {
+        val cleanNum = weekNumber.coerceAtLeast(1)
+        if (cleanNum <= 1) return emptyList()
+        val updatedWeeks = _speakingWeeks.value.filterNot { it.weekNumber == cleanNum }
+        _speakingWeeks.value = updatedWeeks
+        appPreferences?.saveSpeakingWeeks(updatedWeeks)
+
+        // Move any topics in deleted week back to Week 1 so student topics are never lost
+        val reassigned = mutableListOf<SpeakingPrompt>()
+        val updatedPrompts = _speakingPrompts.value.map { prompt ->
+            if (prompt.weekNumber == cleanNum) {
+                val moved = prompt.copy(weekNumber = 1)
+                reassigned.add(moved)
+                moved
+            } else {
+                prompt
+            }
+        }
+        if (reassigned.isNotEmpty()) {
+            _speakingPrompts.value = updatedPrompts
+            appPreferences?.saveSpeakingPrompts(updatedPrompts)
+        }
+        return reassigned
     }
 
     fun addPronunciationDrill(
@@ -4225,6 +4324,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         val current = _speakingPrompts.value.toMutableList()
         var changed = false
         for (item in remotePrompts) {
+            ensureSpeakingWeekExists(item.weekNumber, item.createdBy)
             val idx = current.indexOfFirst { it.id == item.id || it.title.equals(item.title, ignoreCase = true) }
             if (idx >= 0) {
                 current[idx] = item
@@ -4237,6 +4337,31 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (changed) {
             _speakingPrompts.value = current
             appPreferences?.saveSpeakingPrompts(current)
+        }
+    }
+
+    fun mergeRemoteSpeakingWeeks(remoteWeeks: List<SpeakingWeek>) {
+        if (remoteWeeks.isEmpty()) return
+        val current = _speakingWeeks.value.toMutableList()
+        var changed = false
+        for (item in remoteWeeks) {
+            val cleanNum = item.weekNumber.coerceAtLeast(1)
+            val normalized = item.copy(weekNumber = cleanNum)
+            val idx = current.indexOfFirst { it.weekNumber == cleanNum }
+            if (idx >= 0) {
+                if (current[idx] != normalized) {
+                    current[idx] = normalized
+                    changed = true
+                }
+            } else {
+                current.add(normalized)
+                changed = true
+            }
+        }
+        if (changed) {
+            val sorted = current.sortedBy { it.weekNumber }
+            _speakingWeeks.value = sorted
+            appPreferences?.saveSpeakingWeeks(sorted)
         }
     }
 

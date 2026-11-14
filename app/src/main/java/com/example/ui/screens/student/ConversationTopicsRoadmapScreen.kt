@@ -1,56 +1,148 @@
 package com.example.ui.screens.student
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.BusinessCenter
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Psychology
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.TrackChanges
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.SpeakingPrompt
+import com.example.data.model.SpeakingWeek
 import com.example.ui.MainViewModel
 import com.example.ui.SpeakingSubTab
 import com.example.ui.StudentTab
 
+private data class TopicCardVisualStyle(
+    val ringGlow: Color,
+    val innerStart: Color,
+    val innerEnd: Color,
+    val cardBorderTint: Color,
+    val icon: ImageVector
+)
+
+private fun resolveTopicCardStyle(
+    topic: SpeakingPrompt,
+    index: Int,
+    isFluencyBooster: Boolean
+): TopicCardVisualStyle {
+    val categoryLower = topic.category.lowercase()
+    val semanticIcon = when {
+        isFluencyBooster -> Icons.Rounded.Psychology
+        categoryLower.contains("business") ||
+            categoryLower.contains("career") ||
+            categoryLower.contains("professional") ||
+            categoryLower.contains("work") -> Icons.Rounded.BusinessCenter
+        categoryLower.contains("college") ||
+            categoryLower.contains("academic") ||
+            categoryLower.contains("study") -> Icons.Rounded.School
+        else -> Icons.AutoMirrored.Rounded.MenuBook
+    }
+
+    return when (index % 4) {
+        0 -> TopicCardVisualStyle(
+            ringGlow = Color(0xFF00E5FF),
+            innerStart = Color(0xFF0EA5E9),
+            innerEnd = Color(0xFF0284C7),
+            cardBorderTint = Color(0xFF38BDF8),
+            icon = semanticIcon
+        )
+        1 -> TopicCardVisualStyle(
+            ringGlow = Color(0xFFA855F7),
+            innerStart = Color(0xFF9333EA),
+            innerEnd = Color(0xFF6D28D9),
+            cardBorderTint = Color(0xFFA855F7),
+            icon = semanticIcon
+        )
+        2 -> TopicCardVisualStyle(
+            ringGlow = Color(0xFFF59E0B),
+            innerStart = Color(0xFFF59E0B),
+            innerEnd = Color(0xFFEA580C),
+            cardBorderTint = Color(0xFFFBBF24),
+            icon = semanticIcon
+        )
+        else -> TopicCardVisualStyle(
+            ringGlow = Color(0xFF10B981),
+            innerStart = Color(0xFF10B981),
+            innerEnd = Color(0xFF0D9488),
+            cardBorderTint = Color(0xFF2DD4BF),
+            icon = semanticIcon
+        )
+    }
+}
+
 /**
  * ConversationTopicsRoadmapScreen
  *
- * Implements the vertical serpentine / winding conversation topics learning path
- * matching the user's provided UI design screenshot:
- * - Top header with streak counter (🔥 0) and student profile shortcut.
- * - Section header card ("SECTION 1 / Week 1").
- * - Winding road with circular avatar & fluency booster nodes.
- * - Glowing green ring with animated "START" callout bubble on the first node.
- * - Floating coach avatar on bottom right.
- * - Selecting any topic starts AI speaking conversation.
+ * Cosmic glass speaking roadmap matching the user's reference mockup:
+ * - Transparent ambient overlay letting the cosmic purple-navy theme shine through.
+ * - Top bar with streak counter, vertical divider, glowing Random Topic pill, and profile shortcut.
+ * - Illuminated Section 1 / Week 1 hero card with Nova AI robot banner art.
+ * - Sleek pill switcher (Topics Path, English Adventure, Phonetics, plus extra modes).
+ * - Full-width dark-glass topic cards with glowing neon circular icon badges and chevron buttons.
+ * - Floating glowing "Nova AI" pill in the bottom-right corner.
  */
 @Composable
 fun ConversationTopicsRoadmapScreen(
@@ -60,390 +152,580 @@ fun ConversationTopicsRoadmapScreen(
     modifier: Modifier = Modifier
 ) {
     val prompts by viewModel.speakingPrompts.collectAsState()
-    val activeTopic by viewModel.activeConversationTopic.collectAsState()
+    val weeks by viewModel.speakingWeeks.collectAsState()
     val studentProfile by viewModel.studentProfile.collectAsState()
 
-    val darkBackground = Color(0xFF0B0F19)
-    val cardBackground = Color(0xFF13192B)
-    val cardBorder = Color(0xFF222C42)
+    var selectedWeekNumber by rememberSaveable { mutableIntStateOf(1) }
+    LaunchedEffect(weeks) {
+        if (weeks.isNotEmpty() && weeks.none { it.weekNumber == selectedWeekNumber }) {
+            selectedWeekNumber = weeks.first().weekNumber
+        }
+    }
+
+    val activeWeek = remember(weeks, selectedWeekNumber) {
+        weeks.firstOrNull { it.weekNumber == selectedWeekNumber }
+            ?: weeks.firstOrNull()
+            ?: SpeakingWeek(weekNumber = 1, title = "Week 1")
+    }
+    val weekPrompts = remember(prompts, activeWeek) {
+        prompts.filter { it.weekNumber == activeWeek.weekNumber }
+    }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(darkBackground)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xFF09061E).copy(alpha = 0.55f),
+                        Color(0xFF0A0924).copy(alpha = 0.72f),
+                        Color(0xFF060416).copy(alpha = 0.85f)
+                    )
+                )
+            )
             .testTag("conversation_topics_roadmap_screen")
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(10.dp))
-
-            // 1. Top Header Bar: Streak (🔥 0) on left, Profile shortcut on right
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .widthIn(max = 640.dp)
+                    .fillMaxSize()
             ) {
-                // Streak indicator
+                Spacer(Modifier.height(8.dp))
+
+                // 1. Top Header Bar: Streak | Random Topic | Profile
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.testTag("streak_indicator")
-                ) {
-                    Text(
-                        text = "🔥",
-                        fontSize = 22.sp
-                    )
-                    Text(
-                        text = "${studentProfile.streakDays}",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFFFF7A00)
-                    )
-                }
-
-                // Random Topic pill in top bar
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF1E1B4B),
-                    border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.6f)),
-                    modifier = Modifier.clickable {
-                        val randomTopic = viewModel.selectRandomConversationTopic()
-                        if (randomTopic != null) {
-                            onTopicSelected(randomTopic)
-                        }
-                    }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text("🎲", fontSize = 12.sp)
-                        Text(
-                            "Random Topic",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFE9D5FF)
-                        )
-                    }
-                }
-
-                // Profile Avatar Button
-                Surface(
-                    shape = CircleShape,
-                    color = Color(0xFF1E2538),
-                    border = BorderStroke(1.2.dp, Color(0xFF334155)),
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clickable { viewModel.selectStudentTab(StudentTab.PROFILE) }
-                        .testTag("roadmap_profile_btn")
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Rounded.Person,
-                            contentDescription = "Profile",
-                            tint = Color(0xFF94A3B8),
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            // 2. Section Card: "SECTION 1 / Week 1" matching screenshot
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = cardBackground),
-                border = BorderStroke(1.dp, cardBorder),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("roadmap_section_card")
-            ) {
-                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "SECTION 1",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFFA855F7),
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "Week 1",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = "Tap any topic to speak with Nova AI Coach",
-                        fontSize = 11.5.sp,
-                        color = Color(0xFF94A3B8)
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            // Quick Speaking Navigation Pills (Direct switch to Adventure, Phonetics, AI Chat)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RoadmapModePill(
-                    title = "Topics Path",
-                    emoji = "🗺️",
-                    isSelected = true,
-                    onClick = {}
-                )
-                RoadmapModePill(
-                    title = "English Adventure",
-                    emoji = "🏝️",
-                    isSelected = false,
-                    onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.ENGLISH_ADVENTURE) }
-                )
-                RoadmapModePill(
-                    title = "Phonetics & Drills",
-                    emoji = "🎯",
-                    isSelected = false,
-                    onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.PRONUNCIATION_COACH) }
-                )
-                RoadmapModePill(
-                    title = "Nova AI Chat",
-                    emoji = "🤖",
-                    iconRes = R.drawable.img_nova_ai_robot,
-                    isSelected = false,
-                    onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER) }
-                )
-                RoadmapModePill(
-                    title = "Daily Challenge",
-                    emoji = "⚡",
-                    isSelected = false,
-                    onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.DAILY_CHALLENGE) }
-                )
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            // 3. Winding Path of Conversation Topics
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentPadding = PaddingValues(bottom = 90.dp),
-                verticalArrangement = Arrangement.spacedBy(32.dp)
-            ) {
-                itemsIndexed(prompts, key = { _, item -> "${item.id}_${item.title}_${item.question}" }) { index, topic ->
-                    val isFirstNode = index == 0
-                    val isCurrentActive = activeTopic?.id == topic.id || (activeTopic == null && isFirstNode)
-
-                    // Alternating serpentine alignment matching the winding path in screenshot
-                    // Patterns: Left -> Center -> Right -> Center -> Left
-                    val horizontalAlignment = when (index % 5) {
-                        0 -> Alignment.Start
-                        1 -> Alignment.CenterHorizontally
-                        2 -> Alignment.End
-                        3 -> Alignment.CenterHorizontally
-                        else -> Alignment.Start
-                    }
-
-                    RoadmapTopicNodeItem(
-                        topic = topic,
-                        index = index,
-                        isFirst = isFirstNode,
-                        isActive = isCurrentActive,
-                        horizontalAlignment = horizontalAlignment,
-                        onNodeClick = {
-                            viewModel.selectConversationTopic(topic)
-                            onTopicSelected(topic)
-                        }
-                    )
-                }
-            }
-        }
-
-        // 4. Floating Nova AI Coach Icon at Bottom Right
-        FloatingCoachAvatar(
-            onClick = onOpenCoachDirectly,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 18.dp, bottom = 14.dp)
-        )
-    }
-}
-
-/**
- * Single Node item along the winding roadmap path:
- * - Green ring with START speech bubble callout for the active/first node.
- * - Circular 3D avatar or Fluency Booster brain badge.
- * - Label to the right (or left): "Learn: <Title>" or "Fluency Booster: <Title>".
- */
-@Composable
-fun RoadmapTopicNodeItem(
-    topic: SpeakingPrompt,
-    index: Int,
-    isFirst: Boolean,
-    isActive: Boolean,
-    horizontalAlignment: Alignment.Horizontal,
-    onNodeClick: () -> Unit
-) {
-    // Pulse animation for the START callout badge
-    val infiniteTransition = rememberInfiniteTransition(label = "start_pulse")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.06f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseScale"
-    )
-
-    val isFluencyBooster = index % 2 == 1 && index > 0
-    val prefix = if (isFluencyBooster) "Fluency Booster:" else "Learn:"
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = horizontalAlignment
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { onNodeClick() }
-        ) {
-            // If it's the active/first node, show the START speech bubble on the left
-            if (isActive) {
-                Box(
-                    modifier = Modifier
-                        .scale(pulseScale)
-                        .testTag("start_topic_callout")
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF0D1E2A),
-                        border = BorderStroke(1.8.dp, Color(0xFF10B981))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = "START",
-                            color = Color(0xFF10B981),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.testTag("streak_indicator")
+                        ) {
+                            Text(text = "🔥", fontSize = 22.sp)
+                            Text(
+                                text = "${studentProfile.streakDays}",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFFFFA726)
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(22.dp)
+                                .background(Color.White.copy(alpha = 0.16f))
                         )
                     }
-                }
-            }
 
-            // Circular Topic Node with 3D drop-shadow ring
-            Box(contentAlignment = Alignment.Center) {
-                // 3D bottom bevel/shadow ring
-                Surface(
-                    shape = CircleShape,
-                    color = if (isActive) Color(0xFF047857) else Color(0xFF1E293B),
-                    modifier = Modifier
-                        .size(70.dp)
-                        .offset(y = 5.dp)
-                ) {}
-
-                // Main Node Circle
-                Surface(
-                    shape = CircleShape,
-                    color = when {
-                        isActive -> Color(0xFF064E3B)
-                        isFluencyBooster -> Color(0xFF1E2538)
-                        else -> Color(0xFF161E2E)
-                    },
-                    border = BorderStroke(
-                        width = if (isActive) 3.dp else 2.dp,
-                        color = when {
-                            isActive -> Color(0xFF10B981)
-                            isFluencyBooster -> Color(0xFF3B82F6).copy(alpha = 0.6f)
-                            else -> Color(0xFF334155)
-                        }
-                    ),
-                    modifier = Modifier.size(68.dp)
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        if (isFluencyBooster) {
-                            // Fluency Booster brain & voice symbol matching screenshot
-                            Icon(
-                                imageVector = Icons.Rounded.Psychology,
-                                contentDescription = "Fluency Booster",
-                                tint = Color.White.copy(alpha = 0.9f),
-                                modifier = Modifier.size(34.dp)
-                            )
-                        } else {
-                            // Avatar / Icon Node matching screenshot
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Text(
-                                    text = topic.emoji,
-                                    fontSize = 28.sp
+                    // Glowing Random Topic Pill
+                    Surface(
+                        shape = RoundedCornerShape(22.dp),
+                        color = Color.Transparent,
+                        border = BorderStroke(
+                            1.2.dp,
+                            Brush.horizontalGradient(
+                                listOf(
+                                    Color(0xFFA855F7).copy(alpha = 0.85f),
+                                    Color(0xFF6366F1).copy(alpha = 0.85f)
                                 )
+                            )
+                        ),
+                        shadowElevation = 6.dp,
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 40.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .clickable {
+                                val randomTopic = viewModel.selectRandomConversationTopic()
+                                if (randomTopic != null) {
+                                    onTopicSelected(randomTopic)
+                                }
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            Color(0xFF2D156A).copy(alpha = 0.92f),
+                                            Color(0xFF1B1048).copy(alpha = 0.95f)
+                                        )
+                                    )
+                                )
+                                .padding(horizontal = 16.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Text("🎲", fontSize = 14.sp)
+                            Text(
+                                text = "Random Topic",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    // Profile Shortcut Circle
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFF151A3B).copy(alpha = 0.9f),
+                        border = BorderStroke(1.2.dp, Color(0xFF39467A)),
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .clickable { viewModel.selectStudentTab(StudentTab.PROFILE) }
+                            .testTag("roadmap_profile_btn")
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.Person,
+                                contentDescription = "Profile",
+                                tint = Color(0xFFE2E8F0),
+                                modifier = Modifier.size(21.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // 2. Hero Section Banner Card: "SECTION 1 / Week 1" + Nova AI Waving Robot
+                Surface(
+                    shape = RoundedCornerShape(22.dp),
+                    color = Color(0xFF170B3D),
+                    border = BorderStroke(
+                        1.4.dp,
+                        Brush.linearGradient(
+                            listOf(
+                                Color(0xFFC084FC).copy(alpha = 0.88f),
+                                Color(0xFF6366F1).copy(alpha = 0.7f),
+                                Color(0xFFEC4899).copy(alpha = 0.72f)
+                            )
+                        )
+                    ),
+                    shadowElevation = 10.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(132.dp)
+                        .testTag("roadmap_section_card")
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Image(
+                            painter = painterResource(id = R.drawable.img_week1_nova_hero),
+                            contentDescription = "Nova AI Coach Banner",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+
+                        // Left-to-right scrim ensuring crisp text readability over artwork
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        0.0f to Color(0xFF140736).copy(alpha = 0.86f),
+                                        0.58f to Color(0xFF180A42).copy(alpha = 0.62f),
+                                        1.0f to Color.Transparent
+                                    )
+                                )
+                        )
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(0.68f)
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.dp, Color(0xFFD8B4FE).copy(alpha = 0.55f))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color(0xFF9333EA), Color(0xFF6366F1))
+                                            )
+                                        )
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = activeWeek.sectionLabel.ifBlank { "SECTION ${activeWeek.weekNumber}" },
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White,
+                                        letterSpacing = 0.8.sp
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = activeWeek.title.ifBlank { "Week ${activeWeek.weekNumber}" },
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            Text(
+                                text = "🚀 ${activeWeek.subtitle.ifBlank { "Tap any topic to speak with Nova AI Coach" }}",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFFE2E8F0),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                // Dynamic Week Challenge Switcher (appears when teacher adds Week 2, Week 3, etc.)
+                if (weeks.size > 1) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .testTag("student_week_selector_row"),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        weeks.forEach { wk ->
+                            val isSelected = wk.weekNumber == activeWeek.weekNumber
+                            val countInWeek = prompts.count { it.weekNumber == wk.weekNumber }
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color.Transparent,
+                                border = BorderStroke(
+                                    width = 1.2.dp,
+                                    color = if (isSelected) Color(0xFFFACC15).copy(alpha = 0.85f) else Color(0xFF313E75)
+                                ),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable { selectedWeekNumber = wk.weekNumber }
+                                    .testTag("student_week_chip_${wk.weekNumber}")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .background(
+                                            if (isSelected) {
+                                                Brush.horizontalGradient(
+                                                    listOf(Color(0xFF4F46E5), Color(0xFF7C3AED))
+                                                )
+                                            } else {
+                                                Brush.horizontalGradient(
+                                                    listOf(
+                                                        Color(0xFF12183A).copy(alpha = 0.9f),
+                                                        Color(0xFF0C1028).copy(alpha = 0.9f)
+                                                    )
+                                                )
+                                            }
+                                        )
+                                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = wk.title,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (isSelected) Color(0xFFFACC15).copy(alpha = 0.22f) else Color.White.copy(alpha = 0.1f)
+                                    ) {
+                                        Text(
+                                            text = "$countInWeek",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSelected) Color(0xFFFDE047) else Color(0xFFCBD5E1),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
+
+                Spacer(Modifier.height(12.dp))
+
+                // 3. Mode Pill Switcher Row (Topics Path, English Adventure, Phonetics, ...)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RoadmapModePill(
+                        title = "Topics Path",
+                        emoji = "🗺️",
+                        icon = Icons.Rounded.Explore,
+                        isSelected = true,
+                        onClick = {}
+                    )
+                    RoadmapModePill(
+                        title = "English Adventure",
+                        emoji = "🏝️",
+                        isSelected = false,
+                        onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.ENGLISH_ADVENTURE) }
+                    )
+                    RoadmapModePill(
+                        title = "Phonetics",
+                        emoji = "🎯",
+                        icon = Icons.Rounded.TrackChanges,
+                        iconTint = Color(0xFFF43F5E),
+                        isSelected = false,
+                        onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.PRONUNCIATION_COACH) }
+                    )
+                    RoadmapModePill(
+                        title = "Nova AI Chat",
+                        emoji = "🤖",
+                        iconRes = R.drawable.img_nova_ai_robot,
+                        isSelected = false,
+                        onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER) }
+                    )
+                    RoadmapModePill(
+                        title = "Daily Challenge",
+                        emoji = "⚡",
+                        isSelected = false,
+                        onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.DAILY_CHALLENGE) }
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // 4. Vertical List of Cosmic Glass Topic Cards
+                if (weekPrompts.isEmpty()) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFF13193B).copy(alpha = 0.88f),
+                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text("🚀", fontSize = 28.sp)
+                            Text(
+                                text = "Topics Coming Soon for ${activeWeek.title}",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Your teacher hasn't published topics to this week yet.",
+                                fontSize = 12.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentPadding = PaddingValues(bottom = 86.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        itemsIndexed(
+                            weekPrompts,
+                            key = { _, item -> "${item.id}_${item.title}_${item.question}" }
+                        ) { index, topic ->
+                            RoadmapTopicGlassCard(
+                                topic = topic,
+                                index = index,
+                                onCardClick = {
+                                    viewModel.selectConversationTopic(topic)
+                                    onTopicSelected(topic)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. Floating "✨ Nova AI" Pill at Bottom Right
+        FloatingNovaAiPillButton(
+            onClick = onOpenCoachDirectly,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 14.dp)
+        )
+    }
+}
+
+@Composable
+private fun RoadmapTopicGlassCard(
+    topic: SpeakingPrompt,
+    index: Int,
+    onCardClick: () -> Unit
+) {
+    val isFluencyBooster = index % 2 == 1 && index > 0
+    val prefix = if (isFluencyBooster) "Fluency Booster:" else "Learn:"
+    val style = resolveTopicCardStyle(topic, index, isFluencyBooster)
+
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color.Transparent,
+        border = BorderStroke(
+            width = 1.1.dp,
+            brush = Brush.horizontalGradient(
+                listOf(
+                    style.cardBorderTint.copy(alpha = 0.55f),
+                    Color(0xFF334180).copy(alpha = 0.45f),
+                    Color(0xFF1E2952).copy(alpha = 0.45f)
+                )
+            )
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 78.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { onCardClick() }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFF151C42).copy(alpha = 0.88f),
+                            Color(0xFF0E1433).copy(alpha = 0.92f)
+                        )
+                    )
+                )
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Glowing Neon Ring Icon Circle
+            Box(
+                modifier = Modifier
+                    .size(54.dp)
+                    .drawBehind {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    style.ringGlow.copy(alpha = 0.48f),
+                                    style.ringGlow.copy(alpha = 0.14f),
+                                    Color.Transparent
+                                )
+                            ),
+                            radius = size.minDimension * 0.64f
+                        )
+                    }
+                    .border(
+                        width = 1.8.dp,
+                        color = style.ringGlow.copy(alpha = 0.9f),
+                        shape = CircleShape
+                    )
+                    .padding(5.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(style.innerStart, style.innerEnd)
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = style.icon,
+                    contentDescription = topic.title,
+                    tint = Color.White,
+                    modifier = Modifier.size(23.dp)
+                )
             }
 
-            // Title Label beside the node
+            // Title & Metadata
             Column(
-                modifier = Modifier
-                    .widthIn(max = 200.dp)
-                    .padding(vertical = 4.dp)
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Text(
                     text = "$prefix ${topic.title}",
-                    fontSize = 14.5.sp,
+                    fontSize = 15.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isActive) Color.White else Color(0xFFCBD5E1),
+                    color = Color.White,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 20.sp
                 )
                 Text(
                     text = "${topic.category} • ${topic.difficultyLevel}",
-                    fontSize = 11.5.sp,
-                    color = Color(0xFF94A3B8)
+                    fontSize = 12.sp,
+                    color = Color(0xFF94A3B8),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+            }
+
+            // Right Chevron Circle
+            Surface(
+                shape = CircleShape,
+                color = Color(0xFF172048),
+                border = BorderStroke(1.dp, Color(0xFF33437D)),
+                modifier = Modifier.size(34.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = "Open ${topic.title}",
+                        tint = Color(0xFFE2E8F0),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
 }
 
 /**
- * Floating Nova AI Coach Avatar at Bottom Right:
- * Displays the Nova AI robot mascot icon with neon cyan/purple glow.
+ * Sleek glowing "✨ Nova AI" floating pill button at bottom-right.
  */
 @Composable
 fun FloatingCoachAvatar(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    FloatingNovaAiPillButton(onClick = onClick, modifier = modifier)
+}
+
+@Composable
+private fun FloatingNovaAiPillButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val infiniteTransition = rememberInfiniteTransition(label = "coach_glow")
     val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.65f,
+        initialValue = 0.6f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(1200, easing = FastOutSlowInEasing),
@@ -452,51 +734,57 @@ fun FloatingCoachAvatar(
         label = "glowAlpha"
     )
 
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = Color.Transparent,
+        border = BorderStroke(
+            width = 1.4.dp,
+            brush = Brush.horizontalGradient(
+                listOf(
+                    Color(0xFFD8B4FE).copy(alpha = glowAlpha),
+                    Color(0xFF38BDF8).copy(alpha = glowAlpha)
+                )
+            )
+        ),
+        shadowElevation = 10.dp,
         modifier = modifier
+            .defaultMinSize(minHeight = 44.dp)
+            .shadow(
+                elevation = 12.dp,
+                shape = RoundedCornerShape(22.dp),
+                ambientColor = Color(0xFF9333EA),
+                spotColor = Color(0xFF9333EA)
+            )
+            .clip(RoundedCornerShape(22.dp))
             .clickable { onClick() }
             .testTag("floating_coach_avatar")
     ) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = Color(0xFF141136),
-            border = BorderStroke(
-                width = 2.dp,
-                brush = Brush.linearGradient(
-                    listOf(
-                        Color(0xFF38BDF8).copy(alpha = glowAlpha),
-                        Color(0xFFA855F7).copy(alpha = glowAlpha)
+        Row(
+            modifier = Modifier
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFF9333EA),
+                            Color(0xFF7C3AED),
+                            Color(0xFF6366F1)
+                        )
                     )
                 )
-            ),
-            shadowElevation = 12.dp,
-            modifier = Modifier.size(68.dp)
+                .padding(horizontal = 15.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.img_nova_ai_robot),
+            Icon(
+                imageVector = Icons.Rounded.AutoAwesome,
                 contentDescription = "Nova AI Coach",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(18.dp))
+                tint = Color(0xFFFDE047),
+                modifier = Modifier.size(16.dp)
             )
-        }
-
-        Spacer(Modifier.height(4.dp))
-
-        Surface(
-            shape = RoundedCornerShape(8.dp),
-            color = Color(0xFF6D28D9),
-            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.85f)),
-            shadowElevation = 4.dp
-        ) {
             Text(
                 text = "Nova AI",
                 color = Color.White,
-                fontSize = 9.5.sp,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.ExtraBold
             )
         }
     }
@@ -507,40 +795,73 @@ private fun RoadmapModePill(
     title: String,
     emoji: String,
     isSelected: Boolean,
+    icon: ImageVector? = null,
+    iconTint: Color = Color.White,
     iconRes: Int? = null,
     onClick: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = if (isSelected) Color(0xFF3B1F70) else Color(0xFF13192B),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.Transparent,
         border = BorderStroke(
-            1.2.dp,
-            if (isSelected) Color(0xFFA855F7) else Color(0xFF222C42)
+            width = 1.2.dp,
+            color = if (isSelected) Color(0xFFD8B4FE).copy(alpha = 0.85f) else Color(0xFF283462)
         ),
-        modifier = Modifier.clickable { onClick() }
+        modifier = Modifier
+            .defaultMinSize(minHeight = 38.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .clickable { onClick() }
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            modifier = Modifier
+                .background(
+                    if (isSelected) {
+                        Brush.horizontalGradient(
+                            listOf(Color(0xFF9333EA), Color(0xFF6366F1))
+                        )
+                    } else {
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFF0E1433).copy(alpha = 0.88f),
+                                Color(0xFF0B1028).copy(alpha = 0.92f)
+                            )
+                        )
+                    }
+                )
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            if (iconRes != null) {
-                Image(
-                    painter = painterResource(id = iconRes),
-                    contentDescription = title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(18.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                )
-            } else {
-                Text(text = emoji, fontSize = 13.sp)
+            when {
+                iconRes != null -> {
+                    Image(
+                        painter = painterResource(id = iconRes),
+                        contentDescription = title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+                }
+                icon != null -> {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (isSelected) Color.White else iconTint,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+                else -> {
+                    Text(text = emoji, fontSize = 13.sp)
+                }
             }
             Text(
                 text = title,
                 fontSize = 12.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) Color(0xFFF3E8FF) else Color(0xFF94A3B8)
+                color = if (isSelected) Color.White else Color(0xFFCBD5E1),
+                maxLines = 1,
+                softWrap = false
             )
         }
     }
