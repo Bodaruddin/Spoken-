@@ -405,7 +405,7 @@ fun NovaGeminiAssistantScreen(
             }
         }
 
-        // 5. Sleek Single-Row Input Bar: [+]  [Ask Nova AI anything...]  [Mic] [Send]
+        // 5. Sleek Single-Row Input Bar: [+] [Mic]  [Ask Nova AI anything...]  [Send]
         Surface(
             shape = RoundedCornerShape(26.dp),
             color = Color(0xFF140D32),
@@ -425,22 +425,54 @@ fun NovaGeminiAssistantScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // '+' Plus Icon Button (toggles Camera, Image, File options)
-                IconButton(
-                    onClick = { showAttachmentOptions = !showAttachmentOptions },
+                Box(
+                    contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
                         .background(
                             if (showAttachmentOptions) Color(0xFF4F46E5).copy(alpha = 0.65f)
                             else Color(0xFF312E81).copy(alpha = 0.55f)
                         )
+                        .clickable { showAttachmentOptions = !showAttachmentOptions }
                         .testTag("nova_gemini_plus_btn")
                 ) {
                     Icon(
                         imageVector = if (showAttachmentOptions) Icons.Rounded.Close else Icons.Rounded.Add,
                         contentDescription = if (showAttachmentOptions) "Close attachments" else "Attach camera, image or file",
                         tint = Color.White,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
+
+                Spacer(Modifier.width(5.dp))
+
+                // Mic Icon Button placed near '+' Plus icon
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isListening) Color(0xFFDC2626).copy(alpha = 0.25f)
+                            else Color(0xFF312E81).copy(alpha = 0.55f)
+                        )
+                        .clickable {
+                            val hasPerm = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.RECORD_AUDIO
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (isListening) viewModel.stopSpeakingPractice()
+                            else if (hasPerm) viewModel.startSpeakingPractice()
+                            else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                        .testTag("nova_gemini_mic_btn")
+                ) {
+                    Icon(
+                        imageVector = if (isListening) Icons.Rounded.Stop else Icons.Rounded.Mic,
+                        contentDescription = if (isListening) "Stop Listening" else "Voice Prompt",
+                        tint = if (isListening) Color(0xFFF87171) else Color(0xFF67E8F9),
+                        modifier = Modifier.size(17.dp)
                     )
                 }
 
@@ -449,7 +481,7 @@ fun NovaGeminiAssistantScreen(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(vertical = 6.dp)
+                        .padding(vertical = 5.dp)
                 ) {
                     if (inputText.isEmpty()) {
                         Text(
@@ -485,41 +517,11 @@ fun NovaGeminiAssistantScreen(
 
                 Spacer(Modifier.width(6.dp))
 
-                // Mic Icon Button
-                IconButton(
-                    onClick = {
-                        val hasPerm = ContextCompat.checkSelfPermission(
-                            context,
-                            Manifest.permission.RECORD_AUDIO
-                        ) == PackageManager.PERMISSION_GRANTED
-                        if (isListening) viewModel.stopSpeakingPractice()
-                        else if (hasPerm) viewModel.startSpeakingPractice()
-                        else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (isListening) Color(0xFFDC2626).copy(alpha = 0.25f)
-                            else Color(0xFF312E81).copy(alpha = 0.55f)
-                        )
-                        .testTag("nova_gemini_mic_btn")
-                ) {
-                    Icon(
-                        imageVector = if (isListening) Icons.Rounded.Stop else Icons.Rounded.Mic,
-                        contentDescription = if (isListening) "Stop Listening" else "Voice Prompt",
-                        tint = if (isListening) Color(0xFFF87171) else Color(0xFF67E8F9),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Spacer(Modifier.width(6.dp))
-
                 val canSend = (inputText.isNotBlank() || pendingAttachments.isNotEmpty()) && !isThinking && !isProcessingAttachment
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(34.dp)
                         .clip(CircleShape)
                         .background(
                             if (canSend) Brush.linearGradient(listOf(Color(0xFF06B6D4), Color(0xFF7C3AED)))
@@ -537,7 +539,7 @@ fun NovaGeminiAssistantScreen(
                         imageVector = Icons.Rounded.ArrowUpward,
                         contentDescription = "Send Prompt",
                         tint = if (canSend) Color.White else Color(0xFF64748B),
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
