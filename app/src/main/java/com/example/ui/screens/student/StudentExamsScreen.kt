@@ -37,7 +37,6 @@ import com.example.data.model.Exam
 import com.example.data.model.ExamQuestion
 import com.example.data.model.ExamSubmission
 import com.example.ui.MainViewModel
-import com.example.ui.components.OfficialSpeaklyCertificateCard
 import com.example.ui.components.SpeaklyCertificatePreviewDialog
 import com.example.ui.theme.*
 import com.example.util.CertificatePdfGenerator
@@ -338,106 +337,6 @@ fun StudentExamsScreen(
                                 color = if (isSelected) Color(0xFFE9D5FF) else Color(0xFF94A3B8),
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                             )
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- Featured Official Certificate Banner (From Provided Screenshot) ---
-        val featuredCert = examSubmissions.firstOrNull { it.studentName.contains("Fariha", ignoreCase = true) }
-            ?: examSubmissions.firstOrNull { it.isPassed }
-        if (featuredCert != null && (selectedStatusFilter == "All" || selectedStatusFilter == "Certificates")) {
-            item {
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                    border = BorderStroke(1.5.dp, Color(0xFFD4AF37)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    Color(0xFF1E1B4B),
-                                    Color(0xFF312E81),
-                                    Color(0xFF4C1D95)
-                                )
-                            )
-                        )
-                        .clickable { selectedSubmissionForCert = featuredCert }
-                        .testTag("featured_certificate_banner")
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text("👑", fontSize = 16.sp)
-                                Text(
-                                    "OFFICIAL VERIFIED CERTIFICATE",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFFFDE047),
-                                    letterSpacing = 1.sp
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFF065F46)
-                            ) {
-                                Text(
-                                    "GRADE ${featuredCert.grade} • VERIFIED",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFA7F3D0),
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-
-                        // Official Certificate Card Rendering
-                        OfficialSpeaklyCertificateCard(
-                            submission = featuredCert,
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { selectedSubmissionForCert = featuredCert }
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "${featuredCert.studentName} (${featuredCert.studentClass})",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = "${featuredCert.examTitle} • ${featuredCert.scoreObtained}/${featuredCert.totalMarks} Marks",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFFCBD5E1)
-                                )
-                            }
-                            Button(
-                                onClick = { selectedSubmissionForCert = featuredCert },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = AmberGold),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text("View Full 🏆", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF78350F))
-                            }
                         }
                     }
                 }
