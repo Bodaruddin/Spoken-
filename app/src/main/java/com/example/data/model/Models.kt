@@ -444,6 +444,15 @@ data class FastVocabularyChallenge(
     val createdBy: String = "System"
 )
 
+data class GrammarChallengePack(
+    val id: String,
+    val title: String,
+    val description: String = "Test your grammar skills with fun quizzes!",
+    val themeStyle: String = "Tenses", // "Tenses", "Narration", "Determiners", "Prepositions"
+    val xpReward: Int = 40,
+    val createdBy: String = "System"
+)
+
 data class GrammarChallengeQuestion(
     val id: String,
     val question: String,
@@ -451,7 +460,8 @@ data class GrammarChallengeQuestion(
     val correctIndex: Int,
     val explanation: String,
     val category: String = "Tenses",
-    val createdBy: String = "System"
+    val createdBy: String = "System",
+    val packId: String = "gc_pack_tenses"
 )
 
 data class SupabaseGameChallenge(

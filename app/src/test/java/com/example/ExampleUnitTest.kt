@@ -608,5 +608,99 @@ class ExampleUnitTest {
         )
         assertNotEquals(turn3Eval.followUpQuestion, turn3RepeatEval.followUpQuestion)
     }
+
+    @Test
+    fun testGrammarChallengePacksCrudMultiQuestionAndRemoteSync() {
+        val repository = LinguaQuestRepository(null)
+
+        // 1. Default 4 challenge packs matching screenshot each have 10 starter questions
+        val packs = repository.grammarChallengePacks.value
+        assertEquals(4, packs.size)
+        assertTrue(packs.any { it.id == "gc_pack_tenses" && it.title == "Tenses Challenge" })
+        assertTrue(packs.any { it.id == "gc_pack_narration" && it.title == "Narration Challenge" })
+        assertTrue(packs.any { it.id == "gc_pack_determiners" && it.title == "Determiners Challenge" })
+        assertTrue(packs.any { it.id == "gc_pack_prepositions" && it.title == "Prepositions Challenge" })
+
+        packs.forEach { pack ->
+            val packQuestions = repository.grammarChallenges.value.filter { it.packId == pack.id }
+            assertEquals("Expected 10 starter questions for ${pack.title}", 10, packQuestions.size)
+        }
+
+        // 2. Teacher creates a custom Grammar Challenge pack and edits it
+        val createdPack = repository.addGrammarChallengePack(
+            title = "Voice Challenge",
+            description = "Practice Active and Passive Voice.",
+            themeStyle = "Narration",
+            xpReward = 60,
+            createdBy = "Prof. Eleanor Vance"
+        )
+        assertTrue(repository.grammarChallengePacks.value.any { it.id == createdPack.id && it.title == "Voice Challenge" })
+
+        repository.updateGrammarChallengePack(createdPack.copy(title = "Active & Passive Voice", xpReward = 75))
+        val updatedPack = repository.grammarChallengePacks.value.first { it.id == createdPack.id }
+        assertEquals("Active & Passive Voice", updatedPack.title)
+        assertEquals(75, updatedPack.xpReward)
+
+        // 3. Teacher adds many questions inside that single challenge pack
+        val q1 = repository.addGrammarChallenge(
+            question = "The letter ___ by John yesterday.",
+            options = listOf("wrote", "was written", "is writing", "writes"),
+            correctIndex = 1,
+            explanation = "Use past simple passive 'was + past participle'.",
+            category = updatedPack.themeStyle,
+            createdBy = "Prof. Eleanor Vance",
+            packId = createdPack.id
+        )
+        val q2 = repository.addGrammarChallenge(
+            question = "A new bridge ___ right now.",
+            options = listOf("is built", "was built", "is being built", "builds"),
+            correctIndex = 2,
+            explanation = "Present continuous passive uses 'is being + past participle'.",
+            category = updatedPack.themeStyle,
+            createdBy = "Prof. Eleanor Vance",
+            packId = createdPack.id
+        )
+        val questionsInPack = repository.grammarChallenges.value.filter { it.packId == createdPack.id }
+        assertEquals(2, questionsInPack.size)
+        assertEquals(1, questionsInPack.first { it.id == q1.id }.correctIndex)
+        assertEquals(2, questionsInPack.first { it.id == q2.id }.correctIndex)
+
+        // 4. Remote merge syncs GRAMMAR_CHALLENGE_PACK and scoped GRAMMAR_CHALLENGE items
+        repository.mergeRemoteGameChallenges(
+            listOf(
+                com.example.data.model.SupabaseGameChallenge(
+                    id = "gc_pack_remote_1",
+                    type = "GRAMMAR_CHALLENGE_PACK",
+                    titleOrWord = "Modals Challenge",
+                    hintOrMeaning = "Practice can, could, may and might.",
+                    category = "Determiners",
+                    correctIndex = 50,
+                    createdBy = "Remote Teacher"
+                ),
+                com.example.data.model.SupabaseGameChallenge(
+                    id = "gc_remote_q_1",
+                    type = "GRAMMAR_CHALLENGE",
+                    titleOrWord = "You ___ wear a helmet while riding.",
+                    hintOrMeaning = "'Must' expresses strong obligation.",
+                    category = "Modals",
+                    options = listOf("can", "must", "might", "could"),
+                    correctIndex = 1,
+                    extraData = "gc_pack_remote_1",
+                    createdBy = "Remote Teacher"
+                )
+            )
+        )
+        assertTrue(repository.grammarChallengePacks.value.any { it.id == "gc_pack_remote_1" && it.xpReward == 50 })
+        val mergedQuestion = repository.grammarChallenges.value.firstOrNull { it.id == "gc_remote_q_1" }
+        assertNotNull(mergedQuestion)
+        assertEquals("gc_pack_remote_1", mergedQuestion?.packId)
+        assertEquals(1, mergedQuestion?.correctIndex)
+
+        // 5. Deleting a challenge pack removes the pack and cascades to its questions
+        val removedIds = repository.deleteGrammarChallengePack(createdPack.id)
+        assertEquals(2, removedIds.size)
+        assertFalse(repository.grammarChallengePacks.value.any { it.id == createdPack.id })
+        assertTrue(repository.grammarChallenges.value.none { it.packId == createdPack.id })
+    }
 }
 

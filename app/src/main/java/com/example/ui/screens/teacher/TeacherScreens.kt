@@ -1411,6 +1411,12 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     var editingSentencePack by remember { mutableStateOf<SentenceBuilderPack?>(null) }
     var packPendingDelete by remember { mutableStateOf<SentenceBuilderPack?>(null) }
     var selectedSentencePackId by remember { mutableStateOf<String?>(null) }
+    var showCreateGrammarPackDialog by remember { mutableStateOf(false) }
+    var editingGrammarPack by remember { mutableStateOf<GrammarChallengePack?>(null) }
+    var grammarPackPendingDelete by remember { mutableStateOf<GrammarChallengePack?>(null) }
+    var selectedGrammarPackId by remember { mutableStateOf<String?>(null) }
+    var showCreateGrammarQuestionDialog by remember { mutableStateOf(false) }
+    var editingGrammarQuestion by remember { mutableStateOf<GrammarChallengeQuestion?>(null) }
     var showBulkImportMissingLettersDialog by remember { mutableStateOf(false) }
     var showBulkImportSentenceBuilderDialog by remember { mutableStateOf(false) }
     var showManageCategoriesDialog by remember { mutableStateOf(false) }
@@ -1440,15 +1446,24 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     val pronunciationBattles by viewModel.pronunciationBattleChallenges.collectAsState()
     val fastVocabs by viewModel.fastVocabularyChallenges.collectAsState()
     val pictureVocabs by viewModel.pictureVocabChallenges.collectAsState()
+    val grammarChallengePacks by viewModel.grammarChallengePacks.collectAsState()
     val grammarChallenges by viewModel.grammarChallenges.collectAsState()
 
     val activeSentencePack = remember(sentenceBuilderPacks, selectedSentencePackId) {
         sentenceBuilderPacks.firstOrNull { it.id == selectedSentencePackId }
     }
+    val activeGrammarPack = remember(grammarChallengePacks, selectedGrammarPackId) {
+        grammarChallengePacks.firstOrNull { it.id == selectedGrammarPackId }
+    }
 
     if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack != null) {
         BackHandler {
             selectedSentencePackId = null
+        }
+    }
+    if (selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack != null) {
+        BackHandler {
+            selectedGrammarPackId = null
         }
     }
 
@@ -1504,9 +1519,26 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             it.phonetic.contains(searchQuery.trim(), ignoreCase = true)
         }
     }
-    val filteredGrammarChallenges = remember(grammarChallenges, searchQuery) {
-        if (searchQuery.isBlank()) grammarChallenges
-        else grammarChallenges.filter { it.question.contains(searchQuery.trim(), ignoreCase = true) || it.explanation.contains(searchQuery.trim(), ignoreCase = true) }
+    val filteredGrammarPacks = remember(grammarChallengePacks, searchQuery) {
+        if (searchQuery.isBlank()) grammarChallengePacks
+        else grammarChallengePacks.filter {
+            it.title.contains(searchQuery.trim(), ignoreCase = true) ||
+            it.description.contains(searchQuery.trim(), ignoreCase = true) ||
+            it.themeStyle.contains(searchQuery.trim(), ignoreCase = true)
+        }
+    }
+    val filteredGrammarChallenges = remember(grammarChallenges, activeGrammarPack, searchQuery) {
+        val scoped = if (activeGrammarPack != null) {
+            grammarChallenges.filter { it.packId == activeGrammarPack.id }
+        } else {
+            grammarChallenges
+        }
+        if (searchQuery.isBlank()) scoped
+        else scoped.filter {
+            it.question.contains(searchQuery.trim(), ignoreCase = true) ||
+            it.explanation.contains(searchQuery.trim(), ignoreCase = true) ||
+            it.category.contains(searchQuery.trim(), ignoreCase = true)
+        }
     }
 
     Box(
@@ -1650,10 +1682,11 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                         // Electric cyan "+ New" button
                         Button(
                             onClick = {
-                                if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack == null) {
-                                    showCreatePackDialog = true
-                                } else {
-                                    showCreateDialog = true
+                                when {
+                                    selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack == null -> showCreatePackDialog = true
+                                    selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack == null -> showCreateGrammarPackDialog = true
+                                    selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack != null -> showCreateGrammarQuestionDialog = true
+                                    else -> showCreateDialog = true
                                 }
                             },
                             shape = RoundedCornerShape(12.dp),
@@ -1723,6 +1756,9 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                                 if (cat != GameCategoryFilter.SENTENCE_BUILDER) {
                                     selectedSentencePackId = null
                                 }
+                                if (cat != GameCategoryFilter.GRAMMAR_CHALLENGE) {
+                                    selectedGrammarPackId = null
+                                }
                             }
                             .padding(horizontal = 14.dp, vertical = 9.dp),
                         contentAlignment = Alignment.Center
@@ -1786,22 +1822,32 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             }
         }
 
-        // 3. Action Banner: "+ Add New Challenge" (or "+ Add Sentence to Challenge" when inside a Sentence Builder pack)
+        // 3. Action Banner: "+ Add New Challenge" (or "+ Add Items" when inside a Sentence/Grammar pack)
         item {
             val isSentencePackList = selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack == null
             val isInsideSentencePack = selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack != null
+            val isGrammarPackList = selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack == null
+            val isInsideGrammarPack = selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack != null
             val bannerAction = {
-                if (isSentencePackList) showCreatePackDialog = true
-                else showCreateDialog = true
+                when {
+                    isSentencePackList -> showCreatePackDialog = true
+                    isGrammarPackList -> showCreateGrammarPackDialog = true
+                    isInsideGrammarPack -> showCreateGrammarQuestionDialog = true
+                    else -> showCreateDialog = true
+                }
             }
             val bannerTitle = when {
                 isSentencePackList -> "+ Add New Challenge"
                 isInsideSentencePack -> "+ Add Sentences to ${activeSentencePack!!.title}"
+                isGrammarPackList -> "+ Add New Grammar Challenge"
+                isInsideGrammarPack -> "+ Add Questions to ${activeGrammarPack!!.title}"
                 else -> "+ Add New ${selectedCategory.title}"
             }
             val bannerSubtitle = when {
                 isSentencePackList -> "Create a challenge level & add many sentences inside"
                 isInsideSentencePack -> "Add one or multiple sentences into this challenge"
+                isGrammarPackList -> "Create a grammar challenge topic & add many questions inside"
+                isInsideGrammarPack -> "Add one or multiple quiz questions inside this challenge"
                 else -> "Create a question or drill to publish"
             }
 
@@ -1812,7 +1858,14 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { bannerAction() }
-                    .testTag(if (isSentencePackList) "add_sentence_pack_banner" else "add_game_item_banner")
+                    .testTag(
+                        when {
+                            isSentencePackList -> "add_sentence_pack_banner"
+                            isGrammarPackList -> "add_grammar_pack_banner"
+                            isInsideGrammarPack -> "add_grammar_question_banner"
+                            else -> "add_game_item_banner"
+                        }
+                    )
             ) {
                 Row(
                     modifier = Modifier
@@ -2248,6 +2301,99 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             }
         }
 
+        if (selectedCategory == GameCategoryFilter.GRAMMAR_CHALLENGE && activeGrammarPack != null) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1A103D)),
+                    border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.65f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("teacher_active_grammar_pack_header")
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF2E1B69),
+                                border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.6f)),
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clickable { selectedGrammarPackId = null }
+                                    .testTag("teacher_back_to_grammar_packs_btn")
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.ArrowBack,
+                                        contentDescription = "Back to Grammar Challenges",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = activeGrammarPack.title,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFFFACC15).copy(alpha = 0.18f),
+                                        border = BorderStroke(0.8.dp, Color(0xFFFACC15).copy(alpha = 0.6f))
+                                    ) {
+                                        Text(
+                                            text = "${activeGrammarPack.themeStyle} • +${activeGrammarPack.xpReward} XP",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFFDE047),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = activeGrammarPack.description,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFCBD5E1),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { editingGrammarPack = activeGrammarPack },
+                            modifier = Modifier.testTag("edit_active_grammar_pack_btn")
+                        ) {
+                            Icon(
+                                Icons.Filled.Edit,
+                                contentDescription = "Edit Grammar Challenge",
+                                tint = Color(0xFF38BDF8),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         statusMsg?.let { msg ->
             item {
                 Surface(
@@ -2272,7 +2418,11 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             GameCategoryFilter.LISTEN_CHOOSE -> "Existing Listen & Choose Drills" to filteredListenChooses.size
             GameCategoryFilter.PRONUNCIATION_BATTLE -> "Existing Pronunciation Battles" to filteredPronunciationBattles.size
             GameCategoryFilter.FAST_VOCABULARY -> "Existing Fast Vocabulary Blitzes" to filteredFastVocabs.size
-            GameCategoryFilter.GRAMMAR_CHALLENGE -> "Existing Grammar Challenges" to filteredGrammarChallenges.size
+            GameCategoryFilter.GRAMMAR_CHALLENGE -> if (activeGrammarPack == null) {
+                "Grammar Challenges" to filteredGrammarPacks.size
+            } else {
+                "Questions in ${activeGrammarPack.title}" to filteredGrammarChallenges.size
+            }
             GameCategoryFilter.PICTURE_VOCAB -> "Existing Picture Vocabulary Items" to filteredPictureVocabs.size
             GameCategoryFilter.ENGLISH_ADVENTURE -> "English Adventure Worlds" to viewModel.adventureWorlds.value.size
         }
@@ -2708,32 +2858,215 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                 }
             }
             GameCategoryFilter.GRAMMAR_CHALLENGE -> {
-                itemsIndexed(filteredGrammarChallenges) { index, item ->
-                    GameItemCard(
-                        title = item.question,
-                        subtitle = "Rule: ${item.explanation}",
-                        tag = item.category,
-                        createdBy = item.createdBy,
-                        index = index,
-                        onPlayAudio = { viewModel.speakAudio(item.question) },
-                        onEdit = {
-                            activeEditingChallenge = ActiveEditingChallenge(
-                                category = GameCategoryFilter.GRAMMAR_CHALLENGE,
-                                id = item.id,
-                                field1 = item.question,
-                                field2 = item.options.getOrNull(0) ?: "",
-                                field3 = item.options.getOrNull(1) ?: "",
-                                field4 = item.options.getOrNull(2) ?: "",
-                                field5 = item.explanation,
-                                onSave = { f1, f2, f3, f4, f5 ->
-                                    val opts = listOf(f2, f3, f4)
-                                    viewModel.updateGrammarChallenge(item.copy(question = f1, options = opts, explanation = f5))
-                                    statusMsg = "Updated grammar challenge question!"
+                if (activeGrammarPack == null) {
+                    itemsIndexed(filteredGrammarPacks) { index, pack ->
+                        val questionCount = grammarChallenges.count { it.packId == pack.id }
+                        val packAccent = when (pack.themeStyle.lowercase().trim()) {
+                            "tenses" -> Color(0xFF38BDF8)
+                            "narration" -> Color(0xFFA855F7)
+                            "determiners" -> Color(0xFF10B981)
+                            "prepositions" -> Color(0xFFF97316)
+                            else -> listOf(
+                                Color(0xFF38BDF8),
+                                Color(0xFFA855F7),
+                                Color(0xFF10B981),
+                                Color(0xFFF97316)
+                            )[index % 4]
+                        }
+                        val packEmoji = when (pack.themeStyle.lowercase().trim()) {
+                            "tenses" -> "📘"
+                            "narration" -> "💬"
+                            "determiners" -> "🔤"
+                            "prepositions" -> "🧩"
+                            else -> "⚡"
+                        }
+
+                        Card(
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1633).copy(alpha = 0.94f)),
+                            border = BorderStroke(1.3.dp, packAccent.copy(alpha = 0.6f)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedGrammarPackId = pack.id }
+                                .testTag("teacher_grammar_pack_card_${pack.id}")
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = packAccent.copy(alpha = 0.18f),
+                                            border = BorderStroke(1.dp, packAccent.copy(alpha = 0.6f)),
+                                            modifier = Modifier.size(width = 54.dp, height = 46.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(packEmoji, fontSize = 20.sp)
+                                            }
+                                        }
+                                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                            Text(
+                                                text = pack.title,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 15.sp,
+                                                color = Color.White,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = pack.description,
+                                                fontSize = 12.sp,
+                                                color = Color(0xFFCBD5E1),
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        IconButton(
+                                            onClick = { editingGrammarPack = pack },
+                                            modifier = Modifier.testTag("edit_grammar_pack_${pack.id}")
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Edit,
+                                                contentDescription = "Edit Grammar Challenge",
+                                                tint = Color(0xFF38BDF8),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = { grammarPackPendingDelete = pack },
+                                            modifier = Modifier.testTag("delete_grammar_pack_${pack.id}")
+                                        ) {
+                                            Icon(
+                                                Icons.Filled.Delete,
+                                                contentDescription = "Delete Grammar Challenge",
+                                                tint = CoralAccent,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
                                 }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = packAccent.copy(alpha = 0.16f),
+                                            border = BorderStroke(0.8.dp, packAccent.copy(alpha = 0.5f))
+                                        ) {
+                                            Text(
+                                                text = "🎯 $questionCount ${if (questionCount == 1) "Question" else "Questions"}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color(0xFF1F1638),
+                                            border = BorderStroke(0.8.dp, Color(0xFFFACC15).copy(alpha = 0.45f))
+                                        ) {
+                                            Text(
+                                                text = "⚡ +${pack.xpReward} XP",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFFDE047),
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Button(
+                                        onClick = { selectedGrammarPackId = pack.id },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = packAccent),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                        modifier = Modifier
+                                            .defaultMinSize(minHeight = 40.dp)
+                                            .testTag("open_grammar_pack_${pack.id}")
+                                    ) {
+                                        Text(
+                                            text = "Add / Edit Questions →",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.5.sp,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    if (filteredGrammarChallenges.isEmpty()) {
+                        item {
+                            Card(
+                                shape = RoundedCornerShape(18.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF0A1633)),
+                                border = BorderStroke(1.dp, Color(0xFF334155)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text("⚡", fontSize = 32.sp)
+                                    Text(
+                                        "No questions inside '${activeGrammarPack.title}' yet",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Color.White,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Text(
+                                        "Tap '+ Add Questions' above to add many quiz questions inside this challenge.",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF94A3B8),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        itemsIndexed(filteredGrammarChallenges) { index, item ->
+                            val answerText = item.options.getOrNull(item.correctIndex) ?: ""
+                            GameItemCard(
+                                title = item.question,
+                                subtitle = "Answer: $answerText • Rule: ${item.explanation}",
+                                tag = "${activeGrammarPack.themeStyle} • ${item.options.size} options",
+                                createdBy = item.createdBy,
+                                index = index,
+                                onPlayAudio = { viewModel.speakAudio(item.question) },
+                                onEdit = { editingGrammarQuestion = item },
+                                onDelete = { viewModel.deleteGrammarChallenge(item.id) }
                             )
-                        },
-                        onDelete = { viewModel.deleteGrammarChallenge(item.id) }
-                    )
+                        }
+                    }
                 }
             }
             GameCategoryFilter.PICTURE_VOCAB -> {
@@ -2915,6 +3248,126 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             editing = editing,
             onDismiss = { activeEditingChallenge = null },
             onSaved = { activeEditingChallenge = null }
+        )
+    }
+
+    if (showCreateGrammarPackDialog) {
+        GrammarPackEditorDialog(
+            initialPack = null,
+            onDismiss = { showCreateGrammarPackDialog = false },
+            onSave = { title, description, themeStyle, xpReward ->
+                val created = viewModel.addGrammarChallengePack(
+                    title = title,
+                    description = description,
+                    themeStyle = themeStyle,
+                    xpReward = xpReward,
+                    createdBy = currentUser.name.ifBlank { "Faculty Instructor" }
+                )
+                statusMsg = "Created '${created.title}'! Now add questions inside it."
+                selectedGrammarPackId = created.id
+                showCreateGrammarPackDialog = false
+            }
+        )
+    }
+
+    editingGrammarPack?.let { pack ->
+        GrammarPackEditorDialog(
+            initialPack = pack,
+            onDismiss = { editingGrammarPack = null },
+            onSave = { title, description, themeStyle, xpReward ->
+                viewModel.updateGrammarChallengePack(
+                    pack.copy(
+                        title = title,
+                        description = description,
+                        themeStyle = themeStyle,
+                        xpReward = xpReward
+                    )
+                )
+                statusMsg = "Updated grammar challenge '$title'!"
+                editingGrammarPack = null
+            }
+        )
+    }
+
+    grammarPackPendingDelete?.let { pack ->
+        val questionCount = grammarChallenges.count { it.packId == pack.id }
+        AlertDialog(
+            onDismissRequest = { grammarPackPendingDelete = null },
+            title = { Text("Delete Grammar Challenge?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    if (questionCount > 0) {
+                        "Are you sure you want to delete '${pack.title}' and its $questionCount ${if (questionCount == 1) "question" else "questions"}?"
+                    } else {
+                        "Are you sure you want to delete '${pack.title}'?"
+                    }
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteGrammarChallengePack(pack.id)
+                        if (selectedGrammarPackId == pack.id) selectedGrammarPackId = null
+                        statusMsg = "Deleted grammar challenge '${pack.title}'."
+                        grammarPackPendingDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CoralAccent),
+                    modifier = Modifier.testTag("confirm_delete_grammar_pack_btn")
+                ) {
+                    Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { grammarPackPendingDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showCreateGrammarQuestionDialog && activeGrammarPack != null) {
+        GrammarQuestionEditorDialog(
+            pack = activeGrammarPack,
+            initialQuestion = null,
+            authorName = currentUser.name.ifBlank { "Faculty Instructor" },
+            onDismiss = { showCreateGrammarQuestionDialog = false },
+            onAddQuestion = { question, options, correctIdx, explanation ->
+                viewModel.addGrammarChallenge(
+                    question = question,
+                    options = options,
+                    correctIndex = correctIdx,
+                    explanation = explanation,
+                    category = activeGrammarPack.themeStyle,
+                    createdBy = currentUser.name.ifBlank { "Faculty Instructor" },
+                    packId = activeGrammarPack.id
+                )
+                statusMsg = "Added question to '${activeGrammarPack.title}' & synced to students!"
+            },
+            onSaveEdit = { _, _, _, _ -> }
+        )
+    }
+
+    editingGrammarQuestion?.let { question ->
+        val owningPack = grammarChallengePacks.firstOrNull { it.id == question.packId } ?: activeGrammarPack
+        GrammarQuestionEditorDialog(
+            pack = owningPack,
+            initialQuestion = question,
+            authorName = currentUser.name.ifBlank { "Faculty Instructor" },
+            onDismiss = { editingGrammarQuestion = null },
+            onAddQuestion = { _, _, _, _ -> },
+            onSaveEdit = { qText, options, correctIdx, explanation ->
+                viewModel.updateGrammarChallenge(
+                    question.copy(
+                        question = qText,
+                        options = options,
+                        correctIndex = correctIdx,
+                        explanation = explanation,
+                        category = owningPack?.themeStyle ?: question.category
+                    )
+                )
+                statusMsg = "Updated grammar question!"
+                editingGrammarQuestion = null
+            }
         )
     }
 }
@@ -6416,6 +6869,299 @@ fun SentencePackEditorDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+// -------------------------------------------------------------
+// CREATE / EDIT GRAMMAR CHALLENGE PACK DIALOG
+// -------------------------------------------------------------
+@Composable
+fun GrammarPackEditorDialog(
+    initialPack: GrammarChallengePack?,
+    onDismiss: () -> Unit,
+    onSave: (title: String, description: String, themeStyle: String, xpReward: Int) -> Unit
+) {
+    val themes = listOf(
+        "Tenses" to "📘",
+        "Narration" to "💬",
+        "Determiners" to "🔤",
+        "Prepositions" to "🧩"
+    )
+    var title by remember { mutableStateOf(initialPack?.title ?: "") }
+    var description by remember { mutableStateOf(initialPack?.description ?: "") }
+    var themeStyle by remember { mutableStateOf(initialPack?.themeStyle ?: "Tenses") }
+    var xpText by remember { mutableStateOf((initialPack?.xpReward ?: 40).toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("⚡", fontSize = 22.sp)
+                Text(
+                    if (initialPack == null) "Create Grammar Challenge" else "Edit Grammar Challenge",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Challenge Title (e.g. Voice Challenge)") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("grammar_pack_title_input")
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description (e.g. Practice Active and Passive Voice.)") },
+                    maxLines = 2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("grammar_pack_desc_input")
+                )
+
+                Text("Card Theme Style:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    themes.forEach { (styleName, iconEmoji) ->
+                        val isSel = themeStyle.equals(styleName, ignoreCase = true)
+                        FilterChip(
+                            selected = isSel,
+                            onClick = { themeStyle = styleName },
+                            label = {
+                                Text("$iconEmoji $styleName", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = xpText,
+                    onValueChange = { input -> xpText = input.filter { it.isDigit() } },
+                    label = { Text("Challenge XP Reward (e.g. 40, 60)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val xp = (xpText.toIntOrNull() ?: 40).coerceIn(10, 500)
+                    onSave(
+                        title.trim().ifBlank { "$themeStyle Challenge" },
+                        description.trim().ifBlank { "Test your grammar skills with fun quizzes!" },
+                        themeStyle,
+                        xp
+                    )
+                },
+                enabled = title.trim().isNotEmpty(),
+                modifier = Modifier.testTag("save_grammar_pack_btn")
+            ) {
+                Text(if (initialPack == null) "Create Challenge 🚀" else "Save Changes")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+// -------------------------------------------------------------
+// CREATE / EDIT GRAMMAR QUESTION INSIDE A CHALLENGE PACK
+// -------------------------------------------------------------
+@Composable
+fun GrammarQuestionEditorDialog(
+    pack: GrammarChallengePack?,
+    initialQuestion: GrammarChallengeQuestion?,
+    authorName: String,
+    onDismiss: () -> Unit,
+    onAddQuestion: (question: String, options: List<String>, correctIndex: Int, explanation: String) -> Unit,
+    onSaveEdit: (question: String, options: List<String>, correctIndex: Int, explanation: String) -> Unit
+) {
+    val isEditing = initialQuestion != null
+    var questionText by remember { mutableStateOf(initialQuestion?.question ?: "") }
+    var opt1 by remember { mutableStateOf(initialQuestion?.options?.getOrNull(0) ?: "") }
+    var opt2 by remember { mutableStateOf(initialQuestion?.options?.getOrNull(1) ?: "") }
+    var opt3 by remember { mutableStateOf(initialQuestion?.options?.getOrNull(2) ?: "") }
+    var opt4 by remember { mutableStateOf(initialQuestion?.options?.getOrNull(3) ?: "") }
+    var correctIndex by remember { mutableIntStateOf((initialQuestion?.correctIndex ?: 0).coerceIn(0, 3)) }
+    var explanation by remember { mutableStateOf(initialQuestion?.explanation ?: "") }
+    var addedCount by remember { mutableIntStateOf(0) }
+
+    fun buildValidPayload(): Triple<List<String>, Int, String>? {
+        val raw = listOf(opt1.trim(), opt2.trim(), opt3.trim(), opt4.trim())
+        val indexedNonBlank = raw.mapIndexedNotNull { idx, value ->
+            if (value.isNotBlank()) idx to value else null
+        }
+        if (questionText.isBlank() || indexedNonBlank.size < 2) return null
+        val mappedCorrect = indexedNonBlank.indexOfFirst { it.first == correctIndex }.let {
+            if (it >= 0) it else 0
+        }
+        val cleanOptions = indexedNonBlank.map { it.second }
+        val cleanRule = explanation.trim().ifBlank { "Standard grammatical syntax rule." }
+        return Triple(cleanOptions, mappedCorrect, cleanRule)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = if (isEditing) "Edit Grammar Question" else "Add Question to ${pack?.title ?: "Challenge"}",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
+                if (!isEditing && addedCount > 0) {
+                    Text(
+                        text = "✓ $addedCount ${if (addedCount == 1) "question" else "questions"} added so far",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = EmeraldSuccess
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
+                OutlinedTextField(
+                    value = questionText,
+                    onValueChange = { questionText = it },
+                    label = { Text("Question Prompt (with ___ blank)") },
+                    maxLines = 3,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("grammar_question_prompt_input")
+                )
+                OutlinedTextField(
+                    value = opt1,
+                    onValueChange = { opt1 = it },
+                    label = { Text("Option A") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = opt2,
+                    onValueChange = { opt2 = it },
+                    label = { Text("Option B") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = opt3,
+                    onValueChange = { opt3 = it },
+                    label = { Text("Option C (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = opt4,
+                    onValueChange = { opt4 = it },
+                    label = { Text("Option D (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text("Select Correct Answer:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val labels = listOf("A", "B", "C", "D")
+                    labels.forEachIndexed { idx, letter ->
+                        FilterChip(
+                            selected = correctIndex == idx,
+                            onClick = { correctIndex = idx },
+                            label = {
+                                Text(letter, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = explanation,
+                    onValueChange = { explanation = it },
+                    label = { Text("Grammar Explanation / Rule") },
+                    maxLines = 2,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            val payload = buildValidPayload()
+            Button(
+                onClick = {
+                    if (isEditing && payload != null) {
+                        onSaveEdit(questionText.trim(), payload.first, payload.second, payload.third)
+                    } else if (!isEditing && payload != null) {
+                        onAddQuestion(questionText.trim(), payload.first, payload.second, payload.third)
+                        onDismiss()
+                    } else if (!isEditing && addedCount > 0 && questionText.isBlank()) {
+                        onDismiss()
+                    }
+                },
+                enabled = payload != null || (!isEditing && addedCount > 0 && questionText.isBlank()),
+                modifier = Modifier.testTag("save_grammar_question_btn")
+            ) {
+                Text(
+                    when {
+                        isEditing -> "Save Changes"
+                        addedCount > 0 && questionText.isBlank() -> "Done ✓"
+                        else -> "Publish Question 🚀"
+                    }
+                )
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (!isEditing) {
+                    val payload = buildValidPayload()
+                    OutlinedButton(
+                        onClick = {
+                            if (payload != null) {
+                                onAddQuestion(questionText.trim(), payload.first, payload.second, payload.third)
+                                questionText = ""
+                                opt1 = ""
+                                opt2 = ""
+                                opt3 = ""
+                                opt4 = ""
+                                explanation = ""
+                                correctIndex = 0
+                                addedCount++
+                            }
+                        },
+                        enabled = payload != null,
+                        modifier = Modifier.testTag("save_and_add_another_grammar_btn")
+                    ) {
+                        Text("+ Add Another")
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(if (addedCount > 0) "Close" else "Cancel")
+                }
+            }
         }
     )
 }

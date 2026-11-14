@@ -48,6 +48,7 @@ class AppPreferences(context: Context) {
         private const val KEY_PRONUNCIATION_BATTLE_LIST = "key_pronunciation_battle_list"
         private const val KEY_FAST_VOCABULARY_LIST = "key_fast_vocabulary_list"
         private const val KEY_GRAMMAR_CHALLENGE_LIST = "key_grammar_challenge_list"
+        private const val KEY_GRAMMAR_CHALLENGE_PACKS = "key_grammar_challenge_packs"
         private const val KEY_PICTURE_VOCAB_LIST = "key_picture_vocab_list"
         private const val KEY_VOCABULARY_WORDS_LIST = "key_vocabulary_words_list"
         private const val KEY_PRONUNCIATION_DRILLS_LIST = "key_pronunciation_drills_list"
@@ -697,6 +698,47 @@ class AppPreferences(context: Context) {
         }
     }
 
+    fun saveGrammarChallengePacks(packs: List<GrammarChallengePack>) {
+        try {
+            val array = JSONArray()
+            for (p in packs) {
+                val obj = JSONObject()
+                obj.put("id", p.id)
+                obj.put("title", p.title)
+                obj.put("description", p.description)
+                obj.put("themeStyle", p.themeStyle)
+                obj.put("xpReward", p.xpReward)
+                obj.put("createdBy", p.createdBy)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_GRAMMAR_CHALLENGE_PACKS, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getGrammarChallengePacks(): List<GrammarChallengePack>? {
+        val raw = prefs.getString(KEY_GRAMMAR_CHALLENGE_PACKS, null) ?: return null
+        return try {
+            val array = JSONArray(raw)
+            val list = mutableListOf<GrammarChallengePack>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    GrammarChallengePack(
+                        id = obj.optString("id", ""),
+                        title = obj.optString("title", "Grammar Challenge"),
+                        description = obj.optString("description", "Test your grammar skills with fun quizzes!"),
+                        themeStyle = obj.optString("themeStyle", "Tenses"),
+                        xpReward = obj.optInt("xpReward", 40),
+                        createdBy = obj.optString("createdBy", "System")
+                    )
+                )
+            }
+            list
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun saveGrammarChallenges(challenges: List<GrammarChallengeQuestion>) {
         try {
             val array = JSONArray()
@@ -711,6 +753,7 @@ class AppPreferences(context: Context) {
                 obj.put("explanation", c.explanation)
                 obj.put("category", c.category)
                 obj.put("createdBy", c.createdBy)
+                obj.put("packId", c.packId)
                 array.put(obj)
             }
             prefs.edit().putString(KEY_GRAMMAR_CHALLENGE_LIST, array.toString()).apply()
@@ -729,6 +772,16 @@ class AppPreferences(context: Context) {
                 if (optArr != null) {
                     for (j in 0 until optArr.length()) options.add(optArr.getString(j))
                 }
+                val cat = obj.optString("category", "Tenses")
+                val storedPackId = obj.optString("packId", "")
+                val resolvedPackId = storedPackId.ifBlank {
+                    when {
+                        cat.contains("narration", ignoreCase = true) || cat.contains("speech", ignoreCase = true) -> "gc_pack_narration"
+                        cat.contains("determiner", ignoreCase = true) || cat.contains("article", ignoreCase = true) -> "gc_pack_determiners"
+                        cat.contains("preposition", ignoreCase = true) -> "gc_pack_prepositions"
+                        else -> "gc_pack_tenses"
+                    }
+                }
                 list.add(
                     GrammarChallengeQuestion(
                         id = obj.optString("id", ""),
@@ -736,8 +789,9 @@ class AppPreferences(context: Context) {
                         options = options,
                         correctIndex = obj.optInt("correctIndex", 0),
                         explanation = obj.optString("explanation", ""),
-                        category = obj.optString("category", "Tenses"),
-                        createdBy = obj.optString("createdBy", "System")
+                        category = cat,
+                        createdBy = obj.optString("createdBy", "System"),
+                        packId = resolvedPackId
                     )
                 )
             }

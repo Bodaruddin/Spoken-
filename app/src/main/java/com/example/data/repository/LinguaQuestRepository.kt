@@ -1962,51 +1962,121 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     private val _fastVocabularyChallenges = MutableStateFlow(loadInitialFastVocabulary())
     val fastVocabularyChallenges: StateFlow<List<FastVocabularyChallenge>> = _fastVocabularyChallenges.asStateFlow()
 
-    private val defaultGrammarChallenges = listOf(
-        GrammarChallengeQuestion(
-            id = "gc_1",
-            question = "If I ___ more time, I would practice conversational English every evening.",
-            options = listOf("have", "had", "will have", "would have"),
-            correctIndex = 1,
-            explanation = "Second conditional uses past simple ('had') in the 'if' clause for hypothetical situations.",
-            category = "Conditionals",
+    private val defaultGrammarChallengePacks = listOf(
+        GrammarChallengePack(
+            id = "gc_pack_tenses",
+            title = "Tenses Challenge",
+            description = "Practice Present, Past and Future Tenses.",
+            themeStyle = "Tenses",
+            xpReward = 40,
             createdBy = "System"
         ),
-        GrammarChallengeQuestion(
-            id = "gc_2",
-            question = "She has been living in London ___ over three years.",
-            options = listOf("since", "for", "during", "in"),
-            correctIndex = 1,
-            explanation = "Use 'for' to express a duration of time ('over three years').",
-            category = "Prepositions",
+        GrammarChallengePack(
+            id = "gc_pack_narration",
+            title = "Narration Challenge",
+            description = "Change Direct and Indirect Speech.",
+            themeStyle = "Narration",
+            xpReward = 40,
             createdBy = "System"
         ),
-        GrammarChallengeQuestion(
-            id = "gc_3",
-            question = "Listen! The professor ___ the key grammar points on the board.",
-            options = listOf("explains", "is explaining", "explained", "has explained"),
-            correctIndex = 1,
-            explanation = "Present continuous is used for actions taking place right at this moment ('Listen!').",
-            category = "Tenses",
-            createdBy = "Prof. Eleanor Vance"
+        GrammarChallengePack(
+            id = "gc_pack_determiners",
+            title = "Determiners Challenge",
+            description = "Use Correct Determiners (a, an, the etc.).",
+            themeStyle = "Determiners",
+            xpReward = 40,
+            createdBy = "System"
         ),
-        GrammarChallengeQuestion(
-            id = "gc_4",
-            question = "Neither the teacher nor the students ___ present at yesterday's rehearsal.",
-            options = listOf("was", "were", "is", "are"),
-            correctIndex = 1,
-            explanation = "With 'neither... nor', the verb agrees with the closer subject ('the students' -> 'were').",
-            category = "Subject-Verb Agreement",
-            createdBy = "Dean Arthur Pendelton"
+        GrammarChallengePack(
+            id = "gc_pack_prepositions",
+            title = "Prepositions Challenge",
+            description = "Choose the correct Prepositions.",
+            themeStyle = "Prepositions",
+            xpReward = 40,
+            createdBy = "System"
         )
     )
+
+    private fun loadInitialGrammarChallengePacks(): List<GrammarChallengePack> {
+        val saved = appPreferences?.getGrammarChallengePacks()
+        if (!saved.isNullOrEmpty()) {
+            return saved
+        }
+        appPreferences?.saveGrammarChallengePacks(defaultGrammarChallengePacks)
+        return defaultGrammarChallengePacks
+    }
+
+    private val _grammarChallengePacks = MutableStateFlow(loadInitialGrammarChallengePacks())
+    val grammarChallengePacks: StateFlow<List<GrammarChallengePack>> = _grammarChallengePacks.asStateFlow()
+
+    private val defaultGrammarChallenges = listOf(
+        // --- 1. Tenses Challenge (10 Questions) ---
+        GrammarChallengeQuestion("gc_1", "If I ___ more time, I would practice conversational English every evening.", listOf("have", "had", "will have", "would have"), 1, "Second conditional uses past simple ('had') in the 'if' clause for hypothetical situations.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_3", "Listen! The professor ___ the key grammar points on the board.", listOf("explains", "is explaining", "explained", "has explained"), 1, "Present continuous is used for actions taking place right at this moment ('Listen!').", "Tenses", "Prof. Eleanor Vance", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t3", "She ___ English at this academy since 2023.", listOf("teaches", "is teaching", "has been teaching", "taught"), 2, "Use Present Perfect Continuous ('has been teaching') for an action that started in the past and continues now.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t4", "By the time we arrived at the hall, the seminar ___.", listOf("already started", "had already started", "has already started", "starts"), 1, "Past Perfect ('had started') describes an action completed before another past action.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t5", "Tomorrow at 10 AM, our class ___ the speaking assessment.", listOf("will take", "will be taking", "took", "has taken"), 1, "Future Continuous ('will be taking') expresses an action in progress at a specific future time.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t6", "Water ___ at 100 degrees Celsius at standard pressure.", listOf("boil", "is boiling", "boils", "boiled"), 2, "Use Present Simple ('boils') for universal truths and scientific facts.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t7", "While I ___ to school, I saw a rainbow in the sky.", listOf("walk", "was walking", "have walked", "walked"), 1, "Use Past Continuous ('was walking') for an ongoing background action interrupted by a past event.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t8", "They ___ their project before the deadline next Friday.", listOf("finish", "will have finished", "finished", "are finishing"), 1, "Future Perfect ('will have finished') shows an action completed before a future deadline.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t9", "My brother usually ___ to work by bicycle.", listOf("go", "goes", "is going", "went"), 1, "Use Present Simple ('goes') for regular habits and routines ('usually').", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t10", "We ___ our final grammar exam last Monday.", listOf("completed", "have completed", "complete", "are completing"), 0, "Use Past Simple ('completed') when a specific finished past time ('last Monday') is mentioned.", "Tenses", "System", "gc_pack_tenses"),
+
+        // --- 2. Narration Challenge (10 Questions) ---
+        GrammarChallengeQuestion("gc_n1", "He said, \"I am studying English.\" → Indirect: He said that he ___ English.", listOf("is studying", "was studying", "has studied", "will study"), 1, "In indirect speech, Present Continuous ('am studying') backshifts to Past Continuous ('was studying').", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n2", "She said, \"I have finished my homework.\" → She said that she ___ her homework.", listOf("finished", "had finished", "has finished", "was finishing"), 1, "Present Perfect ('have finished') changes to Past Perfect ('had finished') in reported speech.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n3", "The teacher said to us, \"Open your books.\" → The teacher ___ us to open our books.", listOf("said", "ordered", "told", "asked if"), 2, "Imperative sentences use reporting verbs like 'told' or 'instructed' + object + 'to'-infinitive.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n4", "Rohan asked me, \"Where do you live?\" → Rohan asked me where I ___.", listOf("live", "lived", "did live", "am living"), 1, "Reported wh-questions keep statement word order (subject + verb) and backshift Present Simple to Past Simple.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n5", "Mother said, \"The sun rises in the east.\" → Mother said that the sun ___ in the east.", listOf("rose", "rises", "had risen", "was rising"), 1, "Universal truths do not change tense in indirect speech; Present Simple ('rises') stays unchanged.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n6", "She asked him, \"Are you coming today?\" → She asked him ___ coming that day.", listOf("that he was", "if he was", "was he", "whether is he"), 1, "Yes/no questions use 'if' or 'whether' with statement word order ('if he was') and 'today' becomes 'that day'.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n7", "Amit said, \"I will call you tomorrow.\" → Amit said that he ___ me the next day.", listOf("will call", "would call", "called", "can call"), 1, "In indirect speech, 'will' changes to 'would' and 'tomorrow' becomes 'the next day'.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n8", "The coach said, \"Bravo! You played well.\" → The coach ___ them that they had played well.", listOf("exclaimed", "applauded", "asked", "warned"), 1, "Exclamatory praise with 'Bravo!' is reported with 'applauded' or 'praised'.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n9", "She said, \"I can speak three languages.\" → She said that she ___ speak three languages.", listOf("can", "could", "may", "might"), 1, "The modal 'can' changes to 'could' in indirect speech when the reporting verb is in the past.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n10", "He said to me, \"Please help me.\" → He ___ me to help him.", listOf("ordered", "requested", "told", "shouted"), 1, "Polite requests starting with 'Please' are reported using 'requested' + object + 'to'-infinitive.", "Narration", "System", "gc_pack_narration"),
+
+        // --- 3. Determiners Challenge (10 Questions) ---
+        GrammarChallengeQuestion("gc_d1", "She is ___ honest student who always speaks clearly.", listOf("a", "an", "the", "any"), 1, "Use 'an' before words starting with a vowel sound; the 'h' in 'honest' is silent.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d2", "___ Brahmaputra is one of the longest rivers in Asia.", listOf("A", "An", "The", "Some"), 2, "Use the definite article 'The' before the names of rivers, oceans, and mountain ranges.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d3", "He joined ___ university in London to study literature.", listOf("a", "an", "the", "many"), 0, "'University' begins with a consonant 'yoo' sound (/juː/), so it takes 'a', not 'an'.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d4", "Could you lend me ___ sugar for my morning tea?", listOf("many", "a few", "some", "several"), 2, "'Sugar' is an uncountable noun; 'some' is used in polite requests for uncountable nouns.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d5", "There isn't ___ milk left in the refrigerator.", listOf("many", "some", "much", "few"), 2, "Use 'much' with uncountable nouns ('milk') in negative sentences and questions.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d6", "___ student in the classroom received a speaking certificate.", listOf("All", "Many", "Every", "Both"), 2, "'Every' is used with a singular countable noun ('student') and singular verb.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d7", "We have ___ time left before the bell rings, so hurry up!", listOf("a few", "few", "little", "many"), 2, "'Little' (without 'a') means almost none, used with uncountable nouns like 'time'.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d8", "I bought ___ new books from the book fair yesterday.", listOf("much", "a little", "a few", "every"), 2, "'A few' means a small positive number and is used with plural countable nouns ('books').", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d9", "Have you read ___ storybooks on that top shelf?", listOf("much", "any", "little", "a"), 1, "'Any' is commonly used in questions with plural or uncountable nouns.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d10", "She plays ___ piano beautifully at school concerts.", listOf("a", "an", "the", "few"), 2, "Use 'the' before musical instruments when talking about playing them ('play the piano').", "Determiners", "System", "gc_pack_determiners"),
+
+        // --- 4. Prepositions Challenge (10 Questions) ---
+        GrammarChallengeQuestion("gc_2", "She has been living in London ___ over three years.", listOf("since", "for", "during", "in"), 1, "Use 'for' to express a duration of time ('over three years').", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_4", "The English workshop starts ___ Monday morning at 9 AM.", listOf("at", "in", "on", "by"), 2, "Use 'on' before specific days of the week and parts of specific days ('on Monday morning').", "Prepositions", "Dean Arthur Pendelton", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p3", "The principal congratulated Fariha ___ her exceptional speech.", listOf("for", "on", "at", "with"), 1, "The correct preposition following 'congratulate' is always 'on' (congratulate someone on something).", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p4", "The cat jumped ___ the box and hid quietly inside.", listOf("on", "into", "under", "between"), 1, "'Into' expresses movement from outside to the inside of an enclosed space.", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p5", "Divide these practice worksheets equally ___ the four students.", listOf("between", "among", "beside", "across"), 1, "Use 'among' when referring to more than two people or things; 'between' is for two.", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p6", "Our train arrives ___ the central station at 6:30 PM.", listOf("in", "at", "on", "to"), 1, "Use 'arrive at' for specific buildings, stations, or airports, and 'arrive in' for cities/countries.", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p7", "She is very fond ___ reading classic English novels.", listOf("with", "of", "for", "about"), 1, "The adjective 'fond' is always followed by the preposition 'of' ('fond of').", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p8", "We usually go on a family picnic ___ December.", listOf("at", "on", "in", "since"), 2, "Use 'in' for months, years, and seasons ('in December').", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p9", "Please write your answers ___ a blue or black pen.", listOf("by", "with", "from", "on"), 1, "Use 'with' to indicate the instrument or tool used to perform an action ('with a pen').", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p10", "The library is situated ___ the science lab and the auditorium.", listOf("among", "between", "through", "into"), 1, "Use 'between' when locating something relative to two distinct places.", "Prepositions", "System", "gc_pack_prepositions")
+    )
+
+    private fun inferGrammarPackId(category: String): String {
+        return when {
+            category.contains("narration", ignoreCase = true) || category.contains("speech", ignoreCase = true) -> "gc_pack_narration"
+            category.contains("determiner", ignoreCase = true) || category.contains("article", ignoreCase = true) -> "gc_pack_determiners"
+            category.contains("preposition", ignoreCase = true) -> "gc_pack_prepositions"
+            else -> "gc_pack_tenses"
+        }
+    }
 
     private fun loadInitialGrammarChallenges(): List<GrammarChallengeQuestion> {
         val saved = appPreferences?.getGrammarChallenges()
         if (!saved.isNullOrEmpty()) {
             val savedIds = saved.map { it.id }.toSet()
             val missingDefaults = defaultGrammarChallenges.filter { it.id !in savedIds }
-            return saved + missingDefaults
+            val normalizedSaved = saved.map { q ->
+                if (q.packId.isBlank()) q.copy(packId = inferGrammarPackId(q.category)) else q
+            }
+            return normalizedSaved + missingDefaults
         }
         appPreferences?.saveGrammarChallenges(defaultGrammarChallenges)
         return defaultGrammarChallenges
@@ -2824,9 +2894,71 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         appPreferences?.saveFastVocabularyChallenges(_fastVocabularyChallenges.value)
     }
 
-    fun addGrammarChallenge(question: String, options: List<String>, correctIndex: Int, explanation: String, category: String = "Grammar", createdBy: String): GrammarChallengeQuestion {
-        val id = "gc_${System.currentTimeMillis()}"
-        val item = GrammarChallengeQuestion(id, question.trim(), options.map { it.trim() }, correctIndex, explanation.trim(), category.trim(), createdBy)
+    fun addGrammarChallengePack(
+        title: String,
+        description: String,
+        themeStyle: String = "Tenses",
+        xpReward: Int = 40,
+        createdBy: String
+    ): GrammarChallengePack {
+        val id = "gc_pack_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(6)}"
+        val pack = GrammarChallengePack(
+            id = id,
+            title = title.trim().ifBlank { "Grammar Challenge" },
+            description = description.trim().ifBlank { "Test your grammar skills with fun quizzes!" },
+            themeStyle = themeStyle.trim().ifBlank { "Tenses" },
+            xpReward = xpReward.coerceIn(10, 500),
+            createdBy = createdBy
+        )
+        _grammarChallengePacks.update { it + pack }
+        appPreferences?.saveGrammarChallengePacks(_grammarChallengePacks.value)
+        return pack
+    }
+
+    fun updateGrammarChallengePack(updated: GrammarChallengePack) {
+        _grammarChallengePacks.update { list ->
+            list.map { if (it.id == updated.id) updated else it }
+        }
+        appPreferences?.saveGrammarChallengePacks(_grammarChallengePacks.value)
+    }
+
+    fun deleteGrammarChallengePack(packId: String): List<String> {
+        val removedQuestionIds = _grammarChallenges.value
+            .filter { it.packId == packId }
+            .map { it.id }
+        _grammarChallengePacks.update { it.filterNot { pack -> pack.id == packId } }
+        appPreferences?.saveGrammarChallengePacks(_grammarChallengePacks.value)
+
+        if (removedQuestionIds.isNotEmpty()) {
+            _grammarChallenges.update { it.filterNot { item -> item.packId == packId } }
+            appPreferences?.saveGrammarChallenges(_grammarChallenges.value)
+        }
+        return removedQuestionIds
+    }
+
+    fun addGrammarChallenge(
+        question: String,
+        options: List<String>,
+        correctIndex: Int,
+        explanation: String,
+        category: String = "Tenses",
+        createdBy: String,
+        packId: String = "gc_pack_tenses"
+    ): GrammarChallengeQuestion {
+        val id = "gc_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(6)}"
+        val resolvedPackId = packId.ifBlank { inferGrammarPackId(category) }
+        val cleanOptions = options.map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { listOf("Option A", "Option B") }
+        val safeIndex = correctIndex.coerceIn(0, cleanOptions.lastIndex)
+        val item = GrammarChallengeQuestion(
+            id = id,
+            question = question.trim(),
+            options = cleanOptions,
+            correctIndex = safeIndex,
+            explanation = explanation.trim(),
+            category = category.trim().ifBlank { "Grammar" },
+            createdBy = createdBy,
+            packId = resolvedPackId
+        )
         _grammarChallenges.update { it + item }
         appPreferences?.saveGrammarChallenges(_grammarChallenges.value)
         return item
@@ -3217,6 +3349,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         var lcChanged = false
         var pbChanged = false
         var fvChanged = false
+        var gcPackChanged = false
         var gcChanged = false
         var pvChanged = false
 
@@ -3227,6 +3360,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         val currentLc = _listenChooseChallenges.value.toMutableList()
         val currentPb = _pronunciationBattleChallenges.value.toMutableList()
         val currentFv = _fastVocabularyChallenges.value.toMutableList()
+        val currentGcPacks = _grammarChallengePacks.value.toMutableList()
         val currentGc = _grammarChallenges.value.toMutableList()
         val currentPv = _pictureVocabChallenges.value.toMutableList()
 
@@ -3370,7 +3504,26 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                     }
                     fvChanged = true
                 }
+                "GRAMMAR_CHALLENGE_PACK" -> {
+                    val idx = currentGcPacks.indexOfFirst { it.id == rc.id }
+                    val pack = GrammarChallengePack(
+                        id = rc.id,
+                        title = rc.titleOrWord.ifBlank { "Grammar Challenge" },
+                        description = rc.hintOrMeaning.ifBlank { "Test your grammar skills with fun quizzes!" },
+                        themeStyle = rc.category.ifBlank { "Tenses" },
+                        xpReward = if (rc.correctIndex > 0) rc.correctIndex else 40,
+                        createdBy = rc.createdBy
+                    )
+                    if (idx >= 0) {
+                        currentGcPacks[idx] = pack
+                    } else {
+                        currentGcPacks.add(pack)
+                    }
+                    gcPackChanged = true
+                }
                 "GRAMMAR_CHALLENGE" -> {
+                    val resolvedCategory = rc.category.ifBlank { "Grammar" }
+                    val resolvedPackId = rc.extraData.takeIf { it.isNotBlank() } ?: inferGrammarPackId(resolvedCategory)
                     val idx = currentGc.indexOfFirst { it.id == rc.id }
                     val item = GrammarChallengeQuestion(
                         id = rc.id,
@@ -3378,8 +3531,9 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                         options = rc.options,
                         correctIndex = rc.correctIndex,
                         explanation = rc.hintOrMeaning,
-                        category = rc.category.ifBlank { "Grammar" },
-                        createdBy = rc.createdBy
+                        category = resolvedCategory,
+                        createdBy = rc.createdBy,
+                        packId = resolvedPackId
                     )
                     if (idx >= 0) {
                         currentGc[idx] = item
@@ -3436,6 +3590,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (fvChanged) {
             _fastVocabularyChallenges.value = currentFv
             appPreferences?.saveFastVocabularyChallenges(currentFv)
+        }
+        if (gcPackChanged) {
+            _grammarChallengePacks.value = currentGcPacks
+            appPreferences?.saveGrammarChallengePacks(currentGcPacks)
         }
         if (gcChanged) {
             _grammarChallenges.value = currentGc

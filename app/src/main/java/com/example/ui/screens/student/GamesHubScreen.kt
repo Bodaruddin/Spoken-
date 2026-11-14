@@ -38,8 +38,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -916,67 +921,77 @@ fun ActiveGameRunner(
     modifier: Modifier = Modifier
 ) {
     // Intercept system Back button so student returns to catalog instead of exiting app
-    // (SentenceBuilderGame manages its own 2-level BackHandler internally)
-    if (gameType != ActiveGameType.SENTENCE_BUILDER) {
+    // (SentenceBuilderGame & GrammarChallengeGame manage their own 2-level BackHandler internally)
+    if (gameType != ActiveGameType.SENTENCE_BUILDER && gameType != ActiveGameType.GRAMMAR_CHALLENGE) {
         BackHandler {
             onClose()
         }
     }
 
-    if (gameType == ActiveGameType.SENTENCE_BUILDER) {
-        SentenceBuilderGame(
-            viewModel = viewModel,
-            onClose = onClose,
-            modifier = modifier
-        )
-    } else {
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Game Header Bar (Custom integrated hero banner is rendered inside PronunciationBattleGame)
-            if (gameType != ActiveGameType.PRONUNCIATION_BATTLE) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+    when (gameType) {
+        ActiveGameType.SENTENCE_BUILDER -> {
+            SentenceBuilderGame(
+                viewModel = viewModel,
+                onClose = onClose,
+                modifier = modifier
+            )
+        }
+        ActiveGameType.GRAMMAR_CHALLENGE -> {
+            GrammarChallengeGame(
+                viewModel = viewModel,
+                onClose = onClose,
+                modifier = modifier
+            )
+        }
+        else -> {
+            Column(
+                modifier = modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Game Header Bar (Custom integrated hero banner is rendered inside PronunciationBattleGame)
+                if (gameType != ActiveGameType.PRONUNCIATION_BATTLE) {
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(gameType.emoji, fontSize = 28.sp)
-                        Column {
-                            Text(gameType.title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                            Text("Interactive Learning Challenge", fontSize = 11.sp, color = MutedGray)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(gameType.emoji, fontSize = 28.sp)
+                            Column {
+                                Text(gameType.title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                Text("Interactive Learning Challenge", fontSize = 11.sp, color = MutedGray)
+                            }
+                        }
+                        IconButton(
+                            onClick = onClose,
+                            modifier = Modifier.testTag("close_game_button")
+                        ) {
+                            Icon(Icons.Filled.Close, contentDescription = "Close Game")
                         }
                     }
-                    IconButton(
-                        onClick = onClose,
-                        modifier = Modifier.testTag("close_game_button")
-                    ) {
-                        Icon(Icons.Filled.Close, contentDescription = "Close Game")
-                    }
                 }
-            }
 
-            // Dedicated games with real, validated logic
-            when (gameType) {
-                ActiveGameType.WORD_MATCH -> WordMatchGame(viewModel)
-                ActiveGameType.MISSING_LETTERS -> MissingLettersGame(viewModel)
-                ActiveGameType.SENTENCE_BUILDER -> SentenceBuilderGame(viewModel, onClose)
-                ActiveGameType.LISTEN_CHOOSE -> ListenAndChooseGame(viewModel)
-                ActiveGameType.PRONUNCIATION_BATTLE -> PronunciationBattleGame(viewModel, onClose)
-                ActiveGameType.FAST_VOCABULARY -> FastVocabularyGame(viewModel)
-                ActiveGameType.GRAMMAR_CHALLENGE -> GrammarChallengeGame(viewModel)
-                ActiveGameType.PICTURE_VOCAB -> PictureVocabGame(viewModel)
-                ActiveGameType.SPEAK_30_SECONDS -> Speak30SecondsGame(viewModel)
-                ActiveGameType.STORY_BUILDER -> StoryBuilderGame(viewModel)
-                ActiveGameType.CONVERSATION_CHALLENGE -> ConversationChallengeGame(viewModel)
-                ActiveGameType.SPELLING_CHALLENGE -> SpellingBeeGame(viewModel)
+                // Dedicated games with real, validated logic
+                when (gameType) {
+                    ActiveGameType.WORD_MATCH -> WordMatchGame(viewModel)
+                    ActiveGameType.MISSING_LETTERS -> MissingLettersGame(viewModel)
+                    ActiveGameType.SENTENCE_BUILDER -> SentenceBuilderGame(viewModel, onClose)
+                    ActiveGameType.LISTEN_CHOOSE -> ListenAndChooseGame(viewModel)
+                    ActiveGameType.PRONUNCIATION_BATTLE -> PronunciationBattleGame(viewModel, onClose)
+                    ActiveGameType.FAST_VOCABULARY -> FastVocabularyGame(viewModel)
+                    ActiveGameType.GRAMMAR_CHALLENGE -> GrammarChallengeGame(viewModel, onClose)
+                    ActiveGameType.PICTURE_VOCAB -> PictureVocabGame(viewModel)
+                    ActiveGameType.SPEAK_30_SECONDS -> Speak30SecondsGame(viewModel)
+                    ActiveGameType.STORY_BUILDER -> StoryBuilderGame(viewModel)
+                    ActiveGameType.CONVERSATION_CHALLENGE -> ConversationChallengeGame(viewModel)
+                    ActiveGameType.SPELLING_CHALLENGE -> SpellingBeeGame(viewModel)
+                }
             }
         }
     }
@@ -3651,141 +3666,1208 @@ fun FastVocabularyGame(viewModel: MainViewModel) {
 }
 
 // =========================================================================
-// 7. GRAMMAR CHALLENGE GAME - High contrast with explanation breakdown
+// 7. GRAMMAR CHALLENGE GAME - Cosmic Challenge Selection + Pack Quiz
 // =========================================================================
+private data class GrammarChallengeCardStyle(
+    val gradientColors: List<Color>,
+    val borderColor: Color,
+    val iconBoxColor: Color,
+    val buttonGradient: List<Color>,
+    val buttonBorderColor: Color,
+    val themeKey: String
+)
+
+private fun resolveGrammarCardStyle(pack: GrammarChallengePack, index: Int): GrammarChallengeCardStyle {
+    return when (pack.themeStyle.lowercase().trim()) {
+        "tenses" -> GrammarChallengeCardStyle(
+            gradientColors = listOf(Color(0xFF1E88F5), Color(0xFF064DA8)),
+            borderColor = Color(0xFF60A5FA),
+            iconBoxColor = Color(0xFF0A397A),
+            buttonGradient = listOf(Color(0xFF38BDF8), Color(0xFF0284C7)),
+            buttonBorderColor = Color(0xFFBAE6FD),
+            themeKey = "tenses"
+        )
+        "narration" -> GrammarChallengeCardStyle(
+            gradientColors = listOf(Color(0xFF9B3DF5), Color(0xFF5B16B8)),
+            borderColor = Color(0xFFD8B4FE),
+            iconBoxColor = Color(0xFF3E0F7D),
+            buttonGradient = listOf(Color(0xFFC084FC), Color(0xFF7E22CE)),
+            buttonBorderColor = Color(0xFFF3E8FF),
+            themeKey = "narration"
+        )
+        "determiners" -> GrammarChallengeCardStyle(
+            gradientColors = listOf(Color(0xFF14C469), Color(0xFF047842)),
+            borderColor = Color(0xFF6EE7B7),
+            iconBoxColor = Color(0xFF04512D),
+            buttonGradient = listOf(Color(0xFF4ADE80), Color(0xFF15803D)),
+            buttonBorderColor = Color(0xFFDCFCE7),
+            themeKey = "determiners"
+        )
+        "prepositions" -> GrammarChallengeCardStyle(
+            gradientColors = listOf(Color(0xFFF97316), Color(0xFFC2410C)),
+            borderColor = Color(0xFFFDBA74),
+            iconBoxColor = Color(0xFF7C2D12),
+            buttonGradient = listOf(Color(0xFFFBBF24), Color(0xFFEA580C)),
+            buttonBorderColor = Color(0xFFFEF3C7),
+            themeKey = "prepositions"
+        )
+        else -> when (index % 4) {
+            0 -> GrammarChallengeCardStyle(
+                gradientColors = listOf(Color(0xFF1E88F5), Color(0xFF064DA8)),
+                borderColor = Color(0xFF60A5FA),
+                iconBoxColor = Color(0xFF0A397A),
+                buttonGradient = listOf(Color(0xFF38BDF8), Color(0xFF0284C7)),
+                buttonBorderColor = Color(0xFFBAE6FD),
+                themeKey = "tenses"
+            )
+            1 -> GrammarChallengeCardStyle(
+                gradientColors = listOf(Color(0xFF9B3DF5), Color(0xFF5B16B8)),
+                borderColor = Color(0xFFD8B4FE),
+                iconBoxColor = Color(0xFF3E0F7D),
+                buttonGradient = listOf(Color(0xFFC084FC), Color(0xFF7E22CE)),
+                buttonBorderColor = Color(0xFFF3E8FF),
+                themeKey = "narration"
+            )
+            2 -> GrammarChallengeCardStyle(
+                gradientColors = listOf(Color(0xFF14C469), Color(0xFF047842)),
+                borderColor = Color(0xFF6EE7B7),
+                iconBoxColor = Color(0xFF04512D),
+                buttonGradient = listOf(Color(0xFF4ADE80), Color(0xFF15803D)),
+                buttonBorderColor = Color(0xFFDCFCE7),
+                themeKey = "determiners"
+            )
+            else -> GrammarChallengeCardStyle(
+                gradientColors = listOf(Color(0xFFF97316), Color(0xFFC2410C)),
+                borderColor = Color(0xFFFDBA74),
+                iconBoxColor = Color(0xFF7C2D12),
+                buttonGradient = listOf(Color(0xFFFBBF24), Color(0xFFEA580C)),
+                buttonBorderColor = Color(0xFFFEF3C7),
+                themeKey = "prepositions"
+            )
+        }
+    }
+}
+
 @Composable
-fun GrammarChallengeGame(viewModel: MainViewModel) {
-    val challenges by viewModel.grammarChallenges.collectAsState()
-    var challengeIndex by remember { mutableIntStateOf(0) }
-    val current = challenges.getOrNull(challengeIndex) ?: return
+private fun GrammarThemeBadgeIllustration(themeKey: String, modifier: Modifier = Modifier) {
+    when (themeKey) {
+        "tenses" -> {
+            // Open white book + blue/gold pen illustration
+            Canvas(modifier = modifier) {
+                val w = size.width
+                val h = size.height
 
-    var selectedIndex by remember(current.id) { mutableStateOf<Int?>(null) }
-    var hasAwarded by remember(current.id) { mutableStateOf(false) }
+                // Blue book cover underneath
+                drawRoundRect(
+                    color = Color(0xFF1D4ED8),
+                    topLeft = Offset(w * 0.08f, h * 0.34f),
+                    size = Size(w * 0.78f, h * 0.50f),
+                    cornerRadius = CornerRadius(8f, 8f)
+                )
 
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("⚡ Grammar Master Challenge", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = RoyalBlue)
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFEFF6FF)
-                ) {
-                    Text(
-                        current.category,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = RoyalBlue,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                // Left open white page
+                val leftPage = Path().apply {
+                    moveTo(w * 0.12f, h * 0.30f)
+                    cubicTo(w * 0.25f, h * 0.24f, w * 0.38f, h * 0.26f, w * 0.47f, h * 0.35f)
+                    lineTo(w * 0.47f, h * 0.78f)
+                    cubicTo(w * 0.35f, h * 0.72f, w * 0.22f, h * 0.70f, w * 0.12f, h * 0.76f)
+                    close()
+                }
+                drawPath(leftPage, Color(0xFFF8FAFC))
+
+                // Right open white page
+                val rightPage = Path().apply {
+                    moveTo(w * 0.47f, h * 0.35f)
+                    cubicTo(w * 0.56f, h * 0.26f, w * 0.70f, h * 0.24f, w * 0.82f, h * 0.30f)
+                    lineTo(w * 0.82f, h * 0.76f)
+                    cubicTo(w * 0.70f, h * 0.70f, w * 0.58f, h * 0.72f, w * 0.47f, h * 0.78f)
+                    close()
+                }
+                drawPath(rightPage, Color(0xFFE2E8F0))
+
+                // Subtle page text lines on left page
+                listOf(0.42f, 0.52f, 0.62f).forEach { yFrac ->
+                    drawLine(
+                        color = Color(0xFF93C5FD),
+                        start = Offset(w * 0.18f, h * yFrac),
+                        end = Offset(w * 0.40f, h * yFrac),
+                        strokeWidth = 2.5f,
+                        cap = StrokeCap.Round
                     )
                 }
-            }
 
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = current.question,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(14.dp)
+                // Fountain / ballpoint pen angled on the right page
+                drawLine(
+                    color = Color(0xFF2563EB),
+                    start = Offset(w * 0.88f, h * 0.12f),
+                    end = Offset(w * 0.60f, h * 0.56f),
+                    strokeWidth = 8.5f,
+                    cap = StrokeCap.Round
+                )
+                drawLine(
+                    color = Color(0xFF93C5FD),
+                    start = Offset(w * 0.86f, h * 0.15f),
+                    end = Offset(w * 0.65f, h * 0.48f),
+                    strokeWidth = 2.5f,
+                    cap = StrokeCap.Round
+                )
+                drawLine(
+                    color = Color(0xFFFACC15),
+                    start = Offset(w * 0.60f, h * 0.56f),
+                    end = Offset(w * 0.53f, h * 0.67f),
+                    strokeWidth = 4.5f,
+                    cap = StrokeCap.Round
                 )
             }
-
-            current.options.forEachIndexed { idx, opt ->
-                val isSelected = selectedIndex == idx
-                val isCorrect = idx == current.correctIndex
-                val hasGuessed = selectedIndex != null
-
+        }
+        "narration" -> {
+            // Dual quotation speech bubbles (blue "" + pink ,)
+            Box(modifier = modifier, contentAlignment = Alignment.Center) {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = when {
-                        hasGuessed && isCorrect -> Color(0xFFDCFCE7)
-                        isSelected && !isCorrect -> Color(0xFFFEE2E2)
-                        else -> MaterialTheme.colorScheme.surfaceVariant
-                    },
-                    border = BorderStroke(
-                        1.dp,
-                        when {
-                            hasGuessed && isCorrect -> EmeraldSuccess
-                            isSelected && !isCorrect -> CoralAccent
-                            else -> Color.Transparent
-                        }
-                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFF38BDF8),
+                    border = BorderStroke(1.2.dp, Color(0xFFBAE6FD)),
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = selectedIndex == null) {
-                            selectedIndex = idx
-                            if (isCorrect && !hasAwarded) {
-                                hasAwarded = true
-                                viewModel.rewardGameWin(50, 15)
-                            }
-                        }
+                        .size(width = 34.dp, height = 26.dp)
+                        .offset(x = (-10).dp, y = (-8).dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = opt,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                            color = when {
-                                hasGuessed && isCorrect -> Color(0xFF166534)
-                                isSelected && !isCorrect -> Color(0xFF991B1B)
-                                else -> MaterialTheme.colorScheme.onSurface
-                            },
-                            modifier = Modifier.weight(1f)
+                            text = "““",
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 15.sp
                         )
-                        if (hasGuessed && isCorrect) {
-                            Text("✓ Correct", color = Color(0xFF166534), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        } else if (isSelected && !isCorrect) {
-                            Text("✗", color = CoralAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        }
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFEC4899),
+                    border = BorderStroke(1.2.dp, Color(0xFFFBCFE8)),
+                    modifier = Modifier
+                        .size(width = 32.dp, height = 24.dp)
+                        .offset(x = 11.dp, y = 9.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "’",
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 16.sp
+                        )
                     }
                 }
             }
-
-            selectedIndex?.let {
-                // High contrast explanation card
+        }
+        "determiners" -> {
+            // Tilted A / An / The blocks
+            Box(modifier = modifier, contentAlignment = Alignment.Center) {
                 Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFF0F1E42),
-                    border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
-                    modifier = Modifier.fillMaxWidth()
+                    shape = RoundedCornerShape(7.dp),
+                    color = Color(0xFFEC4899),
+                    border = BorderStroke(1.dp, Color(0xFFFBCFE8)),
+                    modifier = Modifier
+                        .size(24.dp)
+                        .offset(x = (-2).dp, y = (-12).dp)
+                        .rotate(-8f)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("📖 Grammar Explanation:", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, color = Color(0xFF60A5FA))
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("A", color = Color.White, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(7.dp),
+                    color = Color(0xFFF59E0B),
+                    border = BorderStroke(1.dp, Color(0xFFFEF08A)),
+                    modifier = Modifier
+                        .size(width = 28.dp, height = 24.dp)
+                        .offset(x = (-14).dp, y = 8.dp)
+                        .rotate(8f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("An", color = Color.White, fontWeight = FontWeight.Black, fontSize = 11.sp)
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(7.dp),
+                    color = Color(0xFF2563EB),
+                    border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                    modifier = Modifier
+                        .size(width = 30.dp, height = 24.dp)
+                        .offset(x = 13.dp, y = 10.dp)
+                        .rotate(-6f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("The", color = Color.White, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                    }
+                }
+            }
+        }
+        else -> {
+            // Interlocking cyan + yellow puzzle pieces
+            Canvas(modifier = modifier) {
+                val w = size.width
+                val h = size.height
+
+                // Left cyan piece
+                drawRoundRect(
+                    color = Color(0xFF0EA5E9),
+                    topLeft = Offset(w * 0.10f, h * 0.28f),
+                    size = Size(w * 0.36f, h * 0.44f),
+                    cornerRadius = CornerRadius(10f, 10f)
+                )
+                drawCircle(
+                    color = Color(0xFF0EA5E9),
+                    radius = w * 0.09f,
+                    center = Offset(w * 0.28f, h * 0.24f)
+                )
+                drawCircle(
+                    color = Color(0xFF0EA5E9),
+                    radius = w * 0.09f,
+                    center = Offset(w * 0.48f, h * 0.50f)
+                )
+
+                // Right golden yellow piece
+                drawRoundRect(
+                    color = Color(0xFFFACC15),
+                    topLeft = Offset(w * 0.52f, h * 0.32f),
+                    size = Size(w * 0.36f, h * 0.44f),
+                    cornerRadius = CornerRadius(10f, 10f)
+                )
+                drawCircle(
+                    color = Color(0xFFFACC15),
+                    radius = w * 0.09f,
+                    center = Offset(w * 0.70f, h * 0.28f)
+                )
+                drawCircle(
+                    color = Color(0xFFFDE047),
+                    radius = w * 0.08f,
+                    center = Offset(w * 0.90f, h * 0.54f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GrammarGrowthChartIcon(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // Three rising golden bars
+        drawRoundRect(
+            color = Color(0xFFF59E0B),
+            topLeft = Offset(w * 0.14f, h * 0.64f),
+            size = Size(w * 0.16f, h * 0.24f),
+            cornerRadius = CornerRadius(4f, 4f)
+        )
+        drawRoundRect(
+            color = Color(0xFFFBBF24),
+            topLeft = Offset(w * 0.39f, h * 0.48f),
+            size = Size(w * 0.16f, h * 0.40f),
+            cornerRadius = CornerRadius(4f, 4f)
+        )
+        drawRoundRect(
+            color = Color(0xFFFDE047),
+            topLeft = Offset(w * 0.64f, h * 0.32f),
+            size = Size(w * 0.16f, h * 0.56f),
+            cornerRadius = CornerRadius(4f, 4f)
+        )
+
+        // Upward curved arrow
+        val arrowShaft = Path().apply {
+            moveTo(w * 0.10f, h * 0.54f)
+            quadraticTo(w * 0.48f, h * 0.42f, w * 0.84f, h * 0.14f)
+        }
+        drawPath(
+            path = arrowShaft,
+            color = Color(0xFFFEF08A),
+            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        val arrowHead = Path().apply {
+            moveTo(w * 0.68f, h * 0.13f)
+            lineTo(w * 0.87f, h * 0.12f)
+            lineTo(w * 0.84f, h * 0.30f)
+        }
+        drawPath(
+            path = arrowHead,
+            color = Color(0xFFFEF08A),
+            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+    }
+}
+
+@Composable
+fun GrammarChallengeGame(
+    viewModel: MainViewModel,
+    onClose: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val packs by viewModel.grammarChallengePacks.collectAsState()
+    val allQuestions by viewModel.grammarChallenges.collectAsState()
+    val studentProfile by viewModel.studentProfile.collectAsState()
+
+    var activePlayingPackId by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(packs) {
+        if (activePlayingPackId != null && packs.none { it.id == activePlayingPackId }) {
+            activePlayingPackId = null
+        }
+    }
+
+    BackHandler {
+        if (activePlayingPackId != null) {
+            activePlayingPackId = null
+        } else {
+            onClose()
+        }
+    }
+
+    val activePack = remember(packs, activePlayingPackId) {
+        packs.firstOrNull { it.id == activePlayingPackId }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xFF0E0429),
+                        Color(0xFF1A0948),
+                        Color(0xFF130638),
+                        Color(0xFF09021C)
+                    )
+                )
+            )
+    ) {
+        ArcadeBackgroundWaves()
+
+        if (activePack == null) {
+            // =========================================================
+            // PAGE 1: GRAMMAR CHALLENGE SELECTION SCREEN (Matches Reference)
+            // =========================================================
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Top Bar: Back Button, Golden Puzzle + Title, XP Pill
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = Color(0xFF28175A),
+                            border = BorderStroke(1.3.dp, Color(0xFF8B5CF6).copy(alpha = 0.75f)),
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clickable { onClose() }
+                                .testTag("gc_back_button")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                    contentDescription = "Back to Games Hub",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Extension,
+                                contentDescription = null,
+                                tint = Color(0xFFFACC15),
+                                modifier = Modifier.size(25.dp)
+                            )
+                            Text(
+                                text = "Grammar Challenge",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 18.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    // XP Pill
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFF1D1047),
+                        border = BorderStroke(1.2.dp, Color(0xFF8B5CF6).copy(alpha = 0.7f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Text("⭐", fontSize = 13.sp)
+                            Text(
+                                text = "${studentProfile.xpPoints} XP",
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+
+                // Hero Banner with Owl & Book Artwork + Purple Ribbon + Choose a Challenge Pill
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.img_grammar_challenge_hero),
+                        contentDescription = "Grammar Challenge Cosmic Owl Banner",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(170.dp)
+                    )
+                    // Soft cosmic edge blending gradient
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(170.dp)
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color(0xFF0E0429).copy(alpha = 0.20f),
+                                        Color.Transparent,
+                                        Color(0xFF17073E).copy(alpha = 0.85f)
+                                    )
+                                )
+                            )
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Purple Ribbon Banner
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            Color(0xFF8B5CF6),
+                                            Color(0xFFC026D3),
+                                            Color(0xFF7E22CE)
+                                        )
+                                    )
+                                )
+                                .border(1.5.dp, Color(0xFFF5D0FE).copy(alpha = 0.75f), RoundedCornerShape(20.dp))
+                                .padding(horizontal = 24.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Grammar Challenge",
+                                color = Color.White,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 20.sp
+                            )
+                        }
+
+                        // Overlapping Bright Yellow Pill
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFFFACC15),
+                            border = BorderStroke(1.5.dp, Color(0xFFFEF08A)),
+                            modifier = Modifier
+                                .offset(y = (-6).dp)
+                                .testTag("gc_choose_challenge_badge")
+                        ) {
+                            Text(
+                                text = "Choose a Challenge",
+                                color = Color(0xFF1E0E3B),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.5.sp,
+                                modifier = Modifier.padding(horizontal = 18.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Subtitle with flanking horizontal lines
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(1.dp)
+                            .background(Color(0xFF7C3AED).copy(alpha = 0.6f))
+                    )
+                    Text(
+                        text = "Test your grammar skills with fun quizzes!",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFF1F5F9),
+                        textAlign = TextAlign.Center
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(1.dp)
+                            .background(Color(0xFF7C3AED).copy(alpha = 0.6f))
+                    )
+                }
+
+                // Challenge Cards List
+                if (packs.isEmpty()) {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A103D)),
+                        border = BorderStroke(1.dp, Color(0xFF6366F1).copy(alpha = 0.45f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("⚡", fontSize = 36.sp)
+                            Text(
+                                "No Grammar Challenges Created Yet",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                "Teachers can add challenges and questions from the Teacher Panel.",
+                                fontSize = 12.sp,
+                                color = Color(0xFFCBD5E1),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("gc_challenge_packs_list")
+                    ) {
+                        packs.forEachIndexed { index, pack ->
+                            val questionCount = allQuestions.count { it.packId == pack.id }
+                            val style = resolveGrammarCardStyle(pack, index)
+
+                            Surface(
+                                shape = RoundedCornerShape(22.dp),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.6.dp, style.borderColor.copy(alpha = 0.9f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(22.dp))
+                                    .clickable { activePlayingPackId = pack.id }
+                                    .testTag("gc_pack_card_${pack.id}")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Brush.horizontalGradient(style.gradientColors))
+                                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(11.dp)
+                                ) {
+                                    // Left Illustrated Theme Icon Box
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = style.iconBoxColor.copy(alpha = 0.72f),
+                                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
+                                        modifier = Modifier.size(width = 72.dp, height = 66.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            GrammarThemeBadgeIllustration(
+                                                themeKey = style.themeKey,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    }
+
+                                    // Center Title, Description & Stats Capsule
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = pack.title,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 16.sp,
+                                            color = Color.White,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = pack.description,
+                                            fontSize = 11.5.sp,
+                                            color = Color.White.copy(alpha = 0.92f),
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            lineHeight = 15.sp
+                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = Color(0xFF0A0F28).copy(alpha = 0.42f),
+                                            border = BorderStroke(0.8.dp, Color.White.copy(alpha = 0.22f)),
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "🎯 $questionCount ${if (questionCount == 1) "Question" else "Questions"}",
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White,
+                                                    maxLines = 1
+                                                )
+                                                Text(
+                                                    text = "|",
+                                                    fontSize = 10.sp,
+                                                    color = Color.White.copy(alpha = 0.45f)
+                                                )
+                                                Text(
+                                                    text = "⚡ +${pack.xpReward} XP",
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = Color(0xFFFDE047),
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // Right Glossy Start Button
+                                    Surface(
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = Color.Transparent,
+                                        border = BorderStroke(1.2.dp, style.buttonBorderColor.copy(alpha = 0.85f)),
+                                        modifier = Modifier
+                                            .defaultMinSize(minHeight = 48.dp)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .clickable { activePlayingPackId = pack.id }
+                                            .testTag("gc_start_btn_${pack.id}")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .background(Brush.verticalGradient(style.buttonGradient))
+                                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.PlayArrow,
+                                                contentDescription = "Start ${pack.title}",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Text(
+                                                text = "Start",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 13.5.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Bottom Motivational Capsule Footer
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = Color.Transparent,
+                    border = BorderStroke(1.3.dp, Color(0xFF7C3AED).copy(alpha = 0.85f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        Color(0xFF1D0D4A),
+                                        Color(0xFF2B1266),
+                                        Color(0xFF1D0D4A)
+                                    )
+                                )
+                            )
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.EmojiEvents,
+                            contentDescription = "Grammar Expert Trophy",
+                            tint = Color(0xFFFACC15),
+                            modifier = Modifier.size(34.dp)
+                        )
                         Text(
-                            text = current.explanation,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White
+                            text = "Complete challenges, earn XP\nand become a Grammar Expert!",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 16.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        GrammarGrowthChartIcon(
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                }
+            }
+        } else {
+            // =========================================================
+            // PAGE 2: PLAYING QUESTIONS INSIDE SELECTED GRAMMAR CHALLENGE
+            // =========================================================
+            val packQuestions = remember(allQuestions, activePack.id) {
+                allQuestions.filter { it.packId == activePack.id }
+            }
+            var challengeIndex by remember(activePack.id) { mutableIntStateOf(0) }
+            var correctCount by remember(activePack.id) { mutableIntStateOf(0) }
+            var answeredCount by remember(activePack.id) { mutableIntStateOf(0) }
+            var isChallengeCompleted by remember(activePack.id) { mutableStateOf(false) }
+
+            val safeIndex = if (packQuestions.isNotEmpty()) challengeIndex.coerceIn(0, packQuestions.lastIndex) else 0
+            val current = packQuestions.getOrNull(safeIndex)
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Header with Back to Challenges
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF28175A),
+                        border = BorderStroke(1.dp, Color(0xFF7C3AED).copy(alpha = 0.7f)),
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 48.dp)
+                            .clickable { activePlayingPackId = null }
+                            .testTag("gc_back_to_challenges_btn")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back to Challenges",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Challenges",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 8.dp)
+                    ) {
+                        Text(
+                            text = activePack.title,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "${packQuestions.size} ${if (packQuestions.size == 1) "Question" else "Questions"} • ${activePack.themeStyle}",
+                            fontSize = 11.sp,
+                            color = Color(0xFFCBD5E1)
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF1F1147),
+                        border = BorderStroke(1.dp, Color(0xFFFACC15).copy(alpha = 0.55f))
+                    ) {
+                        Text(
+                            text = "⚡ +${activePack.xpReward} XP",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFFFDE047),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
                 }
 
-                Button(
-                    onClick = {
-                        challengeIndex = (challengeIndex + 1) % challenges.size
-                        selectedIndex = null
-                        hasAwarded = false
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
-                ) {
-                    Text("Next Grammar Question ➡️")
+                if (current == null) {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text("⚡ No Questions in This Challenge", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text(
+                                "Ask your teacher to add questions to '${activePack.title}', or select another challenge.",
+                                fontSize = 12.sp,
+                                color = MutedGray,
+                                textAlign = TextAlign.Center
+                            )
+                            Button(
+                                onClick = { activePlayingPackId = null },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                            ) {
+                                Text("Choose Another Challenge")
+                            }
+                        }
+                    }
+                } else if (isChallengeCompleted) {
+                    val accuracy = if (packQuestions.isNotEmpty()) {
+                        (correctCount * 100) / packQuestions.size
+                    } else 0
+                    Card(
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A103D)),
+                        border = BorderStroke(1.5.dp, Color(0xFFFACC15).copy(alpha = 0.7f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("gc_challenge_completed_card")
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text("🏆", fontSize = 48.sp)
+                            Text(
+                                text = "${activePack.title} Completed!",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 20.sp,
+                                color = Color(0xFFFDE047),
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "You answered $correctCount out of ${packQuestions.size} correctly ($accuracy% accuracy).",
+                                fontSize = 13.5.sp,
+                                color = Color.White,
+                                textAlign = TextAlign.Center
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF28175A),
+                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f))
+                            ) {
+                                Text(
+                                    text = "⚡ Bonus Reward: +${activePack.xpReward} XP",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF6EE7B7),
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                )
+                            }
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        challengeIndex = 0
+                                        correctCount = 0
+                                        answeredCount = 0
+                                        isChallengeCompleted = false
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.2.dp, Color(0xFF8B5CF6)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .defaultMinSize(minHeight = 48.dp)
+                                ) {
+                                    Text("Play Again", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                                Button(
+                                    onClick = { activePlayingPackId = null },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .defaultMinSize(minHeight = 48.dp)
+                                ) {
+                                    Text("Other Challenges", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    var selectedIndex by remember(activePack.id, current.id) { mutableStateOf<Int?>(null) }
+                    var hasAwarded by remember(activePack.id, current.id) { mutableStateOf(false) }
+
+                    val progress = (safeIndex + 1).toFloat() / packQuestions.size.coerceAtLeast(1).toFloat()
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        color = Color(0xFFFACC15),
+                        trackColor = Color(0xFF28175A),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                    )
+
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("gc_question_card")
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Question ${safeIndex + 1} of ${packQuestions.size}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = RoyalBlue
+                                    )
+                                    if (current.createdBy.isNotBlank() && current.createdBy != "System") {
+                                        Text(
+                                            text = "By ${current.createdBy}",
+                                            fontSize = 10.5.sp,
+                                            color = CoralAccent,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFEFF6FF)
+                                ) {
+                                    Text(
+                                        text = current.category,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = RoyalBlue,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = current.question,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(16.dp)
+                                )
+                            }
+
+                            val optionLetters = listOf("A", "B", "C", "D", "E")
+                            current.options.forEachIndexed { idx, opt ->
+                                val isSelected = selectedIndex == idx
+                                val isCorrect = idx == current.correctIndex
+                                val hasGuessed = selectedIndex != null
+
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = when {
+                                        hasGuessed && isCorrect -> Color(0xFFDCFCE7)
+                                        isSelected && !isCorrect -> Color(0xFFFEE2E2)
+                                        else -> MaterialTheme.colorScheme.surfaceVariant
+                                    },
+                                    border = BorderStroke(
+                                        1.2.dp,
+                                        when {
+                                            hasGuessed && isCorrect -> EmeraldSuccess
+                                            isSelected && !isCorrect -> CoralAccent
+                                            else -> Color.Transparent
+                                        }
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .defaultMinSize(minHeight = 48.dp)
+                                        .clickable(enabled = selectedIndex == null) {
+                                            selectedIndex = idx
+                                            answeredCount++
+                                            if (isCorrect) {
+                                                correctCount++
+                                                if (!hasAwarded) {
+                                                    hasAwarded = true
+                                                    viewModel.rewardGameWin(15, 5)
+                                                }
+                                            }
+                                        }
+                                        .testTag("gc_option_$idx")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = when {
+                                                hasGuessed && isCorrect -> EmeraldSuccess
+                                                isSelected && !isCorrect -> CoralAccent
+                                                else -> RoyalBlue.copy(alpha = 0.18f)
+                                            },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    text = optionLetters.getOrElse(idx) { "${idx + 1}" },
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 12.sp,
+                                                    color = when {
+                                                        hasGuessed && (isCorrect || isSelected) -> Color.White
+                                                        else -> RoyalBlue
+                                                    }
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = opt,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp,
+                                            color = when {
+                                                hasGuessed && isCorrect -> Color(0xFF166534)
+                                                isSelected && !isCorrect -> Color(0xFF991B1B)
+                                                else -> MaterialTheme.colorScheme.onSurface
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (hasGuessed && isCorrect) {
+                                            Text("✓ Correct", color = Color(0xFF166534), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        } else if (isSelected && !isCorrect) {
+                                            Text("✗", color = CoralAccent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        }
+                                    }
+                                }
+                            }
+
+                            selectedIndex?.let {
+                                // High contrast explanation card
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = Color(0xFF0F1E42),
+                                    border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "📖 Grammar Explanation:",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF60A5FA)
+                                        )
+                                        Text(
+                                            text = current.explanation,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+
+                                val isLastQuestion = safeIndex >= packQuestions.lastIndex
+                                Button(
+                                    onClick = {
+                                        if (isLastQuestion) {
+                                            viewModel.rewardGameWin(activePack.xpReward, 20)
+                                            isChallengeCompleted = true
+                                        } else {
+                                            challengeIndex = safeIndex + 1
+                                            selectedIndex = null
+                                            hasAwarded = false
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .defaultMinSize(minHeight = 48.dp)
+                                        .testTag("gc_next_question_btn"),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isLastQuestion) EmeraldSuccess else RoyalBlue
+                                    )
+                                ) {
+                                    Text(
+                                        text = if (isLastQuestion) "Finish Challenge 🏆" else "Next Grammar Question ➡️",
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

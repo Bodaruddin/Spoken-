@@ -218,5 +218,47 @@ class ExampleRobolectricTest {
     assertTrue(adminRes is MainViewModel.UnifiedLoginResult.Success)
     assertEquals(Role.ADMIN, (adminRes as MainViewModel.UnifiedLoginResult.Success).role)
   }
+
+  @Test
+  fun `grammar challenge packs and scoped questions persist across preferences`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val prefs = AppPreferences(app)
+    val vm = MainViewModel(app)
+
+    val newPack = vm.addGrammarChallengePack(
+      title = "Conditionals Challenge",
+      description = "Master Zero, First, and Second Conditionals.",
+      themeStyle = "Tenses",
+      xpReward = 55,
+      createdBy = "Prof. Eleanor Vance"
+    )
+    vm.addGrammarChallenge(
+      question = "If it rains tomorrow, we ___ at home.",
+      options = listOf("stay", "will stay", "stayed", "staying"),
+      correctIndex = 1,
+      explanation = "First conditional uses 'will + base verb' in the result clause.",
+      category = newPack.themeStyle,
+      createdBy = "Prof. Eleanor Vance",
+      packId = newPack.id
+    )
+    vm.addGrammarChallenge(
+      question = "If I ___ rich, I would travel the world.",
+      options = listOf("am", "was", "were", "will be"),
+      correctIndex = 2,
+      explanation = "Second conditional uses 'were' for hypothetical states.",
+      category = newPack.themeStyle,
+      createdBy = "Prof. Eleanor Vance",
+      packId = newPack.id
+    )
+
+    val savedPacks = prefs.getGrammarChallengePacks()
+    assertNotNull(savedPacks)
+    assertTrue(savedPacks!!.any { it.id == newPack.id && it.title == "Conditionals Challenge" && it.xpReward == 55 })
+
+    val savedQuestions = prefs.getGrammarChallenges()
+    assertNotNull(savedQuestions)
+    val packQuestions = savedQuestions!!.filter { it.packId == newPack.id }
+    assertEquals(2, packQuestions.size)
+  }
 }
 

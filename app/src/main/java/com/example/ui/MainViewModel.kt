@@ -333,6 +333,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val listenChooseChallenges = repository.listenChooseChallenges
     val pronunciationBattleChallenges = repository.pronunciationBattleChallenges
     val fastVocabularyChallenges = repository.fastVocabularyChallenges
+    val grammarChallengePacks = repository.grammarChallengePacks
     val grammarChallenges = repository.grammarChallenges
     val pictureVocabChallenges = repository.pictureVocabChallenges
 
@@ -773,8 +774,71 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addGrammarChallenge(question: String, options: List<String>, correctIndex: Int, explanation: String, category: String, createdBy: String) {
-        val created = repository.addGrammarChallenge(question, options, correctIndex, explanation, category, createdBy)
+    fun addGrammarChallengePack(
+        title: String,
+        description: String,
+        themeStyle: String = "Tenses",
+        xpReward: Int = 40,
+        createdBy: String
+    ): GrammarChallengePack {
+        val created = repository.addGrammarChallengePack(title, description, themeStyle, xpReward, createdBy)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = created.id,
+                    type = "GRAMMAR_CHALLENGE_PACK",
+                    titleOrWord = created.title,
+                    hintOrMeaning = created.description,
+                    category = created.themeStyle,
+                    correctIndex = created.xpReward,
+                    createdBy = created.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
+        return created
+    }
+
+    fun updateGrammarChallengePack(updated: GrammarChallengePack) {
+        repository.updateGrammarChallengePack(updated)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                val challenge = com.example.data.model.SupabaseGameChallenge(
+                    id = updated.id,
+                    type = "GRAMMAR_CHALLENGE_PACK",
+                    titleOrWord = updated.title,
+                    hintOrMeaning = updated.description,
+                    category = updated.themeStyle,
+                    correctIndex = updated.xpReward,
+                    createdBy = updated.createdBy
+                )
+                supabaseService.saveGameChallenge(challenge)
+            }
+        }
+    }
+
+    fun deleteGrammarChallengePack(packId: String) {
+        val removedQuestionIds = repository.deleteGrammarChallengePack(packId)
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                supabaseService.deleteGameChallenge(packId)
+                removedQuestionIds.forEach { qId ->
+                    supabaseService.deleteGameChallenge(qId)
+                }
+            }
+        }
+    }
+
+    fun addGrammarChallenge(
+        question: String,
+        options: List<String>,
+        correctIndex: Int,
+        explanation: String,
+        category: String,
+        createdBy: String,
+        packId: String = "gc_pack_tenses"
+    ) {
+        val created = repository.addGrammarChallenge(question, options, correctIndex, explanation, category, createdBy, packId)
         if (supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
                 val challenge = com.example.data.model.SupabaseGameChallenge(
@@ -785,6 +849,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     category = created.category,
                     options = created.options,
                     correctIndex = created.correctIndex,
+                    extraData = created.packId,
                     createdBy = created.createdBy
                 )
                 supabaseService.saveGameChallenge(challenge)
@@ -913,6 +978,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     category = updated.category,
                     options = updated.options,
                     correctIndex = updated.correctIndex,
+                    extraData = updated.packId,
                     createdBy = updated.createdBy
                 )
                 supabaseService.saveGameChallenge(challenge)
