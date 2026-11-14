@@ -144,6 +144,7 @@ data class NovaChatMessage(
     val evaluation: SpeakingEvaluation? = null,
     val hint: String? = null,
     val exampleAnswers: List<String> = emptyList(),
+    val attachmentLabel: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
 

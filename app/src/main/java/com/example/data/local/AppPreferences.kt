@@ -1837,6 +1837,7 @@ class AppPreferences(context: Context) {
                     put("isQuestion", msg.isQuestion)
                     put("questionNumber", msg.questionNumber)
                     put("hint", msg.hint ?: "")
+                    put("attachmentLabel", msg.attachmentLabel ?: "")
                     put("timestamp", msg.timestamp)
                     val examplesArr = JSONArray()
                     msg.exampleAnswers.forEach { examplesArr.put(it) }
@@ -1881,6 +1882,7 @@ class AppPreferences(context: Context) {
                 val isQuestion = obj.optBoolean("isQuestion", false)
                 val questionNumber = obj.optInt("questionNumber", 1)
                 val hint = obj.optString("hint", "").ifBlank { null }
+                val attachmentLabel = obj.optString("attachmentLabel", "").ifBlank { null }
                 val timestamp = obj.optLong("timestamp", System.currentTimeMillis())
                 val examples = mutableListOf<String>()
                 val examplesArr = obj.optJSONArray("exampleAnswers")
@@ -1919,6 +1921,7 @@ class AppPreferences(context: Context) {
                         evaluation = evaluation,
                         hint = hint,
                         exampleAnswers = examples,
+                        attachmentLabel = attachmentLabel,
                         timestamp = timestamp
                     )
                 )

@@ -1289,6 +1289,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _novaGeminiModelUsed = MutableStateFlow("")
     val novaGeminiModelUsed: StateFlow<String> = _novaGeminiModelUsed.asStateFlow()
 
+    private val _pendingNovaAttachments = MutableStateFlow<List<com.example.util.NovaAttachment>>(emptyList())
+    val pendingNovaAttachments: StateFlow<List<com.example.util.NovaAttachment>> = _pendingNovaAttachments.asStateFlow()
+
+    private val _novaAttachmentThumbnails = MutableStateFlow<Map<String, android.graphics.Bitmap>>(emptyMap())
+    val novaAttachmentThumbnails: StateFlow<Map<String, android.graphics.Bitmap>> = _novaAttachmentThumbnails.asStateFlow()
+
     // Celebration modal state
     private val _celebrationReward = MutableStateFlow<Pair<Int, Int>?>(null) // XP, Coins
     val celebrationReward: StateFlow<Pair<Int, Int>?> = _celebrationReward.asStateFlow()
@@ -2187,18 +2193,48 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _novaGeminiMode.value = mode
     }
 
-    fun sendNovaGeminiMessage(promptText: String) {
-        val cleanPrompt = promptText.trim()
-        if (cleanPrompt.isBlank() || _isNovaGeminiThinking.value) return
+    fun addNovaAttachment(attachment: com.example.util.NovaAttachment) {
+        val current = _pendingNovaAttachments.value
+        if (current.size >= 4) {
+            _pendingNovaAttachments.value = current.drop(1) + attachment
+        } else {
+            _pendingNovaAttachments.value = current + attachment
+        }
+    }
 
+    fun removeNovaAttachment(attachmentId: String) {
+        _pendingNovaAttachments.value = _pendingNovaAttachments.value.filterNot { it.id == attachmentId }
+    }
+
+    fun clearPendingNovaAttachments() {
+        _pendingNovaAttachments.value = emptyList()
+    }
+
+    fun sendNovaGeminiMessage(promptText: String) {
+        val attachmentsToSend = _pendingNovaAttachments.value
+        val cleanPrompt = promptText.trim().ifBlank {
+            if (attachmentsToSend.isNotEmpty()) "Please analyze this attachment and help me understand it." else ""
+        }
+        if ((cleanPrompt.isBlank() && attachmentsToSend.isEmpty()) || _isNovaGeminiThinking.value) return
+
+        _pendingNovaAttachments.value = emptyList()
         val studentId = currentUser.value.id.ifBlank { "default_student" }
         val priorHistory = _novaGeminiMessages.value
+        val msgId = "student_gem_${System.currentTimeMillis()}"
+        val attachmentLabel = attachmentsToSend.takeIf { it.isNotEmpty() }?.joinToString(" • ") { att ->
+            if (att.isImage) "📷 ${att.displayName}" else "📎 ${att.displayName}"
+        }
+        attachmentsToSend.firstOrNull { it.previewBitmap != null }?.previewBitmap?.let { bmp ->
+            _novaAttachmentThumbnails.value = _novaAttachmentThumbnails.value + (msgId to bmp)
+        }
+
         val userTurn = NovaChatMessage(
-            id = "student_gem_${System.currentTimeMillis()}",
+            id = msgId,
             isNova = false,
             text = cleanPrompt,
             isQuestion = false,
-            questionNumber = priorHistory.size + 1
+            questionNumber = priorHistory.size + 1,
+            attachmentLabel = attachmentLabel
         )
         val updatedWithUser = priorHistory + userTurn
         _novaGeminiMessages.value = updatedWithUser
@@ -2213,7 +2249,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val activeMode = _novaGeminiMode.value
 
             val (replyText, usedModel) = if (isGeminiApiKeyConfigured()) {
-                val aiResult = kotlinx.coroutines.withTimeoutOrNull(22000L) {
+                val aiResult = kotlinx.coroutines.withTimeoutOrNull(25000L) {
                     if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
                         GeminiSpeechEvaluator.askNovaGeminiCustomEndpoint(
                             endpointUrl = _customEndpointUrl.value,
@@ -2221,6 +2257,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             modelName = _customModelName.value,
                             userPrompt = cleanPrompt,
                             chatHistory = priorHistory,
+                            attachments = attachmentsToSend,
                             studentName = studentName,
                             studentClass = studentClass,
                             cefrLevel = cefrLevel,
@@ -2231,6 +2268,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             apiKey = effectiveKey,
                             userPrompt = cleanPrompt,
                             chatHistory = priorHistory,
+                            attachments = attachmentsToSend,
                             studentName = studentName,
                             studentClass = studentClass,
                             cefrLevel = cefrLevel,

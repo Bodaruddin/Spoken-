@@ -659,12 +659,13 @@ object GeminiSpeechEvaluator {
 
     /**
      * General-purpose Gemini-style conversational AI assistant for students ("Nova AI").
-     * Supports multi-turn context, Q&A, grammar correction, writing help, translation, and study guidance.
+     * Supports multi-turn context, multimodal image/PDF inline_data, and extracted document text.
      */
     suspend fun askNovaGemini(
         apiKey: String,
         userPrompt: String,
         chatHistory: List<com.example.data.model.NovaChatMessage> = emptyList(),
+        attachments: List<com.example.util.NovaAttachment> = emptyList(),
         studentName: String = "Student",
         studentClass: String = "",
         cefrLevel: String = "B1",
@@ -672,11 +673,13 @@ object GeminiSpeechEvaluator {
         model: String = DEFAULT_MODEL
     ): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
         val cleanKey = apiKey.trim()
-        val cleanPrompt = userPrompt.trim()
+        val cleanPrompt = userPrompt.trim().ifBlank {
+            if (attachments.isNotEmpty()) "Please inspect the attached content and explain or help me with it." else ""
+        }
         if (cleanKey.isEmpty()) {
             return@withContext Result.failure(IllegalStateException("Gemini API key is not configured."))
         }
-        if (cleanPrompt.isEmpty()) {
+        if (cleanPrompt.isEmpty() && attachments.isEmpty()) {
             return@withContext Result.failure(IllegalArgumentException("Prompt cannot be empty."))
         }
 
@@ -688,6 +691,7 @@ object GeminiSpeechEvaluator {
         }
 
         val systemPrompt = buildNovaGeminiSystemPrompt(studentName, studentClass, cefrLevel, mode)
+        val combinedPromptText = buildAttachmentAugmentedPrompt(cleanPrompt, attachments)
         var lastError: Exception? = null
 
         for (activeModel in modelsToTry) {
@@ -702,7 +706,6 @@ object GeminiSpeechEvaluator {
                     val text = msg.text.trim()
                     if (text.isBlank()) continue
                     if (contents.length() == 0 && role == "model") {
-                        // Gemini requires first turn to be user; skip initial greeting bubble
                         continue
                     }
                     if (role == lastRole && contents.length() > 0) {
@@ -721,17 +724,30 @@ object GeminiSpeechEvaluator {
                     }
                 }
 
+                val currentParts = JSONArray().apply {
+                    attachments.forEach { att ->
+                        if (!att.base64Data.isNullOrBlank()) {
+                            put(JSONObject().apply {
+                                put("inline_data", JSONObject().apply {
+                                    put("mime_type", att.mimeType)
+                                    put("data", att.base64Data)
+                                })
+                            })
+                        }
+                    }
+                    put(JSONObject().apply { put("text", combinedPromptText) })
+                }
+
                 if (lastRole == "user" && contents.length() > 0) {
                     val lastObj = contents.getJSONObject(contents.length() - 1)
-                    val partsArr = lastObj.getJSONArray("parts")
-                    val existingPart = partsArr.getJSONObject(0)
-                    existingPart.put("text", "${existingPart.getString("text")}\n\n$cleanPrompt")
+                    val existingParts = lastObj.getJSONArray("parts")
+                    for (i in 0 until currentParts.length()) {
+                        existingParts.put(currentParts.get(i))
+                    }
                 } else {
                     contents.put(JSONObject().apply {
                         put("role", "user")
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().apply { put("text", cleanPrompt) })
-                        })
+                        put("parts", currentParts)
                     })
                 }
 
@@ -791,7 +807,7 @@ object GeminiSpeechEvaluator {
     }
 
     /**
-     * OpenAI-compatible custom endpoint version of Nova Gemini Assistant.
+     * OpenAI-compatible custom endpoint version of Nova Gemini Assistant with image & text attachments.
      */
     suspend fun askNovaGeminiCustomEndpoint(
         endpointUrl: String,
@@ -799,6 +815,7 @@ object GeminiSpeechEvaluator {
         modelName: String,
         userPrompt: String,
         chatHistory: List<com.example.data.model.NovaChatMessage> = emptyList(),
+        attachments: List<com.example.util.NovaAttachment> = emptyList(),
         studentName: String = "Student",
         studentClass: String = "",
         cefrLevel: String = "B1",
@@ -806,13 +823,15 @@ object GeminiSpeechEvaluator {
     ): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
         val cleanUrl = endpointUrl.trim().removeSuffix("/")
         val cleanKey = apiKey.trim()
-        val cleanPrompt = userPrompt.trim()
+        val cleanPrompt = userPrompt.trim().ifBlank {
+            if (attachments.isNotEmpty()) "Please inspect the attached content and help me with it." else ""
+        }
         val cleanModel = modelName.trim().ifEmpty { "gpt-4o-mini" }
 
         if (cleanUrl.isEmpty() || cleanKey.isEmpty()) {
             return@withContext Result.failure(IllegalStateException("Custom endpoint or API key is not configured."))
         }
-        if (cleanPrompt.isEmpty()) {
+        if (cleanPrompt.isEmpty() && attachments.isEmpty()) {
             return@withContext Result.failure(IllegalArgumentException("Prompt cannot be empty."))
         }
 
@@ -820,6 +839,7 @@ object GeminiSpeechEvaluator {
 
         try {
             val systemPrompt = buildNovaGeminiSystemPrompt(studentName, studentClass, cefrLevel, mode)
+            val combinedPromptText = buildAttachmentAugmentedPrompt(cleanPrompt, attachments)
             val messages = JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "system")
@@ -834,10 +854,32 @@ object GeminiSpeechEvaluator {
                         })
                     }
                 }
-                put(JSONObject().apply {
-                    put("role", "user")
-                    put("content", cleanPrompt)
-                })
+                val imageAttachments = attachments.filter { it.isImage && !it.base64Data.isNullOrBlank() }
+                if (imageAttachments.isNotEmpty()) {
+                    val contentParts = JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("type", "text")
+                            put("text", combinedPromptText)
+                        })
+                        imageAttachments.forEach { img ->
+                            put(JSONObject().apply {
+                                put("type", "image_url")
+                                put("image_url", JSONObject().apply {
+                                    put("url", "data:${img.mimeType};base64,${img.base64Data}")
+                                })
+                            })
+                        }
+                    }
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", contentParts)
+                    })
+                } else {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", combinedPromptText)
+                    })
+                }
             }
 
             val jsonBody = JSONObject().apply {
@@ -883,6 +925,21 @@ object GeminiSpeechEvaluator {
         }
     }
 
+    private fun buildAttachmentAugmentedPrompt(
+        prompt: String,
+        attachments: List<com.example.util.NovaAttachment>
+    ): String {
+        val textDocs = attachments.filter { !it.extractedText.isNullOrBlank() }
+        if (textDocs.isEmpty()) return prompt
+        return buildString {
+            append(prompt)
+            textDocs.forEach { doc ->
+                append("\n\n--- Attached File: ${doc.displayName} ---\n")
+                append(doc.extractedText)
+            }
+        }
+    }
+
     private fun buildNovaGeminiSystemPrompt(
         studentName: String,
         studentClass: String,
@@ -897,6 +954,7 @@ object GeminiSpeechEvaluator {
         append("INSTRUCTIONS:\n")
         append("- Behave like Google Gemini: helpful, accurate, creative, and easy to understand for a student.\n")
         append("- Answer ANY question the student asks — including English grammar, vocabulary, sentence correction, pronunciation tips, essay/letter/speech writing, translations (Assamese, Hindi, Bengali, etc.), exam preparation, science, math, coding, or general knowledge.\n")
+        append("- If the student uploads an image, camera photo, PDF, or document file, carefully read and analyze its contents and help them clearly.\n")
         when (mode) {
             "Grammar Fix" -> append("- Mode focus: Analyze any sentence the student sends, show the corrected version clearly, and briefly explain why.\n")
             "Translator" -> append("- Mode focus: Provide clear, natural translations (especially English <-> Assamese / Hindi / Bengali when requested) along with pronunciation/usage notes.\n")

@@ -5,10 +5,14 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.EaseInOutSine
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -41,6 +45,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -57,6 +63,9 @@ import com.example.data.model.NovaChatMessage
 import com.example.service.SpeechState
 import com.example.ui.MainViewModel
 import com.example.ui.StudentTab
+import com.example.util.NovaAttachment
+import com.example.util.NovaAttachmentHelper
+import kotlinx.coroutines.launch
 
 @Composable
 fun NovaGeminiAssistantScreen(
@@ -64,6 +73,7 @@ fun NovaGeminiAssistantScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val currentUser by viewModel.currentUser.collectAsState()
     val messages by viewModel.novaGeminiMessages.collectAsState()
     val isThinking by viewModel.isNovaGeminiThinking.collectAsState()
@@ -73,40 +83,95 @@ fun NovaGeminiAssistantScreen(
     val voiceReplyEnabled by viewModel.aiVoiceReplyEnabled.collectAsState()
     val speechState by viewModel.speechManager.speechState.collectAsState()
     val isTtsSpeaking by viewModel.ttsManager.isSpeaking.collectAsState()
+    val pendingAttachments by viewModel.pendingNovaAttachments.collectAsState()
+    val messageThumbnails by viewModel.novaAttachmentThumbnails.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
     var activeSpeakingMessageId by remember { mutableStateOf<String?>(null) }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var isProcessingAttachment by remember { mutableStateOf(false) }
+    var showAttachmentOptions by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
-    BackHandler {
-        viewModel.selectStudentTab(StudentTab.HOME)
-    }
+    BackHandler { viewModel.selectStudentTab(StudentTab.HOME) }
 
-    LaunchedEffect(Unit) {
-        viewModel.loadNovaGeminiSession()
-    }
+    LaunchedEffect(Unit) { viewModel.loadNovaGeminiSession() }
 
     LaunchedEffect(messages.size, isThinking) {
         val total = messages.size + if (isThinking) 1 else 0
-        if (total > 0) {
-            listState.animateScrollToItem(total - 1)
-        }
+        if (total > 0) listState.animateScrollToItem(total - 1)
     }
 
     LaunchedEffect(isTtsSpeaking) {
-        if (!isTtsSpeaking) {
-            activeSpeakingMessageId = null
+        if (!isTtsSpeaking) activeSpeakingMessageId = null
+    }
+
+    fun handlePickedUri(uri: Uri, forceImage: Boolean = false, overrideName: String? = null) {
+        coroutineScope.launch {
+            isProcessingAttachment = true
+            val result = NovaAttachmentHelper.loadAttachmentFromUri(
+                context = context,
+                uri = uri,
+                forceImage = forceImage,
+                overrideName = overrideName
+            )
+            isProcessingAttachment = false
+            result.onSuccess { attachment ->
+                viewModel.addNovaAttachment(attachment)
+            }.onFailure { err ->
+                Toast.makeText(context, err.message ?: "Could not attach file", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     val micPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) {
-            viewModel.startSpeakingPractice()
-        } else {
-            Toast.makeText(context, "Microphone permission is needed for voice prompts", Toast.LENGTH_SHORT).show()
+        if (granted) viewModel.startSpeakingPractice()
+        else Toast.makeText(context, "Microphone permission is needed for voice prompts", Toast.LENGTH_SHORT).show()
+    }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) handlePickedUri(uri, forceImage = true)
+    }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) handlePickedUri(uri, forceImage = false)
+    }
+
+    val cameraCaptureLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        val captured = pendingCameraUri
+        pendingCameraUri = null
+        if (success && captured != null) {
+            handlePickedUri(
+                uri = captured,
+                forceImage = true,
+                overrideName = "Camera_${System.currentTimeMillis() % 10000}.jpg"
+            )
         }
+    }
+
+    fun launchCameraCapture() {
+        try {
+            val uri = NovaAttachmentHelper.createCameraImageUri(context)
+            pendingCameraUri = uri
+            cameraCaptureLauncher.launch(uri)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Camera unavailable on this device", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) launchCameraCapture()
+        else Toast.makeText(context, "Camera permission is needed to take a photo", Toast.LENGTH_SHORT).show()
     }
 
     val isListening = speechState is SpeechState.Listening
@@ -125,7 +190,7 @@ fun NovaGeminiAssistantScreen(
             StarterPrompt("✍️ Fix Grammar", "Check and fix this sentence: I goes to school yesterday and meet my friend."),
             StarterPrompt("📖 Learn Tenses", "Explain Present Perfect vs Past Simple with 4 easy everyday examples."),
             StarterPrompt("🔤 Assamese Translate", "Translate 'How are you preparing for your English exam today?' into Assamese and Hindi."),
-            StarterPrompt("🎤 Self Introduction", "Write a confident 6-sentence self-introduction for a college student.")
+            StarterPrompt("📷 Scan Notes / Photo", "Tap Camera or Image below to snap or upload your homework photo and ask me to explain it!")
         )
     }
 
@@ -134,125 +199,15 @@ fun NovaGeminiAssistantScreen(
             .fillMaxSize()
             .testTag("nova_gemini_assistant_screen")
     ) {
-        // 1. Top Gemini-inspired Nova AI Header
-        Surface(
-            color = Color(0xFF0D0826).copy(alpha = 0.90f),
-            border = BorderStroke(1.dp, Color(0xFF312E81).copy(alpha = 0.65f)),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                listOf(Color(0xFF06B6D4), Color(0xFF6366F1), Color(0xFFEC4899))
-                            )
-                        )
-                        .padding(2.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.img_nova_ai_robot),
-                        contentDescription = "Nova AI",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                    )
-                }
-
-                Spacer(Modifier.width(10.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "Nova AI",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isGeminiConfigured) Color(0xFF064E3B) else Color(0xFF451A03),
-                            border = BorderStroke(
-                                1.dp,
-                                if (isGeminiConfigured) Color(0xFF10B981) else Color(0xFFF59E0B)
-                            ),
-                            modifier = Modifier
-                                .clickable { viewModel.openAiKeyDialog() }
-                                .testTag("nova_gemini_status_pill")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.AutoAwesome,
-                                    contentDescription = "AI Engine Status",
-                                    tint = if (isGeminiConfigured) Color(0xFF34D399) else Color(0xFFFBBF24),
-                                    modifier = Modifier.size(11.dp)
-                                )
-                                Text(
-                                    text = if (isGeminiConfigured) "Gemini Live" else "Setup Gemini",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isGeminiConfigured) Color(0xFFA7F3D0) else Color(0xFFFDE68A),
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                    Text(
-                        text = if (isGeminiConfigured) "Model: $activeAiModel • Ask anything" else "Tap 'Setup Gemini' or try On-Device Tutor",
-                        fontSize = 11.sp,
-                        color = Color(0xFFC4B5FD),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                IconButton(
-                    onClick = { viewModel.setAiVoiceReplyEnabled(!voiceReplyEnabled) },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .testTag("nova_gemini_voice_toggle_btn")
-                ) {
-                    Icon(
-                        imageVector = if (voiceReplyEnabled) Icons.Rounded.VolumeUp else Icons.Rounded.VolumeOff,
-                        contentDescription = if (voiceReplyEnabled) "Disable Voice Reply" else "Enable Voice Reply",
-                        tint = if (voiceReplyEnabled) Color(0xFF67E8F9) else Color(0xFF94A3B8),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                IconButton(
-                    onClick = { viewModel.clearNovaGeminiSession() },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .testTag("nova_gemini_new_chat_btn")
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.AddComment,
-                        contentDescription = "New Chat",
-                        tint = Color(0xFFE0E7FF),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
+        // 1. Top Header
+        NovaAssistantTopBar(
+            isGeminiConfigured = isGeminiConfigured,
+            activeAiModel = activeAiModel,
+            voiceReplyEnabled = voiceReplyEnabled,
+            onOpenSetup = { viewModel.openAiKeyDialog() },
+            onToggleVoice = { viewModel.setAiVoiceReplyEnabled(!voiceReplyEnabled) },
+            onNewChat = { viewModel.clearNovaGeminiSession() }
+        )
 
         // 2. Mode Chips Strip
         LazyRow(
@@ -292,7 +247,7 @@ fun NovaGeminiAssistantScreen(
             }
         }
 
-        // 3. Conversation Stream + Starter Suggestions
+        // 3. Conversation Stream
         LazyColumn(
             state = listState,
             modifier = Modifier
@@ -333,26 +288,130 @@ fun NovaGeminiAssistantScreen(
                         }
                     )
                 } else {
-                    NovaGeminiUserBubble(text = msg.text)
+                    NovaGeminiUserBubble(
+                        message = msg,
+                        thumbnail = messageThumbnails[msg.id]
+                    )
                 }
             }
 
             if (isThinking) {
-                item {
-                    NovaThinkingIndicator()
+                item { NovaThinkingIndicator() }
+            }
+        }
+
+        // 4. Expandable Camera / Image / File Sheet when '+' is tapped + Pending Attachments
+        AnimatedVisibility(visible = showAttachmentOptions) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF140D32),
+                border = BorderStroke(1.dp, Color(0xFF6366F1).copy(alpha = 0.7f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .testTag("nova_gemini_attachment_menu")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ComposerActionChip(
+                        icon = Icons.Rounded.PhotoCamera,
+                        label = "Camera",
+                        accentColor = Color(0xFF38BDF8),
+                        testTag = "nova_gemini_camera_btn",
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            showAttachmentOptions = false
+                            val hasCam = ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.CAMERA
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (hasCam) launchCameraCapture()
+                            else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    )
+                    ComposerActionChip(
+                        icon = Icons.Rounded.Image,
+                        label = "Image",
+                        accentColor = Color(0xFFC084FC),
+                        testTag = "nova_gemini_image_btn",
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            showAttachmentOptions = false
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
+                    )
+                    ComposerActionChip(
+                        icon = Icons.Rounded.AttachFile,
+                        label = "File",
+                        accentColor = Color(0xFF34D399),
+                        testTag = "nova_gemini_file_btn",
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            showAttachmentOptions = false
+                            filePickerLauncher.launch(
+                                arrayOf(
+                                    "application/pdf",
+                                    "text/*",
+                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                    "image/*",
+                                    "*/*"
+                                )
+                            )
+                        }
+                    )
                 }
             }
         }
 
-        // 4. Gemini-style Prompt Composer Footer
+        AnimatedVisibility(visible = pendingAttachments.isNotEmpty() || isProcessingAttachment) {
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(pendingAttachments, key = { it.id }) { att ->
+                    PendingAttachmentChip(
+                        attachment = att,
+                        onRemove = { viewModel.removeNovaAttachment(att.id) }
+                    )
+                }
+                if (isProcessingAttachment) {
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF1E1B4B),
+                            border = BorderStroke(1.dp, Color(0xFF38BDF8))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                CircularProgressIndicator(strokeWidth = 2.dp, color = Color(0xFF38BDF8), modifier = Modifier.size(14.dp))
+                                Text("Preparing...", fontSize = 11.sp, color = Color(0xFFBAE6FD))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. Sleek Single-Row Input Bar: [+]  [Ask Nova AI anything...]  [Mic] [Send]
         Surface(
             shape = RoundedCornerShape(26.dp),
             color = Color(0xFF140D32),
             border = BorderStroke(
                 1.4.dp,
-                Brush.horizontalGradient(
-                    listOf(Color(0xFF06B6D4), Color(0xFF6366F1), Color(0xFFEC4899))
-                )
+                Brush.horizontalGradient(listOf(Color(0xFF06B6D4), Color(0xFF6366F1), Color(0xFFEC4899)))
             ),
             modifier = Modifier
                 .fillMaxWidth()
@@ -362,22 +421,80 @@ fun NovaGeminiAssistantScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // '+' Plus Icon Button (toggles Camera, Image, File options)
+                IconButton(
+                    onClick = { showAttachmentOptions = !showAttachmentOptions },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (showAttachmentOptions) Color(0xFF4F46E5).copy(alpha = 0.65f)
+                            else Color(0xFF312E81).copy(alpha = 0.55f)
+                        )
+                        .testTag("nova_gemini_plus_btn")
+                ) {
+                    Icon(
+                        imageVector = if (showAttachmentOptions) Icons.Rounded.Close else Icons.Rounded.Add,
+                        contentDescription = if (showAttachmentOptions) "Close attachments" else "Attach camera, image or file",
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Spacer(Modifier.width(8.dp))
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 6.dp)
+                ) {
+                    if (inputText.isEmpty()) {
+                        Text(
+                            text = if (isListening) "Listening... speak your question" else "Ask Nova AI anything...",
+                            color = if (isListening) Color(0xFF67E8F9) else Color(0xFF94A3B8),
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    BasicTextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        textStyle = TextStyle(color = Color.White, fontSize = 14.sp, lineHeight = 20.sp),
+                        maxLines = 4,
+                        cursorBrush = SolidColor(Color(0xFF38BDF8)),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(
+                            onSend = {
+                                if ((inputText.isNotBlank() || pendingAttachments.isNotEmpty()) && !isThinking) {
+                                    val prompt = inputText.trim()
+                                    inputText = ""
+                                    showAttachmentOptions = false
+                                    viewModel.sendNovaGeminiMessage(prompt)
+                                }
+                            }
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("nova_gemini_text_field")
+                    )
+                }
+
+                Spacer(Modifier.width(6.dp))
+
+                // Mic Icon Button
                 IconButton(
                     onClick = {
                         val hasPerm = ContextCompat.checkSelfPermission(
                             context,
                             Manifest.permission.RECORD_AUDIO
                         ) == PackageManager.PERMISSION_GRANTED
-                        if (isListening) {
-                            viewModel.stopSpeakingPractice()
-                        } else if (hasPerm) {
-                            viewModel.startSpeakingPractice()
-                        } else {
-                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                        }
+                        if (isListening) viewModel.stopSpeakingPractice()
+                        else if (hasPerm) viewModel.startSpeakingPractice()
+                        else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     },
                     modifier = Modifier
                         .size(40.dp)
@@ -396,64 +513,22 @@ fun NovaGeminiAssistantScreen(
                     )
                 }
 
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(6.dp))
 
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 6.dp)
-                ) {
-                    if (inputText.isEmpty()) {
-                        Text(
-                            text = if (isListening) "Listening... speak your question" else "Ask Nova AI anything...",
-                            color = if (isListening) Color(0xFF67E8F9) else Color(0xFF94A3B8),
-                            fontSize = 14.sp
-                        )
-                    }
-                    BasicTextField(
-                        value = inputText,
-                        onValueChange = { inputText = it },
-                        textStyle = TextStyle(
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp
-                        ),
-                        maxLines = 4,
-                        cursorBrush = SolidColor(Color(0xFF38BDF8)),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(
-                            onSend = {
-                                if (inputText.isNotBlank() && !isThinking) {
-                                    val prompt = inputText.trim()
-                                    inputText = ""
-                                    viewModel.sendNovaGeminiMessage(prompt)
-                                }
-                            }
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("nova_gemini_text_field")
-                    )
-                }
-
-                Spacer(Modifier.width(8.dp))
-
-                val canSend = inputText.isNotBlank() && !isThinking
+                val canSend = (inputText.isNotBlank() || pendingAttachments.isNotEmpty()) && !isThinking && !isProcessingAttachment
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(
-                            if (canSend) {
-                                Brush.linearGradient(listOf(Color(0xFF06B6D4), Color(0xFF7C3AED)))
-                            } else {
-                                SolidColor(Color(0xFF1E293B))
-                            }
+                            if (canSend) Brush.linearGradient(listOf(Color(0xFF06B6D4), Color(0xFF7C3AED)))
+                            else SolidColor(Color(0xFF1E293B))
                         )
                         .clickable(enabled = canSend) {
                             val prompt = inputText.trim()
                             inputText = ""
+                            showAttachmentOptions = false
                             viewModel.sendNovaGeminiMessage(prompt)
                         }
                         .testTag("nova_gemini_send_btn")
@@ -470,10 +545,151 @@ fun NovaGeminiAssistantScreen(
     }
 }
 
-private data class StarterPrompt(
-    val title: String,
-    val prompt: String
-)
+private data class StarterPrompt(val title: String, val prompt: String)
+
+@Composable
+private fun NovaAssistantTopBar(
+    isGeminiConfigured: Boolean,
+    activeAiModel: String,
+    voiceReplyEnabled: Boolean,
+    onOpenSetup: () -> Unit,
+    onToggleVoice: () -> Unit,
+    onNewChat: () -> Unit
+) {
+    Surface(
+        color = Color(0xFF0D0826).copy(alpha = 0.90f),
+        border = BorderStroke(1.dp, Color(0xFF312E81).copy(alpha = 0.65f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(Brush.linearGradient(listOf(Color(0xFF06B6D4), Color(0xFF6366F1), Color(0xFFEC4899))))
+                    .padding(2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.img_nova_ai_robot),
+                    contentDescription = "Nova AI",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(CircleShape)
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("Nova AI", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isGeminiConfigured) Color(0xFF064E3B) else Color(0xFF451A03),
+                        border = BorderStroke(1.dp, if (isGeminiConfigured) Color(0xFF10B981) else Color(0xFFF59E0B)),
+                        modifier = Modifier.clickable { onOpenSetup() }.testTag("nova_gemini_status_pill")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(Icons.Rounded.AutoAwesome, "AI Engine Status", tint = if (isGeminiConfigured) Color(0xFF34D399) else Color(0xFFFBBF24), modifier = Modifier.size(11.dp))
+                            Text(if (isGeminiConfigured) "Gemini Live" else "Setup Gemini", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isGeminiConfigured) Color(0xFFA7F3D0) else Color(0xFFFDE68A), maxLines = 1)
+                        }
+                    }
+                }
+                Text(
+                    text = if (isGeminiConfigured) "Model: $activeAiModel • Files, Image & Camera ready" else "Tap 'Setup Gemini' or attach files/photos",
+                    fontSize = 11.sp,
+                    color = Color(0xFFC4B5FD),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            IconButton(onClick = onToggleVoice, modifier = Modifier.size(40.dp).testTag("nova_gemini_voice_toggle_btn")) {
+                Icon(if (voiceReplyEnabled) Icons.Rounded.VolumeUp else Icons.Rounded.VolumeOff, if (voiceReplyEnabled) "Disable Voice Reply" else "Enable Voice Reply", tint = if (voiceReplyEnabled) Color(0xFF67E8F9) else Color(0xFF94A3B8), modifier = Modifier.size(20.dp))
+            }
+            IconButton(onClick = onNewChat, modifier = Modifier.size(40.dp).testTag("nova_gemini_new_chat_btn")) {
+                Icon(Icons.Rounded.AddComment, "New Chat", tint = Color(0xFFE0E7FF), modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComposerActionChip(
+    icon: ImageVector,
+    label: String,
+    accentColor: Color,
+    testTag: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFF1E1644),
+        border = BorderStroke(1.dp, accentColor.copy(alpha = 0.45f)),
+        modifier = modifier
+            .defaultMinSize(minHeight = 38.dp)
+            .clickable { onClick() }
+            .testTag(testTag)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(imageVector = icon, contentDescription = label, tint = accentColor, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(text = label, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun PendingAttachmentChip(
+    attachment: NovaAttachment,
+    onRemove: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = Color(0xFF1F164B),
+        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.7f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (attachment.previewBitmap != null) {
+                Image(
+                    bitmap = attachment.previewBitmap.asImageBitmap(),
+                    contentDescription = attachment.displayName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(34.dp).clip(RoundedCornerShape(8.dp))
+                )
+            } else {
+                Icon(Icons.Rounded.Description, attachment.displayName, tint = Color(0xFF34D399), modifier = Modifier.size(22.dp))
+            }
+            Column(modifier = Modifier.widthIn(max = 120.dp)) {
+                Text(attachment.displayName, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (attachment.sizeLabel.isNotBlank()) {
+                    Text(attachment.sizeLabel, fontSize = 9.5.sp, color = Color(0xFF94A3B8), maxLines = 1)
+                }
+            }
+            IconButton(onClick = onRemove, modifier = Modifier.size(22.dp)) {
+                Icon(Icons.Rounded.Close, "Remove attachment", tint = Color(0xFFF87171), modifier = Modifier.size(14.dp))
+            }
+        }
+    }
+}
 
 @Composable
 private fun NovaGeminiHeroCard(
@@ -484,70 +700,29 @@ private fun NovaGeminiHeroCard(
     Surface(
         shape = RoundedCornerShape(22.dp),
         color = Color(0xFF150E36).copy(alpha = 0.92f),
-        border = BorderStroke(
-            1.2.dp,
-            Brush.horizontalGradient(listOf(Color(0xFF38BDF8), Color(0xFFA855F7)))
-        ),
+        border = BorderStroke(1.2.dp, Brush.horizontalGradient(listOf(Color(0xFF38BDF8), Color(0xFFA855F7)))),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.AutoAwesome,
-                    contentDescription = null,
-                    tint = Color(0xFF38BDF8),
-                    modifier = Modifier.size(20.dp)
-                )
-                Text(
-                    text = "Hello $studentName, try asking Nova AI",
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Rounded.AutoAwesome, null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
+                Text("Hello $studentName, try asking Nova AI", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
-
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 starterPrompts.forEach { item ->
                     Surface(
                         shape = RoundedCornerShape(14.dp),
                         color = Color(0xFF1F164B),
                         border = BorderStroke(1.dp, Color(0xFF4338CA).copy(alpha = 0.7f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onPromptClick(item.prompt) }
+                        modifier = Modifier.fillMaxWidth().clickable { onPromptClick(item.prompt) }
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = item.title,
-                                    fontSize = 12.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF67E8F9)
-                                )
-                                Text(
-                                    text = item.prompt,
-                                    fontSize = 11.5.sp,
-                                    color = Color(0xFFCBD5E1),
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Text(item.title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF67E8F9))
+                                Text(item.prompt, fontSize = 11.5.sp, color = Color(0xFFCBD5E1), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                             Spacer(Modifier.width(8.dp))
-                            Icon(
-                                imageVector = Icons.Rounded.ArrowForwardIos,
-                                contentDescription = null,
-                                tint = Color(0xFF818CF8),
-                                modifier = Modifier.size(14.dp)
-                            )
+                            Icon(Icons.Rounded.ArrowForwardIos, null, tint = Color(0xFF818CF8), modifier = Modifier.size(14.dp))
                         }
                     }
                 }
@@ -557,30 +732,39 @@ private fun NovaGeminiHeroCard(
 }
 
 @Composable
-private fun NovaGeminiUserBubble(text: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End
-    ) {
+private fun NovaGeminiUserBubble(message: NovaChatMessage, thumbnail: Bitmap?) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Surface(
-            shape = RoundedCornerShape(
-                topStart = 20.dp,
-                topEnd = 6.dp,
-                bottomStart = 20.dp,
-                bottomEnd = 20.dp
-            ),
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 6.dp, bottomStart = 20.dp, bottomEnd = 20.dp),
             color = Color(0xFF3730A3),
             border = BorderStroke(1.dp, Color(0xFF6366F1)),
             modifier = Modifier.widthIn(max = 300.dp)
         ) {
-            SelectionContainer {
-                Text(
-                    text = text,
-                    fontSize = 14.sp,
-                    color = Color.White,
-                    lineHeight = 20.sp,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
-                )
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (thumbnail != null) {
+                    Image(
+                        bitmap = thumbnail.asImageBitmap(),
+                        contentDescription = message.attachmentLabel ?: "Attached photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp).clip(RoundedCornerShape(12.dp))
+                    )
+                }
+                if (!message.attachmentLabel.isNullOrBlank()) {
+                    Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFF1E1B4B)) {
+                        Text(
+                            text = message.attachmentLabel,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF67E8F9),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                SelectionContainer {
+                    Text(text = message.text, fontSize = 14.sp, color = Color.White, lineHeight = 20.sp)
+                }
             }
         }
     }
@@ -594,118 +778,45 @@ private fun NovaGeminiResponseCard(
     onCopy: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(
-            topStart = 6.dp,
-            topEnd = 20.dp,
-            bottomStart = 20.dp,
-            bottomEnd = 20.dp
-        ),
+        shape = RoundedCornerShape(topStart = 6.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 20.dp),
         color = Color(0xFF171133),
         border = BorderStroke(1.dp, Color(0xFF4C2A85)),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.AutoAwesome,
-                    contentDescription = null,
-                    tint = Color(0xFF38BDF8),
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    text = "Nova AI",
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF67E8F9)
-                )
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Rounded.AutoAwesome, null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
+                Text("Nova AI", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF67E8F9))
                 if (!message.hint.isNullOrBlank()) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF281A54)
-                    ) {
-                        Text(
-                            text = message.hint,
-                            fontSize = 10.sp,
-                            color = Color(0xFFC4B5FD),
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+                    Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFF281A54)) {
+                        Text(message.hint, fontSize = 10.sp, color = Color(0xFFC4B5FD), modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
                     }
                 }
             }
-
             SelectionContainer {
-                Text(
-                    text = message.text,
-                    fontSize = 14.sp,
-                    color = Color(0xFFF1F5F9),
-                    lineHeight = 21.sp
-                )
+                Text(text = message.text, fontSize = 14.sp, color = Color(0xFFF1F5F9), lineHeight = 21.sp)
             }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = Color(0xFF23184A),
                     border = BorderStroke(1.dp, Color(0xFF5B21B6).copy(alpha = 0.7f)),
-                    modifier = Modifier
-                        .defaultMinSize(minHeight = 36.dp)
-                        .clickable { onToggleAudio() }
+                    modifier = Modifier.defaultMinSize(minHeight = 36.dp).clickable { onToggleAudio() }
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isPlayingAudio) Icons.Rounded.Stop else Icons.Rounded.VolumeUp,
-                            contentDescription = if (isPlayingAudio) "Stop Audio" else "Listen",
-                            tint = Color(0xFF67E8F9),
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Text(
-                            text = if (isPlayingAudio) "Stop" else "Listen",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFE0E7FF)
-                        )
+                    Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Icon(if (isPlayingAudio) Icons.Rounded.Stop else Icons.Rounded.VolumeUp, if (isPlayingAudio) "Stop Audio" else "Listen", tint = Color(0xFF67E8F9), modifier = Modifier.size(15.dp))
+                        Text(if (isPlayingAudio) "Stop" else "Listen", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFE0E7FF))
                     }
                 }
-
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = Color(0xFF23184A),
                     border = BorderStroke(1.dp, Color(0xFF5B21B6).copy(alpha = 0.7f)),
-                    modifier = Modifier
-                        .defaultMinSize(minHeight = 36.dp)
-                        .clickable { onCopy() }
+                    modifier = Modifier.defaultMinSize(minHeight = 36.dp).clickable { onCopy() }
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ContentCopy,
-                            contentDescription = "Copy response",
-                            tint = Color(0xFFC4B5FD),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = "Copy",
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFE0E7FF)
-                        )
+                    Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Icon(Icons.Rounded.ContentCopy, "Copy response", tint = Color(0xFFC4B5FD), modifier = Modifier.size(14.dp))
+                        Text("Copy", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFE0E7FF))
                     }
                 }
             }
@@ -719,10 +830,7 @@ private fun NovaThinkingIndicator() {
     val alpha by infiniteTransition.animateFloat(
         initialValue = 0.45f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(650, easing = EaseInOutSine),
-            repeatMode = RepeatMode.Reverse
-        ),
+        animationSpec = infiniteRepeatable(animation = tween(650, easing = EaseInOutSine), repeatMode = RepeatMode.Reverse),
         label = "thinking_alpha"
     )
     Surface(
@@ -731,22 +839,9 @@ private fun NovaThinkingIndicator() {
         border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = alpha * 0.7f)),
         modifier = Modifier.fillMaxWidth(0.75f)
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            CircularProgressIndicator(
-                strokeWidth = 2.dp,
-                color = Color(0xFF38BDF8),
-                modifier = Modifier.size(16.dp)
-            )
-            Text(
-                text = "Nova AI is thinking...",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color(0xFFBAE6FD).copy(alpha = alpha)
-            )
+        Row(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CircularProgressIndicator(strokeWidth = 2.dp, color = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
+            Text("Nova AI is thinking...", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFBAE6FD).copy(alpha = alpha))
         }
     }
 }
