@@ -1558,17 +1558,8 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     private val _leaderboard = MutableStateFlow<List<LeaderboardUser>>(emptyList())
     val leaderboard: StateFlow<List<LeaderboardUser>> = _leaderboard.asStateFlow()
 
-    // Achievement Badges
-    private val _badges = MutableStateFlow(
-        listOf(
-            AchievementBadge("b1", "7-Day Streak Warrior", "Practiced spoken English 7 days in a row", "🔥", true, 1.0f),
-            AchievementBadge("b2", "Speech Virtuoso", "Scored over 90% in 5 AI speaking conversations", "🎙️", true, 1.0f),
-            AchievementBadge("b3", "Word Wizard", "Mastered 50 new vocabulary items", "📚", true, 1.0f),
-            AchievementBadge("b4", "Roleplay Champion", "Completed all dialogues in 3 different scenarios", "🎭", true, 1.0f),
-            AchievementBadge("b5", "Pronunciation Ace", "Achieved 95% accuracy in a phoneme challenge", "🎯", false, 0.75f),
-            AchievementBadge("b6", "Classroom Star", "Attended 5 live interactive workshops", "🌟", false, 0.60f)
-        )
-    )
+    // Achievement Badges (dynamically computed from live student progress)
+    private val _badges = MutableStateFlow<List<AchievementBadge>>(emptyList())
     val badges: StateFlow<List<AchievementBadge>> = _badges.asStateFlow()
 
     private val defaultStudents = listOf(
@@ -1671,6 +1662,71 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
 
     fun refreshLeaderboard() {
         _leaderboard.value = generateLeaderboard(_adminStudents.value, _studentProfile.value, _currentUser.value)
+        refreshAchievementBadges()
+    }
+
+    fun refreshAchievementBadges() {
+        val profile = _studentProfile.value
+        val adv = _adventureProgress.value
+        val clearedStages = maxOf(profile.completedStagesCount, adv.completedLevelIds.size)
+
+        val streakProgress = (profile.streakDays / 7f).coerceIn(0f, 1f)
+        val speechProgress = (((profile.speakingScore / 85f).coerceIn(0f, 1f) + (profile.speakingPracticeMinutes / 60f).coerceIn(0f, 1f)) / 2f).coerceIn(0f, 1f)
+        val vocabProgress = (profile.vocabularyScore / 85f).coerceIn(0f, 1f)
+        val stageProgress = (clearedStages / 10f).coerceIn(0f, 1f)
+        val pronProgress = (profile.pronunciationScore / 90f).coerceIn(0f, 1f)
+        val xpProgress = (profile.xpPoints / 2000f).coerceIn(0f, 1f)
+
+        _badges.value = listOf(
+            AchievementBadge(
+                id = "b1",
+                title = "7-Day Streak Warrior",
+                description = "Practice spoken English for 7 days (${profile.streakDays}/7 days)",
+                iconEmoji = "🔥",
+                isUnlocked = profile.streakDays >= 7,
+                progress = streakProgress
+            ),
+            AchievementBadge(
+                id = "b2",
+                title = "Speech Virtuoso",
+                description = "Reach 85%+ speaking & 60m practice (${profile.speakingScore}% • ${profile.speakingPracticeMinutes}m)",
+                iconEmoji = "🎙️",
+                isUnlocked = profile.speakingScore >= 85 && profile.speakingPracticeMinutes >= 60,
+                progress = speechProgress
+            ),
+            AchievementBadge(
+                id = "b3",
+                title = "Word Wizard",
+                description = "Achieve 85%+ Vocabulary Breadth (${profile.vocabularyScore}% / 85%)",
+                iconEmoji = "📚",
+                isUnlocked = profile.vocabularyScore >= 85,
+                progress = vocabProgress
+            ),
+            AchievementBadge(
+                id = "b4",
+                title = "Stage Conqueror",
+                description = "Clear 10 speaking & adventure stages ($clearedStages/10 stages)",
+                iconEmoji = "🎭",
+                isUnlocked = clearedStages >= 10,
+                progress = stageProgress
+            ),
+            AchievementBadge(
+                id = "b5",
+                title = "Pronunciation Ace",
+                description = "Achieve 90%+ Pronunciation Accuracy (${profile.pronunciationScore}% / 90%)",
+                iconEmoji = "🎯",
+                isUnlocked = profile.pronunciationScore >= 90,
+                progress = pronProgress
+            ),
+            AchievementBadge(
+                id = "b6",
+                title = "XP Grandmaster",
+                description = "Earn 2,000+ Total XP in Spoken English (${profile.xpPoints}/2,000 XP)",
+                iconEmoji = "🌟",
+                isUnlocked = profile.xpPoints >= 2000,
+                progress = xpProgress
+            )
+        )
     }
 
     private val defaultTeachers = listOf(
@@ -2809,6 +2865,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             )
         }
         appPreferences?.saveStudentProfile(_studentProfile.value)
+        refreshAchievementBadges()
     }
 
     // Toggle Vocabulary Favorite
@@ -4513,6 +4570,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         )
         _adventureProgress.value = updatedProgress
         saveAdventureStateToPreferences()
+        refreshAchievementBadges()
 
         // Update current user in leaderboard
         _adventureLeaderboard.update { list ->

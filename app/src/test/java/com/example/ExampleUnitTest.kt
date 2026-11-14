@@ -906,5 +906,41 @@ class ExampleUnitTest {
         assertEquals(55, progress.totalXpEarned)
         assertEquals(80, progress.bestAccuracyPercent)
     }
+
+    @Test
+    fun testAchievementBadgesUpdateDynamicallyWithStudentProgress() {
+        val repository = LinguaQuestRepository(null)
+
+        // New student starts with beginner stats -> XP Grandmaster & Pronunciation Ace are NOT pre-unlocked
+        repository.registerStudent(
+            name = "Neha Baruah",
+            email = "neha@linguaquest.edu",
+            batch = "Class 9",
+            securityPin = "1234"
+        )
+        val initialBadges = repository.badges.value
+        assertEquals(6, initialBadges.size)
+        assertTrue(initialBadges.none { it.isUnlocked })
+        assertFalse(initialBadges.first { it.id == "b6" }.isUnlocked)
+
+        // Adding XP pushes XP Grandmaster progress up and unlocks at >= 2000 XP
+        repository.addRewards(xp = 1950, coins = 100) // total XP = 2050
+        val afterXp = repository.badges.value.first { it.id == "b6" }
+        assertTrue(afterXp.isUnlocked)
+        assertEquals(1.0f, afterXp.progress)
+
+        // Updating CEFR scores >= 90 unlocks Pronunciation Ace & Word Wizard
+        repository.runCefrDiagnostic(
+            speaking = 88,
+            pronunciation = 92,
+            fluency = 86,
+            grammar = 85,
+            vocab = 88,
+            listening = 85
+        )
+        val afterDiagnostic = repository.badges.value
+        assertTrue(afterDiagnostic.first { it.id == "b5" }.isUnlocked)
+        assertTrue(afterDiagnostic.first { it.id == "b3" }.isUnlocked)
+    }
 }
 

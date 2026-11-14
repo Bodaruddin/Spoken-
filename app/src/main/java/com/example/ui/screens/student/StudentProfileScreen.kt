@@ -1,12 +1,10 @@
 package com.example.ui.screens.student
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,12 +25,11 @@ import android.widget.Toast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.AchievementBadge
-import com.example.data.model.LeaderboardUser
-import com.example.data.remote.SupabaseConnectionState
 import com.example.ui.MainViewModel
 import com.example.ui.components.SectionHeader
 import com.example.ui.theme.*
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StudentProfileScreen(
     viewModel: MainViewModel,
@@ -43,12 +40,12 @@ fun StudentProfileScreen(
     val profile by viewModel.studentProfile.collectAsState()
     val badges by viewModel.badges.collectAsState()
     val vocabulary by viewModel.vocabularyWords.collectAsState()
-    val leaderboard by viewModel.leaderboard.collectAsState()
-    val supabaseStatus by viewModel.supabaseStatus.collectAsState()
     val isAdminSession by viewModel.isAdminSession.collectAsState()
 
     var showVocabNotebook by remember { mutableStateOf(false) }
     var showClassSelectionDialog by remember { mutableStateOf(false) }
+    var trophyFilter by remember { mutableStateOf("ALL") }
+    var selectedBadge by remember { mutableStateOf<AchievementBadge?>(null) }
     val academicClasses by viewModel.academicClasses.collectAsState()
 
     LazyColumn(
@@ -259,9 +256,9 @@ fun StudentProfileScreen(
 
                             Spacer(Modifier.height(4.dp))
 
-                            Row(
+                            FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
@@ -460,7 +457,7 @@ fun StudentProfileScreen(
                             verticalArrangement = Arrangement.Center
                         ) {
                             Text(
-                                "🏆 Overall Level",
+                                "🏆 Overall Avg",
                                 fontSize = 10.sp,
                                 color = Color(0xFF94A3B8),
                                 fontWeight = FontWeight.Medium,
@@ -468,7 +465,7 @@ fun StudentProfileScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                "Level ${profile.activityLevel} • ${profile.overallScore}%",
+                                "${profile.overallScore}%",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = AmberGold,
@@ -537,71 +534,6 @@ fun StudentProfileScreen(
             }
         }
 
-        // 3. Shifted to Dedicated Leaderboard Screen Shortcut Card
-        item {
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, Color(0xFFFACC15).copy(alpha = 0.4f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("leaderboard_shifted_card")
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(Color(0xFFFEF08A), Color(0xFFF59E0B), Color(0xFFD97706))
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("🏆", fontSize = 24.sp)
-                        }
-
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = "Academy Fluency Leaderboard",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = "Rankings shifted to dedicated Leaderboard page! View podium, cohorts & standing.",
-                                fontSize = 11.sp,
-                                color = MutedGray
-                            )
-                        }
-                    }
-
-                    Button(
-                        onClick = { viewModel.selectStudentTab(com.example.ui.StudentTab.LEADERBOARD) },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        Text("View Ranks", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
 
         // 4. Comprehensive CEFR Spoken Proficiency Matrix
         item {
@@ -808,11 +740,12 @@ fun StudentProfileScreen(
                                         Text(word.phonetic, fontSize = 12.sp, color = RoyalBlue, fontWeight = FontWeight.Medium)
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
-                                            color = MaterialTheme.colorScheme.surfaceVariant
+                                            color = Color(0xFF1E293B)
                                         ) {
                                             Text(
                                                 word.partOfSpeech,
                                                 fontSize = 10.sp,
+                                                color = Color(0xFFCBD5E1),
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                             )
                                         }
@@ -839,24 +772,24 @@ fun StudentProfileScreen(
                                     Text(
                                         text = word.meaning,
                                         fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = Color(0xFFCBD5E1)
                                     )
                                     Text(
                                         text = "\"${word.exampleSentence}\"",
                                         fontSize = 11.sp,
                                         fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                        color = MutedGray
+                                        color = Color(0xFF94A3B8)
                                     )
                                 }
 
                                 IconButton(
                                     onClick = { viewModel.speakAudio("${word.word}. ${word.meaning}") },
                                     modifier = Modifier
-                                        .size(40.dp)
+                                        .size(48.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFFEFF6FF))
+                                        .background(Color(0xFF1E3A8A).copy(alpha = 0.55f))
                                 ) {
-                                    Icon(Icons.Rounded.VolumeUp, contentDescription = "Listen", tint = RoyalBlue)
+                                    Icon(Icons.Rounded.VolumeUp, contentDescription = "Listen", tint = Color(0xFF60A5FA))
                                 }
                             }
                         }
@@ -865,13 +798,26 @@ fun StudentProfileScreen(
             }
         }
 
-        // 6. Prestige Achievement Badges & Honors Cabinet
+        // 5. Prestige Trophy & Honors Cabinet (Dynamic Progress & Cosmic Glass UI)
         item {
+            val unlockedCount = badges.count { it.isUnlocked }
+            val inProgressCount = badges.size - unlockedCount
+            val filteredBadges = remember(badges, trophyFilter) {
+                when (trophyFilter) {
+                    "UNLOCKED" -> badges.filter { it.isUnlocked }
+                    "IN_PROGRESS" -> badges.filter { !it.isUnlocked }
+                    else -> badges.sortedByDescending { it.isUnlocked }
+                }
+            }
+
             Card(
                 shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
+                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
+                border = BorderStroke(1.2.dp, Color(0xFFF59E0B).copy(alpha = 0.45f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("student_trophy_honors_section")
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),
@@ -890,89 +836,227 @@ fun StudentProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text("🎖️", fontSize = 20.sp)
-                            Text(
-                                text = "Trophy & Honors Cabinet",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Column {
+                                Text(
+                                    text = "Trophy & Honors",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Tap any honor to inspect milestone progress",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF94A3B8),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
 
-                        val unlockedCount = badges.count { it.isUnlocked }
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFFEF3C7)
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFFF59E0B).copy(alpha = 0.18f),
+                            border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
                         ) {
                             Text(
                                 text = "$unlockedCount / ${badges.size} Unlocked",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = AmberGold,
+                                color = Color(0xFFFCD34D),
                                 maxLines = 1,
                                 softWrap = false,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }
                     }
 
-                    badges.forEach { badge ->
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (badge.isUnlocked) Color(0xFFFAF5FF) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            border = BorderStroke(
-                                1.dp,
-                                if (badge.isUnlocked) Color(0xFFE9D5FF) else Color(0xFFE2E8F0)
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
+                    // Filter Tabs: All / Unlocked / In Progress
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val filters = listOf(
+                            Triple("ALL", "All (${badges.size})", Color(0xFF38BDF8)),
+                            Triple("UNLOCKED", "Unlocked ($unlockedCount)", EmeraldSuccess),
+                            Triple("IN_PROGRESS", "In Progress ($inProgressCount)", AmberGold)
+                        )
+                        filters.forEach { (key, label, accent) ->
+                            val isSelected = trophyFilter == key
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) accent.copy(alpha = 0.22f) else Color(0xFF0F172A),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) accent else Color(0xFF334155)
+                                ),
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { trophyFilter = key }
+                                    .testTag("trophy_filter_${key.lowercase()}")
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(CircleShape)
-                                        .background(if (badge.isUnlocked) Color(0xFFF3E8FF) else Color(0xFFF1F5F9)),
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp, horizontal = 4.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(badge.iconEmoji, fontSize = 22.sp)
-                                }
-
-                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = badge.title,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        color = if (badge.isUnlocked) DeepNavy else MutedGray
-                                    )
-                                    Text(badge.description, fontSize = 11.sp, color = MutedGray)
-                                }
-
-                                if (badge.isUnlocked) {
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = EmeraldSuccess.copy(alpha = 0.15f)
-                                    ) {
-                                        Text(
-                                            "UNLOCKED",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 9.sp,
-                                            color = EmeraldSuccess,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                } else {
-                                    Text(
-                                        "${(badge.progress * 100).toInt()}%",
+                                        text = label,
                                         fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MutedGray
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else Color(0xFF94A3B8),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
+                                }
+                            }
+                        }
+                    }
+
+                    if (filteredBadges.isEmpty()) {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF0F172A),
+                            border = BorderStroke(1.dp, Color(0xFF334155)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(18.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text("🏆", fontSize = 28.sp)
+                                Text(
+                                    text = if (trophyFilter == "UNLOCKED") "No honors unlocked yet" else "All honors unlocked!",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = if (trophyFilter == "UNLOCKED") {
+                                        "Keep building your speaking streak, vocabulary, and stage progress to claim your first honor."
+                                    } else {
+                                        "Incredible work! You have mastered every milestone in your Trophy Cabinet."
+                                    },
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF94A3B8),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            filteredBadges.forEach { badge ->
+                                val pct = (badge.progress * 100).toInt().coerceIn(0, 100)
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = if (badge.isUnlocked) Color(0xFF1E1B4B) else Color(0xFF0F172A),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (badge.isUnlocked) Color(0xFFF59E0B).copy(alpha = 0.55f) else Color(0xFF334155)
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .clickable { selectedBadge = badge }
+                                        .testTag("trophy_badge_${badge.id}")
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(46.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (badge.isUnlocked) {
+                                                        Brush.linearGradient(
+                                                            listOf(Color(0xFFFDE68A), Color(0xFFF59E0B))
+                                                        )
+                                                    } else {
+                                                        Brush.linearGradient(
+                                                            listOf(Color(0xFF1E293B), Color(0xFF334155))
+                                                        )
+                                                    }
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(badge.iconEmoji, fontSize = 22.sp)
+                                        }
+
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = badge.title,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp,
+                                                    color = Color.White,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.weight(1f).padding(end = 6.dp)
+                                                )
+
+                                                if (badge.isUnlocked) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = EmeraldSuccess.copy(alpha = 0.2f),
+                                                        border = BorderStroke(0.8.dp, EmeraldSuccess.copy(alpha = 0.6f))
+                                                    ) {
+                                                        Text(
+                                                            "UNLOCKED",
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            fontSize = 9.sp,
+                                                            color = Color(0xFF6EE7B7),
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                } else {
+                                                    Text(
+                                                        text = "$pct%",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFFFCD34D)
+                                                    )
+                                                }
+                                            }
+
+                                            Text(
+                                                text = badge.description,
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF94A3B8),
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+
+                                            if (!badge.isUnlocked) {
+                                                LinearProgressIndicator(
+                                                    progress = { badge.progress.coerceIn(0f, 1f) },
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(5.dp)
+                                                        .clip(RoundedCornerShape(3.dp)),
+                                                    color = AmberGold,
+                                                    trackColor = Color(0xFF1E293B)
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -980,81 +1064,83 @@ fun StudentProfileScreen(
                 }
             }
         }
+    }
 
-        // 7. Account Session & Logout Section
-        item {
-            Card(
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardBg),
-                border = BorderStroke(1.2.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("student_profile_logout_card")
-            ) {
+    // Trophy & Honor Milestone Detail Dialog
+    selectedBadge?.let { badge ->
+        val pct = (badge.progress * 100).toInt().coerceIn(0, 100)
+        AlertDialog(
+            onDismissRequest = { selectedBadge = null },
+            containerColor = Color(0xFF0F172A),
+            title = {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (badge.isUnlocked) {
+                                    Brush.linearGradient(listOf(Color(0xFFFDE68A), Color(0xFFF59E0B)))
+                                } else {
+                                    Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF334155)))
+                                }
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFFEF4444).copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Filled.Logout,
-                                contentDescription = null,
-                                tint = Color(0xFFF87171),
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Account Session",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = Color.White
-                            )
-                            Text(
-                                text = "Signed in as ${user.email.ifBlank { user.name }}",
-                                fontSize = 11.sp,
-                                color = Color(0xFF94A3B8),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Text(badge.iconEmoji, fontSize = 24.sp)
                     }
-
-                    Spacer(Modifier.width(10.dp))
-
-                    Button(
-                        onClick = { viewModel.logout() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
+                    Column {
                         Text(
-                            "Log Out",
-                            fontWeight = FontWeight.Bold,
+                            text = badge.title,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 17.sp,
+                            color = Color.White
+                        )
+                        Text(
+                            text = if (badge.isUnlocked) "Honor Unlocked" else "$pct% Progress Complete",
                             fontSize = 12.sp,
-                            color = Color.White,
-                            maxLines = 1,
-                            softWrap = false
+                            fontWeight = FontWeight.Bold,
+                            color = if (badge.isUnlocked) Color(0xFF6EE7B7) else Color(0xFFFCD34D)
                         )
                     }
                 }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = badge.description,
+                        fontSize = 13.sp,
+                        color = Color(0xFFCBD5E1)
+                    )
+                    LinearProgressIndicator(
+                        progress = { badge.progress.coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = if (badge.isUnlocked) EmeraldSuccess else AmberGold,
+                        trackColor = Color(0xFF1E293B)
+                    )
+                    Text(
+                        text = if (badge.isUnlocked) {
+                            "Congratulations! This honor is permanently displayed in your Scholar Cabinet."
+                        } else {
+                            "Complete AI Speaking drills, daily missions, and stages to push this honor to 100%."
+                        },
+                        fontSize = 12.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedBadge = null }) {
+                    Text("Got it", color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
+                }
             }
-        }
+        )
     }
 
     // Academic Class / Batch Selection Dialog
@@ -1132,111 +1218,6 @@ fun StudentProfileScreen(
             },
             containerColor = Color(0xFF0F172A)
         )
-    }
-}
-
-@Composable
-fun PremiumStatCard(
-    title: String,
-    value: String,
-    sub: String,
-    accent: Color,
-    bg: Color,
-    border: Color,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = bg,
-        border = BorderStroke(1.dp, border),
-        modifier = modifier
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(title, fontSize = 10.sp, color = Color(0xFFCBD5E1), fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
-            Text(value, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = Color.White, maxLines = 1, softWrap = false)
-            Text(sub, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1, softWrap = false)
-        }
-    }
-}
-
-@Composable
-fun PremiumPodiumPillar(
-    rank: Int,
-    name: String,
-    emoji: String,
-    xp: String,
-    streak: String,
-    medal: String,
-    league: String,
-    badgeColor: Color,
-    containerColor: Color,
-    borderColor: Color,
-    isFirst: Boolean = false,
-    isCurrentUser: Boolean = false,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = containerColor,
-        border = BorderStroke(if (isFirst || isCurrentUser) 1.8.dp else 1.dp, borderColor),
-        shadowElevation = if (isFirst) 4.dp else 1.dp,
-        modifier = modifier
-    ) {
-        Column(
-            modifier = Modifier.padding(vertical = if (isFirst) 14.dp else 10.dp, horizontal = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(medal, fontSize = if (isFirst) 24.sp else 18.sp)
-
-            Box(
-                modifier = Modifier
-                    .size(if (isFirst) 50.dp else 40.dp)
-                    .clip(CircleShape)
-                    .background(badgeColor),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(emoji, fontSize = if (isFirst) 26.sp else 20.sp)
-            }
-
-            Text(
-                text = if (isCurrentUser) "$name (You)" else name,
-                fontWeight = FontWeight.Bold,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = if (isCurrentUser) RoyalBlue else DeepNavy
-            )
-
-            Text(
-                text = xp,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 11.sp,
-                maxLines = 1,
-                softWrap = false,
-                color = if (isFirst) AmberGold else if (isCurrentUser) RoyalBlue else MutedGray
-            )
-
-            Surface(
-                shape = RoundedCornerShape(6.dp),
-                color = Color.White,
-                border = BorderStroke(0.8.dp, Color(0xFFE2E8F0))
-            ) {
-                Text(
-                    text = "🔥 $streak",
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = OrangeVibrant,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-        }
     }
 }
 
