@@ -175,7 +175,11 @@ fun StudentHomeScreen(
                             )
 
                             Text(
-                                text = "Ready to boost your speaking fluency today? Your ${profile.streakDays}-day streak is blazing hot!",
+                                text = if (profile.streakDays > 0) {
+                                    "Ready to boost your speaking fluency today? Your ${profile.streakDays}-day streak is blazing hot!"
+                                } else {
+                                    "Ready to boost your speaking fluency today? Complete a quick practice to start your streak!"
+                                },
                                 fontSize = 12.sp,
                                 lineHeight = 16.sp,
                                 color = Color.White.copy(alpha = 0.92f)

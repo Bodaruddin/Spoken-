@@ -766,6 +766,7 @@ class ExampleRobolectricTest {
   @Test
   fun `student profile claim daily practice streak bonus increments streak, awards 30 xp, and marks claimed today`() {
     val app = ApplicationProvider.getApplicationContext<Application>()
+    AppPreferences(app).saveSupabaseConfig("http://127.0.0.1:1", "offline-test-key")
     val vm = MainViewModel(app)
     vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
 
@@ -1000,6 +1001,239 @@ class ExampleRobolectricTest {
     // Pending count matches the exact Pending tab list
     assertEquals(2, pendingCount)
     assertEquals(listOf("exm_new_open", "exm_all_classes"), pendingTabResult.map { it.id })
+  }
+
+  @Test
+  fun `student profile class badge is read-only and students cannot change class`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    app.getSharedPreferences("linguaquest_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+    AppPreferences(app).saveSupabaseConfig("http://127.0.0.1:1", "offline-test-key")
+    val vm = MainViewModel(app)
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.StudentProfileScreen(viewModel = vm)
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("student_profile_class_badge").assertIsDisplayed()
+    composeTestRule.onNodeWithText("🏫 Class 10").assertIsDisplayed()
+    composeTestRule.onNodeWithText("▾", substring = true).assertDoesNotExist()
+
+    // Clicking the badge must NOT open a class selection dialog
+    composeTestRule.onNodeWithTag("student_profile_class_badge").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("Select Academic Class / Batch").assertDoesNotExist()
+
+    // Attempting updateStudent while logged in as Student must be rejected
+    val alexRecord = vm.adminStudents.value.first { it.id == "std_001" }
+    assertFalse(vm.updateStudent(alexRecord.copy(batch = "Class 9")))
+    assertEquals("Class 10", vm.currentUser.value.studentClass)
+    assertEquals("Class 10", vm.adminStudents.value.first { it.id == "std_001" }.batch)
+  }
+
+  @Test
+  fun `teacher changing active student class resets everything in student panel and persists across reload`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    app.getSharedPreferences("linguaquest_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+    val prefs = AppPreferences(app)
+    prefs.saveSupabaseConfig("http://127.0.0.1:1", "offline-test-key")
+    val vm = MainViewModel(app)
+
+    // Log in as student Alex Morgan and populate active panel progress across all modules
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    val beforeProfile = vm.studentProfile.value
+    vm.repository.setStudentProfile(beforeProfile.copy(speakingPracticeMinutes = 20, xpPoints = 2400, coins = 350, streakDays = 9))
+    assertTrue(vm.incrementDailyPracticeStreak())
+    assertTrue(vm.dailyStreakBonusClaimedToday.value)
+
+    val targetWord = vm.vocabularyWords.value.first { !it.isFavorite }
+    val firstWordId = targetWord.id
+    vm.toggleWordFavorite(firstWordId)
+    assertTrue(vm.vocabularyWords.value.first { it.id == firstWordId }.isFavorite)
+
+    vm.recordVocabularyChallengeResult(VocabularyActivityType.SYNONYMS, 5, 5, 60)
+    assertTrue(vm.vocabularyChallengeProgress.value.completedModes.isNotEmpty())
+
+    val firstPackId = vm.fastVocabularyPacks.value.first().id
+    vm.recordFastVocabularyResult(firstPackId, 4, 5, 50)
+    assertTrue(vm.fastVocabularyProgress.value.playedPackIds.isNotEmpty())
+
+    val firstWorld = vm.adventureWorlds.value.first()
+    val firstLevel = firstWorld.levels.first()
+    val firstMission = firstLevel.missions.first()
+    vm.completeAdventureMission(firstWorld.id, firstLevel.id, firstMission.id, 95)
+    assertTrue(vm.adventureProgress.value.totalStars > 0)
+
+    val firstTopic = vm.speakingPrompts.value.first()
+    prefs.saveNovaSession(
+      "std_001",
+      firstTopic.id,
+      listOf(
+        NovaChatMessage(
+          id = "msg_student_1",
+          isNova = false,
+          text = "Old class 10 practice response"
+        )
+      )
+    )
+
+    // Switch to Teacher, add a custom exam (curriculum should NOT be wiped on student class change), and move Alex to Class 9
+    vm.unifiedLogin("e.vance@linguaquest.edu", "7321")
+    val customExam = vm.createExam(
+      title = "Class 9 Entry Assessment",
+      description = "Placement check",
+      targetClass = "Class 9",
+      subjectCategory = "Grammar",
+      durationMinutes = 15,
+      questions = listOf(
+        ExamQuestion(
+          id = "q_c9_1",
+          question = "They ___ ready.",
+          options = listOf("is", "are", "was", "be"),
+          correctOptionIndex = 1,
+          marks = 5
+        )
+      )
+    )
+
+    val alexBefore = vm.adminStudents.value.first { it.id == "std_001" }
+    assertTrue(vm.updateStudent(alexBefore.copy(batch = "Class 9")))
+
+    // Teacher student directory entry updated and zeroed
+    val alexAfter = vm.adminStudents.value.first { it.id == "std_001" }
+    assertEquals("Class 9", alexAfter.batch)
+    assertEquals(0, alexAfter.xpPoints)
+    assertEquals(0, alexAfter.streakDays)
+    assertEquals(0, alexAfter.speakingScore)
+    assertEquals(com.example.data.model.LearningLevel.BEGINNER, alexAfter.level)
+
+    // Active student panel states are completely reset
+    val resetProfile = vm.studentProfile.value
+    assertEquals(0, resetProfile.xpPoints)
+    assertEquals(0, resetProfile.coins)
+    assertEquals(0, resetProfile.streakDays)
+    assertEquals(0, resetProfile.completedStagesCount)
+    assertEquals(0, resetProfile.speakingScore)
+    assertEquals(0, resetProfile.listeningScore)
+    assertEquals(com.example.data.model.LearningLevel.BEGINNER, resetProfile.currentLevel)
+
+    assertEquals(0, vm.adventureProgress.value.totalStars)
+    assertEquals(0, vm.adventureProgress.value.totalXp)
+    assertEquals(0, vm.adventureProgress.value.totalCoins)
+    assertTrue(vm.adventureProgress.value.completedLevelIds.isEmpty())
+    assertTrue(vm.adventureProgress.value.claimedChestWorldIds.isEmpty())
+    assertTrue(vm.vocabularyChallengeProgress.value.completedModes.isEmpty())
+    assertEquals(0, vm.vocabularyChallengeProgress.value.totalRoundsPlayed)
+    assertTrue(vm.fastVocabularyProgress.value.playedPackIds.isEmpty())
+    assertEquals(0, vm.fastVocabularyProgress.value.totalXpEarned)
+    assertTrue(vm.vocabularyWords.value.none { it.isFavorite || it.isMastered })
+    assertFalse(vm.dailyStreakBonusClaimedToday.value)
+    assertTrue(vm.examSubmissions.value.none { it.studentId == "std_001" || it.studentId == "stu_alex_1" })
+
+    // Curriculum exam remains intact
+    assertTrue(vm.exams.value.any { it.id == customExam.id })
+
+    // Recreate ViewModel (simulates app restart) and log back in as Alex -> reset must persist cleanly
+    val reloadedVm = MainViewModel(app)
+    reloadedVm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    assertEquals("Class 9", reloadedVm.currentUser.value.studentClass)
+    assertEquals(0, reloadedVm.studentProfile.value.xpPoints)
+    assertEquals(0, reloadedVm.studentProfile.value.coins)
+    assertEquals(0, reloadedVm.studentProfile.value.streakDays)
+    assertTrue(reloadedVm.examSubmissions.value.none { it.studentId == "std_001" || it.studentId == "stu_alex_1" })
+    assertTrue(reloadedVm.exams.value.any { it.id == customExam.id })
+    val novaMsgs = reloadedVm.novaChatMessages.value
+    assertTrue(novaMsgs.none { it.text == "Old class 10 practice response" })
+  }
+
+  @Test
+  fun `admin changing another student class queues pending reset applied on student login`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    app.getSharedPreferences("linguaquest_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+    AppPreferences(app).saveSupabaseConfig("http://127.0.0.1:1", "offline-test-key")
+    val vm = MainViewModel(app)
+
+    // Log in as Admin and change Elena's (std_002) class from Class 10 to Class 8
+    vm.unifiedLogin("admin@linguaquest.edu", "1234")
+    val elenaBefore = vm.adminStudents.value.first { it.id == "std_002" }
+    assertTrue(vm.updateStudent(elenaBefore.copy(batch = "Class 8")))
+
+    val elenaAfter = vm.adminStudents.value.first { it.id == "std_002" }
+    assertEquals("Class 8", elenaAfter.batch)
+    assertEquals(0, elenaAfter.xpPoints)
+    assertEquals(0, elenaAfter.streakDays)
+
+    // Log in as Elena -> pending reset clears adventure/games/profile state for Elena cleanly
+    vm.unifiedLogin("elena.r@linguaquest.edu", "1234")
+    assertEquals("Class 8", vm.currentUser.value.studentClass)
+    assertEquals(0, vm.studentProfile.value.xpPoints)
+    assertEquals(0, vm.studentProfile.value.coins)
+    assertEquals(0, vm.studentProfile.value.streakDays)
+    assertEquals(0, vm.adventureProgress.value.totalStars)
+    assertTrue(vm.vocabularyChallengeProgress.value.completedModes.isEmpty())
+    assertTrue(vm.fastVocabularyProgress.value.playedPackIds.isEmpty())
+    assertFalse(vm.dailyStreakBonusClaimedToday.value)
+  }
+
+  @Test
+  fun `student detail dialog displays reset warning banner when teacher changes class`() {
+    val sampleStudent = com.example.data.model.StudentManagementInfo(
+      id = "std_001",
+      name = "Alex Morgan",
+      email = "alex.morgan@linguaquest.edu",
+      batch = "Class 10",
+      level = com.example.data.model.LearningLevel.INTERMEDIATE
+    )
+    composeTestRule.setContent {
+      com.example.ui.screens.teacher.StudentDetailDialog(
+        student = sampleStudent,
+        classes = listOf("Class 8", "Class 9", "Class 10"),
+        onDismiss = {},
+        onSave = {}
+      )
+    }
+    composeTestRule.waitForIdle()
+
+    // Warning hidden initially when class hasn't changed
+    composeTestRule.onNodeWithTag("class_change_reset_warning").assertDoesNotExist()
+
+    // Scroll to the class selector inside the dialog and select Class 9 -> reset warning banner appears
+    composeTestRule.onNodeWithTag("student_detail_dialog_list")
+      .performScrollToNode(hasTestTag("edit_student_class_field"))
+    composeTestRule.onNodeWithTag("edit_student_class_field").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithText("Class 9").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("student_detail_dialog_list")
+      .performScrollToNode(hasTestTag("class_change_reset_warning"))
+    composeTestRule.onNodeWithTag("class_change_reset_warning").assertIsDisplayed()
+  }
+
+  @Test
+  fun `remote student class change resets active student panel after prior sync`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    app.getSharedPreferences("linguaquest_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+    val prefs = AppPreferences(app)
+    prefs.saveSupabaseConfig("http://127.0.0.1:1", "offline-test-key")
+    val vm = MainViewModel(app)
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+
+    // First remote sync matches Class 10
+    val alexRemoteClass10 = vm.adminStudents.value.first { it.id == "std_001" }
+    val firstSyncResets = vm.repository.mergeRemoteStudents(listOf(alexRemoteClass10))
+    assertTrue(firstSyncResets.isEmpty())
+
+    // Second remote sync shows teacher moved Alex to Class 8 on Supabase
+    val secondSyncResets = vm.repository.mergeRemoteStudents(
+      listOf(alexRemoteClass10.copy(batch = "Class 8", xpPoints = 0, streakDays = 0, speakingScore = 0))
+    )
+    assertEquals(1, secondSyncResets.size)
+    assertEquals("Class 8", vm.currentUser.value.studentClass)
+    assertEquals(0, vm.studentProfile.value.xpPoints)
+    assertEquals(0, vm.adventureProgress.value.totalStars)
+    assertTrue(vm.vocabularyChallengeProgress.value.completedModes.isEmpty())
+    assertTrue(vm.examSubmissions.value.none { it.studentId == "std_001" || it.studentId == "stu_alex_1" })
   }
 }
 

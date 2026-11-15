@@ -120,7 +120,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val remoteStudents = supabaseService.fetchStudents()
             if (remoteStudents.isNotEmpty()) {
                 withContext(Dispatchers.Main) {
-                    repository.mergeRemoteStudents(remoteStudents)
+                    val activeResets = repository.mergeRemoteStudents(remoteStudents)
+                    if (activeResets.isNotEmpty()) {
+                        resetStudentPanelViewModelState()
+                    }
                 }
             }
         } catch (_: Exception) { }
@@ -365,8 +368,77 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.addStudent(name, email, batch, level, notes)
     }
 
-    fun updateStudent(student: StudentManagementInfo) {
-        repository.updateStudent(student)
+    fun updateStudent(student: StudentManagementInfo): Boolean {
+        val actorRole = currentUser.value.role
+        if (actorRole != Role.TEACHER && actorRole != Role.ADMIN && !isAdminSession.value) {
+            return false
+        }
+        val result = repository.updateStudentAndResetIfClassChanged(student)
+        if (result.classChanged && result.appliedToActivePanel) {
+            resetStudentPanelViewModelState()
+        }
+        if (supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    supabaseService.updateStudentAccount(
+                        student = result.updatedStudent,
+                        resetProgress = result.classChanged
+                    )
+                    if (result.classChanged) {
+                        supabaseService.syncAdventureProgress(
+                            studentId = result.updatedStudent.id,
+                            currentWorld = "Vocabulary Island",
+                            completedLevels = 0,
+                            totalStars = 0,
+                            totalCoins = 0,
+                            totalXp = 0
+                        )
+                        supabaseService.deleteStudentExamSubmissions(
+                            studentId = result.updatedStudent.id,
+                            studentName = result.updatedStudent.name,
+                            clearedSubmissionIds = result.clearedSubmissionIds
+                        )
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+        return true
+    }
+
+    private fun resetStudentPanelViewModelState() {
+        ttsManager.stop()
+        speechManager.reset()
+        _lastEvaluation.value = null
+        _isAiEvaluating.value = false
+        _celebrationReward.value = null
+        _activeGame.value = null
+        _activeRoleplay.value = null
+        roleplayTurnIndex.value = 0
+        _activeStudentExam.value = null
+        _activeExamReview.value = null
+        _activeExamCertificate.value = null
+        _selectedAdventureWorld.value = null
+        _activeAdventureLevel.value = null
+        _activeAdventureMission.value = null
+        _activePronunciationDrill.value = repository.pronunciationDrills.value.firstOrNull()
+        _pendingNovaAttachments.value = emptyList()
+        _novaAttachmentThumbnails.value = emptyMap()
+        _novaGeminiModelUsed.value = ""
+        _dailyStreakBonusClaimedToday.value = false
+        _speakingSubTab.value = SpeakingSubTab.TOPICS_ROADMAP
+        _currentStudentTab.value = StudentTab.HOME
+
+        val initialTopic = repository.speakingPrompts.value.firstOrNull()
+        _activeConversationTopic.value = initialTopic
+        if (initialTopic != null) {
+            loadNovaSession(initialTopic, autoSpeak = false)
+        } else {
+            _novaChatMessages.value = emptyList()
+            _novaTurnCount.value = 1
+            _novaCurrentHint.value = ""
+            _novaCurrentExamples.value = emptyList()
+        }
+        loadNovaGeminiSession()
     }
 
     fun deleteStudent(studentId: String) {
@@ -476,18 +548,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     supabaseService.deleteExam(examId)
                 } catch (_: Exception) {}
             }
-        }
-    }
-
-    fun updateCurrentStudentClass(newClass: String) {
-        val curr = repository.currentUser.value
-        val updatedUser = curr.copy(batch = newClass)
-        repository.setCurrentUser(updatedUser)
-        appPreferences.saveSession(updatedUser)
-        val s = adminStudents.value.find { it.id == curr.id || it.name.equals(curr.name, ignoreCase = true) }
-        if (s != null) {
-            val updatedStudent = s.copy(batch = newClass)
-            repository.updateStudent(updatedStudent)
         }
     }
 
@@ -1367,10 +1427,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (appPreferences.isLoggedIn()) {
             val savedUser = appPreferences.getSavedUser()
             if (savedUser != null) {
-                repository.setCurrentUser(savedUser)
-                when (savedUser.role) {
+                val refreshedUser = if (savedUser.role == Role.STUDENT) {
+                    val latestStudent = repository.adminStudents.value.find {
+                        it.id == savedUser.id || (savedUser.email.isNotBlank() && it.email.equals(savedUser.email, ignoreCase = true))
+                    }
+                    if (latestStudent != null) {
+                        savedUser.copy(
+                            name = latestStudent.name,
+                            email = latestStudent.email,
+                            batch = latestStudent.batch,
+                            avatarEmoji = latestStudent.avatarEmoji,
+                            isActive = latestStudent.isActive
+                        )
+                    } else savedUser
+                } else savedUser
+                repository.setCurrentUser(refreshedUser)
+                when (refreshedUser.role) {
                     Role.STUDENT -> {
-                        repository.setStudentProfileUserId(savedUser.id, savedUser.name)
+                        repository.applyPendingStudentPanelResetIfNeeded(refreshedUser.id, refreshedUser.email)
+                        repository.setStudentProfileUserId(refreshedUser.id, refreshedUser.name)
+                        appPreferences.saveSession(refreshedUser)
                         _currentStudentTab.value = StudentTab.HOME
                     }
                     Role.TEACHER -> {
@@ -1603,10 +1679,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     securityPin = matchedStudent.securityPin
                 )
                 withContext(Dispatchers.Main) {
+                    val pendingReset = repository.applyPendingStudentPanelResetIfNeeded(matchedStudent.id, matchedStudent.email)
                     repository.setCurrentUser(studentUser)
                     repository.setStudentProfileUserId(matchedStudent.id, matchedStudent.name)
                     appPreferences.saveSession(studentUser)
                     appPreferences.saveStudentProfile(repository.studentProfile.value)
+                    if (pendingReset) {
+                        resetStudentPanelViewModelState()
+                    } else {
+                        val initialTopic = repository.speakingPrompts.value.firstOrNull()
+                        if (initialTopic != null) {
+                            _activeConversationTopic.value = initialTopic
+                            loadNovaSession(initialTopic, autoSpeak = false)
+                        }
+                        loadNovaGeminiSession()
+                    }
                     _isLoggedIn.value = true
                     _showRoleSwitcher.value = false
                 }
@@ -1617,12 +1704,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // 5. Fallback check for default student demo account
         if ((idClean == "alex.morgan@linguaquest.edu" || idClean == "alex") &&
             (secretClean == "1234" || secretClean == "123456" || secretClean == "student123")) {
-            val studentUser = User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", AcademicClasses.DEFAULT_CLASS, securityPin = "1234")
+            val std = repository.adminStudents.value.find { it.id == "std_001" }
+            val studentUser = User(
+                id = std?.id ?: "std_001",
+                name = std?.name ?: "Alex Morgan",
+                email = std?.email ?: "alex.morgan@linguaquest.edu",
+                role = Role.STUDENT,
+                avatarEmoji = std?.avatarEmoji ?: "🦉",
+                batch = std?.batch ?: AcademicClasses.DEFAULT_CLASS,
+                isActive = std?.isActive ?: true,
+                securityPin = std?.securityPin?.ifBlank { "1234" } ?: "1234"
+            )
             withContext(Dispatchers.Main) {
+                val pendingReset = repository.applyPendingStudentPanelResetIfNeeded(studentUser.id, studentUser.email)
                 repository.setCurrentUser(studentUser)
-                repository.setStudentProfileUserId("std_001", "Alex Morgan")
+                repository.setStudentProfileUserId(studentUser.id, studentUser.name)
                 appPreferences.saveSession(studentUser)
                 appPreferences.saveStudentProfile(repository.studentProfile.value)
+                if (pendingReset) {
+                    resetStudentPanelViewModelState()
+                }
                 _isLoggedIn.value = true
                 _showRoleSwitcher.value = false
             }
@@ -1711,10 +1812,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 isActive = matchedStudent.isActive,
                 securityPin = matchedStudent.securityPin
             )
+            val pendingReset = repository.applyPendingStudentPanelResetIfNeeded(matchedStudent.id, matchedStudent.email)
             repository.setCurrentUser(studentUser)
             repository.setStudentProfileUserId(matchedStudent.id, matchedStudent.name)
             appPreferences.saveSession(studentUser)
             appPreferences.saveStudentProfile(repository.studentProfile.value)
+            if (pendingReset) {
+                resetStudentPanelViewModelState()
+            } else {
+                val initialTopic = repository.speakingPrompts.value.firstOrNull()
+                if (initialTopic != null) {
+                    _activeConversationTopic.value = initialTopic
+                    loadNovaSession(initialTopic, autoSpeak = false)
+                }
+                loadNovaGeminiSession()
+            }
             _isLoggedIn.value = true
             _showRoleSwitcher.value = false
             return UnifiedLoginResult.Success(Role.STUDENT, studentUser)
@@ -1723,11 +1835,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         // Fallback check for default student demo email if not found in list
         if ((idClean == "alex.morgan@linguaquest.edu" || idClean == "alex") &&
             (secretClean == "1234" || secretClean == "123456" || secretClean == "student123")) {
-            val studentUser = User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", AcademicClasses.DEFAULT_CLASS, securityPin = "1234")
+            val std = repository.adminStudents.value.find { it.id == "std_001" }
+            val studentUser = User(
+                id = std?.id ?: "std_001",
+                name = std?.name ?: "Alex Morgan",
+                email = std?.email ?: "alex.morgan@linguaquest.edu",
+                role = Role.STUDENT,
+                avatarEmoji = std?.avatarEmoji ?: "🦉",
+                batch = std?.batch ?: AcademicClasses.DEFAULT_CLASS,
+                isActive = std?.isActive ?: true,
+                securityPin = std?.securityPin?.ifBlank { "1234" } ?: "1234"
+            )
+            val pendingReset = repository.applyPendingStudentPanelResetIfNeeded(studentUser.id, studentUser.email)
             repository.setCurrentUser(studentUser)
-            repository.setStudentProfileUserId("std_001", "Alex Morgan")
+            repository.setStudentProfileUserId(studentUser.id, studentUser.name)
             appPreferences.saveSession(studentUser)
             appPreferences.saveStudentProfile(repository.studentProfile.value)
+            if (pendingReset) {
+                resetStudentPanelViewModelState()
+            }
             _isLoggedIn.value = true
             _showRoleSwitcher.value = false
             return UnifiedLoginResult.Success(Role.STUDENT, studentUser)
@@ -1941,6 +2067,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _activeStudentExam.value = null
         _activeExamReview.value = null
         _activeExamCertificate.value = null
+        if (role == Role.STUDENT) {
+            _selectedAdventureWorld.value = null
+            _activeAdventureLevel.value = null
+            _activeAdventureMission.value = null
+            _lastEvaluation.value = null
+            _celebrationReward.value = null
+            _currentStudentTab.value = StudentTab.HOME
+            _speakingSubTab.value = SpeakingSubTab.TOPICS_ROADMAP
+            val initialTopic = repository.speakingPrompts.value.firstOrNull()
+            _activeConversationTopic.value = initialTopic
+            if (initialTopic != null) {
+                loadNovaSession(initialTopic, autoSpeak = false)
+            }
+            loadNovaGeminiSession()
+        }
     }
 
     fun returnToAdminPanel() {

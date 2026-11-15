@@ -71,6 +71,8 @@ class AppPreferences(context: Context) {
         private const val KEY_NOVA_MILESTONE_TARGET = "key_nova_milestone_target"
         private const val KEY_SUPABASE_URL = "key_supabase_url"
         private const val KEY_SUPABASE_ANON_KEY = "key_supabase_anon_key"
+        private const val KEY_SUPPRESSED_DEFAULT_SUBMISSIONS = "key_suppressed_default_submissions"
+        private const val KEY_PENDING_RESET_STUDENTS = "key_pending_reset_students"
     }
 
 
@@ -2018,6 +2020,24 @@ class AppPreferences(context: Context) {
         }
     }
 
+    fun clearNovaSessionsForStudent(studentId: String, studentEmail: String = "") {
+        val prefixes = buildSet {
+            val cleanId = studentId.trim()
+            if (cleanId.isNotEmpty()) add("nova_session_${cleanId}_")
+            val cleanEmail = studentEmail.trim().lowercase()
+            if (cleanEmail.isNotEmpty()) add("nova_session_${cleanEmail}_")
+            if (cleanId == "std_001") add("nova_session_default_student_")
+        }
+        val matchingKeys = prefs.all.keys.filter { key ->
+            prefixes.any { prefix -> key.startsWith(prefix) }
+        }
+        if (matchingKeys.isNotEmpty()) {
+            val editor = prefs.edit()
+            matchingKeys.forEach { editor.remove(it) }
+            editor.apply()
+        }
+    }
+
     fun getNovaMilestoneTarget(): Int {
         return prefs.getInt(KEY_NOVA_MILESTONE_TARGET, 5)
     }
@@ -2049,6 +2069,87 @@ class AppPreferences(context: Context) {
     fun markDailyStreakBonusClaimedToday(studentId: String, todayDate: String) {
         val cleanId = studentId.trim().ifBlank { "default_student" }
         prefs.edit().putString("key_daily_streak_claimed_$cleanId", todayDate).apply()
+    }
+
+    fun clearDailyStreakBonusClaimed(studentId: String, studentEmail: String = "") {
+        val editor = prefs.edit()
+        val cleanId = studentId.trim().ifBlank { "default_student" }
+        editor.remove("key_daily_streak_claimed_$cleanId")
+        val cleanEmail = studentEmail.trim().lowercase()
+        if (cleanEmail.isNotEmpty()) {
+            editor.remove("key_daily_streak_claimed_$cleanEmail")
+        }
+        if (cleanId == "std_001") {
+            editor.remove("key_daily_streak_claimed_default_student")
+        }
+        editor.apply()
+    }
+
+    fun addSuppressedDefaultSubmissionIds(ids: Set<String>) {
+        if (ids.isEmpty()) return
+        val existing = getSuppressedDefaultSubmissionIds().toMutableSet()
+        existing.addAll(ids)
+        val arr = JSONArray()
+        existing.forEach { arr.put(it) }
+        prefs.edit().putString(KEY_SUPPRESSED_DEFAULT_SUBMISSIONS, arr.toString()).apply()
+    }
+
+    fun getSuppressedDefaultSubmissionIds(): Set<String> {
+        val raw = prefs.getString(KEY_SUPPRESSED_DEFAULT_SUBMISSIONS, null) ?: return emptySet()
+        return try {
+            val arr = JSONArray(raw)
+            val result = mutableSetOf<String>()
+            for (i in 0 until arr.length()) {
+                val id = arr.optString(i, "").trim()
+                if (id.isNotEmpty()) result.add(id)
+            }
+            result
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    fun markStudentPendingPanelReset(studentId: String, email: String = "") {
+        val tokens = getPendingResetTokens().toMutableSet()
+        val cleanId = studentId.trim()
+        if (cleanId.isNotEmpty()) tokens.add(cleanId)
+        val cleanEmail = email.trim().lowercase()
+        if (cleanEmail.isNotEmpty()) tokens.add(cleanEmail)
+        savePendingResetTokens(tokens)
+    }
+
+    fun consumeStudentPendingPanelReset(studentId: String, email: String = ""): Boolean {
+        val tokens = getPendingResetTokens().toMutableSet()
+        if (tokens.isEmpty()) return false
+        val cleanId = studentId.trim()
+        val cleanEmail = email.trim().lowercase()
+        val matched = (cleanId.isNotEmpty() && tokens.remove(cleanId)) or
+            (cleanEmail.isNotEmpty() && tokens.remove(cleanEmail))
+        if (matched) {
+            savePendingResetTokens(tokens)
+        }
+        return matched
+    }
+
+    private fun getPendingResetTokens(): Set<String> {
+        val raw = prefs.getString(KEY_PENDING_RESET_STUDENTS, null) ?: return emptySet()
+        return try {
+            val arr = JSONArray(raw)
+            val result = mutableSetOf<String>()
+            for (i in 0 until arr.length()) {
+                val token = arr.optString(i, "").trim()
+                if (token.isNotEmpty()) result.add(token)
+            }
+            result
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    private fun savePendingResetTokens(tokens: Set<String>) {
+        val arr = JSONArray()
+        tokens.forEach { arr.put(it) }
+        prefs.edit().putString(KEY_PENDING_RESET_STUDENTS, arr.toString()).apply()
     }
 }
 

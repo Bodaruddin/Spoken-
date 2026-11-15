@@ -966,9 +966,16 @@ fun AdminStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Modif
             classes = academicClasses,
             onDismiss = { selectedStudentForEdit = null },
             onSave = { updated ->
-                viewModel.updateStudent(updated)
+                val classChanged = !s.batch.trim().equals(updated.batch.trim(), ignoreCase = true)
+                val saved = viewModel.updateStudent(updated)
                 selectedStudentForEdit = null
-                statusMsg = "Updated student ${updated.name} successfully!"
+                if (saved) {
+                    statusMsg = if (classChanged) {
+                        "Changed ${updated.name}'s class to ${updated.batch} and reset student panel progress!"
+                    } else {
+                        "Updated student ${updated.name} successfully!"
+                    }
+                }
             }
         )
     }

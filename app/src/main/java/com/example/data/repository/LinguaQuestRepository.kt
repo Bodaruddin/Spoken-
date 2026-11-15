@@ -7,6 +7,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
+data class StudentClassChangeResult(
+    val classChanged: Boolean,
+    val updatedStudent: StudentManagementInfo,
+    val clearedSubmissionIds: List<String> = emptyList(),
+    val appliedToActivePanel: Boolean = false
+)
+
 class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) {
 
     // Current logged-in user & role (restores from local preferences if present)
@@ -1318,14 +1325,16 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         )
 
     private fun loadInitialSubmissions(): List<ExamSubmission> {
+        val suppressedIds = appPreferences?.getSuppressedDefaultSubmissionIds() ?: emptySet()
         val saved = appPreferences?.getExamSubmissions()
-        if (!saved.isNullOrEmpty()) {
+        if (saved != null) {
             val savedIds = saved.map { it.id }.toSet()
-            val missingDefaults = defaultSubmissions.filter { it.id !in savedIds }
+            val missingDefaults = defaultSubmissions.filter { it.id !in savedIds && it.id !in suppressedIds }
             return saved + missingDefaults
         }
-        appPreferences?.saveExamSubmissions(defaultSubmissions)
-        return defaultSubmissions
+        val initial = defaultSubmissions.filter { it.id !in suppressedIds }
+        appPreferences?.saveExamSubmissions(initial)
+        return initial
     }
 
     private val _examSubmissions = MutableStateFlow(loadInitialSubmissions())
@@ -2567,9 +2576,21 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     }
 
     fun switchRole(newRole: Role) {
-        val current = _currentUser.value
         val updatedUser = when (newRole) {
-            Role.STUDENT -> User("std_001", "Alex Morgan", "alex.morgan@linguaquest.edu", Role.STUDENT, "🦉", AcademicClasses.DEFAULT_CLASS, securityPin = "1234")
+            Role.STUDENT -> {
+                val std = _adminStudents.value.find { it.id == "std_001" }
+                User(
+                    id = std?.id ?: "std_001",
+                    name = std?.name ?: "Alex Morgan",
+                    email = std?.email ?: "alex.morgan@linguaquest.edu",
+                    role = Role.STUDENT,
+                    avatarEmoji = std?.avatarEmoji ?: "🦉",
+                    batch = std?.batch ?: AcademicClasses.DEFAULT_CLASS,
+                    isActive = std?.isActive ?: true,
+                    joinedDate = std?.joinedDate ?: "Nov 2026",
+                    securityPin = std?.securityPin?.ifBlank { "1234" } ?: "1234"
+                )
+            }
             Role.TEACHER -> _adminTeachers.value.firstOrNull { it.isActive }
                 ?: _adminTeachers.value.firstOrNull()
                 ?: User("tch_001", "Prof. Eleanor Vance", "e.vance@linguaquest.edu", Role.TEACHER, "👩‍🏫", "Lead Instructor", securityPin = "7321")
@@ -2581,6 +2602,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         }
         if (newRole == Role.STUDENT) {
             setStudentProfileUserId(updatedUser.id, updatedUser.name)
+            applyPendingStudentPanelResetIfNeeded(updatedUser.id, updatedUser.email)
         } else {
             refreshLeaderboard()
         }
@@ -2600,10 +2622,39 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         refreshLeaderboard()
     }
 
+    private fun createCleanStudentProfile(studentId: String, level: LearningLevel = LearningLevel.BEGINNER): StudentProfile {
+        return StudentProfile(
+            userId = studentId,
+            currentLevel = level,
+            streakDays = 0,
+            xpPoints = 0,
+            coins = 0,
+            league = "Bronze League",
+            overallScore = 0,
+            speakingScore = 0,
+            pronunciationScore = 0,
+            fluencyScore = 0,
+            grammarScore = 0,
+            vocabularyScore = 0,
+            listeningScore = 0,
+            readingScore = 0,
+            completedStagesCount = 0,
+            speakingPracticeMinutes = 0,
+            lastPracticeDate = ""
+        )
+    }
+
     fun setStudentProfileUserId(studentId: String, studentName: String) {
         val info = _adminStudents.value.find { it.id == studentId || it.email.equals(studentId, ignoreCase = true) || it.name.equals(studentName, ignoreCase = true) }
         val saved = appPreferences?.getStudentProfile(studentId)
-        val initialOrSaved = if (saved != null) {
+        val isResetStarter = info != null && info.xpPoints == 0 && info.streakDays == 0 && info.speakingScore == 0
+        val initialOrSaved = if (isResetStarter) {
+            if (saved != null && saved.xpPoints == 0 && saved.streakDays == 0) {
+                saved.copy(currentLevel = info!!.level, league = "Bronze League")
+            } else {
+                createCleanStudentProfile(studentId, info!!.level)
+            }
+        } else if (saved != null) {
             if (info != null) {
                 val overall = (info.speakingScore + info.pronunciationScore + info.fluencyScore + info.grammarScore + info.vocabularyScore + info.listeningScore) / 6
                 saved.copy(
@@ -2995,27 +3046,253 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     }
 
     fun updateStudent(updated: StudentManagementInfo) {
-        _adminStudents.update { list ->
-            list.map { if (it.id == updated.id) updated else it }
+        updateStudentAndResetIfClassChanged(updated)
+    }
+
+    fun updateStudentAndResetIfClassChanged(updated: StudentManagementInfo): StudentClassChangeResult {
+        val currentList = _adminStudents.value
+        val existingIdx = currentList.indexOfFirst { it.id == updated.id }
+        val existing = if (existingIdx >= 0) currentList[existingIdx] else null
+        val cleanBatch = updated.batch.trim().ifBlank { AcademicClasses.DEFAULT_CLASS }
+        val classChanged = existing != null && !existing.batch.trim().equals(cleanBatch, ignoreCase = true)
+
+        if (classChanged && existing != null) {
+            val resetStudent = existing.copy(
+                name = updated.name.trim().ifBlank { existing.name },
+                email = updated.email.trim().ifBlank { existing.email },
+                batch = cleanBatch,
+                level = LearningLevel.BEGINNER,
+                isActive = updated.isActive,
+                speakingScore = 0,
+                pronunciationScore = 0,
+                fluencyScore = 0,
+                grammarScore = 0,
+                vocabularyScore = 0,
+                listeningScore = 0,
+                streakDays = 0,
+                xpPoints = 0,
+                teacherNotes = updated.teacherNotes
+            )
+            _adminStudents.update { list ->
+                list.map { if (it.id == resetStudent.id) resetStudent else it }
+            }
+            appPreferences?.saveStudents(_adminStudents.value)
+            val (clearedIds, appliedToActive) = performStudentClassChangeReset(existing, resetStudent)
+            return StudentClassChangeResult(
+                classChanged = true,
+                updatedStudent = resetStudent,
+                clearedSubmissionIds = clearedIds,
+                appliedToActivePanel = appliedToActive
+            )
+        } else {
+            val normalizedUpdated = updated.copy(batch = cleanBatch)
+            _adminStudents.update { list ->
+                list.map { if (it.id == normalizedUpdated.id) normalizedUpdated else it }
+            }
+            appPreferences?.saveStudents(_adminStudents.value)
+            if (_currentUser.value.id == normalizedUpdated.id ||
+                (_currentUser.value.email.isNotBlank() && _currentUser.value.email.equals(normalizedUpdated.email, ignoreCase = true))
+            ) {
+                val nextUser = _currentUser.value.copy(
+                    name = normalizedUpdated.name,
+                    email = normalizedUpdated.email,
+                    batch = normalizedUpdated.batch,
+                    isActive = normalizedUpdated.isActive
+                )
+                _currentUser.value = nextUser
+                if (appPreferences?.getSavedUser()?.id == normalizedUpdated.id) {
+                    appPreferences.saveSession(nextUser)
+                }
+            }
+            if (_studentProfile.value.userId == normalizedUpdated.id) {
+                _studentProfile.update {
+                    it.copy(
+                        currentLevel = normalizedUpdated.level,
+                        streakDays = normalizedUpdated.streakDays,
+                        speakingScore = normalizedUpdated.speakingScore,
+                        pronunciationScore = normalizedUpdated.pronunciationScore,
+                        fluencyScore = normalizedUpdated.fluencyScore,
+                        grammarScore = normalizedUpdated.grammarScore,
+                        vocabularyScore = normalizedUpdated.vocabularyScore,
+                        listeningScore = normalizedUpdated.listeningScore,
+                        overallScore = (normalizedUpdated.speakingScore + normalizedUpdated.pronunciationScore + normalizedUpdated.fluencyScore + normalizedUpdated.grammarScore + normalizedUpdated.vocabularyScore + normalizedUpdated.listeningScore) / 6
+                    )
+                }
+                appPreferences?.saveStudentProfile(_studentProfile.value)
+            }
+            refreshLeaderboard()
+            return StudentClassChangeResult(
+                classChanged = false,
+                updatedStudent = normalizedUpdated
+            )
         }
-        appPreferences?.saveStudents(_adminStudents.value)
-        if (_studentProfile.value.userId == updated.id) {
-            _studentProfile.update {
-                it.copy(
-                    currentLevel = updated.level,
-                    streakDays = updated.streakDays,
-                    speakingScore = updated.speakingScore,
-                    pronunciationScore = updated.pronunciationScore,
-                    fluencyScore = updated.fluencyScore,
-                    grammarScore = updated.grammarScore,
-                    vocabularyScore = updated.vocabularyScore,
-                    listeningScore = updated.listeningScore,
-                    overallScore = (updated.speakingScore + updated.pronunciationScore + updated.fluencyScore + updated.grammarScore + updated.vocabularyScore + updated.listeningScore) / 6
+    }
+
+    private fun performStudentClassChangeReset(
+        oldStudent: StudentManagementInfo,
+        resetStudent: StudentManagementInfo
+    ): Pair<List<String>, Boolean> {
+        val cleanProfile = createCleanStudentProfile(resetStudent.id, LearningLevel.BEGINNER)
+        appPreferences?.saveStudentProfile(cleanProfile)
+
+        appPreferences?.clearNovaSessionsForStudent(resetStudent.id, resetStudent.email)
+        if (!oldStudent.email.equals(resetStudent.email, ignoreCase = true) && oldStudent.email.isNotBlank()) {
+            appPreferences?.clearNovaSessionsForStudent(oldStudent.id, oldStudent.email)
+        }
+        appPreferences?.clearDailyStreakBonusClaimed(resetStudent.id, resetStudent.email)
+
+        // Remove this student's exam submissions & certificates
+        val matchingSubmissionIds = mutableListOf<String>()
+        val remainingSubmissions = _examSubmissions.value.filterNot { sub ->
+            val matches = sub.studentId == resetStudent.id ||
+                sub.studentName.equals(resetStudent.name, ignoreCase = true) ||
+                sub.studentName.equals(oldStudent.name, ignoreCase = true) ||
+                (resetStudent.id == "std_001" && sub.studentId == "stu_alex_1")
+            if (matches) matchingSubmissionIds.add(sub.id)
+            matches
+        }
+        if (matchingSubmissionIds.isNotEmpty() || _examSubmissions.value.size != remainingSubmissions.size) {
+            _examSubmissions.value = remainingSubmissions
+            appPreferences?.saveExamSubmissions(remainingSubmissions)
+            val suppressedDefaults = matchingSubmissionIds.filter { removedId ->
+                defaultSubmissions.any { it.id == removedId }
+            }.toSet()
+            appPreferences?.addSuppressedDefaultSubmissionIds(suppressedDefaults)
+        }
+
+        // Remove this student's assignment submissions
+        _submissions.update { list ->
+            list.filterNot { sub ->
+                sub.studentName.equals(resetStudent.name, ignoreCase = true) ||
+                    sub.studentName.equals(oldStudent.name, ignoreCase = true)
+            }
+        }
+
+        // Sync saved session if it belongs to the changed student
+        val savedUser = appPreferences?.getSavedUser()
+        if (savedUser != null && (savedUser.id == resetStudent.id ||
+                (savedUser.email.isNotBlank() && savedUser.email.equals(resetStudent.email, ignoreCase = true)))
+        ) {
+            appPreferences.saveSession(
+                savedUser.copy(
+                    name = resetStudent.name,
+                    email = resetStudent.email,
+                    batch = resetStudent.batch,
+                    isActive = resetStudent.isActive
+                )
+            )
+        }
+
+        val currentUserMatches = _currentUser.value.id == resetStudent.id ||
+            (_currentUser.value.email.isNotBlank() && _currentUser.value.email.equals(resetStudent.email, ignoreCase = true))
+        if (currentUserMatches) {
+            _currentUser.value = _currentUser.value.copy(
+                name = resetStudent.name,
+                email = resetStudent.email,
+                batch = resetStudent.batch,
+                isActive = resetStudent.isActive
+            )
+        }
+
+        val isActivePanelStudent = currentUserMatches ||
+            _studentProfile.value.userId == resetStudent.id ||
+            _adventureProgress.value.studentId == resetStudent.id
+
+        if (isActivePanelStudent) {
+            resetActiveStudentPanelState(resetStudent.id, cleanProfile)
+        } else {
+            appPreferences?.markStudentPendingPanelReset(resetStudent.id, resetStudent.email)
+        }
+
+        refreshLeaderboard()
+        return matchingSubmissionIds to isActivePanelStudent
+    }
+
+    fun applyPendingStudentPanelResetIfNeeded(studentId: String, email: String = ""): Boolean {
+        val consumed = appPreferences?.consumeStudentPendingPanelReset(studentId, email) ?: false
+        if (!consumed) return false
+        val studentInfo = _adminStudents.value.find {
+            it.id == studentId || (email.isNotBlank() && it.email.equals(email, ignoreCase = true))
+        }
+        val cleanProfile = createCleanStudentProfile(studentId, studentInfo?.level ?: LearningLevel.BEGINNER)
+        resetActiveStudentPanelState(studentId, cleanProfile)
+        refreshLeaderboard()
+        return true
+    }
+
+    fun resetActiveStudentPanelState(
+        studentId: String,
+        cleanProfile: StudentProfile = createCleanStudentProfile(studentId)
+    ) {
+        _studentProfile.value = cleanProfile
+        appPreferences?.saveStudentProfile(cleanProfile)
+
+        // Reset Learning Worlds & Stages progress while preserving world/stage curriculum definitions
+        _worlds.value = _worlds.value.map { w ->
+            w.copy(completedStages = 0, isUnlocked = (w.id == 1))
+        }
+        _stages.value = _stages.value.map { s ->
+            s.copy(stars = 0, isCompleted = false, isUnlocked = (s.worldId == 1 && s.stageNumber == 1))
+        }
+
+        // Reset Adventure Worlds unlock/completion/stars while keeping Teacher/Admin custom worlds, levels & missions
+        val resetWorlds = _adventureWorlds.value.mapIndexed { wIdx, w ->
+            val worldUnlocked = w.requiredTotalStars == 0 || wIdx == 0 || w.id == "world_vocab"
+            val resetLevels = w.levels.mapIndexed { lIdx, lvl ->
+                lvl.copy(
+                    isUnlocked = worldUnlocked && lIdx == 0,
+                    isCompleted = false,
+                    starsEarned = 0
                 )
             }
-            appPreferences?.saveStudentProfile(_studentProfile.value)
+            w.copy(
+                isUnlocked = worldUnlocked,
+                levels = resetLevels
+            )
         }
-        refreshLeaderboard()
+        _adventureWorlds.value = resetWorlds
+        val unlockedWorldIds = resetWorlds.filter { it.isUnlocked }.map { it.id }.toSet().ifEmpty { setOf("world_vocab") }
+
+        _adventureProgress.value = AdventureProgress(
+            studentId = studentId,
+            completedLevelIds = emptySet(),
+            completedMissionIds = emptySet(),
+            unlockedWorldIds = unlockedWorldIds,
+            levelStars = emptyMap(),
+            totalStars = 0,
+            totalCoins = 0,
+            totalXp = 0,
+            badges = emptyList(),
+            claimedChestWorldIds = emptySet()
+        )
+        saveAdventureStateToPreferences()
+
+        _adventureBadges.value = AdventureDataDefaults.createDefaultBadges()
+        _adventureLeaderboard.update { list ->
+            list.map { entry ->
+                if (entry.isCurrentUser || entry.studentId == studentId) {
+                    entry.copy(
+                        totalStars = 0,
+                        coins = 0,
+                        xp = 0,
+                        currentWorld = "Vocabulary Island"
+                    )
+                } else entry
+            }.sortedByDescending { it.totalStars }
+                .mapIndexed { idx, entry -> entry.copy(rank = idx + 1) }
+        }
+
+        // Reset game challenge progression & word notebook mastery/favorites
+        _vocabularyChallengeProgress.value = VocabularyChallengeProgress()
+        appPreferences?.saveVocabularyChallengeProgress(_vocabularyChallengeProgress.value)
+
+        _fastVocabularyProgress.value = FastVocabularyProgress()
+        appPreferences?.saveFastVocabularyProgress(_fastVocabularyProgress.value)
+
+        _vocabularyWords.value = _vocabularyWords.value.map { word ->
+            word.copy(isFavorite = false, isMastered = false)
+        }
+        appPreferences?.saveVocabularyWords(_vocabularyWords.value)
     }
 
     fun deleteStudent(studentId: String) {
@@ -3937,34 +4214,74 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     // REMOTE SUPABASE CLOUD SYNC MERGERS
     // =========================================================================
 
-    fun mergeRemoteStudents(remoteStudents: List<StudentManagementInfo>) {
-        if (remoteStudents.isEmpty()) return
+    private var hasSyncedRemoteStudents = false
+
+    fun mergeRemoteStudents(remoteStudents: List<StudentManagementInfo>): List<StudentManagementInfo> {
+        if (remoteStudents.isEmpty()) return emptyList()
+        val hasLocalStudentHistory = hasSyncedRemoteStudents || (appPreferences?.getStudents() != null)
         val current = _adminStudents.value.toMutableList()
         var changed = false
+        val classChangedPairs = mutableListOf<Pair<StudentManagementInfo, StudentManagementInfo>>()
         for (remote in remoteStudents) {
             val existingIndex = current.indexOfFirst {
                 it.id == remote.id || (it.email.isNotBlank() && it.email.equals(remote.email, ignoreCase = true))
             }
             if (existingIndex >= 0) {
-                // Keep local high score / progress if higher
                 val existing = current[existingIndex]
-                current[existingIndex] = remote.copy(
-                    xpPoints = maxOf(existing.xpPoints, remote.xpPoints),
-                    streakDays = maxOf(existing.streakDays, remote.streakDays),
-                    securityPin = if (remote.securityPin.isNotBlank()) remote.securityPin else existing.securityPin,
-                    batch = if (remote.batch.isNotBlank() && !remote.batch.equals("Batch Alpha", ignoreCase = true)) remote.batch else existing.batch
-                )
-                changed = true
+                val remoteBatch = remote.batch.trim()
+                val remoteClassChanged = remoteBatch.isNotBlank() &&
+                    !remoteBatch.equals("Batch Alpha", ignoreCase = true) &&
+                    !remoteBatch.equals(existing.batch.trim(), ignoreCase = true)
+                val remoteIsResetRecord = remote.xpPoints == 0 && remote.streakDays == 0 && remote.speakingScore == 0
+                if (remoteClassChanged && (remoteIsResetRecord || hasLocalStudentHistory)) {
+                    val resetStudent = existing.copy(
+                        name = remote.name.ifBlank { existing.name },
+                        email = remote.email.ifBlank { existing.email },
+                        batch = remoteBatch,
+                        level = LearningLevel.BEGINNER,
+                        isActive = remote.isActive,
+                        speakingScore = 0,
+                        pronunciationScore = 0,
+                        fluencyScore = 0,
+                        grammarScore = 0,
+                        vocabularyScore = 0,
+                        listeningScore = 0,
+                        streakDays = 0,
+                        xpPoints = 0,
+                        securityPin = if (remote.securityPin.isNotBlank()) remote.securityPin else existing.securityPin
+                    )
+                    current[existingIndex] = resetStudent
+                    classChangedPairs.add(existing to resetStudent)
+                    changed = true
+                } else {
+                    val adoptRemoteBatchDirectly = remoteClassChanged && !remoteIsResetRecord && !hasLocalStudentHistory
+                    current[existingIndex] = remote.copy(
+                        xpPoints = if (adoptRemoteBatchDirectly) remote.xpPoints else maxOf(existing.xpPoints, remote.xpPoints),
+                        streakDays = if (adoptRemoteBatchDirectly) remote.streakDays else maxOf(existing.streakDays, remote.streakDays),
+                        securityPin = if (remote.securityPin.isNotBlank()) remote.securityPin else existing.securityPin,
+                        batch = if (remoteBatch.isNotBlank() && !remoteBatch.equals("Batch Alpha", ignoreCase = true)) remoteBatch else existing.batch
+                    )
+                    changed = true
+                }
             } else {
                 current.add(remote)
                 changed = true
             }
         }
+        hasSyncedRemoteStudents = true
+        val activePanelResets = mutableListOf<StudentManagementInfo>()
         if (changed) {
             _adminStudents.value = current
             appPreferences?.saveStudents(current)
-            refreshLeaderboard()
+            classChangedPairs.forEach { (oldStudent, resetStudent) ->
+                val (_, appliedToActive) = performStudentClassChangeReset(oldStudent, resetStudent)
+                if (appliedToActive) activePanelResets.add(resetStudent)
+            }
+            if (classChangedPairs.isEmpty()) {
+                refreshLeaderboard()
+            }
         }
+        return activePanelResets
     }
 
     fun mergeRemoteTeachers(remoteTeachers: List<User>) {
@@ -4448,9 +4765,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
 
     fun mergeRemoteExamSubmissions(remoteSubmissions: List<ExamSubmission>) {
         if (remoteSubmissions.isEmpty()) return
+        val suppressedIds = appPreferences?.getSuppressedDefaultSubmissionIds() ?: emptySet()
         val current = _examSubmissions.value.toMutableList()
         var changed = false
         for (item in remoteSubmissions) {
+            if (item.id in suppressedIds) continue
             val idx = current.indexOfFirst { it.id == item.id }
             if (idx >= 0) {
                 current[idx] = item
@@ -4957,26 +5276,44 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         val totalLevels = worlds.sumOf { it.levels.size }
 
         return students.mapIndexed { idx, s ->
-            val compLevels = when (idx) {
-                0 -> 3 // Alex Morgan
-                1 -> 2
-                2 -> 2
-                3 -> 1
-                else -> 0
+            val isActiveAdv = s.id == _adventureProgress.value.studentId
+            val isResetStarter = s.xpPoints == 0 && s.streakDays == 0 && (!isActiveAdv || _adventureProgress.value.completedLevelIds.isEmpty())
+            val compLevels = if (isResetStarter) {
+                0
+            } else if (isActiveAdv) {
+                _adventureProgress.value.completedLevelIds.size
+            } else {
+                when (idx) {
+                    0 -> 3 // Alex Morgan
+                    1 -> 2
+                    2 -> 2
+                    3 -> 1
+                    else -> 0
+                }
             }
-            val stars = when (idx) {
-                0 -> _adventureProgress.value.totalStars.coerceAtLeast(8)
-                1 -> 5
-                2 -> 6
-                3 -> 3
-                else -> 1
+            val stars = if (isResetStarter) {
+                0
+            } else if (isActiveAdv) {
+                _adventureProgress.value.totalStars
+            } else {
+                when (idx) {
+                    0 -> _adventureProgress.value.totalStars.coerceAtLeast(8)
+                    1 -> 5
+                    2 -> 6
+                    3 -> 3
+                    else -> 1
+                }
             }
-            val worldName = when (idx) {
-                0 -> "Speaking City"
-                1 -> "Grammar Kingdom"
-                2 -> "Listening Forest"
-                3 -> "Vocabulary Island"
-                else -> "Vocabulary Island"
+            val worldName = if (isResetStarter) {
+                "Vocabulary Island"
+            } else {
+                when (idx) {
+                    0 -> "Speaking City"
+                    1 -> "Grammar Kingdom"
+                    2 -> "Listening Forest"
+                    3 -> "Vocabulary Island"
+                    else -> "Vocabulary Island"
+                }
             }
             StudentAdventureProgressSummary(
                 studentId = s.id,
@@ -4987,7 +5324,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 completedLevelsCount = compLevels,
                 totalLevelsCount = totalLevels,
                 totalStars = stars,
-                coinsEarned = s.xpPoints / 4,
+                coinsEarned = if (isResetStarter) 0 else s.xpPoints / 4,
                 xpEarned = s.xpPoints,
                 lastActiveMission = if (compLevels > 0) "Level $compLevels Completed" else "Just Began",
                 completionPercent = if (totalLevels > 0) compLevels.toFloat() / totalLevels else 0f

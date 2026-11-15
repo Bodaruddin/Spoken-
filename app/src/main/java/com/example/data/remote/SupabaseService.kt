@@ -471,6 +471,51 @@ class SupabaseService {
         }
     }
 
+    suspend fun updateStudentAccount(
+        student: StudentManagementInfo,
+        resetProgress: Boolean = false
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        try {
+            val cleanEmail = student.email.trim().lowercase()
+            val payload = JSONObject().apply {
+                put("id", student.id)
+                put("name", student.name.trim())
+                put("email", cleanEmail)
+                put("batch", student.batch.trim())
+                put("security_pin", student.securityPin.ifBlank { "1234" })
+                put("role", "STUDENT")
+                put("xp_points", if (resetProgress) 0 else student.xpPoints)
+                put("coins", if (resetProgress) 0 else (student.xpPoints / 4))
+                put("is_active", student.isActive)
+            }
+
+            val req = Request.Builder()
+                .url("$supabaseUrl/rest/v1/students")
+                .addHeader("apikey", supabaseAnonKey)
+                .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                .addHeader("Prefer", "resolution=merge-duplicates")
+                .post(payload.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            var saved = false
+            client.newCall(req).execute().use { resp ->
+                saved = resp.isSuccessful
+            }
+
+            if (resetProgress) {
+                syncStudentProgress(student.id, xp = 0, coins = 0, speakingScore = 0, completedStages = 0)
+                if (cleanEmail.isNotBlank()) {
+                    syncStudentProgress(cleanEmail, xp = 0, coins = 0, speakingScore = 0, completedStages = 0)
+                }
+            }
+            saved
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error updating student account: ${e.message}")
+            false
+        }
+    }
+
     suspend fun saveTeacherAccount(
         id: String,
         name: String,
@@ -2431,6 +2476,61 @@ class SupabaseService {
         } catch (_: Exception) {}
 
         list
+    }
+
+    suspend fun deleteStudentExamSubmissions(
+        studentId: String,
+        studentName: String,
+        clearedSubmissionIds: List<String> = emptyList()
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured()) return@withContext false
+        var anyDeleted = false
+        try {
+            val cleanId = studentId.trim()
+            if (cleanId.isNotEmpty()) {
+                val encodedId = java.net.URLEncoder.encode(cleanId, "UTF-8")
+                val reqById = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/exam_submissions?student_id=eq.$encodedId")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .delete()
+                    .build()
+                client.newCall(reqById).execute().use { resp ->
+                    if (resp.isSuccessful) anyDeleted = true
+                }
+            }
+            val cleanName = studentName.trim()
+            if (cleanName.isNotEmpty()) {
+                val encodedName = java.net.URLEncoder.encode(cleanName, "UTF-8")
+                val reqByName = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/exam_submissions?student_name=eq.$encodedName")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .delete()
+                    .build()
+                client.newCall(reqByName).execute().use { resp ->
+                    if (resp.isSuccessful) anyDeleted = true
+                }
+            }
+            clearedSubmissionIds.forEach { subId ->
+                if (subId.isNotBlank()) {
+                    cleanSyncRows("SUBMISSION_SYNC", subId)
+                    val encodedSubId = java.net.URLEncoder.encode(subId, "UTF-8")
+                    val reqBySubId = Request.Builder()
+                        .url("$supabaseUrl/rest/v1/exam_submissions?id=eq.$encodedSubId")
+                        .addHeader("apikey", supabaseAnonKey)
+                        .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                        .delete()
+                        .build()
+                    client.newCall(reqBySubId).execute().use { resp ->
+                        if (resp.isSuccessful) anyDeleted = true
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error deleting student exam submissions: ${e.message}")
+        }
+        anyDeleted
     }
 
     // =========================================================================

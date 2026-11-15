@@ -830,9 +830,16 @@ fun TeacherStudentsManagement(viewModel: MainViewModel, modifier: Modifier = Mod
             classes = academicClasses,
             onDismiss = { selectedStudentForDetail = null },
             onSave = { updated ->
-                viewModel.updateStudent(updated)
+                val classChanged = !student.batch.trim().equals(updated.batch.trim(), ignoreCase = true)
+                val saved = viewModel.updateStudent(updated)
                 selectedStudentForDetail = null
-                actionToast = "Updated profile & level for ${updated.name}!"
+                if (saved) {
+                    actionToast = if (classChanged) {
+                        "Changed ${updated.name}'s class to ${updated.batch} and reset student panel progress!"
+                    } else {
+                        "Updated profile & level for ${updated.name}!"
+                    }
+                }
             }
         )
     }
@@ -6144,7 +6151,10 @@ fun StudentDetailDialog(
         },
         text = {
             LazyColumn(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .testTag("student_detail_dialog_list"),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
@@ -6211,7 +6221,7 @@ fun StudentDetailDialog(
                                 label = { Text("Class") },
                                 leadingIcon = { Icon(Icons.Rounded.School, contentDescription = null, tint = RoyalBlue) },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = classDropdownExpanded) },
-                                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                                modifier = Modifier.menuAnchor().fillMaxWidth().testTag("edit_student_class_field"),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
                             )
@@ -6240,6 +6250,37 @@ fun StudentDetailDialog(
                                             classDropdownExpanded = false
                                         },
                                         contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                    )
+                                }
+                            }
+                        }
+
+                        if (!batch.trim().equals(student.batch.trim(), ignoreCase = true)) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFFFFBEB),
+                                border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("class_change_reset_warning")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.WarningAmber,
+                                        contentDescription = "Class change reset warning",
+                                        tint = Color(0xFFD97706),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Changing class from ${student.batch} to $batch will reset all student panel progress (XP, coins, streak, CEFR scores, adventure map, games, exams, certificates, and AI chat history).",
+                                        fontSize = 11.sp,
+                                        lineHeight = 15.sp,
+                                        color = Color(0xFF92400E),
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
                             }
