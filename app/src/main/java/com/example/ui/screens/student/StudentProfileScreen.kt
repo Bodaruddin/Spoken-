@@ -41,6 +41,7 @@ fun StudentProfileScreen(
     val badges by viewModel.badges.collectAsState()
     val vocabulary by viewModel.vocabularyWords.collectAsState()
     val isAdminSession by viewModel.isAdminSession.collectAsState()
+    val isStreakBonusClaimedToday by viewModel.dailyStreakBonusClaimedToday.collectAsState()
 
     var showVocabNotebook by remember { mutableStateOf(false) }
     var showClassSelectionDialog by remember { mutableStateOf(false) }
@@ -522,13 +523,44 @@ fun StudentProfileScreen(
                     MissionItem("Vocabulary & Grammar Precision Challenge", "60 XP", (profile.grammarScore / 100f).coerceIn(0f, 1f), isGrammarDone)
 
                     Button(
-                        onClick = { viewModel.incrementDailyPracticeStreak() },
-                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            if (completedCount == 0) {
+                                Toast.makeText(
+                                    context,
+                                    "Complete at least 1 daily mission today to claim your +30 XP Streak Bonus!",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else if (viewModel.incrementDailyPracticeStreak()) {
+                                Toast.makeText(
+                                    context,
+                                    "🔥 Daily Streak Bonus Claimed! +30 XP & +10 Coins",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        },
+                        enabled = !isStreakBonusClaimedToday,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("claim_daily_streak_bonus_button"),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = if (completedCount > 0) EmeraldSuccess else Color(0xFF1E293B)),
-                        contentPadding = PaddingValues(vertical = 8.dp)
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (completedCount > 0) EmeraldSuccess else Color(0xFF1E293B),
+                            disabledContainerColor = Color(0xFF064E3B),
+                            disabledContentColor = Color(0xFFA7F3D0)
+                        ),
+                        contentPadding = PaddingValues(vertical = 10.dp, horizontal = 12.dp)
                     ) {
-                        Text("🔥 Claim Daily Practice Streak Bonus (+30 XP)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(
+                            text = when {
+                                isStreakBonusClaimedToday -> "✅ Daily Streak Bonus Claimed Today (+30 XP)"
+                                completedCount > 0 -> "🔥 Claim Daily Practice Streak Bonus (+30 XP)"
+                                else -> "🔒 Complete 1 Mission to Unlock (+30 XP)"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isStreakBonusClaimedToday) Color(0xFFA7F3D0) else Color.White
+                        )
                     }
                 }
             }

@@ -11,6 +11,8 @@ import com.example.data.model.Role
 import com.example.data.model.SpeakingPrompt
 import com.example.data.model.VocabularyActivityType
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -759,6 +761,56 @@ class ExampleRobolectricTest {
 
     assertTrue("Expected Connected state, got: $connectedState", connectedState is com.example.data.remote.SupabaseConnectionState.Connected)
     assertEquals("http://127.0.0.1:$port", service.supabaseUrl)
+  }
+
+  @Test
+  fun `student profile claim daily practice streak bonus increments streak, awards 30 xp, and marks claimed today`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val vm = MainViewModel(app)
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+
+    // Ensure at least 1 daily mission is completed (speakingPracticeMinutes > 0)
+    val initialProfile = vm.studentProfile.value
+    if (initialProfile.speakingPracticeMinutes <= 0) {
+      vm.repository.setStudentProfile(initialProfile.copy(speakingPracticeMinutes = 15))
+    }
+    val beforeProfile = vm.studentProfile.value
+    val beforeStreak = beforeProfile.streakDays
+    val beforeXp = beforeProfile.xpPoints
+    val beforeCoins = beforeProfile.coins
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.StudentProfileScreen(viewModel = vm)
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("student_profile_screen")
+      .performScrollToNode(hasTestTag("claim_daily_streak_bonus_button"))
+    composeTestRule.onNodeWithTag("claim_daily_streak_bonus_button")
+      .assertIsDisplayed()
+      .assertIsEnabled()
+    composeTestRule.onNodeWithText("Claim Daily Practice Streak Bonus (+30 XP)", substring = true)
+      .assertIsDisplayed()
+
+    // Tap the button -> increments streak (+1), adds +30 XP and +10 Coins, sets CelebrationDialog, disables button
+    composeTestRule.onNodeWithTag("claim_daily_streak_bonus_button").performClick()
+    composeTestRule.waitForIdle()
+
+    val afterProfile = vm.studentProfile.value
+    assertEquals(beforeStreak + 1, afterProfile.streakDays)
+    assertEquals(beforeXp + 30, afterProfile.xpPoints)
+    assertEquals(beforeCoins + 10, afterProfile.coins)
+    assertEquals(30 to 10, vm.celebrationReward.value)
+    assertTrue(vm.dailyStreakBonusClaimedToday.value)
+
+    composeTestRule.onNodeWithTag("claim_daily_streak_bonus_button").assertIsNotEnabled()
+    composeTestRule.onNodeWithText("Daily Streak Bonus Claimed Today (+30 XP)", substring = true)
+      .assertIsDisplayed()
+
+    // Attempting a second claim on the same day must be blocked without duplicate XP or streak
+    assertFalse(vm.incrementDailyPracticeStreak())
+    assertEquals(beforeStreak + 1, vm.studentProfile.value.streakDays)
+    assertEquals(beforeXp + 30, vm.studentProfile.value.xpPoints)
   }
 }
 

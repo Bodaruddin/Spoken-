@@ -2746,10 +2746,14 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         refreshLeaderboard()
     }
 
-    fun incrementDailyStreak() {
+    fun incrementDailyStreak(forceIncrementToday: Boolean = false) {
         val today = getTodayDateString()
         _studentProfile.update { current ->
-            val updatedStreak = if (current.lastPracticeDate == today) current.streakDays else current.streakDays + 1
+            val updatedStreak = if (!forceIncrementToday && current.lastPracticeDate == today) {
+                current.streakDays
+            } else {
+                current.streakDays + 1
+            }
             current.copy(
                 streakDays = updatedStreak,
                 lastPracticeDate = today

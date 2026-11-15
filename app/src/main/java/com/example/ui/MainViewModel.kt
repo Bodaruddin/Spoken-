@@ -1311,6 +1311,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _celebrationReward = MutableStateFlow<Pair<Int, Int>?>(null) // XP, Coins
     val celebrationReward: StateFlow<Pair<Int, Int>?> = _celebrationReward.asStateFlow()
 
+    private val _dailyStreakBonusClaimedToday = MutableStateFlow(false)
+    val dailyStreakBonusClaimedToday: StateFlow<Boolean> = _dailyStreakBonusClaimedToday.asStateFlow()
+
     // Authentication State (restores automatically from persistent storage)
     private val _isLoggedIn = MutableStateFlow(appPreferences.isLoggedIn())
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
@@ -1375,6 +1378,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             loadNovaSession(initialTopic, autoSpeak = false)
         }
         loadNovaGeminiSession()
+
+        // 6. Keep daily streak bonus claimed status synced whenever user changes
+        viewModelScope.launch {
+            currentUser.collect { user ->
+                val studentId = user.id.ifBlank { "default_student" }
+                val today = LinguaQuestRepository.getTodayDateString()
+                _dailyStreakBonusClaimedToday.value = appPreferences.isDailyStreakBonusClaimedToday(studentId, today)
+            }
+        }
     }
 
 
@@ -2925,9 +2937,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
 
-    fun incrementDailyPracticeStreak() {
-        repository.incrementDailyStreak()
+    fun incrementDailyPracticeStreak(): Boolean {
+        val studentId = currentUser.value.id.ifBlank { "default_student" }
+        val today = LinguaQuestRepository.getTodayDateString()
+        if (appPreferences.isDailyStreakBonusClaimedToday(studentId, today)) {
+            _dailyStreakBonusClaimedToday.value = true
+            return false
+        }
+        appPreferences.markDailyStreakBonusClaimedToday(studentId, today)
+        _dailyStreakBonusClaimedToday.value = true
+        repository.incrementDailyStreak(forceIncrementToday = true)
         rewardGameWin(30, 10)
+        return true
     }
 
     fun runCefrDiagnostic(speaking: Int, pronunciation: Int, fluency: Int, grammar: Int, vocab: Int): LearningLevel {

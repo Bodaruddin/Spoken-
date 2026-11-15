@@ -2040,5 +2040,15 @@ class AppPreferences(context: Context) {
     fun getSupabaseAnonKey(): String? {
         return prefs.getString(KEY_SUPABASE_ANON_KEY, null)?.takeIf { it.isNotBlank() }
     }
+
+    fun isDailyStreakBonusClaimedToday(studentId: String, todayDate: String): Boolean {
+        val cleanId = studentId.trim().ifBlank { "default_student" }
+        return prefs.getString("key_daily_streak_claimed_$cleanId", null) == todayDate
+    }
+
+    fun markDailyStreakBonusClaimedToday(studentId: String, todayDate: String) {
+        val cleanId = studentId.trim().ifBlank { "default_student" }
+        prefs.edit().putString("key_daily_streak_claimed_$cleanId", todayDate).apply()
+    }
 }
 
