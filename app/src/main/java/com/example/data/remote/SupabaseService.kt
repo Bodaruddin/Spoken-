@@ -5,12 +5,19 @@ import com.example.BuildConfig
 import com.example.data.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Dns
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
+import java.net.Inet4Address
+import java.net.InetAddress
+import java.net.UnknownHostException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 sealed class SupabaseConnectionState {
@@ -22,10 +29,85 @@ sealed class SupabaseConnectionState {
 
 class SupabaseService {
 
+    @Volatile
+    internal var preferDoh: Boolean = false
+
+    private data class CachedDnsEntry(
+        val addresses: List<InetAddress>,
+        val expiresAtMillis: Long
+    )
+
+    private val dnsCache = ConcurrentHashMap<String, CachedDnsEntry>()
+
+    private val dohClient = OkHttpClient.Builder()
+        .connectTimeout(6, TimeUnit.SECONDS)
+        .readTimeout(6, TimeUnit.SECONDS)
+        .build()
+
+    private val resilientDns = object : Dns {
+        override fun lookup(hostname: String): List<InetAddress> {
+            val cleanHost = hostname.trim()
+            if (isLocalHost(cleanHost)) {
+                return Dns.SYSTEM.lookup(cleanHost)
+            }
+
+            val now = System.currentTimeMillis()
+            val cached = dnsCache[cleanHost]
+            if (cached != null && cached.expiresAtMillis > now && cached.addresses.isNotEmpty()) {
+                return cached.addresses
+            }
+
+            if (preferDoh) {
+                val dohAddrs = resolveViaDoh(cleanHost)
+                if (dohAddrs.isNotEmpty()) {
+                    dnsCache[cleanHost] = CachedDnsEntry(dohAddrs, now + 5 * 60_000L)
+                    return dohAddrs
+                }
+            }
+
+            val systemAddrs = try {
+                filterAndSortAddresses(cleanHost, Dns.SYSTEM.lookup(cleanHost))
+            } catch (_: Exception) {
+                emptyList()
+            }
+
+            if (systemAddrs.isNotEmpty()) {
+                dnsCache[cleanHost] = CachedDnsEntry(systemAddrs, now + 5 * 60_000L)
+                return systemAddrs
+            }
+
+            // System DNS failed or returned sinkhole/invalid address -> fallback to DoH (1.1.1.1 / 8.8.8.8)
+            val dohFallback = resolveViaDoh(cleanHost)
+            if (dohFallback.isNotEmpty()) {
+                preferDoh = true
+                dnsCache[cleanHost] = CachedDnsEntry(dohFallback, now + 5 * 60_000L)
+                return dohFallback
+            }
+
+            throw UnknownHostException("Unable to resolve host '$cleanHost' via System DNS or DoH")
+        }
+    }
+
     private val client = OkHttpClient.Builder()
+        .dns(resilientDns)
         .connectTimeout(12, TimeUnit.SECONDS)
-        .readTimeout(12, TimeUnit.SECONDS)
-        .writeTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(15, TimeUnit.SECONDS)
+        .addInterceptor { chain ->
+            val request = chain.request()
+            try {
+                chain.proceed(request)
+            } catch (e: IOException) {
+                val host = request.url.host
+                if (!isLocalHost(host) && !preferDoh) {
+                    preferDoh = true
+                    dnsCache.remove(host)
+                    chain.proceed(request)
+                } else {
+                    throw e
+                }
+            }
+        }
         .build()
 
     // Configurable endpoint & key (defaults to user project or BuildConfig)
@@ -45,61 +127,173 @@ class SupabaseService {
         return supabaseUrl.isNotBlank() && supabaseAnonKey.isNotBlank() && !supabaseUrl.contains("your-project")
     }
 
+    internal fun normalizeSupabaseUrl(raw: String): String {
+        var trimmed = raw.trim()
+        if (trimmed.isBlank()) return ""
+        if (!trimmed.startsWith("http://", ignoreCase = true) &&
+            !trimmed.startsWith("https://", ignoreCase = true)
+        ) {
+            trimmed = "https://$trimmed"
+        }
+        return trimmed
+            .removeSuffix("/")
+            .removeSuffix("/rest/v1")
+            .removeSuffix("/auth/v1")
+            .removeSuffix("/")
+    }
+
+    private fun isLocalHost(host: String): Boolean {
+        return host.equals("localhost", ignoreCase = true) ||
+            host == "127.0.0.1" ||
+            host == "::1" ||
+            host == "10.0.2.2"
+    }
+
+    private fun filterAndSortAddresses(host: String, raw: List<InetAddress>): List<InetAddress> {
+        val valid = raw.filter { addr ->
+            isLocalHost(host) || (
+                !addr.isAnyLocalAddress &&
+                    !addr.isLoopbackAddress &&
+                    !addr.isLinkLocalAddress &&
+                    !addr.isSiteLocalAddress &&
+                    !addr.isMulticastAddress
+                )
+        }
+        // Prefer IPv4 first to avoid slow/broken IPv6 stalls on dual-stack mobile networks
+        return valid.sortedBy { if (it is Inet4Address) 0 else 1 }
+    }
+
+    private fun resolveViaDoh(hostname: String): List<InetAddress> {
+        val encodedHost = try {
+            java.net.URLEncoder.encode(hostname, "UTF-8")
+        } catch (_: Exception) {
+            hostname
+        }
+        val endpoints = listOf(
+            "https://1.1.1.1/dns-query?name=$encodedHost&type=A",
+            "https://8.8.8.8/resolve?name=$encodedHost&type=A"
+        )
+        for (dohUrl in endpoints) {
+            try {
+                val req = Request.Builder()
+                    .url(dohUrl)
+                    .addHeader("Accept", "application/dns-json")
+                    .get()
+                    .build()
+                dohClient.newCall(req).execute().use { resp ->
+                    if (resp.isSuccessful) {
+                        val body = resp.body?.string().orEmpty()
+                        val parsed = parseDohIps(body, hostname)
+                        if (parsed.isNotEmpty()) return parsed
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("SupabaseService", "DoH lookup failed at $dohUrl: ${e.message}")
+            }
+        }
+        return emptyList()
+    }
+
+    internal fun parseDohIps(jsonBody: String, hostname: String): List<InetAddress> {
+        if (jsonBody.isBlank()) return emptyList()
+        return try {
+            val obj = JSONObject(jsonBody)
+            val answers = obj.optJSONArray("Answer") ?: return emptyList()
+            val results = mutableListOf<InetAddress>()
+            val ipv4Regex = Regex("""^\d{1,3}(\.\d{1,3}){3}$""")
+            for (i in 0 until answers.length()) {
+                val entry = answers.optJSONObject(i) ?: continue
+                val type = entry.optInt("type", 0)
+                val ipStr = entry.optString("data", "").trim()
+                if (type == 1 && ipv4Regex.matches(ipStr)) {
+                    try {
+                        val addr = InetAddress.getByAddress(hostname, InetAddress.getByName(ipStr).address)
+                        if (!addr.isAnyLocalAddress && !addr.isLoopbackAddress && !addr.isSiteLocalAddress) {
+                            results.add(addr)
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+            results
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
     suspend fun testConnection(url: String = supabaseUrl, key: String = supabaseAnonKey): SupabaseConnectionState = withContext(Dispatchers.IO) {
-        val cleanUrl = url.trim().removeSuffix("/")
-        if (cleanUrl.isBlank() || key.isBlank()) {
+        val cleanUrl = normalizeSupabaseUrl(url)
+        val cleanKey = key.trim()
+        if (cleanUrl.isBlank() || cleanKey.isBlank()) {
             return@withContext SupabaseConnectionState.Error("Please provide both Supabase URL and Anon Key.")
+        }
+        val parsedHttpUrl = cleanUrl.toHttpUrlOrNull()
+        if (parsedHttpUrl == null || parsedHttpUrl.host.isBlank()) {
+            return@withContext SupabaseConnectionState.Error("Invalid Supabase URL. Expected format: https://your-project.supabase.co")
         }
 
         try {
             var connected = false
             var statusCode = 0
+            var lastErrorDetail: String? = null
+            var lastException: Exception? = null
 
-            // 1. Health check endpoint (accessible with anon / publishable keys)
-            try {
-                val healthRequest = Request.Builder()
-                    .url("$cleanUrl/auth/v1/health")
-                    .addHeader("apikey", key.trim())
-                    .addHeader("Authorization", "Bearer ${key.trim()}")
-                    .get()
-                    .build()
+            val probeUrls = listOf(
+                "$cleanUrl/auth/v1/health",
+                "$cleanUrl/rest/v1/students?select=id&limit=1",
+                "$cleanUrl/rest/v1/"
+            )
 
-                client.newCall(healthRequest).execute().use { response ->
-                    statusCode = response.code
-                    if (response.isSuccessful || response.code == 200) {
-                        connected = true
-                    }
-                }
-            } catch (_: Exception) { }
-
-            // 2. Fallback check: students table query
-            if (!connected) {
+            for (probeUrl in probeUrls) {
+                if (connected) break
                 try {
-                    val restRequest = Request.Builder()
-                        .url("$cleanUrl/rest/v1/students?select=id&limit=1")
-                        .addHeader("apikey", key.trim())
-                        .addHeader("Authorization", "Bearer ${key.trim()}")
+                    val req = Request.Builder()
+                        .url(probeUrl)
+                        .addHeader("apikey", cleanKey)
+                        .addHeader("Authorization", "Bearer $cleanKey")
                         .get()
                         .build()
 
-                    client.newCall(restRequest).execute().use { response ->
+                    client.newCall(req).execute().use { response ->
                         statusCode = response.code
                         if (response.isSuccessful || response.code == 200 || response.code == 206) {
                             connected = true
+                        } else {
+                            val snippet = response.body?.string()?.take(180)?.trim().orEmpty()
+                            lastErrorDetail = snippet.ifBlank { response.message }
                         }
                     }
-                } catch (_: Exception) { }
+                } catch (e: Exception) {
+                    lastException = e
+                    Log.w("SupabaseService", "Probe failed ($probeUrl): ${e.javaClass.simpleName}: ${e.message}")
+                }
             }
 
             if (connected) {
                 supabaseUrl = cleanUrl
-                supabaseAnonKey = key.trim()
-                SupabaseConnectionState.Connected(cleanUrl, "Connected successfully to Supabase PostgreSQL backend (HTTP $statusCode)")
+                supabaseAnonKey = cleanKey
+                val via = if (preferDoh) " via Secure DoH" else ""
+                SupabaseConnectionState.Connected(cleanUrl, "Connected successfully$via (HTTP $statusCode)")
+            } else if (statusCode == 0) {
+                val reason = lastException?.let {
+                    "${it.javaClass.simpleName}: ${it.localizedMessage ?: "No response"}"
+                } ?: "No response from server"
+                SupabaseConnectionState.Error(
+                    "Unable to reach Supabase server ($reason). Check your internet connection or Private DNS."
+                )
+            } else if (statusCode == 401 || statusCode == 403) {
+                SupabaseConnectionState.Error(
+                    "Authentication rejected (HTTP $statusCode). Check your Supabase Anon / Publishable key."
+                )
+            } else if (statusCode == 404) {
+                SupabaseConnectionState.Error(
+                    "Supabase endpoint returned HTTP 404. Verify your Project URL and run the SQL Schema Blueprint."
+                )
             } else {
-                SupabaseConnectionState.Error("Supabase returned status code $statusCode")
+                val detailSuffix = lastErrorDetail?.takeIf { it.isNotBlank() }?.let { " — $it" } ?: ""
+                SupabaseConnectionState.Error("Supabase returned HTTP $statusCode$detailSuffix")
             }
         } catch (e: Exception) {
-            SupabaseConnectionState.Error("Network error connecting to Supabase: ${e.localizedMessage}")
+            SupabaseConnectionState.Error("Network error connecting to Supabase: ${e.javaClass.simpleName}: ${e.localizedMessage}")
         }
     }
 

@@ -689,5 +689,76 @@ class ExampleRobolectricTest {
     vm.startTopicConversation(interactiveTopic)
     assertEquals(1, vm.ttsManager.speakAttemptCount)
   }
+
+  @Test
+  fun `supabase testConnection normalizes urls, filters doh ips, and never returns status code 0`() {
+    val service = com.example.data.remote.SupabaseService()
+
+    assertEquals(
+      "https://bdodzycvbbwmzstbgllg.supabase.co",
+      service.normalizeSupabaseUrl("  bdodzycvbbwmzstbgllg.supabase.co/rest/v1/  ")
+    )
+    assertEquals(
+      "https://bdodzycvbbwmzstbgllg.supabase.co",
+      service.normalizeSupabaseUrl("https://bdodzycvbbwmzstbgllg.supabase.co/")
+    )
+
+    val dohJson = """
+      {
+        "Status": 0,
+        "Answer": [
+          {"name": "bdodzycvbbwmzstbgllg.supabase.co", "type": 1, "data": "127.0.0.1"},
+          {"name": "bdodzycvbbwmzstbgllg.supabase.co", "type": 1, "data": "0.0.0.0"},
+          {"name": "bdodzycvbbwmzstbgllg.supabase.co", "type": 1, "data": "104.18.38.10"},
+          {"name": "bdodzycvbbwmzstbgllg.supabase.co", "type": 1, "data": "172.64.149.246"}
+        ]
+      }
+    """.trimIndent()
+    val parsedIps = service.parseDohIps(dohJson, "bdodzycvbbwmzstbgllg.supabase.co").map { it.hostAddress }
+    assertEquals(listOf("104.18.38.10", "172.64.149.246"), parsedIps)
+
+    // Unreachable local port -> must report real exception message, NEVER "status code 0"
+    val closedSocket = java.net.ServerSocket(0)
+    val closedPort = closedSocket.localPort
+    closedSocket.close()
+
+    val failedState = kotlinx.coroutines.runBlocking {
+      service.testConnection("http://127.0.0.1:$closedPort", "test-key")
+    }
+    assertTrue(failedState is com.example.data.remote.SupabaseConnectionState.Error)
+    val errorMsg = (failedState as com.example.data.remote.SupabaseConnectionState.Error).message
+    assertFalse("Should not surface opaque status code 0, got: $errorMsg", errorMsg.contains("status code 0"))
+    assertTrue("Should explain network error, got: $errorMsg", errorMsg.contains("Unable to reach Supabase server"))
+
+    // Local mock HTTP 200 endpoint -> Connected
+    val server = java.net.ServerSocket(0)
+    val port = server.localPort
+    val serverThread = Thread {
+      try {
+        server.accept().use { clientSocket ->
+          val reader = clientSocket.getInputStream().bufferedReader()
+          while (true) {
+            val line = reader.readLine() ?: break
+            if (line.isEmpty()) break
+          }
+          val out = clientSocket.getOutputStream()
+          val body = """{"version":"v2.197.0"}"""
+          val response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n$body"
+          out.write(response.toByteArray(Charsets.UTF_8))
+          out.flush()
+        }
+      } catch (_: Exception) {}
+    }
+    serverThread.start()
+
+    val connectedState = kotlinx.coroutines.runBlocking {
+      service.testConnection("http://127.0.0.1:$port", "test-key")
+    }
+    server.close()
+    serverThread.join(1000)
+
+    assertTrue("Expected Connected state, got: $connectedState", connectedState is com.example.data.remote.SupabaseConnectionState.Connected)
+    assertEquals("http://127.0.0.1:$port", service.supabaseUrl)
+  }
 }
 

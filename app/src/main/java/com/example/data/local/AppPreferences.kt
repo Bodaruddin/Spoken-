@@ -69,6 +69,8 @@ class AppPreferences(context: Context) {
         private const val KEY_AI_CUSTOM_ENDPOINT = "key_ai_custom_endpoint"
         private const val KEY_AI_CUSTOM_MODEL = "key_ai_custom_model"
         private const val KEY_NOVA_MILESTONE_TARGET = "key_nova_milestone_target"
+        private const val KEY_SUPABASE_URL = "key_supabase_url"
+        private const val KEY_SUPABASE_ANON_KEY = "key_supabase_anon_key"
     }
 
 
@@ -2022,6 +2024,21 @@ class AppPreferences(context: Context) {
 
     fun setNovaMilestoneTarget(target: Int) {
         prefs.edit().putInt(KEY_NOVA_MILESTONE_TARGET, target.coerceIn(1, 30)).apply()
+    }
+
+    fun saveSupabaseConfig(url: String, anonKey: String) {
+        prefs.edit()
+            .putString(KEY_SUPABASE_URL, url.trim())
+            .putString(KEY_SUPABASE_ANON_KEY, anonKey.trim())
+            .apply()
+    }
+
+    fun getSupabaseUrl(): String? {
+        return prefs.getString(KEY_SUPABASE_URL, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun getSupabaseAnonKey(): String? {
+        return prefs.getString(KEY_SUPABASE_ANON_KEY, null)?.takeIf { it.isNotBlank() }
     }
 }
 

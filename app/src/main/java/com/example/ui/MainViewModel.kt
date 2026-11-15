@@ -99,6 +99,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val supabaseStatus: StateFlow<com.example.data.remote.SupabaseConnectionState> = _supabaseStatus.asStateFlow()
 
     init {
+        appPreferences.getSupabaseUrl()?.let { supabaseService.supabaseUrl = it }
+        appPreferences.getSupabaseAnonKey()?.let { supabaseService.supabaseAnonKey = it }
         viewModelScope.launch(Dispatchers.IO) {
             syncWithSupabase()
         }
@@ -278,6 +280,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val result = supabaseService.testConnection(url, key)
             _supabaseStatus.value = result
             if (result is com.example.data.remote.SupabaseConnectionState.Connected) {
+                appPreferences.saveSupabaseConfig(result.url, key.trim())
                 syncWithSupabase()
                 val p = studentProfile.value
                 supabaseService.syncStudentProgress(p.userId, p.xpPoints, p.coins, p.speakingScore, p.completedStagesCount)
