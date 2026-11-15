@@ -85,20 +85,17 @@ fun EnglishAdventureScreen(
     var showWorldMapDialog by remember { mutableStateOf(false) }
     var showLeaderboardDialog by remember { mutableStateOf(false) }
     var showBadgesDialog by remember { mutableStateOf(false) }
-    var showWorldInfoDialog by remember { mutableStateOf(false) }
     var showChestRewardDialog by remember { mutableStateOf(false) }
-    var activeInfoWorld by remember { mutableStateOf<AdventureWorld?>(null) }
     var activeChestWorld by remember { mutableStateOf<AdventureWorld?>(null) }
     var lockedSnackbarMsg by remember { mutableStateOf<String?>(null) }
 
     BackHandler {
         if (activeMission != null) {
             viewModel.exitAdventureMission()
-        } else if (showWorldMapDialog || showLeaderboardDialog || showBadgesDialog || showWorldInfoDialog || showChestRewardDialog) {
+        } else if (showWorldMapDialog || showLeaderboardDialog || showBadgesDialog || showChestRewardDialog) {
             showWorldMapDialog = false
             showLeaderboardDialog = false
             showBadgesDialog = false
-            showWorldInfoDialog = false
             showChestRewardDialog = false
         } else {
             viewModel.selectSpeakingSubTab(SpeakingSubTab.TOPICS_ROADMAP)
@@ -140,10 +137,6 @@ fun EnglishAdventureScreen(
                 onOpenWorldMap = { showWorldMapDialog = true },
                 onOpenLeaderboard = { showLeaderboardDialog = true },
                 onOpenBadges = { showBadgesDialog = true },
-                onOpenWorldInfo = { world ->
-                    activeInfoWorld = world
-                    showWorldInfoDialog = true
-                },
                 onOpenChest = { world ->
                     activeChestWorld = world
                     showChestRewardDialog = true
@@ -342,54 +335,6 @@ fun EnglishAdventureScreen(
             }
         }
 
-        // World Info Dialog
-        if (showWorldInfoDialog) {
-            val targetInfoWorld = activeInfoWorld ?: currentWorld
-            AlertDialog(
-                onDismissRequest = { showWorldInfoDialog = false },
-                icon = { Text(targetInfoWorld.emoji, fontSize = 36.sp) },
-                title = {
-                    Text(
-                        targetInfoWorld.name,
-                        fontWeight = FontWeight.Black,
-                        color = Color.White,
-                        fontSize = 18.sp
-                    )
-                },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            targetInfoWorld.description,
-                            color = Color(0xFFCBD5E1),
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp
-                        )
-                        HorizontalDivider(color = Color(0xFF334155))
-                        Text(
-                            "🎯 Realm Goal:",
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF38BDF8),
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            "Master all ${targetInfoWorld.levels.size} challenges to earn stars, win exclusive badges, and unlock the next realm!",
-                            color = Color(0xFF94A3B8),
-                            fontSize = 12.sp
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = { showWorldInfoDialog = false },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
-                    ) {
-                        Text("Ready to Explore!")
-                    }
-                },
-                containerColor = Color(0xFF1E293B)
-            )
-        }
-
         // Chest Loot Reward Dialog
         if (showChestRewardDialog) {
             val targetChestWorld = activeChestWorld ?: currentWorld
@@ -520,7 +465,6 @@ private fun AdventureMainView(
     onOpenWorldMap: () -> Unit,
     onOpenLeaderboard: () -> Unit,
     onOpenBadges: () -> Unit,
-    onOpenWorldInfo: (AdventureWorld) -> Unit,
     onOpenChest: (AdventureWorld) -> Unit,
     onSelectWorld: (AdventureWorld) -> Unit,
     onLaunchLevel: (AdventureWorld, AdventureLevel) -> Unit
@@ -805,28 +749,6 @@ private fun AdventureMainView(
                                             fontSize = 10.5.sp
                                         )
                                     }
-                                }
-                            }
-
-                            Spacer(Modifier.width(8.dp))
-
-                            // Blue ( i ) Info Circle Button
-                            Surface(
-                                shape = CircleShape,
-                                color = Color(0xFF2563EB),
-                                border = BorderStroke(1.5.dp, Color(0xFF60A5FA)),
-                                shadowElevation = 4.dp,
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clickable { onOpenWorldInfo(world) }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        "i",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 17.sp
-                                    )
                                 }
                             }
                         }
