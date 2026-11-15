@@ -3,6 +3,7 @@ package com.example
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -24,6 +25,7 @@ import com.example.ui.screens.student.*
 import com.example.ui.screens.teacher.TeacherMainScreen
 import androidx.compose.ui.graphics.Color
 import com.example.ui.theme.*
+import com.example.util.CertificatePdfGenerator
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,6 +54,9 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
     val celebrationReward by viewModel.celebrationReward.collectAsState()
     val showAdminCredentialsModal by viewModel.showAdminCredentialsModal.collectAsState()
     val isAdminSession by viewModel.isAdminSession.collectAsState()
+    val activeStudentExam by viewModel.activeStudentExam.collectAsState()
+    val activeExamReview by viewModel.activeExamReview.collectAsState()
+    val activeExamCertificate by viewModel.activeExamCertificate.collectAsState()
 
     // Runtime Permission for Microphone Audio Recording
     var hasAudioPermission by remember {
@@ -79,98 +84,150 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
         // Dedicated Login Screen with Student, Teacher, and Admin options
         com.example.ui.screens.auth.LoginScreen(viewModel = viewModel)
     } else {
-        Scaffold(
-            modifier = Modifier
-                .fillMaxSize()
-                .premiumAppBackground(),
-            containerColor = Color.Transparent,
-            contentColor = Color.White,
-            topBar = {
-                if (currentUser.role != Role.STUDENT) {
-                    AppTopBar(
-                        role = currentUser.role,
-                        streak = studentProfile.streakDays,
-                        xp = studentProfile.xpPoints,
-                        coins = studentProfile.coins,
-                        onRoleClick = { viewModel.toggleRoleSwitcher(true) },
-                        onAdminCredentialsClick = {
-                            if (currentUser.role == Role.ADMIN) {
-                                viewModel.toggleAdminCredentialsModal(true)
-                            }
-                        },
-                        onCloudClick = {
-                            if (currentUser.role == Role.ADMIN) {
-                                viewModel.toggleSupabaseModal(true)
-                            }
-                        },
-                        isCloudConnected = supabaseStatus is com.example.data.remote.SupabaseConnectionState.Connected,
-                        onLogoutClick = { viewModel.logout() },
-                        isAdminSession = isAdminSession,
-                        onReturnToAdminClick = { viewModel.returnToAdminPanel() }
-                    )
-                } else if (isAdminSession) {
-                    AdminPreviewBanner(
-                        currentRole = currentUser.role,
-                        onBackToAdminClick = { viewModel.returnToAdminPanel() },
-                        onSwitchRoleClick = { viewModel.toggleRoleSwitcher(true) }
-                    )
-                }
-            },
-            bottomBar = {
-                when (currentUser.role) {
-                    Role.TEACHER -> {
-                        TeacherBottomBar(
-                            currentTab = currentTeacherTab,
-                            onTabSelected = { viewModel.selectTeacherTab(it) }
+        Box(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .premiumAppBackground(),
+                containerColor = Color.Transparent,
+                contentColor = Color.White,
+                topBar = {
+                    if (currentUser.role != Role.STUDENT) {
+                        AppTopBar(
+                            role = currentUser.role,
+                            streak = studentProfile.streakDays,
+                            xp = studentProfile.xpPoints,
+                            coins = studentProfile.coins,
+                            onRoleClick = { viewModel.toggleRoleSwitcher(true) },
+                            onAdminCredentialsClick = {
+                                if (currentUser.role == Role.ADMIN) {
+                                    viewModel.toggleAdminCredentialsModal(true)
+                                }
+                            },
+                            onCloudClick = {
+                                if (currentUser.role == Role.ADMIN) {
+                                    viewModel.toggleSupabaseModal(true)
+                                }
+                            },
+                            isCloudConnected = supabaseStatus is com.example.data.remote.SupabaseConnectionState.Connected,
+                            onLogoutClick = { viewModel.logout() },
+                            isAdminSession = isAdminSession,
+                            onReturnToAdminClick = { viewModel.returnToAdminPanel() }
+                        )
+                    } else if (isAdminSession) {
+                        AdminPreviewBanner(
+                            currentRole = currentUser.role,
+                            onBackToAdminClick = { viewModel.returnToAdminPanel() },
+                            onSwitchRoleClick = { viewModel.toggleRoleSwitcher(true) }
                         )
                     }
-                    Role.ADMIN -> {
-                        AdminBottomBar(
-                            currentTab = currentAdminTab,
-                            onTabSelected = { viewModel.selectAdminTab(it) }
-                        )
-                    }
-                    Role.STUDENT -> {
-                        val assignments by viewModel.assignments.collectAsState()
-                        val submissions by viewModel.submissions.collectAsState()
-                        val pendingCount = remember(assignments, submissions, currentUser) {
-                            val doneIds = submissions.filter { it.studentName.equals(currentUser.name, ignoreCase = true) }.map { it.assignmentId }.toSet()
-                            assignments.count { !doneIds.contains(it.id) }
+                },
+                bottomBar = {
+                    when (currentUser.role) {
+                        Role.TEACHER -> {
+                            TeacherBottomBar(
+                                currentTab = currentTeacherTab,
+                                onTabSelected = { viewModel.selectTeacherTab(it) }
+                            )
                         }
-                        StudentBottomBar(
-                            currentTab = currentStudentTab,
-                            onTabSelected = { viewModel.selectStudentTab(it) },
-                            pendingTasksCount = pendingCount
-                        )
+                        Role.ADMIN -> {
+                            AdminBottomBar(
+                                currentTab = currentAdminTab,
+                                onTabSelected = { viewModel.selectAdminTab(it) }
+                            )
+                        }
+                        Role.STUDENT -> {
+                            val assignments by viewModel.assignments.collectAsState()
+                            val submissions by viewModel.submissions.collectAsState()
+                            val pendingCount = remember(assignments, submissions, currentUser) {
+                                val doneIds = submissions.filter { it.studentName.equals(currentUser.name, ignoreCase = true) }.map { it.assignmentId }.toSet()
+                                assignments.count { !doneIds.contains(it.id) }
+                            }
+                            StudentBottomBar(
+                                currentTab = currentStudentTab,
+                                onTabSelected = { viewModel.selectStudentTab(it) },
+                                pendingTasksCount = pendingCount
+                            )
+                        }
+                    }
+                }
+            ) { innerPadding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .then(if (currentUser.role == Role.STUDENT && !isAdminSession) Modifier.statusBarsPadding() else Modifier)
+                ) {
+                    when (currentUser.role) {
+                        Role.TEACHER -> {
+                            TeacherMainScreen(viewModel = viewModel)
+                        }
+                        Role.ADMIN -> {
+                            AdminMainScreen(viewModel = viewModel)
+                        }
+                        Role.STUDENT -> {
+                            when (currentStudentTab) {
+                                StudentTab.HOME -> StudentHomeScreen(viewModel = viewModel)
+                                StudentTab.EXAMS -> StudentExamsScreen(viewModel = viewModel)
+                                StudentTab.PRACTICE -> SpeakingHubScreen(viewModel = viewModel)
+                                StudentTab.NOVA_AI -> NovaGeminiAssistantScreen(viewModel = viewModel)
+                                StudentTab.GAMES -> GamesHubScreen(viewModel = viewModel)
+                                StudentTab.LEADERBOARD -> StudentLeaderboardScreen(viewModel = viewModel)
+                                StudentTab.PROFILE -> StudentProfileScreen(viewModel = viewModel)
+                            }
+                        }
                     }
                 }
             }
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .then(if (currentUser.role == Role.STUDENT && !isAdminSession) Modifier.statusBarsPadding() else Modifier)
-            ) {
-                when (currentUser.role) {
-                    Role.TEACHER -> {
-                        TeacherMainScreen(viewModel = viewModel)
+
+            // Fullscreen Student Exam Flow Overlays (rendered directly inside Activity window for exact insets)
+            activeStudentExam?.let { exam ->
+                LiveExamModal(
+                    exam = exam,
+                    onDismiss = { viewModel.closeStudentExam() },
+                    onSubmit = { answersMap, timeTakenSeconds ->
+                        val newSub = viewModel.submitStudentExam(
+                            examId = exam.id,
+                            selectedAnswers = answersMap,
+                            timeTakenSeconds = timeTakenSeconds
+                        )
+                        viewModel.closeStudentExam()
+                        viewModel.openExamCertificate(newSub)
                     }
-                    Role.ADMIN -> {
-                        AdminMainScreen(viewModel = viewModel)
+                )
+            }
+
+            activeExamReview?.let { (exam, sub) ->
+                ExamReviewDialog(
+                    exam = exam,
+                    submission = sub,
+                    onDismiss = { viewModel.closeExamReview() },
+                    onViewCertificate = {
+                        viewModel.closeExamReview()
+                        viewModel.openExamCertificate(sub)
                     }
-                    Role.STUDENT -> {
-                        when (currentStudentTab) {
-                            StudentTab.HOME -> StudentHomeScreen(viewModel = viewModel)
-                            StudentTab.EXAMS -> StudentExamsScreen(viewModel = viewModel)
-                            StudentTab.PRACTICE -> SpeakingHubScreen(viewModel = viewModel)
-                            StudentTab.NOVA_AI -> NovaGeminiAssistantScreen(viewModel = viewModel)
-                            StudentTab.GAMES -> GamesHubScreen(viewModel = viewModel)
-                            StudentTab.LEADERBOARD -> StudentLeaderboardScreen(viewModel = viewModel)
-                            StudentTab.PROFILE -> StudentProfileScreen(viewModel = viewModel)
-                        }
+                )
+            }
+
+            activeExamCertificate?.let { sub ->
+                SpeaklyCertificatePreviewDialog(
+                    initialSubmission = sub,
+                    allSubmissions = emptyList(),
+                    onDismiss = { viewModel.closeExamCertificate() },
+                    onDownloadPdf = { submissionToDownload ->
+                        CertificatePdfGenerator.generateCertificatePdf(
+                            context = context,
+                            submission = submissionToDownload,
+                            onSuccess = { file ->
+                                Toast.makeText(context, "Certificate PDF downloaded: ${file.name}", Toast.LENGTH_LONG).show()
+                                CertificatePdfGenerator.openOrSharePdf(context, file)
+                            },
+                            onError = { err ->
+                                Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
+                            }
+                        )
                     }
-                }
+                )
             }
         }
     }

@@ -1322,6 +1322,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _showRoleSwitcher = MutableStateFlow(false)
     val showRoleSwitcher: StateFlow<Boolean> = _showRoleSwitcher.asStateFlow()
 
+    // Full-screen Student Exam Flow Overlays (rendered at Activity root for reliable edge-to-edge insets)
+    private val _activeStudentExam = MutableStateFlow<Exam?>(null)
+    val activeStudentExam: StateFlow<Exam?> = _activeStudentExam.asStateFlow()
+
+    private val _activeExamReview = MutableStateFlow<Pair<Exam, ExamSubmission>?>(null)
+    val activeExamReview: StateFlow<Pair<Exam, ExamSubmission>?> = _activeExamReview.asStateFlow()
+
+    private val _activeExamCertificate = MutableStateFlow<ExamSubmission?>(null)
+    val activeExamCertificate: StateFlow<ExamSubmission?> = _activeExamCertificate.asStateFlow()
+
+    fun openStudentExam(exam: Exam) {
+        _activeStudentExam.value = exam
+    }
+
+    fun closeStudentExam() {
+        _activeStudentExam.value = null
+    }
+
+    fun openExamReview(exam: Exam, submission: ExamSubmission) {
+        _activeExamReview.value = Pair(exam, submission)
+    }
+
+    fun closeExamReview() {
+        _activeExamReview.value = null
+    }
+
+    fun openExamCertificate(submission: ExamSubmission) {
+        _activeExamCertificate.value = submission
+    }
+
+    fun closeExamCertificate() {
+        _activeExamCertificate.value = null
+    }
+
     init {
         // 1. Restore customized staff credentials if previously saved
         appPreferences.getAdminPassword()?.let { adminPassword = it }
@@ -1890,6 +1924,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _showRoleSwitcher.value = false
         _activeGame.value = null
         _activeRoleplay.value = null
+        _activeStudentExam.value = null
+        _activeExamReview.value = null
+        _activeExamCertificate.value = null
     }
 
     fun switchRole(role: Role) {
@@ -1901,6 +1938,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _showRoleSwitcher.value = false
         _activeGame.value = null
         _activeRoleplay.value = null
+        _activeStudentExam.value = null
+        _activeExamReview.value = null
+        _activeExamCertificate.value = null
     }
 
     fun returnToAdminPanel() {

@@ -3,6 +3,7 @@ package com.example.ui.screens.student
 import android.content.Context
 import android.os.CountDownTimer
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -23,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -31,13 +34,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.Exam
 import com.example.data.model.ExamQuestion
 import com.example.data.model.ExamSubmission
 import com.example.ui.MainViewModel
-import com.example.ui.components.SpeaklyCertificatePreviewDialog
 import com.example.ui.theme.*
 import com.example.util.CertificatePdfGenerator
 import com.example.util.ExamTimeFormatter
@@ -58,13 +58,6 @@ fun StudentExamsScreen(
     var selectedCategoryFilter by remember { mutableStateOf("All Categories") }
     var selectedClassFilter by remember { mutableStateOf("All Classes") }
     var searchQuery by remember { mutableStateOf("") }
-
-    // Active exam session state
-    var activeExamToTake by remember { mutableStateOf<Exam?>(null) }
-    // Certificate preview state
-    var selectedSubmissionForCert by remember { mutableStateOf<ExamSubmission?>(null) }
-    // Review answers state
-    var selectedSubmissionForReview by remember { mutableStateOf<Pair<Exam, ExamSubmission>?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshExamsFromCloud()
@@ -384,7 +377,7 @@ fun StudentExamsScreen(
                 currentTimeMillis = currentTimeMillis,
                 onStartExam = {
                     if (exam.isOpenForStudentAt(currentTimeMillis)) {
-                        activeExamToTake = exam
+                        viewModel.openStudentExam(exam)
                     } else if (exam.isBeforeStartAt(currentTimeMillis)) {
                         Toast.makeText(
                             context,
@@ -395,7 +388,7 @@ fun StudentExamsScreen(
                         Toast.makeText(context, "Exam access window has ended.", Toast.LENGTH_SHORT).show()
                     }
                 },
-                onViewCertificate = { selectedSubmissionForCert = submission },
+                onViewCertificate = { submission?.let { viewModel.openExamCertificate(it) } },
                 onDownloadPdf = {
                     submission?.let { sub ->
                         CertificatePdfGenerator.generateCertificatePdf(
@@ -413,63 +406,11 @@ fun StudentExamsScreen(
                 },
                 onReviewQuestions = {
                     submission?.let { sub ->
-                        selectedSubmissionForReview = Pair(exam, sub)
+                        viewModel.openExamReview(exam, sub)
                     }
                 }
             )
         }
-    }
-
-    // --- Active Exam Dialog Modal ---
-    activeExamToTake?.let { exam ->
-        LiveExamModal(
-            exam = exam,
-            onDismiss = { activeExamToTake = null },
-            onSubmit = { answersMap, timeTakenSeconds ->
-                val newSub = viewModel.submitStudentExam(
-                    examId = exam.id,
-                    selectedAnswers = answersMap,
-                    timeTakenSeconds = timeTakenSeconds
-                )
-                activeExamToTake = null
-                selectedSubmissionForCert = newSub
-            }
-        )
-    }
-
-    // --- Certificate Preview Dialog Modal ---
-    selectedSubmissionForCert?.let { sub ->
-        SpeaklyCertificatePreviewDialog(
-            initialSubmission = sub,
-            allSubmissions = emptyList(),
-            onDismiss = { selectedSubmissionForCert = null },
-            onDownloadPdf = { submissionToDownload ->
-                CertificatePdfGenerator.generateCertificatePdf(
-                    context = context,
-                    submission = submissionToDownload,
-                    onSuccess = { file ->
-                        Toast.makeText(context, "Certificate PDF downloaded: ${file.name}", Toast.LENGTH_LONG).show()
-                        CertificatePdfGenerator.openOrSharePdf(context, file)
-                    },
-                    onError = { err ->
-                        Toast.makeText(context, err, Toast.LENGTH_SHORT).show()
-                    }
-                )
-            }
-        )
-    }
-
-    // --- Review Questions Dialog Modal ---
-    selectedSubmissionForReview?.let { (exam, sub) ->
-        ExamReviewDialog(
-            exam = exam,
-            submission = sub,
-            onDismiss = { selectedSubmissionForReview = null },
-            onViewCertificate = {
-                selectedSubmissionForReview = null
-                selectedSubmissionForCert = sub
-            }
-        )
     }
 }
 
@@ -831,7 +772,7 @@ private fun MetricPill(
 // LIVE MCQ EXAM MODAL
 // -------------------------------------------------------------
 @Composable
-private fun LiveExamModal(
+internal fun LiveExamModal(
     exam: Exam,
     onDismiss: () -> Unit,
     onSubmit: (selectedAnswers: Map<String, Int>, timeTakenSeconds: Int) -> Unit
@@ -889,18 +830,24 @@ private fun LiveExamModal(
         onDispose { timer.cancel() }
     }
 
-    Dialog(
-        onDismissRequest = {
-            if (!hasStarted) onDismiss() else showSubmitConfirmation = true
-        },
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    BackHandler {
+        if (!hasStarted) onDismiss() else showSubmitConfirmation = true
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF060919))
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        event.changes.forEach { it.consume() }
+                    }
+                }
+            },
+        color = Color(0xFF060919)
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF060919)),
-            color = Color(0xFF060919)
-        ) {
             if (!hasStarted) {
                 // Pre-Exam Briefing Screen
                 PreExamBriefing(
@@ -924,8 +871,7 @@ private fun LiveExamModal(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .statusBarsPadding()
-                        .navigationBarsPadding()
+                        .safeDrawingPadding()
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
@@ -1202,7 +1148,6 @@ private fun LiveExamModal(
                 }
             }
         }
-    }
 
     // Submit Confirmation Dialog
     if (showSubmitConfirmation) {
@@ -1260,25 +1205,35 @@ private fun PreExamBriefing(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(20.dp),
-        verticalArrangement = Arrangement.SpaceBetween
+            .safeDrawingPadding()
+            .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Close / Cancel Button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        // Close / Cancel Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onCancel,
+                modifier = Modifier.testTag("exam_briefing_close_button")
             ) {
-                IconButton(onClick = onCancel) {
-                    Icon(Icons.Rounded.Close, contentDescription = "Cancel", tint = Color.White)
-                }
-                Text("Examination Instructions", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
-                Spacer(Modifier.width(48.dp))
+                Icon(Icons.Rounded.Close, contentDescription = "Cancel", tint = Color.White)
             }
+            Text("Examination Instructions", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+            Spacer(Modifier.width(48.dp))
+        }
 
+        Spacer(Modifier.height(12.dp))
+
+        // Scrollable exam details & rules so bottom actions are never pushed off-screen
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             Card(
                 shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.cardColors(containerColor = CyberNavySurface),
@@ -1346,34 +1301,61 @@ private fun PreExamBriefing(
             }
         }
 
-        // Action Buttons
+        Spacer(Modifier.height(14.dp))
+
+        // Action Buttons pinned safely above the navigation bar
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedButton(
                 onClick = onCancel,
                 shape = RoundedCornerShape(14.dp),
                 border = BorderStroke(1.dp, Color(0xFF475569)),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp),
                 modifier = Modifier
                     .weight(1f)
-                    .height(48.dp)
+                    .heightIn(min = 50.dp)
+                    .testTag("exam_briefing_cancel_button")
             ) {
-                Text("Not Now", color = Color(0xFF94A3B8), fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Not Now",
+                    color = Color(0xFFCBD5E1),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
             Button(
                 onClick = onBegin,
                 enabled = canBegin,
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF2563EB),
+                    contentColor = Color.White,
+                    disabledContainerColor = Color(0xFF1E293B),
+                    disabledContentColor = Color(0xFF64748B)
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
                 modifier = Modifier
-                    .weight(1.5f)
-                    .height(48.dp)
+                    .weight(1.35f)
+                    .heightIn(min = 50.dp)
+                    .testTag("exam_briefing_begin_button")
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Begin Exam 🚀", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                }
+                Text(
+                    text = "Begin Exam 🚀",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -1394,27 +1376,32 @@ private fun RuleItem(icon: androidx.compose.ui.graphics.vector.ImageVector, titl
 // EXAM REVIEW DIALOG (CORRECT/INCORRECT ANSWERS)
 // -------------------------------------------------------------
 @Composable
-private fun ExamReviewDialog(
+internal fun ExamReviewDialog(
     exam: Exam,
     submission: ExamSubmission,
     onDismiss: () -> Unit,
     onViewCertificate: () -> Unit
 ) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+    BackHandler { onDismiss() }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF060919))
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Main)
+                        event.changes.forEach { it.consume() }
+                    }
+                }
+            },
+        color = Color(0xFF060919)
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF060919)),
-            color = Color(0xFF060919)
-        ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
+                    .safeDrawingPadding()
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
@@ -1602,5 +1589,4 @@ private fun ExamReviewDialog(
                 }
             }
         }
-    }
 }

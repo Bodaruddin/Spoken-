@@ -869,5 +869,48 @@ class ExampleRobolectricTest {
     composeTestRule.onNodeWithText("Fariha Yesmin", substring = true).assertDoesNotExist()
     composeTestRule.onNodeWithText("Sofia Rahman", substring = true).assertDoesNotExist()
   }
+
+  @Test
+  fun `exam briefing dialog shows Not Now and Begin Exam buttons cleanly and begins exam`() {
+    val sampleExam = com.example.data.model.Exam(
+      id = "exm_briefing_test",
+      title = "English",
+      description = "Complete all multiple choice questions within the allotted time.",
+      teacherName = "Prof. Vance",
+      subjectCategory = "English Grammar",
+      durationMinutes = 10,
+      totalMarks = 25,
+      passingPercentage = 60,
+      questions = listOf(
+        com.example.data.model.ExamQuestion(
+          id = "q1",
+          question = "She ___ to school every day.",
+          options = listOf("go", "goes", "going", "gone"),
+          correctOptionIndex = 1,
+          marks = 5
+        )
+      )
+    )
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.LiveExamModal(
+        exam = sampleExam,
+        onDismiss = {},
+        onSubmit = { _, _ -> }
+      )
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Examination Instructions").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("exam_briefing_cancel_button").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Not Now").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("exam_briefing_begin_button").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Begin Exam 🚀").assertIsDisplayed()
+
+    composeTestRule.onNodeWithTag("exam_briefing_begin_button").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Question 1 of 1").assertIsDisplayed()
+  }
 }
 
