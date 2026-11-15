@@ -81,68 +81,50 @@ fun StudentExamsScreen(
         }.associateBy { it.examId }
     }
 
-    // Filter exams according to class, status, category, search query, and live time window
-    val filteredExams = remember(
-        exams,
-        selectedStatusFilter,
-        selectedCategoryFilter,
-        selectedClassFilter,
-        searchQuery,
-        studentSubmissionsMap,
-        studentClass,
-        currentTimeMillis
-    ) {
+    // Class-eligible published exams for this student
+    val eligibleExams = remember(exams, studentClass, selectedClassFilter) {
         exams.filter { exam ->
-            // Class match: if All Classes selected or student in generic batch, show all exams
-            val matchesClass = when {
-                selectedClassFilter != "All Classes" -> {
-                    exam.targetClass.equals(selectedClassFilter, ignoreCase = true) ||
-                    exam.targetClass.equals("All Classes", ignoreCase = true)
-                }
-                studentClass.equals("Batch Alpha", ignoreCase = true) || studentClass.isBlank() -> {
-                    true
-                }
-                else -> {
-                    exam.targetClass.equals("All Classes", ignoreCase = true) ||
-                    exam.targetClass.equals(studentClass, ignoreCase = true) ||
-                    exam.targetClass.contains(studentClass, ignoreCase = true) ||
-                    studentClass.contains(exam.targetClass, ignoreCase = true)
-                }
-            }
-
-            val hasCompleted = studentSubmissionsMap.containsKey(exam.id)
-            val isExpired = exam.isExpiredAt(currentTimeMillis)
-
-            // Auto-hide exams once their teacher-selected window is over
-            // (Keep already-completed exams accessible only under "Completed" / "Certificates")
-            val isVisibleForWindow = when {
-                !hasCompleted && isExpired -> false
-                hasCompleted && isExpired && (selectedStatusFilter == "All" || selectedStatusFilter == "Pending") -> false
-                else -> true
-            }
-
-            val matchesStatus = when (selectedStatusFilter) {
-                "Pending" -> !hasCompleted
-                "Completed" -> hasCompleted
-                "Certificates" -> hasCompleted && (studentSubmissionsMap[exam.id]?.isPassed == true)
-                else -> true
-            }
-
-            val matchesCategory = selectedCategoryFilter == "All Categories" ||
-                exam.subjectCategory.equals(selectedCategoryFilter, ignoreCase = true)
-
-            val matchesSearch = searchQuery.isBlank() ||
-                exam.title.contains(searchQuery, ignoreCase = true) ||
-                exam.description.contains(searchQuery, ignoreCase = true) ||
-                exam.teacherName.contains(searchQuery, ignoreCase = true)
-
-            matchesClass && isVisibleForWindow && matchesStatus && matchesCategory && matchesSearch
+            exam.isPublished && isExamForStudentClass(
+                exam = exam,
+                studentClass = studentClass,
+                selectedClassFilter = selectedClassFilter
+            )
         }
     }
 
-    val completedCount = studentSubmissionsMap.size
-    val pendingCount = exams.count { exam ->
-        !studentSubmissionsMap.containsKey(exam.id) && !exam.isExpiredAt(currentTimeMillis)
+    // Filter and sort exams: all new/pending exams first (open now before scheduled), then already-given exams
+    val filteredExams = remember(
+        eligibleExams,
+        selectedStatusFilter,
+        selectedCategoryFilter,
+        searchQuery,
+        studentSubmissionsMap,
+        currentTimeMillis
+    ) {
+        filterAndSortStudentExams(
+            eligibleExams = eligibleExams,
+            studentSubmissionsMap = studentSubmissionsMap,
+            selectedStatusFilter = selectedStatusFilter,
+            selectedCategoryFilter = selectedCategoryFilter,
+            searchQuery = searchQuery,
+            currentTimeMillis = currentTimeMillis
+        )
+    }
+
+    val pendingCount = remember(eligibleExams, studentSubmissionsMap, currentTimeMillis) {
+        eligibleExams.count { exam ->
+            !studentSubmissionsMap.containsKey(exam.id) && !exam.isExpiredAt(currentTimeMillis)
+        }
+    }
+    val completedCount = remember(eligibleExams, studentSubmissionsMap) {
+        eligibleExams.count { exam ->
+            studentSubmissionsMap.containsKey(exam.id)
+        }
+    }
+    val certCount = remember(eligibleExams, studentSubmissionsMap) {
+        eligibleExams.count { exam ->
+            studentSubmissionsMap[exam.id]?.isPassed == true
+        }
     }
 
     LazyColumn(
@@ -226,7 +208,7 @@ fun StudentExamsScreen(
                         )
                         MetricPill(
                             title = "Certificates",
-                            value = "${studentSubmissionsMap.values.count { it.isPassed }}",
+                            value = "$certCount",
                             icon = Icons.Rounded.WorkspacePremium,
                             color = AmberGold,
                             modifier = Modifier
@@ -267,24 +249,31 @@ fun StudentExamsScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                // Status Filter Chips
-                Row(
+                // Status Filter Chips (horizontally scrollable so labels stay on one clean line)
+                LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val certCount = studentSubmissionsMap.values.count { it.isPassed }
                     val statusOptions = listOf(
                         "All" to "All Exams",
                         "Pending" to "Pending ($pendingCount)",
                         "Completed" to "Done ($completedCount)",
                         "Certificates" to "Certificates 🏆 ($certCount)"
                     )
-                    statusOptions.forEach { (statusKey, label) ->
+                    items(statusOptions) { (statusKey, label) ->
                         val isSelected = selectedStatusFilter == statusKey
                         FilterChip(
                             selected = isSelected,
                             onClick = { selectedStatusFilter = statusKey },
-                            label = { Text(label, fontSize = 11.5.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
+                            label = {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            },
                             colors = FilterChipDefaults.filterChipColors(
                                 containerColor = Color(0xFF0F172A),
                                 labelColor = Color(0xFF94A3B8),
@@ -1589,4 +1578,74 @@ internal fun ExamReviewDialog(
                 }
             }
         }
+}
+
+internal fun isExamForStudentClass(
+    exam: Exam,
+    studentClass: String,
+    selectedClassFilter: String = "All Classes"
+): Boolean {
+    val target = exam.targetClass.trim()
+    val enrolled = studentClass.trim()
+    return when {
+        selectedClassFilter != "All Classes" -> {
+            target.equals(selectedClassFilter.trim(), ignoreCase = true) ||
+                target.equals("All Classes", ignoreCase = true)
+        }
+        enrolled.equals("Batch Alpha", ignoreCase = true) || enrolled.isBlank() -> {
+            true
+        }
+        else -> {
+            target.equals("All Classes", ignoreCase = true) ||
+                target.equals(enrolled, ignoreCase = true)
+        }
+    }
+}
+
+internal fun filterAndSortStudentExams(
+    eligibleExams: List<Exam>,
+    studentSubmissionsMap: Map<String, ExamSubmission>,
+    selectedStatusFilter: String,
+    selectedCategoryFilter: String,
+    searchQuery: String,
+    currentTimeMillis: Long
+): List<Exam> {
+    return eligibleExams
+        .filter { exam ->
+            val hasCompleted = studentSubmissionsMap.containsKey(exam.id)
+            val isExpired = exam.isExpiredAt(currentTimeMillis)
+
+            // Auto-hide expired uncompleted exams; keep expired completed exams accessible in Done/Certificates
+            val isVisibleForWindow = when {
+                !hasCompleted && isExpired -> false
+                hasCompleted && isExpired && (selectedStatusFilter == "All" || selectedStatusFilter == "Pending") -> false
+                else -> true
+            }
+
+            val matchesStatus = when (selectedStatusFilter) {
+                "Pending" -> !hasCompleted
+                "Completed" -> hasCompleted
+                "Certificates" -> hasCompleted && (studentSubmissionsMap[exam.id]?.isPassed == true)
+                else -> true
+            }
+
+            val matchesCategory = selectedCategoryFilter == "All Categories" ||
+                exam.subjectCategory.equals(selectedCategoryFilter, ignoreCase = true)
+
+            val matchesSearch = searchQuery.isBlank() ||
+                exam.title.contains(searchQuery, ignoreCase = true) ||
+                exam.description.contains(searchQuery, ignoreCase = true) ||
+                exam.teacherName.contains(searchQuery, ignoreCase = true)
+
+            isVisibleForWindow && matchesStatus && matchesCategory && matchesSearch
+        }
+        .sortedWith(
+            compareBy<Exam> { exam ->
+                // Unattempted (new/pending) exams strictly before already-given exams
+                if (studentSubmissionsMap.containsKey(exam.id)) 1 else 0
+            }.thenBy { exam ->
+                // Within pending exams, show currently open exams ahead of upcoming scheduled exams
+                if (!studentSubmissionsMap.containsKey(exam.id) && !exam.isOpenForStudentAt(currentTimeMillis)) 1 else 0
+            }
+        )
 }

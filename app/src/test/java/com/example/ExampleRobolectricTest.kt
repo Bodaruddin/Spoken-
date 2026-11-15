@@ -912,5 +912,94 @@ class ExampleRobolectricTest {
 
     composeTestRule.onNodeWithText("Question 1 of 1").assertIsDisplayed()
   }
+
+  @Test
+  fun `student exams show all new exams first then completed exams with accurate pending count`() {
+    val now = 1_700_000_000_000L
+    val completedExam = com.example.data.model.Exam(
+      id = "exm_done_1",
+      title = "Already Given Grammar Exam",
+      description = "Completed test",
+      teacherName = "Prof. Vance",
+      targetClass = "Class 10"
+    )
+    val newOpenExam = com.example.data.model.Exam(
+      id = "exm_new_open",
+      title = "Brand New Vocabulary Exam",
+      description = "Open now",
+      teacherName = "Prof. Vance",
+      targetClass = "Class 10"
+    )
+    val allClassPendingExam = com.example.data.model.Exam(
+      id = "exm_all_classes",
+      title = "Phonetics For All Classes",
+      description = "Open to all classes",
+      teacherName = "Dr. Reed",
+      targetClass = "All Classes"
+    )
+    val otherClassExam = com.example.data.model.Exam(
+      id = "exm_other_class",
+      title = "Class 8 Grammar Exam",
+      description = "For Class 8 only",
+      teacherName = "Prof. Vance",
+      targetClass = "Class 8"
+    )
+    val expiredPendingExam = com.example.data.model.Exam(
+      id = "exm_expired",
+      title = "Expired Class 10 Quiz",
+      description = "Already ended",
+      teacherName = "Prof. Vance",
+      targetClass = "Class 10",
+      availableUntilMillis = now - 60_000L
+    )
+
+    val allExams = listOf(completedExam, otherClassExam, newOpenExam, allClassPendingExam, expiredPendingExam)
+    val eligible = allExams.filter {
+      it.isPublished && com.example.ui.screens.student.isExamForStudentClass(it, studentClass = "Class 10")
+    }
+    val submissionsMap = mapOf(
+      completedExam.id to com.example.data.model.ExamSubmission(
+        id = "sub_done_1",
+        examId = completedExam.id,
+        examTitle = completedExam.title,
+        studentId = "stu_alex_1",
+        studentName = "Alex Morgan",
+        studentClass = "Class 10",
+        studentAvatar = "🦉",
+        scoreObtained = 45,
+        totalMarks = 50,
+        percentage = 90,
+        isPassed = true,
+        grade = "O",
+        completedAt = "Today",
+        timeTakenSeconds = 200,
+        certificateId = "SPK-EXM-2026-0001"
+      )
+    )
+
+    val allTabResult = com.example.ui.screens.student.filterAndSortStudentExams(
+      eligibleExams = eligible,
+      studentSubmissionsMap = submissionsMap,
+      selectedStatusFilter = "All",
+      selectedCategoryFilter = "All Categories",
+      searchQuery = "",
+      currentTimeMillis = now
+    )
+    val pendingTabResult = com.example.ui.screens.student.filterAndSortStudentExams(
+      eligibleExams = eligible,
+      studentSubmissionsMap = submissionsMap,
+      selectedStatusFilter = "Pending",
+      selectedCategoryFilter = "All Categories",
+      searchQuery = "",
+      currentTimeMillis = now
+    )
+    val pendingCount = eligible.count { !submissionsMap.containsKey(it.id) && !it.isExpiredAt(now) }
+
+    // All new/pending exams come first, followed by already-given exam; other-class and expired pending excluded
+    assertEquals(listOf("exm_new_open", "exm_all_classes", "exm_done_1"), allTabResult.map { it.id })
+    // Pending count matches the exact Pending tab list
+    assertEquals(2, pendingCount)
+    assertEquals(listOf("exm_new_open", "exm_all_classes"), pendingTabResult.map { it.id })
+  }
 }
 
