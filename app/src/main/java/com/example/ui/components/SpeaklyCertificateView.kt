@@ -248,7 +248,7 @@ fun SpeaklyCertificatePreviewDialog(
     onDownloadPdf: (ExamSubmission) -> Unit
 ) {
     val context = LocalContext.current
-    var currentSub by remember(initialSubmission) { mutableStateOf(initialSubmission) }
+    val currentSub = initialSubmission
     var isLandscapeMode by remember { mutableStateOf(false) }
     var showQrVerificationModal by remember { mutableStateOf(false) }
 
@@ -392,62 +392,6 @@ fun SpeaklyCertificatePreviewDialog(
                             submission = currentSub,
                             modifier = Modifier.fillMaxWidth()
                         )
-                    }
-
-                    // Quick Student Roster Switcher (if multiple submissions available)
-                    val availableList = if (allSubmissions.isNotEmpty()) {
-                        allSubmissions.filter { it.isPassed }
-                    } else {
-                        listOf(currentSub)
-                    }
-
-                    if (availableList.size > 1) {
-                        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                "SWITCH CERTIFICATE / STUDENT RECORD",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF94A3B8),
-                                letterSpacing = 1.sp
-                            )
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                availableList.forEach { subItem ->
-                                    val isSelected = subItem.id == currentSub.id
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = if (isSelected) Color(0xFF3730A3) else Color(0xFF1E293B),
-                                        border = BorderStroke(1.dp, if (isSelected) Color(0xFF818CF8) else Color(0xFF334155)),
-                                        modifier = Modifier.clickable { currentSub = subItem }
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            Text(subItem.studentAvatar, fontSize = 14.sp)
-                                            Column {
-                                                Text(
-                                                    subItem.studentName,
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                                Text(
-                                                    "${subItem.studentClass} • Score: ${subItem.scoreObtained}/${subItem.totalMarks}",
-                                                    fontSize = 9.5.sp,
-                                                    color = Color(0xFFCBD5E1)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
                     }
 
                     // Fetched Student Details Card

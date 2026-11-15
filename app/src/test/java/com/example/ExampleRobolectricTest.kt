@@ -812,5 +812,62 @@ class ExampleRobolectricTest {
     assertEquals(beforeStreak + 1, vm.studentProfile.value.streakDays)
     assertEquals(beforeXp + 30, vm.studentProfile.value.xpPoints)
   }
+
+  @Test
+  fun `official certificate dialog removes switcher and only shows own student record`() {
+    val ownSubmission = com.example.data.model.ExamSubmission(
+      id = "sub_alex_own",
+      examId = "exm_10",
+      examTitle = "Class 10 English Grammar Test",
+      studentId = "std_001",
+      studentName = "Alex Morgan",
+      studentClass = "Class 10",
+      studentAvatar = "🦉",
+      scoreObtained = 45,
+      totalMarks = 50,
+      percentage = 90,
+      isPassed = true,
+      grade = "O",
+      completedAt = "Today, 10:15 AM",
+      timeTakenSeconds = 320,
+      certificateId = "SPK-EXM-2026-7841"
+    )
+    val otherStudent1 = ownSubmission.copy(
+      id = "sub_fariha_other",
+      studentId = "std_002",
+      studentName = "Fariha Yesmin",
+      studentClass = "VIII",
+      scoreObtained = 88,
+      totalMarks = 100,
+      percentage = 88,
+      certificateId = "SPK-EXM-2026-9001"
+    )
+    val otherStudent2 = ownSubmission.copy(
+      id = "sub_sofia_other",
+      studentId = "std_003",
+      studentName = "Sofia Rahman",
+      studentClass = "Class 9",
+      scoreObtained = 42,
+      totalMarks = 50,
+      percentage = 84,
+      certificateId = "SPK-EXM-2026-9002"
+    )
+
+    composeTestRule.setContent {
+      com.example.ui.components.SpeaklyCertificatePreviewDialog(
+        initialSubmission = ownSubmission,
+        allSubmissions = listOf(otherStudent1, ownSubmission, otherStudent2),
+        onDismiss = {},
+        onDownloadPdf = {}
+      )
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Official Certificate").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Alex Morgan").performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithText("SWITCH CERTIFICATE", substring = true, ignoreCase = true).assertDoesNotExist()
+    composeTestRule.onNodeWithText("Fariha Yesmin", substring = true).assertDoesNotExist()
+    composeTestRule.onNodeWithText("Sofia Rahman", substring = true).assertDoesNotExist()
+  }
 }
 

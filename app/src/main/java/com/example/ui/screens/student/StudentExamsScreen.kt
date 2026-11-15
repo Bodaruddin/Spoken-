@@ -441,7 +441,7 @@ fun StudentExamsScreen(
     selectedSubmissionForCert?.let { sub ->
         SpeaklyCertificatePreviewDialog(
             initialSubmission = sub,
-            allSubmissions = examSubmissions,
+            allSubmissions = emptyList(),
             onDismiss = { selectedSubmissionForCert = null },
             onDownloadPdf = { submissionToDownload ->
                 CertificatePdfGenerator.generateCertificatePdf(
