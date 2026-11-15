@@ -59,10 +59,15 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             .trim()
     }
 
+    @androidx.annotation.VisibleForTesting
+    var speakAttemptCount: Int = 0
+        private set
+
     fun speak(text: String, slowSpeed: Boolean = false) {
-        if (!isInitialized || tts == null) return
         val clean = cleanTextForSpeech(text)
         if (clean.isBlank()) return
+        speakAttemptCount++
+        if (!isInitialized || tts == null) return
         tts?.setSpeechRate(if (slowSpeed) 0.75f else 0.92f)
         val utteranceId = "Speakly_${System.currentTimeMillis()}"
         tts?.speak(clean, TextToSpeech.QUEUE_FLUSH, null, utteranceId)

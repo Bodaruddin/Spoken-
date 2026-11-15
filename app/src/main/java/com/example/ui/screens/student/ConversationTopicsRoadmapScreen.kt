@@ -562,7 +562,6 @@ fun ConversationTopicsRoadmapScreen(
                                 topic = topic,
                                 index = index,
                                 onCardClick = {
-                                    viewModel.selectConversationTopic(topic)
                                     onTopicSelected(topic)
                                 }
                             )

@@ -179,7 +179,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             if (!refreshed.title.trim().equals(currentActive.title.trim(), ignoreCase = true) ||
                                 !refreshed.question.trim().equals(currentActive.question.trim(), ignoreCase = true)
                             ) {
-                                loadNovaSession(refreshed)
+                                loadNovaSession(refreshed, autoSpeak = false)
                             }
                         }
                     }
@@ -1365,17 +1365,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _isGeminiConfigured.value = isGeminiApiKeyConfigured()
         _apiKeySource.value = getApiKeySourceDescription()
 
-        // 5. Initialize default conversation topic and restore session if available
+        // 5. Initialize default conversation topic and restore session quietly (never auto-speak on app launch/install)
         val initialTopic = repository.speakingPrompts.value.firstOrNull()
         if (initialTopic != null) {
             _activeConversationTopic.value = initialTopic
-            loadNovaSession(initialTopic)
+            loadNovaSession(initialTopic, autoSpeak = false)
         }
         loadNovaGeminiSession()
     }
 
 
     fun selectStudentTab(tab: StudentTab) {
+        if (tab != StudentTab.PRACTICE && tab != StudentTab.NOVA_AI) {
+            ttsManager.stop()
+        }
         if (tab == StudentTab.PRACTICE) {
             _speakingSubTab.value = SpeakingSubTab.TOPICS_ROADMAP
         } else if (tab == StudentTab.NOVA_AI) {
@@ -1385,19 +1388,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun startTopicConversation(topic: SpeakingPrompt) {
-        selectConversationTopic(topic)
         selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER)
+        selectConversationTopic(topic, autoSpeak = true)
     }
 
     fun selectTeacherTab(tab: TeacherTab) {
+        ttsManager.stop()
         _currentTeacherTab.value = tab
     }
 
     fun selectAdminTab(tab: AdminTab) {
+        ttsManager.stop()
         _currentAdminTab.value = tab
     }
 
     fun selectSpeakingSubTab(subTab: SpeakingSubTab) {
+        if (_speakingSubTab.value != subTab) {
+            ttsManager.stop()
+        }
         _speakingSubTab.value = subTab
         _currentStudentTab.value = StudentTab.PRACTICE
         _lastEvaluation.value = null
@@ -1859,6 +1867,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun logout() {
+        ttsManager.stop()
+        speechManager.reset()
         appPreferences.clearSession()
         repository.setAdminSession(false)
         _isLoggedIn.value = false
@@ -1868,6 +1878,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun switchRole(role: Role) {
+        ttsManager.stop()
+        speechManager.reset()
         repository.switchRole(role)
         appPreferences.saveSession(repository.currentUser.value)
         _isLoggedIn.value = true
@@ -2088,12 +2100,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _activeCoachQuestion.value = question
     }
 
-    fun selectConversationTopic(topic: SpeakingPrompt) {
+    fun selectConversationTopic(topic: SpeakingPrompt, autoSpeak: Boolean = true) {
         _activeConversationTopic.value = topic
-        loadNovaSession(topic)
+        loadNovaSession(topic, autoSpeak = autoSpeak)
     }
 
-    fun loadNovaSession(topic: SpeakingPrompt) {
+    fun loadNovaSession(topic: SpeakingPrompt, autoSpeak: Boolean = false) {
         val studentId = currentUser.value.id.ifBlank { "default_student" }
         val saved = appPreferences.getNovaSession(studentId, topic.id)
         val cleanTitle = topic.title.trim()
@@ -2166,7 +2178,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _novaCurrentExamples.value = initialTurn.exampleAnswers
             _activeCoachQuestion.value = initialQ
             appPreferences.saveNovaSession(studentId, topic.id, listOf(initialTurn))
-            if (_aiVoiceReplyEnabled.value) {
+            if (autoSpeak &&
+                _aiVoiceReplyEnabled.value &&
+                _isLoggedIn.value &&
+                currentUser.value.role == Role.STUDENT &&
+                _currentStudentTab.value == StudentTab.PRACTICE
+            ) {
                 speakAudio(initialTurn.audioPrompt)
             }
         }
@@ -2175,7 +2192,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun restartNovaSession(topic: SpeakingPrompt) {
         val studentId = currentUser.value.id.ifBlank { "default_student" }
         appPreferences.clearNovaSession(studentId, topic.id)
-        loadNovaSession(topic)
+        loadNovaSession(topic, autoSpeak = true)
     }
 
     // =========================================================================
@@ -3325,7 +3342,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_activeConversationTopic.value?.id == prompt.id) {
             _activeConversationTopic.value = prompt
             if (titleOrQuestionChanged) {
-                loadNovaSession(prompt)
+                loadNovaSession(prompt, autoSpeak = false)
             }
         }
         if (supabaseService.isConfigured()) {

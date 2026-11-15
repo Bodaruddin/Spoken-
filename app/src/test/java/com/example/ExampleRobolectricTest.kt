@@ -654,5 +654,40 @@ class ExampleRobolectricTest {
     vm.closeAiKeyDialog()
     assertFalse(vm.showAiKeyDialog.value)
   }
+
+  @Test
+  fun `nova ai does not automatically speak on fresh install startup or background session load`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    // Ensure fresh-install state (logged out, no saved Nova sessions)
+    AppPreferences(app).clearSession()
+    val vm = MainViewModel(app)
+
+    // Initialization on fresh install must NEVER trigger TTS automatically
+    assertEquals(0, vm.ttsManager.speakAttemptCount)
+
+    // Background topic reload while logged out or on Home must NEVER trigger TTS
+    val brandNewTopic = SpeakingPrompt(
+      id = "fresh_install_topic_check",
+      title = "Daily Routine",
+      category = "Conversation",
+      question = "What time do you wake up?",
+      followUpTip = "Answer in one full sentence.",
+      recommendedKeywords = listOf("wake up", "morning"),
+      emoji = "☀️"
+    )
+    vm.loadNovaSession(brandNewTopic)
+    assertEquals(0, vm.ttsManager.speakAttemptCount)
+
+    // Background sync reload (autoSpeak = false) even when logged in on Home must NEVER trigger TTS
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    val anotherTopic = brandNewTopic.copy(id = "fresh_install_topic_check_2", title = "Hobbies")
+    vm.loadNovaSession(anotherTopic, autoSpeak = false)
+    assertEquals(0, vm.ttsManager.speakAttemptCount)
+
+    // Explicit student topic start inside Practice speaks the greeting once
+    val interactiveTopic = brandNewTopic.copy(id = "fresh_install_topic_check_3", title = "Weekend Plans")
+    vm.startTopicConversation(interactiveTopic)
+    assertEquals(1, vm.ttsManager.speakAttemptCount)
+  }
 }
 
