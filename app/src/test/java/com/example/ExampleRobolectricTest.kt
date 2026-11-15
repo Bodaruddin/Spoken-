@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
@@ -597,6 +598,61 @@ class ExampleRobolectricTest {
     }
 
     composeTestRule.onNodeWithTag("nova_grammar_correction_card").assertIsDisplayed()
+  }
+
+  @Test
+  fun `student nova ai page removes api connection option and restricts api config to teacher and admin`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val vm = MainViewModel(app)
+
+    // Admin viewing as Student (Role.STUDENT) -> API connection option must not appear and cannot be opened/edited
+    vm.unifiedLogin("admin@linguaquest.edu", "1234")
+    vm.switchRole(Role.STUDENT)
+    assertEquals(Role.STUDENT, vm.currentUser.value.role)
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.NovaGeminiAssistantScreen(viewModel = vm)
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("nova_gemini_assistant_screen").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("nova_gemini_status_pill").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Setup Gemini", substring = true, ignoreCase = true).assertDoesNotExist()
+    composeTestRule.onNodeWithText("Gemini Live", substring = true, ignoreCase = true).assertDoesNotExist()
+
+    val initialModel = vm.activeAiModel.value
+    val initialKey = vm.geminiApiKey.value
+    val initialProvider = vm.aiProviderType.value
+    val initialEndpoint = vm.customEndpointUrl.value
+    val initialCustomModel = vm.customModelName.value
+
+    vm.openAiKeyDialog()
+    assertFalse(vm.showAiKeyDialog.value)
+    vm.saveCustomGeminiApiKey("blocked-student-key")
+    vm.setAiModel("blocked-model")
+    vm.setAiProviderType("CUSTOM_OPENAI")
+    vm.setCustomEndpointUrl("https://blocked.example.com/v1")
+    vm.setCustomModelName("blocked-custom-model")
+
+    assertEquals(initialKey, vm.geminiApiKey.value)
+    assertEquals(initialModel, vm.activeAiModel.value)
+    assertEquals(initialProvider, vm.aiProviderType.value)
+    assertEquals(initialEndpoint, vm.customEndpointUrl.value)
+    assertEquals(initialCustomModel, vm.customModelName.value)
+
+    // Teacher role -> allowed to open and manage API connection
+    vm.switchRole(Role.TEACHER)
+    vm.openAiKeyDialog()
+    assertTrue(vm.showAiKeyDialog.value)
+    vm.closeAiKeyDialog()
+    assertFalse(vm.showAiKeyDialog.value)
+
+    // Admin role -> allowed to open and manage API connection
+    vm.switchRole(Role.ADMIN)
+    vm.openAiKeyDialog()
+    assertTrue(vm.showAiKeyDialog.value)
+    vm.closeAiKeyDialog()
+    assertFalse(vm.showAiKeyDialog.value)
   }
 }
 

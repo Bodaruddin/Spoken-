@@ -79,7 +79,6 @@ fun NovaGeminiAssistantScreen(
     val isThinking by viewModel.isNovaGeminiThinking.collectAsState()
     val activeMode by viewModel.novaGeminiMode.collectAsState()
     val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
-    val activeAiModel by viewModel.activeAiModel.collectAsState()
     val voiceReplyEnabled by viewModel.aiVoiceReplyEnabled.collectAsState()
     val speechState by viewModel.speechManager.speechState.collectAsState()
     val isTtsSpeaking by viewModel.ttsManager.isSpeaking.collectAsState()
@@ -202,9 +201,7 @@ fun NovaGeminiAssistantScreen(
         // 1. Top Header
         NovaAssistantTopBar(
             isGeminiConfigured = isGeminiConfigured,
-            activeAiModel = activeAiModel,
             voiceReplyEnabled = voiceReplyEnabled,
-            onOpenSetup = { viewModel.openAiKeyDialog() },
             onToggleVoice = { viewModel.setAiVoiceReplyEnabled(!voiceReplyEnabled) },
             onNewChat = { viewModel.clearNovaGeminiSession() }
         )
@@ -552,9 +549,7 @@ private data class StarterPrompt(val title: String, val prompt: String)
 @Composable
 private fun NovaAssistantTopBar(
     isGeminiConfigured: Boolean,
-    activeAiModel: String,
     voiceReplyEnabled: Boolean,
-    onOpenSetup: () -> Unit,
     onToggleVoice: () -> Unit,
     onNewChat: () -> Unit
 ) {
@@ -586,39 +581,19 @@ private fun NovaAssistantTopBar(
             }
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("Nova AI", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = if (isGeminiConfigured) Color(0xFF064E3B) else Color(0xFF451A03),
-                        border = BorderStroke(1.dp, if (isGeminiConfigured) Color(0xFF10B981) else Color(0xFFF59E0B)),
-                        modifier = Modifier.clickable { onOpenSetup() }.testTag("nova_gemini_status_pill")
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(Icons.Rounded.AutoAwesome, "AI Engine Status", tint = if (isGeminiConfigured) Color(0xFF34D399) else Color(0xFFFBBF24), modifier = Modifier.size(11.dp))
-                            Text(if (isGeminiConfigured) "Gemini Live" else "Setup Gemini", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = if (isGeminiConfigured) Color(0xFFA7F3D0) else Color(0xFFFDE68A), maxLines = 1)
-                        }
-                    }
-                }
+                Text("Nova AI", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    text = if (isGeminiConfigured) "Model: $activeAiModel • Files, Image & Camera ready" else "Tap 'Setup Gemini' or attach files/photos",
+                    text = if (isGeminiConfigured) "Personal English Tutor • Files, Image & Camera ready" else "On-Device English Tutor • Files, Image & Camera ready",
                     fontSize = 11.sp,
                     color = Color(0xFFC4B5FD),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            IconButton(onClick = onToggleVoice, modifier = Modifier.size(40.dp).testTag("nova_gemini_voice_toggle_btn")) {
+            IconButton(onClick = onToggleVoice, modifier = Modifier.size(48.dp).testTag("nova_gemini_voice_toggle_btn")) {
                 Icon(if (voiceReplyEnabled) Icons.Rounded.VolumeUp else Icons.Rounded.VolumeOff, if (voiceReplyEnabled) "Disable Voice Reply" else "Enable Voice Reply", tint = if (voiceReplyEnabled) Color(0xFF67E8F9) else Color(0xFF94A3B8), modifier = Modifier.size(20.dp))
             }
-            IconButton(onClick = onNewChat, modifier = Modifier.size(40.dp).testTag("nova_gemini_new_chat_btn")) {
+            IconButton(onClick = onNewChat, modifier = Modifier.size(48.dp).testTag("nova_gemini_new_chat_btn")) {
                 Icon(Icons.Rounded.AddComment, "New Chat", tint = Color(0xFFE0E7FF), modifier = Modifier.size(20.dp))
             }
         }

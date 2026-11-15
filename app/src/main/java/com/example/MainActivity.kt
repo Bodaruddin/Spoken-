@@ -52,7 +52,6 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
     val celebrationReward by viewModel.celebrationReward.collectAsState()
     val showAdminCredentialsModal by viewModel.showAdminCredentialsModal.collectAsState()
     val isAdminSession by viewModel.isAdminSession.collectAsState()
-    val showAiKeyDialog by viewModel.showAiKeyDialog.collectAsState()
 
     // Runtime Permission for Microphone Audio Recording
     var hasAudioPermission by remember {
@@ -174,14 +173,6 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                 }
             }
         }
-    }
-
-    // AI Key Integration Dialog (when opened from Student Nova AI tab)
-    if (showAiKeyDialog && currentUser.role == Role.STUDENT) {
-        AiApiKeyIntegrationDialog(
-            viewModel = viewModel,
-            onDismiss = { viewModel.closeAiKeyDialog() }
-        )
     }
 
     // Admin Credentials Management Modal (restricted to Admin)

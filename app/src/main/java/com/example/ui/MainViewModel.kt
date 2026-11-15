@@ -1953,7 +1953,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return "Not Configured (Using Local AI Engine)"
     }
 
+    private fun canManageAiApiConfig(): Boolean {
+        val role = currentUser.value.role
+        return role == Role.TEACHER || role == Role.ADMIN
+    }
+
     fun openAiKeyDialog() {
+        if (!canManageAiApiConfig()) {
+            _showAiKeyDialog.value = false
+            return
+        }
         _aiKeyTestResult.value = null
         _geminiApiKey.value = appPreferences.getCustomGeminiApiKey() ?: ""
         _customEndpointUrl.value = appPreferences.getCustomEndpointUrl()
@@ -1970,6 +1979,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun saveCustomGeminiApiKey(key: String) {
+        if (!canManageAiApiConfig()) return
         val clean = key.trim()
         appPreferences.saveGeminiApiKey(clean)
         _geminiApiKey.value = clean
@@ -1978,6 +1988,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearCustomGeminiApiKey() {
+        if (!canManageAiApiConfig()) return
         appPreferences.clearCustomGeminiApiKey()
         _geminiApiKey.value = ""
         _isGeminiConfigured.value = isGeminiApiKeyConfigured()
@@ -1986,6 +1997,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setAiProviderType(type: String) {
+        if (!canManageAiApiConfig()) return
         appPreferences.setAiProviderType(type)
         _aiProviderType.value = type
         _isGeminiConfigured.value = isGeminiApiKeyConfigured()
@@ -1993,6 +2005,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setCustomEndpointUrl(url: String) {
+        if (!canManageAiApiConfig()) return
         val clean = url.trim()
         appPreferences.setCustomEndpointUrl(clean)
         _customEndpointUrl.value = clean
@@ -2001,12 +2014,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setCustomModelName(model: String) {
+        if (!canManageAiApiConfig()) return
         val clean = model.trim()
         appPreferences.setCustomModelName(clean)
         _customModelName.value = clean
     }
 
     fun testGeminiApiKey(keyToTest: String) {
+        if (!canManageAiApiConfig()) return
         val key = keyToTest.trim().ifEmpty { getEffectiveGeminiApiKey() }
         if (key.isEmpty()) {
             _aiKeyTestResult.value = "⚠️ Please enter an API key or configure GEMINI_API_KEY in the Secrets panel."
@@ -2030,6 +2045,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun testCustomEndpoint(url: String, key: String, model: String) {
+        if (!canManageAiApiConfig()) return
         val cleanUrl = url.trim().ifEmpty { _customEndpointUrl.value }
         val cleanKey = key.trim().ifEmpty { getEffectiveGeminiApiKey() }
         val cleanModel = model.trim().ifEmpty { _customModelName.value }
@@ -2058,6 +2074,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setAiModel(model: String) {
+        if (!canManageAiApiConfig()) return
         appPreferences.setSelectedAiModel(model)
         _activeAiModel.value = model
     }
@@ -2350,7 +2367,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (translated.assameseText.isNotBlank()) {
                         append("Assamese: ${translated.assameseText}\n")
                     }
-                    append("\nTip: Tap 'Setup Gemini' at the top to connect a Gemini API key for full multi-language translations.")
+                    append("\nTip: Ask your Teacher or Admin to connect Cloud AI for full multi-language translations.")
                 }
             }
             lower.contains("grammar") || lower.contains("fix") || lower.contains("correct") || mode == "Grammar Fix" -> {
@@ -2379,7 +2396,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     append("2. Past Simple (finished action): \"I studied English yesterday.\"\n")
                     append("3. Present Perfect (past action connected to now): \"I have studied English for two years.\"\n")
                     append("4. Future Simple (plans/promises): \"I will practice speaking tomorrow.\"\n\n")
-                    append("Connect a Gemini API key at the top to ask follow-up exercises on any tense!")
+                    append("Try writing a sentence using one of these tenses and I will check your grammar!")
                 }
             }
             lower.contains("idiom") || lower.contains("vocabulary") || lower.contains("words") -> {
@@ -2390,14 +2407,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     append("• Once in a blue moon — happens very rarely\n")
                     append("• Hit the books — start studying seriously\n")
                     append("• Keep it up — continue doing great work\n\n")
-                    append("Connect your Gemini API key at the top to unlock unlimited custom vocabulary lists!")
+                    append("Use one of these expressions in a sentence to practice!")
                 }
             }
             else -> {
                 buildString {
                     append("Hi $studentName! I'm currently running in On-Device Tutor mode.\n\n")
-                    append("• To unlock full Gemini AI answers on any subject (essays, Q&A, grammar fixes, coding, science, and live conversation), tap the 'Setup Gemini' pill in the top bar or configure GEMINI_API_KEY in AI Studio Secrets.\n")
-                    append("• Meanwhile, you can also try Grammar Fix, Assamese Translation, or Tenses Guide right here!")
+                    append("• Cloud AI answers can be enabled by your Teacher or Admin from their panel.\n")
+                    append("• Meanwhile, you can use Grammar Fix, Assamese Translation, or Tenses Guide right here!")
                 }
             }
         }
