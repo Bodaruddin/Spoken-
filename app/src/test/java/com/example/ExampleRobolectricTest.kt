@@ -511,5 +511,92 @@ class ExampleRobolectricTest {
     assertEquals(90, mergedMode.xpReward)
     assertTrue(mergedMode.isEnabled)
   }
+
+  @Test
+  fun `nova two-step gemini parser and chat bubble display original corrected and explanation`() {
+    val voiceCorrectJson = """
+      {
+        "hasMistake": true,
+        "correctedSentence": "I go to school every day.",
+        "explanation": "Capitalize I and add a period.",
+        "naturalEnglish": "",
+        "grammarScore": 90
+      }
+    """.trimIndent()
+    val parsedVoiceCorrect = com.example.service.GeminiSpeechEvaluator.parseGrammarEvaluationJson(
+      textOutput = voiceCorrectJson,
+      cleanSpoken = "i go to school every day",
+      isVoiceInput = true
+    ).getOrThrow()
+    assertFalse(parsedVoiceCorrect.hasMistake)
+    assertEquals(null, parsedVoiceCorrect.correctedSentence)
+
+    val llmMissedErrorJson = """
+      {
+        "hasMistake": false,
+        "correctedSentence": "",
+        "explanation": "",
+        "naturalEnglish": "",
+        "overallScore": 92,
+        "grammarScore": 95,
+        "feedback": "Excellent!"
+      }
+    """.trimIndent()
+    val caughtBySafetyNet = com.example.service.GeminiSpeechEvaluator.parseGrammarEvaluationJson(
+      textOutput = llmMissedErrorJson,
+      cleanSpoken = "I am go to school every day.",
+      isVoiceInput = false
+    ).getOrThrow()
+    assertTrue(caughtBySafetyNet.hasMistake)
+    assertEquals("I go to school every day.", caughtBySafetyNet.correctedSentence)
+    assertTrue(caughtBySafetyNet.grammarScore <= 72)
+
+    val step2Json = """
+      {
+        "aiCoachResponse": "Excellent! That sounds like a nice routine. What time do your classes start?",
+        "followUpQuestion": "What time do your classes start?",
+        "hint": "Say what time your first class begins.",
+        "exampleAnswers": ["My classes start at 9 AM."],
+        "isSessionSummary": false,
+        "improvementSuggestions": []
+      }
+    """.trimIndent()
+    val finalCloudEval = com.example.service.GeminiSpeechEvaluator.parseEvaluationOutput(
+      textOutput = step2Json,
+      cleanSpoken = "I am go to school every day.",
+      targetPhrase = null,
+      model = "gemini-3.5-flash-lite",
+      isClosingTurn = false,
+      grammarEval = caughtBySafetyNet
+    ).getOrThrow()
+
+    assertTrue(finalCloudEval.hasGrammarMistake)
+    assertEquals("I go to school every day.", finalCloudEval.correctedSentence)
+    val cloudReply = finalCloudEval.aiCoachResponse.orEmpty()
+    assertTrue(cloudReply.contains("❌ Your Sentence: \"I am go to school every day.\""))
+    assertTrue(cloudReply.contains("✅ Correct Sentence: \"I go to school every day.\""))
+    assertTrue(cloudReply.contains("📖 Explanation:"))
+    assertFalse(cloudReply.contains("Excellent!"))
+    assertTrue(cloudReply.endsWith("What time do your classes start?"))
+
+    val novaMsg = NovaChatMessage(
+      id = "nova_test_correction",
+      isNova = true,
+      text = cloudReply,
+      audioPrompt = com.example.service.HumanConversationEngine.buildSpokenAudioPrompt(cloudReply, finalCloudEval),
+      evaluation = finalCloudEval,
+      isQuestion = true
+    )
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.NovaChatBubble(
+        message = novaMsg,
+        isPlayingAudio = false,
+        onPlayAudio = {}
+      )
+    }
+
+    composeTestRule.onNodeWithTag("nova_grammar_correction_card").assertIsDisplayed()
+  }
 }
 

@@ -1030,5 +1030,107 @@ class ExampleUnitTest {
         assertEquals("Would you like to practise another topic?", summaryEval.followUpQuestion)
         assertTrue(summaryEval.aiCoachResponse.orEmpty().contains("Would you like to practise another topic?"))
     }
+
+    @Test
+    fun testNovaMandatoryCorrectionFormatAndGrammarEvaluationRules() {
+        val routineTopic = com.example.data.model.SpeakingPrompt(
+            id = "topic_routine_strict",
+            title = "Daily Routine",
+            category = "Habits",
+            question = "When do you usually go to school?",
+            followUpTip = "Use simple present tense for daily habits.",
+            recommendedKeywords = listOf("go to school", "every day", "morning")
+        )
+
+        // 1. Classic mistake from spec: "I am go to school every day."
+        val errEval = com.example.service.HumanConversationEngine.generateReply(
+            spokenText = "I am go to school every day.",
+            topic = routineTopic,
+            previousMessages = emptyList(),
+            lastNovaQuestion = "When do you usually go to school?",
+            baseEval = com.example.service.EvaluationEngine.evaluateSpeech("I am go to school every day."),
+            currentTurn = 1,
+            targetTurns = 6,
+            isVoiceInput = false
+        )
+        assertTrue(errEval.hasGrammarMistake)
+        assertEquals("I go to school every day.", errEval.correctedSentence)
+        assertNotNull(errEval.grammarExplanation)
+        val reply = errEval.aiCoachResponse.orEmpty()
+        assertTrue(reply.contains("❌ Your Sentence: \"I am go to school every day.\""))
+        assertTrue(reply.contains("✅ Correct Sentence: \"I go to school every day.\""))
+        assertTrue(reply.contains("📖 Explanation:"))
+        assertTrue(reply.contains("🌟 Natural English: \"I go to school daily.\""))
+        assertFalse(reply.startsWith("Excellent", ignoreCase = true))
+        assertEquals(1, errEval.followUpQuestion.orEmpty().count { it == '?' })
+
+        // Audio prompt should cleanly strip emojis for TTS
+        val ttsPrompt = com.example.service.HumanConversationEngine.buildSpokenAudioPrompt(reply, errEval)
+        assertFalse(ttsPrompt.contains("❌"))
+        assertFalse(ttsPrompt.contains("✅"))
+        assertFalse(ttsPrompt.contains("📖"))
+        assertFalse(ttsPrompt.contains("🌟"))
+        assertTrue(ttsPrompt.contains("I go to school every day."))
+
+        // 2. Spelling + Past tense errors in typed response
+        val spellEval = com.example.service.HumanConversationEngine.analyzeGrammarDeterministic(
+            spoken = "I go to scool every day.",
+            topic = routineTopic,
+            isVoiceInput = false
+        )
+        assertTrue(spellEval.hasError)
+        assertEquals("I go to school every day.", spellEval.correctedSentence)
+
+        val didnWentEval = com.example.service.HumanConversationEngine.analyzeGrammarDeterministic(
+            spoken = "I didn't went home yesterday.",
+            topic = routineTopic,
+            isVoiceInput = false
+        )
+        assertTrue(didnWentEval.hasError)
+        assertEquals("I didn't go home yesterday.", didnWentEval.correctedSentence)
+
+        val agreeEval = com.example.service.HumanConversationEngine.analyzeGrammarDeterministic(
+            spoken = "She don't like waking up early.",
+            topic = routineTopic,
+            isVoiceInput = false
+        )
+        assertTrue(agreeEval.hasError)
+        assertEquals("She doesn't like waking up early.", agreeEval.correctedSentence)
+
+        // 3. Correct sentence -> appreciated, confirmed grammatically correct, no invented mistakes
+        val correctEval = com.example.service.HumanConversationEngine.generateReply(
+            spokenText = "I go to school every day at 8 AM.",
+            topic = routineTopic,
+            previousMessages = emptyList(),
+            lastNovaQuestion = "When do you usually go to school?",
+            baseEval = com.example.service.EvaluationEngine.evaluateSpeech("I go to school every day at 8 AM."),
+            currentTurn = 2,
+            targetTurns = 6,
+            isVoiceInput = false
+        )
+        assertFalse(correctEval.hasGrammarMistake)
+        assertNull(correctEval.correctedSentence)
+        assertTrue(correctEval.aiCoachResponse.orEmpty().contains("grammatically correct", ignoreCase = true))
+        assertFalse(correctEval.aiCoachResponse.orEmpty().contains("❌ Your Sentence:"))
+        assertEquals(1, correctEval.followUpQuestion.orEmpty().count { it == '?' })
+
+        // 4. Voice STT tolerance in deterministic analyzer: lowercase / missing punctuation on correct sentence is NOT flagged,
+        //    while genuine grammar error in voice STT IS flagged.
+        val voiceCorrectDet = com.example.service.HumanConversationEngine.analyzeGrammarDeterministic(
+            spoken = "i go to school every day",
+            topic = routineTopic,
+            isVoiceInput = true
+        )
+        assertFalse(voiceCorrectDet.hasError)
+        assertNull(voiceCorrectDet.correctedSentence)
+
+        val voiceErrorDet = com.example.service.HumanConversationEngine.analyzeGrammarDeterministic(
+            spoken = "i am go to school every day",
+            topic = routineTopic,
+            isVoiceInput = true
+        )
+        assertTrue(voiceErrorDet.hasError)
+        assertEquals("I go to school every day.", voiceErrorDet.correctedSentence)
+    }
 }
 

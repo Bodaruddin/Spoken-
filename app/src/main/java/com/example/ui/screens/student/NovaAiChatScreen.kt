@@ -164,6 +164,14 @@ fun NovaAiChatScreen(
         }
     }
 
+    // Surface voice recognition errors cleanly without stalling
+    LaunchedEffect(speechState) {
+        if (speechState is SpeechState.Error) {
+            Toast.makeText(context, speechState.message, Toast.LENGTH_SHORT).show()
+            viewModel.speechManager.reset()
+        }
+    }
+
     // Pulsing animation for microphone button
     val isListening = speechState is SpeechState.Listening
     val infiniteTransition = rememberInfiniteTransition(label = "mic_pulse")
@@ -610,7 +618,7 @@ fun NovaAiChatScreen(
                                         )
                                     )
                                 )
-                                .clickable {
+                                .clickable(enabled = !isAiEvaluating || isListening) {
                                     val hasPerm = ContextCompat.checkSelfPermission(
                                         context,
                                         Manifest.permission.RECORD_AUDIO
@@ -618,7 +626,7 @@ fun NovaAiChatScreen(
 
                                     if (speechState is SpeechState.Listening) {
                                         viewModel.stopSpeakingPractice()
-                                    } else {
+                                    } else if (!isAiEvaluating) {
                                         if (hasPerm) {
                                             viewModel.startSpeakingPractice()
                                         } else {
@@ -730,10 +738,10 @@ fun NovaAiChatScreen(
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                             keyboardActions = KeyboardActions(
                                 onSend = {
-                                    if (bottomInputText.isNotBlank()) {
+                                    if (!isAiEvaluating && bottomInputText.isNotBlank()) {
                                         val typed = bottomInputText.trim()
                                         bottomInputText = ""
-                                        viewModel.evaluateInputSpeech(typed)
+                                        viewModel.evaluateInputSpeech(typed, isVoiceInput = false)
                                     }
                                 }
                             ),
@@ -744,16 +752,19 @@ fun NovaAiChatScreen(
                     if (bottomInputText.isNotBlank()) {
                         IconButton(
                             onClick = {
-                                val typed = bottomInputText.trim()
-                                bottomInputText = ""
-                                viewModel.evaluateInputSpeech(typed)
+                                if (!isAiEvaluating && bottomInputText.isNotBlank()) {
+                                    val typed = bottomInputText.trim()
+                                    bottomInputText = ""
+                                    viewModel.evaluateInputSpeech(typed, isVoiceInput = false)
+                                }
                             },
+                            enabled = !isAiEvaluating,
                             modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Send,
                                 contentDescription = "Send",
-                                tint = Color(0xFFC084FC),
+                                tint = if (isAiEvaluating) Color(0xFF6B5B95) else Color(0xFFC084FC),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -803,7 +814,9 @@ fun NovaAiChatScreen(
                     borderColor = Color(0xFF7C3AED),
                     modifier = Modifier.weight(1f),
                     onClick = {
-                        viewModel.advanceToNextNovaPrompt()
+                        if (!isAiEvaluating) {
+                            viewModel.advanceToNextNovaPrompt()
+                        }
                     }
                 )
             }
@@ -1655,51 +1668,148 @@ fun NovaChatBubble(
                     }
                 }
 
-                Text(
-                    text = message.text,
-                    fontSize = 14.5.sp,
-                    color = Color.White,
-                    lineHeight = 22.sp,
-                    fontWeight = if (message.isQuestion) FontWeight.Medium else FontWeight.Normal
-                )
-
-                // Corrected Sentence feedback pill when grammar error detected
-                if (eval != null && !eval.correctedSentence.isNullOrBlank()) {
-                    Spacer(Modifier.height(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF14332B),
-                        border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.65f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "✏️ Better Sentence: \"${eval.correctedSentence}\"",
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF6EE7B7),
-                            lineHeight = 18.sp,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
-                        )
+                val hasMistake = eval != null && (eval.hasGrammarMistake || !eval.correctedSentence.isNullOrBlank())
+                val continuationText = remember(message.text, eval) {
+                    if (eval != null) {
+                        com.example.service.HumanConversationEngine.extractContinuationAfterCorrection(message.text)
+                    } else {
+                        message.text
                     }
                 }
 
-                // Natural Everyday Expression pill when helpful
-                if (eval != null && !eval.naturalExpression.isNullOrBlank()) {
-                    Spacer(Modifier.height(6.dp))
+                if (eval != null && hasMistake) {
                     Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF172554),
-                        border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF23133D),
+                        border = BorderStroke(1.dp, Color(0xFFEC4899).copy(alpha = 0.55f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .testTag("nova_grammar_correction_card")
                     ) {
+                        Column(
+                            modifier = Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF3B1526),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "❌ Your Sentence: \"${eval.spokenText}\"",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFFFCA5A5),
+                                    lineHeight = 18.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                )
+                            }
+
+                            if (!eval.correctedSentence.isNullOrBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFF14332B),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "✅ Correct Sentence: \"${eval.correctedSentence}\"",
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF6EE7B7),
+                                        lineHeight = 18.sp,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+
+                            val explanationText = eval.grammarExplanation
+                                ?.takeIf { it.isNotBlank() }
+                                ?: eval.suggestedImprovement
+                            if (explanationText.isNotBlank()) {
+                                Text(
+                                    text = "📖 Explanation: $explanationText",
+                                    fontSize = 12.5.sp,
+                                    color = Color(0xFFE9D5FF),
+                                    lineHeight = 18.sp
+                                )
+                            }
+
+                            if (!eval.naturalExpression.isNullOrBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFF172554),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "🌟 Natural English: \"${eval.naturalExpression}\"",
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFFBAE6FD),
+                                        lineHeight = 18.sp,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    val bodyText = continuationText.ifBlank { eval.followUpQuestion.orEmpty() }
+                    if (bodyText.isNotBlank()) {
                         Text(
-                            text = "✨ More Natural: \"${eval.naturalExpression}\"",
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFBAE6FD),
-                            lineHeight = 18.sp,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                            text = bodyText,
+                            fontSize = 14.5.sp,
+                            color = Color.White,
+                            lineHeight = 22.sp,
+                            fontWeight = if (message.isQuestion) FontWeight.Medium else FontWeight.Normal
                         )
+                    }
+                } else {
+                    if (eval != null) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF14332B),
+                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.55f)),
+                            modifier = Modifier
+                                .padding(bottom = 8.dp)
+                                .testTag("nova_grammar_correct_badge")
+                        ) {
+                            Text(
+                                text = "✅ Grammatically Correct",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF6EE7B7),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    val displayBody = continuationText.ifBlank { message.text }
+                    Text(
+                        text = displayBody,
+                        fontSize = 14.5.sp,
+                        color = Color.White,
+                        lineHeight = 22.sp,
+                        fontWeight = if (message.isQuestion) FontWeight.Medium else FontWeight.Normal
+                    )
+
+                    if (eval != null && !eval.naturalExpression.isNullOrBlank()) {
+                        Spacer(Modifier.height(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFF172554),
+                            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "🌟 Natural English: \"${eval.naturalExpression}\"",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFBAE6FD),
+                                lineHeight = 18.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+                            )
+                        }
                     }
                 }
 

@@ -24,6 +24,7 @@ sealed class SpeechState {
 class SpeechRecognizerManager(private val context: Context) {
     private var speechRecognizer: SpeechRecognizer? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var lastPartialText: String = ""
 
     private val _speechState = MutableStateFlow<SpeechState>(SpeechState.Idle)
     val speechState: StateFlow<SpeechState> = _speechState.asStateFlow()
@@ -43,6 +44,7 @@ class SpeechRecognizerManager(private val context: Context) {
                 } catch (_: Exception) {}
                 speechRecognizer = null
             }
+            lastPartialText = ""
 
             val available = SpeechRecognizer.isRecognitionAvailable(context)
             speechRecognizer = if (available) {
@@ -57,6 +59,7 @@ class SpeechRecognizerManager(private val context: Context) {
 
             speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
+                    lastPartialText = ""
                     _speechState.value = SpeechState.Listening
                 }
 
@@ -75,32 +78,45 @@ class SpeechRecognizerManager(private val context: Context) {
                 }
 
                 override fun onError(error: Int) {
+                    val fallbackPartial = lastPartialText.trim()
+                    lastPartialText = ""
+                    if ((error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) &&
+                        fallbackPartial.isNotBlank()
+                    ) {
+                        _speechState.value = SpeechState.Success(fallbackPartial)
+                        return
+                    }
                     val message = when (error) {
                         SpeechRecognizer.ERROR_AUDIO -> "Audio recording error. Please check microphone."
-                        SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected. Please speak clearly or use 'Test with Sample Voice'."
+                        SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected. Please speak clearly and try again."
                         SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network issue. Please try again."
-                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input heard. Tap to retry or test with sample voice."
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input heard. Tap the mic to try again."
                         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is required."
-                        else -> "Speech capture error ($error). You can use 'Test with Sample Voice'."
+                        else -> "Speech capture error ($error). Please tap the mic and try again."
                     }
                     _speechState.value = SpeechState.Error(message)
                 }
 
                 override fun onResults(results: Bundle?) {
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    val text = matches?.firstOrNull() ?: ""
+                    val text = matches?.firstOrNull { !it.isNullOrBlank() }?.trim()
+                        ?: lastPartialText.trim()
+                    lastPartialText = ""
                     if (text.isNotBlank()) {
                         _speechState.value = SpeechState.Success(text)
                     } else {
-                        _speechState.value = SpeechState.Error("No words detected. Try again or test with sample voice!")
+                        _speechState.value = SpeechState.Error("No words detected. Please try speaking again.")
                     }
                 }
 
                 override fun onPartialResults(partialResults: Bundle?) {
                     val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    val text = matches?.firstOrNull() ?: ""
-                    if (text.isNotBlank() && _speechState.value is SpeechState.Listening) {
-                        _rmsVolume.value = 5f
+                    val text = matches?.firstOrNull { !it.isNullOrBlank() }?.trim() ?: ""
+                    if (text.isNotBlank()) {
+                        lastPartialText = text
+                        if (_speechState.value is SpeechState.Listening) {
+                            _rmsVolume.value = 5f
+                        }
                     }
                 }
 
@@ -113,12 +129,13 @@ class SpeechRecognizerManager(private val context: Context) {
 
     fun startListening() {
         mainHandler.post {
+            lastPartialText = ""
             if (speechRecognizer == null) {
                 initRecognizer()
             }
 
             if (speechRecognizer == null) {
-                _speechState.value = SpeechState.Error("Speech recognizer unavailable on this device. Use 'Test with Sample Voice' to verify.")
+                _speechState.value = SpeechState.Error("Speech recognizer unavailable on this device.")
                 return@post
             }
 
@@ -151,6 +168,7 @@ class SpeechRecognizerManager(private val context: Context) {
 
     fun cancel() {
         mainHandler.post {
+            lastPartialText = ""
             try {
                 speechRecognizer?.cancel()
             } catch (e: Exception) {}
@@ -160,6 +178,7 @@ class SpeechRecognizerManager(private val context: Context) {
 
     // Quick practice simulated answer injector
     fun simulateSpokenText(sample: String) {
+        lastPartialText = ""
         _speechState.value = SpeechState.Processing
         mainHandler.postDelayed({
             _speechState.value = SpeechState.Success(sample)
@@ -167,6 +186,7 @@ class SpeechRecognizerManager(private val context: Context) {
     }
 
     fun reset() {
+        lastPartialText = ""
         _speechState.value = SpeechState.Idle
         _rmsVolume.value = 0f
     }

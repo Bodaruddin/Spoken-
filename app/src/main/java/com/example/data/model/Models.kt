@@ -135,7 +135,9 @@ data class SpeakingEvaluation(
     val correctedSentence: String? = null,
     val naturalExpression: String? = null,
     val isSessionSummary: Boolean = false,
-    val improvementSuggestions: List<String> = emptyList()
+    val improvementSuggestions: List<String> = emptyList(),
+    val hasGrammarMistake: Boolean = false,
+    val grammarExplanation: String? = null
 )
 
 data class NovaChatMessage(

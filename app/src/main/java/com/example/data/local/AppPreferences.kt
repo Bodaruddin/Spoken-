@@ -1904,6 +1904,8 @@ class AppPreferences(context: Context) {
                             put("correctedSentence", msg.evaluation.correctedSentence ?: "")
                             put("naturalExpression", msg.evaluation.naturalExpression ?: "")
                             put("isSessionSummary", msg.evaluation.isSessionSummary)
+                            put("hasGrammarMistake", msg.evaluation.hasGrammarMistake)
+                            put("grammarExplanation", msg.evaluation.grammarExplanation ?: "")
                             val suggArr = JSONArray()
                             msg.evaluation.improvementSuggestions.forEach { suggArr.put(it) }
                             put("improvementSuggestions", suggArr)
@@ -1951,6 +1953,9 @@ class AppPreferences(context: Context) {
                             if (s.isNotBlank()) suggestions.add(s)
                         }
                     }
+                    val savedCorrected = evalObj.optString("correctedSentence", "").ifBlank { null }
+                    val savedHasMistake = evalObj.optBoolean("hasGrammarMistake", savedCorrected != null)
+                    val savedExplanation = evalObj.optString("grammarExplanation", "").ifBlank { null }
                     SpeakingEvaluation(
                         spokenText = evalObj.optString("spokenText", text),
                         overallScore = evalObj.optInt("overallScore", 80),
@@ -1965,10 +1970,12 @@ class AppPreferences(context: Context) {
                         aiCoachResponse = evalObj.optString("aiCoachResponse", ""),
                         cefrLevel = evalObj.optString("cefrLevel", "B1"),
                         followUpQuestion = evalObj.optString("followUpQuestion", "").ifBlank { null },
-                        correctedSentence = evalObj.optString("correctedSentence", "").ifBlank { null },
+                        correctedSentence = savedCorrected,
                         naturalExpression = evalObj.optString("naturalExpression", "").ifBlank { null },
                         isSessionSummary = evalObj.optBoolean("isSessionSummary", false),
-                        improvementSuggestions = suggestions
+                        improvementSuggestions = suggestions,
+                        hasGrammarMistake = savedHasMistake,
+                        grammarExplanation = savedExplanation
                     )
                 } else null
 

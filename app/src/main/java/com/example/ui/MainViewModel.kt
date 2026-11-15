@@ -1348,11 +1348,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             speechManager.speechState.collect { state ->
                 if (state is SpeechState.Success) {
-                    if (_currentStudentTab.value == StudentTab.NOVA_AI) {
-                        sendNovaGeminiMessage(state.spokenText)
-                        speechManager.reset()
-                    } else {
-                        evaluateInputSpeech(state.spokenText)
+                    val capturedSpeech = state.spokenText.trim()
+                    speechManager.reset()
+                    if (capturedSpeech.isNotBlank()) {
+                        if (_currentStudentTab.value == StudentTab.NOVA_AI) {
+                            sendNovaGeminiMessage(capturedSpeech)
+                        } else {
+                            evaluateInputSpeech(capturedSpeech, isVoiceInput = true)
+                        }
                     }
                 }
             }
@@ -2313,7 +2316,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isNovaGeminiThinking.value = false
 
             if (_aiVoiceReplyEnabled.value) {
-                val spokenPreview = replyText.lineSequence().take(4).joinToString(" ").take(320)
+                val spokenPreview = HumanConversationEngine.buildSpokenAudioPrompt(
+                    replyText.lineSequence().take(4).joinToString(" "),
+                    null
+                ).take(320)
                 if (spokenPreview.isNotBlank()) speakAudio(spokenPreview)
             }
         }
@@ -2348,13 +2354,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             lower.contains("grammar") || lower.contains("fix") || lower.contains("correct") || mode == "Grammar Fix" -> {
-                val eval = EvaluationEngine.evaluateSpeech(prompt, null)
-                buildString {
-                    append("Grammar & Clarity Check\n\n")
-                    append("• Quick Feedback: ${eval.feedback}\n")
-                    append("• Suggestion: ${eval.suggestedImprovement}\n")
-                    append("• Quick Checklist: Verify subject-verb agreement (he/she + verb-s), consistent past/present tense, and articles (a/an/the).\n\n")
-                    append("Connect a Gemini API key in the top bar for detailed line-by-line AI corrections.")
+                val targetSentence = prompt
+                    .replace(Regex("(?i)^(check|fix|correct)( this| my)?( sentence| grammar)?[:\\s-]*"), "")
+                    .trim()
+                    .ifBlank { prompt }
+                val grammarCheck = HumanConversationEngine.analyzeGrammarDeterministic(targetSentence, isVoiceInput = false)
+                if (grammarCheck.hasError && !grammarCheck.correctedSentence.isNullOrBlank()) {
+                    HumanConversationEngine.formatMandatoryMistakeResponse(
+                        originalSentence = targetSentence,
+                        correctedSentence = grammarCheck.correctedSentence,
+                        explanation = grammarCheck.explanation ?: grammarCheck.shortTip
+                            ?: "Check the sentence grammar and verb form.",
+                        naturalEnglish = grammarCheck.naturalExpression,
+                        continuationText = "Would you like to try another sentence for grammar practice?"
+                    )
+                } else {
+                    "Great job! Your sentence \"$targetSentence\" is grammatically correct.\n\nWould you like to practice another English sentence?"
                 }
             }
             lower.contains("tense") -> {
@@ -2390,6 +2405,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun advanceToNextNovaPrompt() {
+        if (_isAiEvaluating.value) return
         val topic = _activeConversationTopic.value ?: return
         val studentId = currentUser.value.id.ifBlank { "default_student" }
         viewModelScope.launch {
@@ -2517,7 +2533,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun evaluateInputSpeech(spoken: String) {
+    fun evaluateInputSpeech(spoken: String, isVoiceInput: Boolean = false) {
+        val cleanSpoken = spoken.trim()
+        if (cleanSpoken.isBlank() || _isAiEvaluating.value) return
+        _isAiEvaluating.value = true
+
         val isNovaChat = _speakingSubTab.value == SpeakingSubTab.AI_PARTNER
         val activeTopic = _activeConversationTopic.value
         val target: String? = when {
@@ -2543,12 +2563,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val studentCefrLevel = studentProfile.value.currentLevel.cefr.ifBlank { "B1" }
 
-        // If speaking with Nova in AI partner chat, append student's spoken message immediately
+        // If speaking with Nova in AI partner chat, append student's spoken/typed message immediately
         val historyForNova = if (isNovaChat && activeTopic != null) {
             val studentTurn = NovaChatMessage(
                 id = "student_${System.currentTimeMillis()}",
                 isNova = false,
-                text = spoken,
+                text = cleanSpoken,
                 isQuestion = false,
                 questionNumber = _novaTurnCount.value
             )
@@ -2563,253 +2583,294 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             _isAiEvaluating.value = true
-            val effectiveKey = getEffectiveGeminiApiKey()
+            try {
+                val effectiveKey = getEffectiveGeminiApiKey()
 
-            val eval = if (isGeminiApiKeyConfigured()) {
-                val contextPrompt = if (isNovaChat && activeTopic != null) {
-                    "Topic: ${activeTopic.title} (Category: ${activeTopic.category}, Level: ${activeTopic.difficultyLevel})\nTarget Keywords: ${activeTopic.recommendedKeywords.joinToString(", ")}\nFollow-up Coaching Tip: ${activeTopic.followUpTip}"
-                } else null
+                val eval = if (isGeminiApiKeyConfigured()) {
+                    val contextPrompt = if (isNovaChat && activeTopic != null) {
+                        "Topic: ${activeTopic.title} (Category: ${activeTopic.category}, Level: ${activeTopic.difficultyLevel})\nTarget Keywords: ${activeTopic.recommendedKeywords.joinToString(", ")}\nFollow-up Coaching Tip: ${activeTopic.followUpTip}"
+                    } else null
 
-                val aiResult = kotlinx.coroutines.withTimeoutOrNull(15000L) {
-                    if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
-                        GeminiSpeechEvaluator.evaluateSpeechCustomEndpoint(
-                            endpointUrl = _customEndpointUrl.value,
-                            apiKey = effectiveKey,
-                            modelName = _customModelName.value,
-                            spokenText = spoken,
-                            targetPhrase = target,
-                            conversationContext = contextPrompt,
-                            conversationHistory = historyBeforeStudent,
-                            previousNovaQuestion = previousNovaQuestion,
-                            topicTitle = activeTopic?.title,
-                            topicCategory = activeTopic?.category,
-                            difficultyLevel = activeTopic?.difficultyLevel,
-                            currentTurn = studentTurnNumber,
-                            targetTurns = targetTurns,
-                            studentCefrLevel = studentCefrLevel
-                        )
+                    val aiResult = kotlinx.coroutines.withTimeoutOrNull(45000L) {
+                        if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
+                            GeminiSpeechEvaluator.evaluateSpeechCustomEndpoint(
+                                endpointUrl = _customEndpointUrl.value,
+                                apiKey = effectiveKey,
+                                modelName = _customModelName.value,
+                                spokenText = cleanSpoken,
+                                targetPhrase = target,
+                                conversationContext = contextPrompt,
+                                conversationHistory = historyBeforeStudent,
+                                previousNovaQuestion = previousNovaQuestion,
+                                topicTitle = activeTopic?.title,
+                                topicCategory = activeTopic?.category,
+                                difficultyLevel = activeTopic?.difficultyLevel,
+                                currentTurn = studentTurnNumber,
+                                targetTurns = targetTurns,
+                                studentCefrLevel = studentCefrLevel,
+                                isVoiceInput = isVoiceInput
+                            )
+                        } else {
+                            GeminiSpeechEvaluator.evaluateSpeech(
+                                apiKey = effectiveKey,
+                                spokenText = cleanSpoken,
+                                targetPhrase = target,
+                                conversationContext = contextPrompt,
+                                conversationHistory = historyBeforeStudent,
+                                previousNovaQuestion = previousNovaQuestion,
+                                model = _activeAiModel.value,
+                                topicTitle = activeTopic?.title,
+                                topicCategory = activeTopic?.category,
+                                difficultyLevel = activeTopic?.difficultyLevel,
+                                currentTurn = studentTurnNumber,
+                                targetTurns = targetTurns,
+                                studentCefrLevel = studentCefrLevel,
+                                isVoiceInput = isVoiceInput
+                            )
+                        }
+                    } ?: Result.failure(Exception("Evaluation timed out, using fast local engine"))
+
+                    if (aiResult.isSuccess) {
+                        val rawAiEval = aiResult.getOrThrow()
+                        if (isNovaChat && activeTopic != null) {
+                            val nextTurn = _novaTurnCount.value + 1
+                            _novaTurnCount.value = nextTurn
+                            val fallbackEngineEval = if (rawAiEval.aiCoachResponse.isNullOrBlank() || (studentTurnNumber >= targetTurns && !rawAiEval.isSessionSummary)) {
+                                HumanConversationEngine.generateReply(
+                                    spokenText = cleanSpoken,
+                                    topic = activeTopic,
+                                    previousMessages = historyBeforeStudent,
+                                    lastNovaQuestion = previousNovaQuestion.orEmpty(),
+                                    baseEval = rawAiEval,
+                                    studentName = currentUser.value.name,
+                                    currentTurn = studentTurnNumber,
+                                    targetTurns = targetTurns,
+                                    isVoiceInput = isVoiceInput
+                                )
+                            } else null
+
+                            val isSummaryTurn = rawAiEval.isSessionSummary || studentTurnNumber >= targetTurns
+                            val rawCoachReply = rawAiEval.aiCoachResponse?.trim()?.takeIf { it.isNotBlank() }
+                                ?: fallbackEngineEval?.aiCoachResponse.orEmpty()
+                            val extractedQuestion = rawAiEval.followUpQuestion?.trim()?.takeIf { it.isNotBlank() }
+                                ?: com.example.util.AssameseTranslator.extractCleanQuestion(rawCoachReply).takeIf { it.isNotBlank() }
+                                ?: fallbackEngineEval?.followUpQuestion.orEmpty()
+                            val nextCoachQuestion = if (isSummaryTurn && !extractedQuestion.contains("another topic", ignoreCase = true)) {
+                                "Would you like to practise another topic?"
+                            } else {
+                                extractedQuestion
+                            }
+
+                            val effectiveCorrected = rawAiEval.correctedSentence?.takeIf { it.isNotBlank() }
+                                ?: fallbackEngineEval?.correctedSentence
+                            val effectiveHasMistake = rawAiEval.hasGrammarMistake ||
+                                !effectiveCorrected.isNullOrBlank() ||
+                                (fallbackEngineEval?.hasGrammarMistake == true)
+                            val effectiveExplanation = rawAiEval.grammarExplanation?.takeIf { it.isNotBlank() }
+                                ?: fallbackEngineEval?.grammarExplanation
+                                ?: if (effectiveHasMistake) rawAiEval.suggestedImprovement else "Your sentence is grammatically correct."
+                            val effectiveNatural = rawAiEval.naturalExpression?.takeIf { it.isNotBlank() }
+                                ?: fallbackEngineEval?.naturalExpression
+
+                            val coachReplyBase = when {
+                                isSummaryTurn && !rawAiEval.isSessionSummary && fallbackEngineEval != null ->
+                                    fallbackEngineEval.aiCoachResponse.orEmpty()
+                                nextCoachQuestion.isNotBlank() && !rawCoachReply.contains("?") ->
+                                    "$rawCoachReply $nextCoachQuestion".trim()
+                                else -> rawCoachReply
+                            }
+                            val coachReply = if (
+                                effectiveHasMistake &&
+                                !effectiveCorrected.isNullOrBlank() &&
+                                !coachReplyBase.contains("❌ Your Sentence:")
+                            ) {
+                                HumanConversationEngine.formatMandatoryMistakeResponse(
+                                    originalSentence = cleanSpoken,
+                                    correctedSentence = effectiveCorrected,
+                                    explanation = effectiveExplanation,
+                                    naturalEnglish = effectiveNatural,
+                                    continuationText = HumanConversationEngine.extractContinuationAfterCorrection(coachReplyBase)
+                                        .ifBlank { nextCoachQuestion }
+                                )
+                            } else {
+                                coachReplyBase
+                            }
+
+                            val resolvedSuggestions = when {
+                                !isSummaryTurn -> emptyList()
+                                rawAiEval.improvementSuggestions.isNotEmpty() -> rawAiEval.improvementSuggestions.take(3)
+                                !fallbackEngineEval?.improvementSuggestions.isNullOrEmpty() -> fallbackEngineEval!!.improvementSuggestions.take(3)
+                                else -> listOf(
+                                    rawAiEval.suggestedImprovement.ifBlank { "Use full, clear sentences with accurate linking verbs like 'is' and 'am'." },
+                                    "Add one simple reason using 'because' when answering questions on ${activeTopic.title}."
+                                )
+                            }
+
+                            val effectiveAiEval = rawAiEval.copy(
+                                aiCoachResponse = coachReply,
+                                followUpQuestion = nextCoachQuestion,
+                                isSessionSummary = isSummaryTurn,
+                                improvementSuggestions = resolvedSuggestions,
+                                correctedSentence = effectiveCorrected,
+                                naturalExpression = effectiveNatural,
+                                hasGrammarMistake = effectiveHasMistake,
+                                grammarExplanation = effectiveExplanation
+                            )
+
+                            val turnExamples = if (effectiveAiEval.exampleAnswers.isNotEmpty()) {
+                                effectiveAiEval.exampleAnswers
+                            } else {
+                                com.example.util.ExampleAnswerGenerator.generateWithAi(
+                                    question = nextCoachQuestion,
+                                    topic = activeTopic,
+                                    apiKey = effectiveKey,
+                                    model = _activeAiModel.value
+                                )
+                            }
+                            val spokenAudioPrompt = HumanConversationEngine.buildSpokenAudioPrompt(coachReply, effectiveAiEval)
+                            val novaTurn = NovaChatMessage(
+                                id = "nova_reply_${System.currentTimeMillis()}",
+                                isNova = true,
+                                text = coachReply,
+                                audioPrompt = spokenAudioPrompt,
+                                evaluation = effectiveAiEval,
+                                isQuestion = true,
+                                questionNumber = nextTurn,
+                                hint = effectiveAiEval.hint ?: _novaCurrentHint.value,
+                                exampleAnswers = turnExamples
+                            )
+                            val finalHistory = historyForNova + novaTurn
+                            _novaChatMessages.value = finalHistory
+                            if (!effectiveAiEval.hint.isNullOrBlank()) _novaCurrentHint.value = effectiveAiEval.hint
+                            _novaCurrentExamples.value = turnExamples
+                            _activeCoachQuestion.value = nextCoachQuestion
+
+                            val studentId = currentUser.value.id.ifBlank { "default_student" }
+                            appPreferences.saveNovaSession(studentId, activeTopic.id, finalHistory)
+
+                            if (_aiVoiceReplyEnabled.value && spokenAudioPrompt.isNotBlank()) {
+                                speakAudio(spokenAudioPrompt)
+                            }
+                            effectiveAiEval
+                        } else {
+                            if (_aiVoiceReplyEnabled.value && !rawAiEval.aiCoachResponse.isNullOrBlank()) {
+                                val spokenAudio = HumanConversationEngine.buildSpokenAudioPrompt(rawAiEval.aiCoachResponse, rawAiEval)
+                                speakAudio(spokenAudio)
+                                _activeCoachQuestion.value = rawAiEval.aiCoachResponse
+                            }
+                            rawAiEval
+                        }
                     } else {
-                        GeminiSpeechEvaluator.evaluateSpeech(
-                            apiKey = effectiveKey,
-                            spokenText = spoken,
-                            targetPhrase = target,
-                            conversationContext = contextPrompt,
-                            conversationHistory = historyBeforeStudent,
-                            previousNovaQuestion = previousNovaQuestion,
-                            model = _activeAiModel.value,
-                            topicTitle = activeTopic?.title,
-                            topicCategory = activeTopic?.category,
-                            difficultyLevel = activeTopic?.difficultyLevel,
-                            currentTurn = studentTurnNumber,
-                            targetTurns = targetTurns,
-                            studentCefrLevel = studentCefrLevel
+                        // Graceful human-like fallback when Cloud AI is unreachable/timed out
+                        val baseEval = EvaluationEngine.evaluateSpeech(
+                            spokenText = cleanSpoken,
+                            targetPhrase = target
                         )
-                    }
-                } ?: Result.failure(Exception("Evaluation timed out, using fast local engine"))
-
-                if (aiResult.isSuccess) {
-                    val rawAiEval = aiResult.getOrThrow()
-                    if (isNovaChat && activeTopic != null) {
-                        val nextTurn = _novaTurnCount.value + 1
-                        _novaTurnCount.value = nextTurn
-                        val fallbackEngineEval = if (rawAiEval.aiCoachResponse.isNullOrBlank() || (studentTurnNumber >= targetTurns && !rawAiEval.isSessionSummary)) {
-                            HumanConversationEngine.generateReply(
-                                spokenText = spoken,
+                        val errMsg = aiResult.exceptionOrNull()?.message ?: "Network error"
+                        if (isNovaChat && activeTopic != null) {
+                            val nextTurn = _novaTurnCount.value + 1
+                            _novaTurnCount.value = nextTurn
+                            val humanEval = HumanConversationEngine.generateReply(
+                                spokenText = cleanSpoken,
                                 topic = activeTopic,
                                 previousMessages = historyBeforeStudent,
                                 lastNovaQuestion = previousNovaQuestion.orEmpty(),
-                                baseEval = rawAiEval,
+                                baseEval = baseEval,
                                 studentName = currentUser.value.name,
                                 currentTurn = studentTurnNumber,
-                                targetTurns = targetTurns
+                                targetTurns = targetTurns,
+                                isVoiceInput = isVoiceInput
                             )
-                        } else null
-
-                        val isSummaryTurn = rawAiEval.isSessionSummary || studentTurnNumber >= targetTurns
-                        val rawCoachReply = rawAiEval.aiCoachResponse?.trim()?.takeIf { it.isNotBlank() }
-                            ?: fallbackEngineEval?.aiCoachResponse.orEmpty()
-                        val extractedQuestion = rawAiEval.followUpQuestion?.trim()?.takeIf { it.isNotBlank() }
-                            ?: com.example.util.AssameseTranslator.extractCleanQuestion(rawCoachReply).takeIf { it.isNotBlank() }
-                            ?: fallbackEngineEval?.followUpQuestion.orEmpty()
-                        val nextCoachQuestion = if (isSummaryTurn && !extractedQuestion.contains("another topic", ignoreCase = true)) {
-                            "Would you like to practise another topic?"
+                            val fallbackEval = humanEval.copy(
+                                feedback = "💡 Cloud AI Notice ($errMsg)\n\nEvaluated on-device:\n${humanEval.feedback}"
+                            )
+                            val humanReply = fallbackEval.aiCoachResponse.orEmpty()
+                            val humanFollowUp = fallbackEval.followUpQuestion.orEmpty()
+                            val spokenAudioPrompt = HumanConversationEngine.buildSpokenAudioPrompt(humanReply, fallbackEval)
+                            val novaTurn = NovaChatMessage(
+                                id = "nova_fb_${System.currentTimeMillis()}",
+                                isNova = true,
+                                text = humanReply,
+                                audioPrompt = spokenAudioPrompt,
+                                evaluation = fallbackEval,
+                                isQuestion = true,
+                                questionNumber = nextTurn,
+                                hint = fallbackEval.hint,
+                                exampleAnswers = fallbackEval.exampleAnswers
+                            )
+                            val finalHistory = historyForNova + novaTurn
+                            _novaChatMessages.value = finalHistory
+                            _activeCoachQuestion.value = humanFollowUp.ifBlank { humanReply }
+                            fallbackEval.hint?.let { _novaCurrentHint.value = it }
+                            if (fallbackEval.exampleAnswers.isNotEmpty()) _novaCurrentExamples.value = fallbackEval.exampleAnswers
+                            val studentId = currentUser.value.id.ifBlank { "default_student" }
+                            appPreferences.saveNovaSession(studentId, activeTopic.id, finalHistory)
+                            if (_aiVoiceReplyEnabled.value && spokenAudioPrompt.isNotBlank()) {
+                                speakAudio(spokenAudioPrompt)
+                            }
+                            fallbackEval
                         } else {
-                            extractedQuestion
-                        }
-
-                        val coachReply = when {
-                            isSummaryTurn && !rawAiEval.isSessionSummary && fallbackEngineEval != null ->
-                                fallbackEngineEval.aiCoachResponse.orEmpty()
-                            nextCoachQuestion.isNotBlank() && !rawCoachReply.contains("?") ->
-                                "$rawCoachReply $nextCoachQuestion".trim()
-                            else -> rawCoachReply
-                        }
-
-                        val resolvedSuggestions = when {
-                            !isSummaryTurn -> emptyList()
-                            rawAiEval.improvementSuggestions.isNotEmpty() -> rawAiEval.improvementSuggestions.take(3)
-                            !fallbackEngineEval?.improvementSuggestions.isNullOrEmpty() -> fallbackEngineEval!!.improvementSuggestions.take(3)
-                            else -> listOf(
-                                rawAiEval.suggestedImprovement.ifBlank { "Use full, clear sentences with accurate linking verbs like 'is' and 'am'." },
-                                "Add one simple reason using 'because' when answering questions on ${activeTopic.title}."
+                            baseEval.copy(
+                                feedback = "💡 Cloud AI Notice ($errMsg)\n\nNova evaluated on-device:\n${baseEval.feedback}"
                             )
                         }
-
-                        val effectiveAiEval = rawAiEval.copy(
-                            aiCoachResponse = coachReply,
-                            followUpQuestion = nextCoachQuestion,
-                            isSessionSummary = isSummaryTurn,
-                            improvementSuggestions = resolvedSuggestions,
-                            correctedSentence = rawAiEval.correctedSentence?.takeIf { it.isNotBlank() }
-                                ?: fallbackEngineEval?.correctedSentence,
-                            naturalExpression = rawAiEval.naturalExpression?.takeIf { it.isNotBlank() }
-                                ?: fallbackEngineEval?.naturalExpression
-                        )
-
-                        val turnExamples = if (effectiveAiEval.exampleAnswers.isNotEmpty()) {
-                            effectiveAiEval.exampleAnswers
-                        } else {
-                            com.example.util.ExampleAnswerGenerator.generateWithAi(
-                                question = nextCoachQuestion,
-                                topic = activeTopic,
-                                apiKey = effectiveKey,
-                                model = _activeAiModel.value
-                            )
-                        }
-                        val novaTurn = NovaChatMessage(
-                            id = "nova_reply_${System.currentTimeMillis()}",
-                            isNova = true,
-                            text = coachReply,
-                            audioPrompt = coachReply,
-                            evaluation = effectiveAiEval,
-                            isQuestion = true,
-                            questionNumber = nextTurn,
-                            hint = effectiveAiEval.hint ?: _novaCurrentHint.value,
-                            exampleAnswers = turnExamples
-                        )
-                        val finalHistory = historyForNova + novaTurn
-                        _novaChatMessages.value = finalHistory
-                        if (!effectiveAiEval.hint.isNullOrBlank()) _novaCurrentHint.value = effectiveAiEval.hint
-                        _novaCurrentExamples.value = turnExamples
-                        _activeCoachQuestion.value = nextCoachQuestion
-
-                        val studentId = currentUser.value.id.ifBlank { "default_student" }
-                        appPreferences.saveNovaSession(studentId, activeTopic.id, finalHistory)
-
-                        if (_aiVoiceReplyEnabled.value && coachReply.isNotBlank()) {
-                            speakAudio(coachReply)
-                        }
-                        effectiveAiEval
-                    } else {
-                        if (_aiVoiceReplyEnabled.value && !rawAiEval.aiCoachResponse.isNullOrBlank()) {
-                            speakAudio(rawAiEval.aiCoachResponse)
-                            _activeCoachQuestion.value = rawAiEval.aiCoachResponse
-                        }
-                        rawAiEval
                     }
                 } else {
-                    // Graceful human-like fallback when Cloud AI is unreachable/timed out
+                    // On-device Human Conversation Engine when no Cloud AI key is configured
                     val baseEval = EvaluationEngine.evaluateSpeech(
-                        spokenText = spoken,
+                        spokenText = cleanSpoken,
                         targetPhrase = target
                     )
-                    val errMsg = aiResult.exceptionOrNull()?.message ?: "Network error"
                     if (isNovaChat && activeTopic != null) {
                         val nextTurn = _novaTurnCount.value + 1
                         _novaTurnCount.value = nextTurn
                         val humanEval = HumanConversationEngine.generateReply(
-                            spokenText = spoken,
+                            spokenText = cleanSpoken,
                             topic = activeTopic,
                             previousMessages = historyBeforeStudent,
                             lastNovaQuestion = previousNovaQuestion.orEmpty(),
                             baseEval = baseEval,
                             studentName = currentUser.value.name,
                             currentTurn = studentTurnNumber,
-                            targetTurns = targetTurns
+                            targetTurns = targetTurns,
+                            isVoiceInput = isVoiceInput
                         )
-                        val fallbackEval = humanEval.copy(
-                            feedback = "💡 Cloud AI Notice ($errMsg)\n\nEvaluated on-device:\n${humanEval.feedback}"
-                        )
-                        val humanReply = fallbackEval.aiCoachResponse.orEmpty()
-                        val humanFollowUp = fallbackEval.followUpQuestion.orEmpty()
+                        val humanReply = humanEval.aiCoachResponse.orEmpty()
+                        val humanFollowUp = humanEval.followUpQuestion.orEmpty()
+                        val spokenAudioPrompt = HumanConversationEngine.buildSpokenAudioPrompt(humanReply, humanEval)
                         val novaTurn = NovaChatMessage(
-                            id = "nova_fb_${System.currentTimeMillis()}",
+                            id = "nova_ondev_${System.currentTimeMillis()}",
                             isNova = true,
                             text = humanReply,
-                            audioPrompt = humanReply,
-                            evaluation = fallbackEval,
+                            audioPrompt = spokenAudioPrompt,
+                            evaluation = humanEval,
                             isQuestion = true,
                             questionNumber = nextTurn,
-                            hint = fallbackEval.hint,
-                            exampleAnswers = fallbackEval.exampleAnswers
+                            hint = humanEval.hint,
+                            exampleAnswers = humanEval.exampleAnswers
                         )
                         val finalHistory = historyForNova + novaTurn
                         _novaChatMessages.value = finalHistory
                         _activeCoachQuestion.value = humanFollowUp.ifBlank { humanReply }
-                        fallbackEval.hint?.let { _novaCurrentHint.value = it }
-                        if (fallbackEval.exampleAnswers.isNotEmpty()) _novaCurrentExamples.value = fallbackEval.exampleAnswers
+                        humanEval.hint?.let { _novaCurrentHint.value = it }
+                        if (humanEval.exampleAnswers.isNotEmpty()) _novaCurrentExamples.value = humanEval.exampleAnswers
                         val studentId = currentUser.value.id.ifBlank { "default_student" }
                         appPreferences.saveNovaSession(studentId, activeTopic.id, finalHistory)
-                        if (_aiVoiceReplyEnabled.value && humanReply.isNotBlank()) {
-                            speakAudio(humanReply)
+                        if (_aiVoiceReplyEnabled.value && spokenAudioPrompt.isNotBlank()) {
+                            speakAudio(spokenAudioPrompt)
                         }
-                        fallbackEval
+                        humanEval
                     } else {
-                        baseEval.copy(
-                            feedback = "💡 Cloud AI Notice ($errMsg)\n\nNova evaluated on-device:\n${baseEval.feedback}"
-                        )
+                        baseEval
                     }
                 }
-            } else {
-                // On-device Human Conversation Engine when no Cloud AI key is configured
-                val baseEval = EvaluationEngine.evaluateSpeech(
-                    spokenText = spoken,
-                    targetPhrase = target
-                )
-                if (isNovaChat && activeTopic != null) {
-                    val nextTurn = _novaTurnCount.value + 1
-                    _novaTurnCount.value = nextTurn
-                    val humanEval = HumanConversationEngine.generateReply(
-                        spokenText = spoken,
-                        topic = activeTopic,
-                        previousMessages = historyBeforeStudent,
-                        lastNovaQuestion = previousNovaQuestion.orEmpty(),
-                        baseEval = baseEval,
-                        studentName = currentUser.value.name,
-                        currentTurn = studentTurnNumber,
-                        targetTurns = targetTurns
-                    )
-                    val humanReply = humanEval.aiCoachResponse.orEmpty()
-                    val humanFollowUp = humanEval.followUpQuestion.orEmpty()
-                    val novaTurn = NovaChatMessage(
-                        id = "nova_ondev_${System.currentTimeMillis()}",
-                        isNova = true,
-                        text = humanReply,
-                        audioPrompt = humanReply,
-                        evaluation = humanEval,
-                        isQuestion = true,
-                        questionNumber = nextTurn,
-                        hint = humanEval.hint,
-                        exampleAnswers = humanEval.exampleAnswers
-                    )
-                    val finalHistory = historyForNova + novaTurn
-                    _novaChatMessages.value = finalHistory
-                    _activeCoachQuestion.value = humanFollowUp.ifBlank { humanReply }
-                    humanEval.hint?.let { _novaCurrentHint.value = it }
-                    if (humanEval.exampleAnswers.isNotEmpty()) _novaCurrentExamples.value = humanEval.exampleAnswers
-                    val studentId = currentUser.value.id.ifBlank { "default_student" }
-                    appPreferences.saveNovaSession(studentId, activeTopic.id, finalHistory)
-                    if (_aiVoiceReplyEnabled.value && humanReply.isNotBlank()) {
-                        speakAudio(humanReply)
-                    }
-                    humanEval
-                } else {
-                    baseEval
-                }
+
+                _lastEvaluation.value = eval
+            } finally {
+                _isAiEvaluating.value = false
             }
 
-            _lastEvaluation.value = eval
-            _isAiEvaluating.value = false
+            val eval = _lastEvaluation.value ?: return@launch
 
             if (eval.overallScore > 0) {
                 // Dynamically update CEFR spoken proficiency, streaks, and practice metrics according to student's speech

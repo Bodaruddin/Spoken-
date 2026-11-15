@@ -28,10 +28,11 @@ object HumanConversationEngine {
         CUSTOM
     }
 
-    private data class GrammarAnalysis(
+    data class GrammarAnalysis(
         val hasError: Boolean,
         val correctedSentence: String? = null,
         val naturalExpression: String? = null,
+        val explanation: String? = null,
         val spokenCorrectionLine: String? = null,
         val shortTip: String? = null
     )
@@ -65,6 +66,97 @@ object HumanConversationEngine {
         "want", "going", "think", "feel", "know", "say", "said", "tell", "told", "get", "got",
         "make", "made", "much", "many", "lot", "lots", "well", "good", "fine", "great", "nice"
     )
+
+    /**
+     * Public deterministic grammar analyzer used both by the local fallback engine
+     * and as a safety verification layer for Cloud Gemini evaluation.
+     */
+    fun analyzeGrammarDeterministic(
+        spoken: String,
+        topic: SpeakingPrompt? = null,
+        isVoiceInput: Boolean = false
+    ): GrammarAnalysis {
+        val domain = if (topic != null) resolveTopicDomain(topic) else TopicDomain.CUSTOM
+        return analyzeStudentEnglish(spoken, domain, isVoiceInput)
+    }
+
+    /**
+     * Formats Nova's mandatory correction block followed by continuation / follow-up question.
+     */
+    fun formatMandatoryMistakeResponse(
+        originalSentence: String,
+        correctedSentence: String,
+        explanation: String,
+        naturalEnglish: String?,
+        continuationText: String
+    ): String = buildString {
+        val cleanOrig = originalSentence.trim()
+        val cleanCorr = correctedSentence.trim()
+        val cleanExp = explanation.trim().ifBlank {
+            "Use the corrected grammar structure so your sentence sounds clear and accurate."
+        }
+        append("❌ Your Sentence: \"$cleanOrig\"\n")
+        append("✅ Correct Sentence: \"$cleanCorr\"\n")
+        append("📖 Explanation: $cleanExp")
+        val cleanNatural = naturalEnglish?.trim()?.takeIf {
+            it.isNotBlank() &&
+                !it.equals(cleanCorr, ignoreCase = true) &&
+                !it.equals(cleanOrig, ignoreCase = true)
+        }
+        if (cleanNatural != null) {
+            append("\n🌟 Natural English: \"$cleanNatural\"")
+        }
+        if (continuationText.isNotBlank()) {
+            append("\n\n${continuationText.trim()}")
+        }
+    }
+
+    /**
+     * Extracts only the conversational continuation (removing structured ❌/✅/📖/🌟 header lines)
+     * so UI cards can display the correction block neatly without duplicating text.
+     */
+    fun extractContinuationAfterCorrection(displayText: String): String {
+        val lines = displayText.lines()
+        val remaining = lines.filterNot { line ->
+            val t = line.trim()
+            t.startsWith("❌ Your Sentence:") ||
+                t.startsWith("✅ Correct Sentence:") ||
+                t.startsWith("📖 Explanation:") ||
+                t.startsWith("🌟 Natural English:")
+        }
+        return remaining.joinToString("\n").trim()
+    }
+
+    /**
+     * Produces a clean, emoji-free TTS prompt for Nova's reply.
+     */
+    fun buildSpokenAudioPrompt(displayText: String, evaluation: SpeakingEvaluation?): String {
+        if (evaluation != null && (evaluation.hasGrammarMistake || !evaluation.correctedSentence.isNullOrBlank())) {
+            val corrected = evaluation.correctedSentence.orEmpty().trim()
+            val explanation = evaluation.grammarExplanation.orEmpty()
+                .ifBlank { evaluation.suggestedImprovement }
+                .trim()
+            val natural = evaluation.naturalExpression?.trim()?.takeIf {
+                it.isNotBlank() && !it.equals(corrected, ignoreCase = true)
+            }
+            val continuation = extractContinuationAfterCorrection(displayText)
+                .ifBlank { evaluation.followUpQuestion.orEmpty() }
+            return buildString {
+                append("Let's check your sentence. ")
+                if (corrected.isNotBlank()) append("Better say: $corrected ")
+                if (explanation.isNotBlank()) append("$explanation ")
+                if (natural != null) append("More naturally, you can say: $natural ")
+                if (continuation.isNotBlank()) append(continuation)
+            }.replace(Regex("\\s+"), " ").trim()
+        }
+        return displayText
+            .replace("❌", "")
+            .replace("✅", "")
+            .replace("📖", "")
+            .replace("🌟", "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
 
     /**
      * Builds a warm, teacher-like opening message (display text + clean TTS prompt)
@@ -102,7 +194,6 @@ object HumanConversationEngine {
         }
 
         val displayText = "$openerLine\n\n$rawQ"
-        val cleanAudioTitle = displayTitle.replace("(", "").replace(")", "")
         val audioPrompt = "${openerLine.replace("😊", "").replace("“", "").replace("”", "").trim()} $rawQ"
             .replace(Regex("\\s+"), " ")
             .trim()
@@ -111,9 +202,10 @@ object HumanConversationEngine {
 
     /**
      * Generates a structured teacher response:
-     * 1. Evaluates and gently corrects grammar in simple English (or praises + suggests natural phrasing).
-     * 2. Reacts directly to the student's meaning while staying strictly on the selected topic.
-     * 3. Asks ONLY ONE non-repeated, logically connected follow-up question — OR gives a closing summary
+     * 1. Runs dedicated grammar & mistake analysis on the complete student response.
+     * 2. If a mistake is found, formats the reply using the mandatory ❌/✅/📖/🌟 template.
+     * 3. If correct, appreciates the student, confirms grammatical correctness, and offers a natural expression only when genuinely helpful.
+     * 4. Continues with ONLY ONE non-repeated, logically connected follow-up question — OR gives a closing summary
      *    with 2–3 improvement suggestions when currentTurn >= targetTurns.
      */
     fun generateReply(
@@ -124,7 +216,8 @@ object HumanConversationEngine {
         baseEval: SpeakingEvaluation,
         studentName: String? = null,
         currentTurn: Int = 1,
-        targetTurns: Int = 6
+        targetTurns: Int = 6,
+        isVoiceInput: Boolean = false
     ): SpeakingEvaluation {
         val cleanSpoken = spokenText.trim()
         val lower = cleanSpoken.lowercase()
@@ -132,7 +225,7 @@ object HumanConversationEngine {
         val domain = resolveTopicDomain(topic)
         val previouslyAsked = collectAskedQuestions(previousMessages, lastNovaQuestion)
 
-        val grammar = analyzeStudentEnglish(cleanSpoken, domain)
+        val grammar = analyzeStudentEnglish(cleanSpoken, domain, isVoiceInput)
         val studentAskedQuestion = detectAndAnswerStudentQuestion(cleanSpoken, lower, topic)
 
         // Closing session summary after completing target turns
@@ -171,60 +264,75 @@ object HumanConversationEngine {
             )
         )
 
-        val responseParts = mutableListOf<String>()
-
+        val continuationParts = mutableListOf<String>()
         if (studentAskedQuestion != null) {
-            responseParts.add(studentAskedQuestion)
+            continuationParts.add(studentAskedQuestion)
         }
 
-        // Pedagogical teacher praise or gentle grammar correction
-        when {
-            grammar.hasError && !grammar.spokenCorrectionLine.isNullOrBlank() -> {
-                responseParts.add(grammar.spokenCorrectionLine)
-                // Only add extra reaction if it adds specific topic acknowledgement (like a person's name or hobby)
-                if (words.size >= 5 && reaction.isNotBlank() && !isGenericPraise(reaction)) {
-                    responseParts.add(reaction)
-                }
+        val fullReply = if (grammar.hasError && !grammar.correctedSentence.isNullOrBlank()) {
+            if (words.size >= 5 && reaction.isNotBlank() && !isGenericPraise(reaction)) {
+                continuationParts.add(reaction)
             }
-            grammar.naturalExpression != null && !grammar.spokenCorrectionLine.isNullOrBlank() -> {
-                responseParts.add(grammar.spokenCorrectionLine)
-                if (reaction.isNotBlank() && !isGenericPraise(reaction) && words.size >= 6) {
-                    responseParts.add(reaction)
-                }
+            continuationParts.add(chosenQuestion)
+            val continuation = continuationParts.filter { it.isNotBlank() }.joinToString(" ")
+                .replace(Regex("\\s+"), " ").trim()
+            formatMandatoryMistakeResponse(
+                originalSentence = cleanSpoken,
+                correctedSentence = grammar.correctedSentence,
+                explanation = grammar.explanation ?: grammar.shortTip ?: "Use the corrected sentence structure.",
+                naturalEnglish = grammar.naturalExpression,
+                continuationText = continuation
+            )
+        } else {
+            // Sentence is grammatically correct: clearly appreciate and confirm grammatical correctness
+            val appreciation = when {
+                studentAskedQuestion != null -> ""
+                reaction.isNotBlank() && !isGenericPraise(reaction) ->
+                    "Well done! Your sentence is grammatically correct. $reaction"
+                else ->
+                    "Great job! Your sentence is grammatically correct."
             }
-            else -> {
-                if (studentAskedQuestion == null && reaction.isNotBlank()) {
-                    responseParts.add(reaction)
-                } else if (studentAskedQuestion != null && words.size > 5 && reaction.isNotBlank()) {
-                    responseParts.add(reaction)
-                }
+            if (appreciation.isNotBlank()) continuationParts.add(appreciation)
+            if (grammar.naturalExpression != null) {
+                continuationParts.add("🌟 Natural English: \"${grammar.naturalExpression}\"")
             }
+            continuationParts.add(chosenQuestion)
+            continuationParts.filter { it.isNotBlank() }.joinToString(" ")
+                .replace(Regex("\\s+"), " ").trim()
         }
 
-        responseParts.add(chosenQuestion)
+        val adjustedGrammarScore = if (grammar.hasError) {
+            baseEval.grammarScore.coerceAtMost(72)
+        } else {
+            baseEval.grammarScore.coerceAtLeast(86)
+        }
+        val adjustedOverall = if (grammar.hasError) {
+            ((baseEval.pronunciationScore * 0.30) + (baseEval.fluencyScore * 0.25) +
+                (adjustedGrammarScore * 0.25) + (baseEval.vocabularyScore * 0.20)).toInt().coerceIn(45, 84)
+        } else {
+            baseEval.overallScore.coerceAtLeast(80)
+        }
 
-        val fullReply = responseParts
-            .filter { it.isNotBlank() }
-            .joinToString(" ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-
-        val computedCefr = baseEval.cefrLevel.ifBlank { computeCefrFromScore(baseEval.overallScore) }
+        val computedCefr = baseEval.cefrLevel.ifBlank { computeCefrFromScore(adjustedOverall) }
         val resolvedHint = hintOverride ?: buildHintForQuestion(chosenQuestion, topic)
         val resolvedExamples = ExampleAnswerGenerator.generateForQuestion(chosenQuestion, topic)
-        val improvedTip = grammar.shortTip ?: baseEval.suggestedImprovement
+        val improvedTip = grammar.explanation ?: grammar.shortTip ?: baseEval.suggestedImprovement
 
         return baseEval.copy(
+            overallScore = adjustedOverall,
+            grammarScore = adjustedGrammarScore,
             cefrLevel = computedCefr,
             aiCoachResponse = fullReply,
             followUpQuestion = chosenQuestion,
             suggestedImprovement = improvedTip,
-            correctedSentence = grammar.correctedSentence,
+            correctedSentence = if (grammar.hasError) grammar.correctedSentence else null,
             naturalExpression = grammar.naturalExpression,
             isSessionSummary = false,
             improvementSuggestions = emptyList(),
             hint = resolvedHint,
-            exampleAnswers = resolvedExamples
+            exampleAnswers = resolvedExamples,
+            hasGrammarMistake = grammar.hasError,
+            grammarExplanation = grammar.explanation ?: if (!grammar.hasError) "Your sentence is grammatically correct." else null
         )
     }
 
@@ -312,14 +420,8 @@ object HumanConversationEngine {
             suggestions.add("Practice speaking at a steady pace and review 3 new words from \"$topicLabel\" today.")
         }
 
-        val finalSentenceFeedback = when {
-            grammar.hasError && !grammar.spokenCorrectionLine.isNullOrBlank() -> grammar.spokenCorrectionLine
-            grammar.naturalExpression != null && !grammar.spokenCorrectionLine.isNullOrBlank() -> grammar.spokenCorrectionLine
-            else -> "Great answer! That was a clear closing response."
-        }
-
         val grammarNote = when {
-            avgGrammar >= 82 -> "Your grammar was very accurate throughout our \"$topicLabel\" chat."
+            avgGrammar >= 82 && !grammar.hasError -> "Your grammar was very accurate throughout our \"$topicLabel\" chat."
             hadCorrections -> "You improved your sentence structure step by step during our \"$topicLabel\" practice."
             else -> "You formed clear, understandable sentences throughout our \"$topicLabel\" chat."
         }
@@ -332,14 +434,30 @@ object HumanConversationEngine {
         val nameCall = if (knownName != null) "Well done, $knownName!" else "Well done!"
         val closingQuestion = "Would you like to practise another topic?"
 
-        val fullSummary = buildString {
-            append(finalSentenceFeedback)
-            append(" ")
+        val summaryBody = buildString {
+            if (!grammar.hasError) {
+                append("Great job! Your final sentence is grammatically correct. ")
+                if (grammar.naturalExpression != null) {
+                    append("🌟 Natural English: \"${grammar.naturalExpression}\" ")
+                }
+            }
             append("$nameCall You completed our \"$topicLabel\" practice with an average score of $avgScore%. ")
             append("$grammarNote $vocabNote ")
             append("Keep practising every day — you are making real progress! ")
             append(closingQuestion)
         }.replace(Regex("\\s+"), " ").trim()
+
+        val fullSummary = if (grammar.hasError && !grammar.correctedSentence.isNullOrBlank()) {
+            formatMandatoryMistakeResponse(
+                originalSentence = cleanSpoken,
+                correctedSentence = grammar.correctedSentence,
+                explanation = grammar.explanation ?: grammar.shortTip ?: "Use the corrected grammar structure.",
+                naturalEnglish = grammar.naturalExpression,
+                continuationText = summaryBody
+            )
+        } else {
+            summaryBody
+        }
 
         val computedCefr = baseEval.cefrLevel.ifBlank { computeCefrFromScore(avgScore) }
 
@@ -348,7 +466,7 @@ object HumanConversationEngine {
             aiCoachResponse = fullSummary,
             followUpQuestion = closingQuestion,
             suggestedImprovement = suggestions.firstOrNull() ?: baseEval.suggestedImprovement,
-            correctedSentence = grammar.correctedSentence,
+            correctedSentence = if (grammar.hasError) grammar.correctedSentence else null,
             naturalExpression = grammar.naturalExpression,
             isSessionSummary = true,
             improvementSuggestions = suggestions.take(3),
@@ -356,7 +474,9 @@ object HumanConversationEngine {
             exampleAnswers = listOf(
                 "Yes, I would love to practise another topic!",
                 "Sure, let's talk about Daily Routine next."
-            )
+            ),
+            hasGrammarMistake = grammar.hasError,
+            grammarExplanation = grammar.explanation ?: if (!grammar.hasError) "Your sentence is grammatically correct." else null
         )
     }
 
@@ -364,20 +484,81 @@ object HumanConversationEngine {
     // SYSTEMATIC GRAMMAR CORRECTION & NATURAL EXPRESSION ENGINE
     // =========================================================================
 
-    private fun analyzeStudentEnglish(spoken: String, domain: TopicDomain): GrammarAnalysis {
+    private fun analyzeStudentEnglish(
+        spoken: String,
+        domain: TopicDomain,
+        isVoiceInput: Boolean = false
+    ): GrammarAnalysis {
         val trimmed = spoken.trim()
         val lower = trimmed.lowercase()
+
+        // 0. Common spelling typos (skip strict spelling-only checks if voice STT unless clearly wrong word)
+        if (!isVoiceInput) {
+            val spellingMap = mapOf(
+                "scool" to "school",
+                "schol" to "school",
+                "tommorow" to "tomorrow",
+                "tomorow" to "tomorrow",
+                "becouse" to "because",
+                "becuase" to "because",
+                "freind" to "friend",
+                "freinds" to "friends",
+                "studing" to "studying",
+                "writting" to "writing",
+                "techer" to "teacher",
+                "famly" to "family",
+                "evryday" to "every day",
+                "definately" to "definitely",
+                "recieve" to "receive",
+                "langauge" to "language",
+                "lisen" to "listen",
+                "moring" to "morning",
+                "engish" to "English"
+            )
+            for ((wrong, right) in spellingMap) {
+                val regex = Regex("""\b$wrong\b""", RegexOption.IGNORE_CASE)
+                if (regex.containsMatchIn(trimmed)) {
+                    val fixed = trimmed.replace(regex, right).replaceFirstChar { it.uppercaseChar() }.ensureSentencePeriod()
+                    val exp = "Check the spelling of \"$wrong\" — it is spelled \"$right\"."
+                    return GrammarAnalysis(
+                        hasError = true,
+                        correctedSentence = fixed,
+                        explanation = exp,
+                        spokenCorrectionLine = "Good try! Check the spelling: \"$fixed\"",
+                        shortTip = exp
+                    )
+                }
+            }
+        }
 
         // 1. "My name Ali" -> missing "is"
         Regex("""^\s*my\s+name\s+(?!is\b|was\b)([A-Za-z]{2,20})\s*[.!]?\s*$""", RegexOption.IGNORE_CASE)
             .find(trimmed)?.let { m ->
                 val name = m.groupValues[1].replaceFirstChar { it.uppercaseChar() }
                 val fixed = "My name is $name."
+                val exp = "Use the linking verb \"is\" after \"My name\" to connect the subject and your name."
                 return GrammarAnalysis(
                     hasError = true,
                     correctedSentence = fixed,
-                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Remember to use \"is\" here.",
+                    explanation = exp,
+                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" $exp",
                     shortTip = "Remember to use \"is\" in \"My name is $name.\""
+                )
+            }
+
+        // 1b. "Myself Ali" -> "My name is Ali."
+        Regex("""^\s*myself\s+([A-Za-z]{2,20})\s*[.!]?\s*$""", RegexOption.IGNORE_CASE)
+            .find(trimmed)?.let { m ->
+                val name = m.groupValues[1].replaceFirstChar { it.uppercaseChar() }
+                val fixed = "My name is $name."
+                val exp = "Say \"My name is $name\" or \"I am $name\" instead of \"Myself $name\" when introducing yourself."
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    naturalExpression = "I'm $name.",
+                    explanation = exp,
+                    spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                    shortTip = exp
                 )
             }
 
@@ -386,11 +567,28 @@ object HumanConversationEngine {
             .find(trimmed)?.let { m ->
                 val age = m.groupValues[1]
                 val fixed = "I am $age years old."
+                val exp = "Use \"am\" after \"I\" when stating your age."
                 return GrammarAnalysis(
                     hasError = true,
                     correctedSentence = fixed,
-                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Remember to use \"am\" after \"I\".",
+                    explanation = exp,
+                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" $exp",
                     shortTip = "Use \"I am $age years old\" with \"am\"."
+                )
+            }
+
+        // 2b. "I have 15 years" -> "I am 15 years old."
+        Regex("""\bi\s+have\s+(\d{1,2})\s+years?(?:\s+old)?\b""", RegexOption.IGNORE_CASE)
+            .find(trimmed)?.let { m ->
+                val age = m.groupValues[1]
+                val fixed = "I am $age years old."
+                val exp = "In English, use \"am ... years old\" instead of \"have ... years\" to talk about age."
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    explanation = exp,
+                    spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                    shortTip = exp
                 )
             }
 
@@ -399,70 +597,247 @@ object HumanConversationEngine {
             .find(trimmed)?.let { m ->
                 val age = m.groupValues[1]
                 val fixed = "I am $age years old."
+                val exp = "Use plural \"years\" for numbers greater than one."
                 return GrammarAnalysis(
                     hasError = true,
                     correctedSentence = fixed,
-                    spokenCorrectionLine = "Nice try! A better sentence is: \"$fixed\" Use \"years\" for numbers more than one.",
+                    explanation = exp,
+                    spokenCorrectionLine = "Nice try! A better sentence is: \"$fixed\" $exp",
                     shortTip = "Say \"$age years old\" (plural \"years\")."
                 )
             }
 
-        // 4. "I is ..." -> "I am ..."
-        if (Regex("""\bi\s+is\b""").containsMatchIn(lower)) {
+        // 4. Subject-verb agreement with "be": "I is", "you/we/they is", "he/she/it are", "you/we/they was"
+        if (Regex("""\bi\s+is\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
             val fixed = trimmed.replace(Regex("""\b[Ii]\s+is\b"""), "I am").ensureSentencePeriod()
+            val exp = "Always use \"am\" with \"I\", not \"is\"."
             return GrammarAnalysis(
                 hasError = true,
                 correctedSentence = fixed,
-                spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Remember to use \"am\" with \"I\".",
+                explanation = exp,
+                spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" $exp",
                 shortTip = "Use \"I am\" instead of \"I is\"."
             )
         }
 
-        // 5. "I am live in ..." / "I am go ..."
-        if (Regex("""\bi\s+(?:am|'m)\s+live\b""").containsMatchIn(lower)) {
-            val fixed = trimmed.replace(Regex("""\b[Ii]\s+(?:am|'m)\s+live\b""", RegexOption.IGNORE_CASE), "I live")
-                .ensureSentencePeriod()
+        Regex("""\b(you|we|they)\s+is\b""", RegexOption.IGNORE_CASE).find(trimmed)?.let { m ->
+            val subj = m.groupValues[1]
+            val fixed = trimmed.replace(Regex("""\b${Regex.escape(subj)}\s+is\b""", RegexOption.IGNORE_CASE), "$subj are")
+                .replaceFirstChar { it.uppercaseChar() }.ensureSentencePeriod()
+            val exp = "Use \"are\" with plural subjects like \"$subj\", not \"is\"."
             return GrammarAnalysis(
                 hasError = true,
                 correctedSentence = fixed,
-                spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" You don't need \"am\" before \"live\".",
+                explanation = exp,
+                spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                shortTip = exp
+            )
+        }
+
+        Regex("""\b(he|she|it)\s+are\b""", RegexOption.IGNORE_CASE).find(trimmed)?.let { m ->
+            val subj = m.groupValues[1]
+            val fixed = trimmed.replace(Regex("""\b${Regex.escape(subj)}\s+are\b""", RegexOption.IGNORE_CASE), "$subj is")
+                .replaceFirstChar { it.uppercaseChar() }.ensureSentencePeriod()
+            val exp = "Use singular \"is\" with \"$subj\", not \"are\"."
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                explanation = exp,
+                spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                shortTip = exp
+            )
+        }
+
+        Regex("""\b(you|we|they)\s+was\b""", RegexOption.IGNORE_CASE).find(trimmed)?.let { m ->
+            val subj = m.groupValues[1]
+            val fixed = trimmed.replace(Regex("""\b${Regex.escape(subj)}\s+was\b""", RegexOption.IGNORE_CASE), "$subj were")
+                .replaceFirstChar { it.uppercaseChar() }.ensureSentencePeriod()
+            val exp = "Use \"were\" with \"$subj\" in the past tense, not \"was\"."
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                explanation = exp,
+                spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                shortTip = exp
+            )
+        }
+
+        // 5. "I am live in ..." / "I am go ..." / "I am wake up" / "I am eat" / "I am play" / "I am agree" etc.
+        if (Regex("""\bi\s+(?:am|'m)\s+live\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
+            val fixed = trimmed.replace(Regex("""\b[Ii]\s+(?:am|'m)\s+live\b""", RegexOption.IGNORE_CASE), "I live")
+                .ensureSentencePeriod()
+            val exp = "Use the simple present \"I live\" for where you stay. Do not use \"am\" before \"live\"."
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                explanation = exp,
+                spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" $exp",
                 shortTip = "Say \"I live in...\" without \"am\"."
             )
         }
 
-        if (Regex("""\bi\s+(?:am|'m)\s+go\b""").containsMatchIn(lower)) {
+        if (Regex("""\bi\s+(?:am|'m)\s+go\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
             val fixed = trimmed.replace(Regex("""\b[Ii]\s+(?:am|'m)\s+go\b""", RegexOption.IGNORE_CASE), "I go")
                 .ensureSentencePeriod()
+            val natural = if (lower.contains("every day")) {
+                fixed.replace(Regex("""\bevery\s+day\b""", RegexOption.IGNORE_CASE), "daily")
+            } else null
+            val exp = "Use the simple present tense for daily habits or regular actions. Do not use \"am\" before \"go\" in this sentence."
             return GrammarAnalysis(
                 hasError = true,
                 correctedSentence = fixed,
-                spokenCorrectionLine = "Good try! Say \"$fixed\" or \"I am going\" instead of \"I am go\".",
-                shortTip = "Say \"I go\" for habits or \"I am going\" for right now."
+                naturalExpression = natural,
+                explanation = exp,
+                spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                shortTip = exp
             )
         }
 
-        // 6. "I live Guwahati" -> missing "in"
-        Regex("""\bi\s+live\s+(?!in\b|at\b|on\b|with\b|near\b|here\b|there\b|alone\b)([A-Za-z]{3,20})\b""", RegexOption.IGNORE_CASE)
-            .find(trimmed)?.let { m ->
-                val city = m.groupValues[1].replaceFirstChar { it.uppercaseChar() }
-                val fixed = "I live in $city."
+        val amBaseVerbs = listOf(
+            "wake", "eat", "drink", "play", "study", "work", "come", "like", "love",
+            "want", "need", "know", "agree", "sleep", "read", "write", "watch", "listen", "stay", "have"
+        )
+        for (verb in amBaseVerbs) {
+            val pattern = Regex("""\b[Ii]\s+(?:am|'m)\s+$verb\b""", RegexOption.IGNORE_CASE)
+            if (pattern.containsMatchIn(trimmed)) {
+                val fixed = trimmed.replace(pattern, "I $verb").ensureSentencePeriod()
+                val exp = "Do not use \"am\" before the base verb \"$verb\" in the simple present tense."
                 return GrammarAnalysis(
                     hasError = true,
                     correctedSentence = fixed,
-                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Remember to add \"in\" before a place.",
+                    explanation = exp,
+                    spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                    shortTip = exp
+                )
+            }
+        }
+
+        // 5b. "I/you/we/they goes/has/does/likes/plays/lives" -> base verb
+        val pluralSubjThirdVerb = mapOf(
+            "goes" to "go", "has" to "have", "does" to "do", "likes" to "like",
+            "loves" to "love", "plays" to "play", "lives" to "live", "eats" to "eat",
+            "wants" to "want", "comes" to "come", "studies" to "study", "works" to "work", "wakes" to "wake"
+        )
+        for ((sForm, baseForm) in pluralSubjThirdVerb) {
+            val r = Regex("""\b(I|you|we|they)\s+$sForm\b""", RegexOption.IGNORE_CASE)
+            r.find(trimmed)?.let { m ->
+                val subj = if (m.groupValues[1].equals("i", ignoreCase = true)) "I" else m.groupValues[1]
+                val fixed = trimmed.replace(r, "$subj $baseForm").replaceFirstChar { it.uppercaseChar() }.ensureSentencePeriod()
+                val exp = "With \"$subj\", use the base verb \"$baseForm\" instead of \"$sForm\"."
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    explanation = exp,
+                    spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                    shortTip = exp
+                )
+            }
+        }
+
+        // 5c. "he/she/it go/do/live/like/want/eat/play/study/work/wake/come" (missing -s/-es)
+        val singularSubjMissingS = mapOf(
+            "go" to "goes", "do" to "does", "live" to "lives", "like" to "likes",
+            "love" to "loves", "want" to "wants", "eat" to "eats", "play" to "plays",
+            "study" to "studies", "work" to "works", "wake" to "wakes", "come" to "comes"
+        )
+        for ((baseForm, sForm) in singularSubjMissingS) {
+            val r = Regex("""\b(he|she|it)\s+$baseForm\b""", RegexOption.IGNORE_CASE)
+            r.find(trimmed)?.let { m ->
+                val subj = m.groupValues[1]
+                // Avoid false positive if preceded by does/did/will/can/should/would (e.g. "Does he go...")
+                val beforeMatch = trimmed.substring(0, m.range.first).lowercase().trimEnd()
+                val precededByAux = beforeMatch.endsWith("does") || beforeMatch.endsWith("did") ||
+                    beforeMatch.endsWith("will") || beforeMatch.endsWith("can") ||
+                    beforeMatch.endsWith("could") || beforeMatch.endsWith("should") ||
+                    beforeMatch.endsWith("would") || beforeMatch.endsWith("may") ||
+                    beforeMatch.endsWith("might")
+                if (!precededByAux) {
+                    val fixed = trimmed.replace(r, "$subj $sForm").replaceFirstChar { it.uppercaseChar() }.ensureSentencePeriod()
+                    val exp = "With \"he\", \"she\", or \"it\" in the present simple tense, add -s/-es to the verb: \"$subj $sForm\"."
+                    return GrammarAnalysis(
+                        hasError = true,
+                        correctedSentence = fixed,
+                        explanation = exp,
+                        spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                        shortTip = exp
+                    )
+                }
+            }
+        }
+
+        // 5d. "he/she/it don't" -> "doesn't" and "I/you/we/they doesn't" -> "don't"
+        Regex("""\b(he|she|it)\s+don't\b""", RegexOption.IGNORE_CASE).find(trimmed)?.let { m ->
+            val subj = m.groupValues[1]
+            val fixed = trimmed.replace(Regex("""\b${Regex.escape(subj)}\s+don't\b""", RegexOption.IGNORE_CASE), "$subj doesn't")
+                .replaceFirstChar { it.uppercaseChar() }.ensureSentencePeriod()
+            val exp = "Use \"doesn't\" (does not) with \"$subj\", not \"don't\"."
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                explanation = exp,
+                spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                shortTip = exp
+            )
+        }
+        Regex("""\b(I|you|we|they)\s+doesn't\b""", RegexOption.IGNORE_CASE).find(trimmed)?.let { m ->
+            val subj = if (m.groupValues[1].equals("i", ignoreCase = true)) "I" else m.groupValues[1]
+            val fixed = trimmed.replace(Regex("""\b${Regex.escape(m.groupValues[1])}\s+doesn't\b""", RegexOption.IGNORE_CASE), "$subj don't")
+                .replaceFirstChar { it.uppercaseChar() }.ensureSentencePeriod()
+            val exp = "Use \"don't\" (do not) with \"$subj\", not \"doesn't\"."
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                explanation = exp,
+                spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                shortTip = exp
+            )
+        }
+
+        // 6. "I live Guwahati" -> missing "in" ; "I go school" -> missing "to"
+        Regex("""\bi\s+live\s+(?!in\b|at\b|on\b|with\b|near\b|here\b|there\b|alone\b|far\b|close\b)([A-Za-z]{3,20})\b""", RegexOption.IGNORE_CASE)
+            .find(trimmed)?.let { m ->
+                val city = m.groupValues[1].replaceFirstChar { it.uppercaseChar() }
+                val fixed = trimmed.replace(
+                    Regex("""\b[Ii]\s+live\s+${Regex.escape(m.groupValues[1])}\b""", RegexOption.IGNORE_CASE),
+                    "I live in $city"
+                ).ensureSentencePeriod()
+                val exp = "Use the preposition \"in\" before a city, town, or country name."
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    explanation = exp,
+                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" $exp",
                     shortTip = "Use \"in\" before a city or town name."
                 )
             }
 
-        // 7. "My hobby cricket" / "My hobby is read"
+        if (Regex("""\bgo\s+(school|college|work|market|church|temple|bed|hospital)\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower) &&
+            !Regex("""\bgo\s+to\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)
+        ) {
+            val match = Regex("""\bgo\s+(school|college|work|market|church|temple|bed|hospital)\b""", RegexOption.IGNORE_CASE).find(trimmed)!!
+            val dest = match.groupValues[1]
+            val fixed = trimmed.replace(match.value, "go to $dest").replaceFirstChar { it.uppercaseChar() }.ensureSentencePeriod()
+            val exp = "Use \"to\" after \"go\" before a destination (e.g., \"go to $dest\")."
+            return GrammarAnalysis(
+                hasError = true,
+                correctedSentence = fixed,
+                explanation = exp,
+                spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                shortTip = exp
+            )
+        }
+
+        // 7. "My hobby cricket" -> missing "is"
         Regex("""^\s*my\s+hobby\s+(?!is\b|was\b|are\b)([A-Za-z ]{3,25})\s*[.!]?\s*$""", RegexOption.IGNORE_CASE)
             .find(trimmed)?.let { m ->
                 val h = m.groupValues[1].trim()
                 val fixed = "My hobby is $h."
+                val exp = "Use the linking verb \"is\" in \"My hobby is $h\"."
                 return GrammarAnalysis(
                     hasError = true,
                     correctedSentence = fixed,
-                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Remember to use \"is\" here.",
+                    explanation = exp,
+                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" $exp",
                     shortTip = "Use \"is\" in \"My hobby is...\"."
                 )
             }
@@ -472,54 +847,80 @@ object HumanConversationEngine {
             val pron = m.groupValues[1].replaceFirstChar { it.uppercaseChar() }
             val fixed = trimmed.replace(Regex("""\b(he|she)\s+have\b""", RegexOption.IGNORE_CASE), "$pron has")
                 .ensureSentencePeriod()
+            val exp = "Use \"has\" with singular third-person subjects like \"he\" or \"she\"."
             return GrammarAnalysis(
                 hasError = true,
                 correctedSentence = fixed,
-                spokenCorrectionLine = "Nice try! A better sentence is: \"$fixed\" Use \"has\" with \"he\" or \"she\".",
+                explanation = exp,
+                spokenCorrectionLine = "Nice try! A better sentence is: \"$fixed\" $exp",
                 shortTip = "Use \"has\" instead of \"have\" after \"he\" or \"she\"."
             )
         }
 
-        // 9. "yesterday I go / come / see / eat / wake"
-        val pastFixes = mapOf(
-            "go" to "went", "come" to "came", "see" to "saw",
-            "eat" to "ate", "wake" to "woke", "play" to "played", "study" to "studied"
+        // 9. Past time markers ("yesterday", "last night", "last week") with present verb
+        val pastTimeMarker = Regex("""\b(yesterday|last\s+night|last\s+week|last\s+month|days\s+ago)\b""", RegexOption.IGNORE_CASE)
+        if (pastTimeMarker.containsMatchIn(lower) &&
+            !Regex("""\b(didn't|did\s+not|was|were|had)\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)
+        ) {
+            val pastFixes = mapOf(
+                "go" to "went", "come" to "came", "see" to "saw",
+                "eat" to "ate", "wake" to "woke", "play" to "played",
+                "study" to "studied", "drink" to "drank", "write" to "wrote",
+                "take" to "took", "give" to "gave", "make" to "made",
+                "buy" to "bought", "meet" to "met", "sleep" to "slept",
+                "watch" to "watched", "visit" to "visited", "help" to "helped",
+                "finish" to "finished", "do" to "did", "have" to "had"
+            )
+            for ((present, past) in pastFixes) {
+                val subjVerbRegex = Regex("""\b(I|we|they|he|she|you)\s+$present\b""", RegexOption.IGNORE_CASE)
+                subjVerbRegex.find(trimmed)?.let { m ->
+                    val subj = if (m.groupValues[1].equals("i", ignoreCase = true)) "I" else m.groupValues[1]
+                    val fixed = trimmed.replace(subjVerbRegex, "$subj $past")
+                        .replaceFirstChar { it.uppercaseChar() }.ensureSentencePeriod()
+                    val exp = "Use the past tense \"$past\" when talking about a finished past time like yesterday or last week."
+                    return GrammarAnalysis(
+                        hasError = true,
+                        correctedSentence = fixed,
+                        explanation = exp,
+                        spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" $exp",
+                        shortTip = exp
+                    )
+                }
+            }
+        }
+
+        // 10. "didn't went / came / saw / ate / did / had" -> base verb
+        val didnTFixes = mapOf(
+            "went" to "go", "came" to "come", "saw" to "see",
+            "ate" to "eat", "did" to "do", "had" to "have",
+            "took" to "take", "made" to "make", "woke" to "wake",
+            "studied" to "study", "played" to "play"
         )
-        for ((present, past) in pastFixes) {
-            if (Regex("""\byesterday\b.*\bi\s+$present\b|\bi\s+$present\b.*\byesterday\b""", RegexOption.IGNORE_CASE)
-                    .containsMatchIn(lower)
-            ) {
-                val fixed = trimmed.replace(Regex("""\b[Ii]\s+$present\b""", RegexOption.IGNORE_CASE), "I $past")
-                    .ensureSentencePeriod()
+        for ((pastForm, baseForm) in didnTFixes) {
+            val r = Regex("""\b(didn't|did\s+not)\s+$pastForm\b""", RegexOption.IGNORE_CASE)
+            if (r.containsMatchIn(lower)) {
+                val fixed = trimmed.replace(r, "didn't $baseForm").replaceFirstChar { it.uppercaseChar() }.ensureSentencePeriod()
+                val exp = "After \"didn't\" (did not), always use the base verb \"$baseForm\" instead of the past form \"$pastForm\"."
                 return GrammarAnalysis(
                     hasError = true,
                     correctedSentence = fixed,
-                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Use past tense \"$past\" for yesterday.",
-                    shortTip = "Use past tense \"$past\" when talking about yesterday."
+                    explanation = exp,
+                    spokenCorrectionLine = "Nice try! A better sentence is: \"$fixed\" $exp",
+                    shortTip = "After \"didn't\", always use the base verb (didn't $baseForm)."
                 )
             }
         }
 
-        // 10. "didn't went" -> "didn't go"
-        if (Regex("""\bdidn't\s+went\b|\bdid\s+not\s+went\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
-            val fixed = trimmed.replace(Regex("""\b(didn't|did\s+not)\s+went\b""", RegexOption.IGNORE_CASE), "didn't go")
-                .ensureSentencePeriod()
-            return GrammarAnalysis(
-                hasError = true,
-                correctedSentence = fixed,
-                spokenCorrectionLine = "Nice try! A better sentence is: \"$fixed\" After \"didn't\", use the base verb \"go\".",
-                shortTip = "After \"didn't\", always use the base verb (didn't go)."
-            )
-        }
-
-        // 11. Time prepositions: "in night", "in morning", "on 7 am", "in 7 o'clock"
+        // 11. Time prepositions: "in night", "in morning", "in|on 7 am", "at Monday"
         if (Regex("""\bin\s+night\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
             val fixed = trimmed.replace(Regex("""\bin\s+night\b""", RegexOption.IGNORE_CASE), "at night")
                 .ensureSentencePeriod()
+            val exp = "In English, use \"at night\" instead of \"in night\"."
             return GrammarAnalysis(
                 hasError = true,
                 correctedSentence = fixed,
-                spokenCorrectionLine = "Good try! In English, we say \"at night\" instead of \"in night\". So: \"$fixed\"",
+                explanation = exp,
+                spokenCorrectionLine = "Good try! $exp So: \"$fixed\"",
                 shortTip = "Use \"at night\" (not \"in night\")."
             )
         }
@@ -531,10 +932,12 @@ object HumanConversationEngine {
                 Regex("""\bin\s+(morning|afternoon|evening)\b""", RegexOption.IGNORE_CASE),
                 "in the $part"
             ).ensureSentencePeriod()
+            val exp = "Always include \"the\" in \"in the $part\"."
             return GrammarAnalysis(
                 hasError = true,
                 correctedSentence = fixed,
-                spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Remember to use \"the\" before \"$part\".",
+                explanation = exp,
+                spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" $exp",
                 shortTip = "Say \"in the $part\" with \"the\"."
             )
         }
@@ -546,27 +949,74 @@ object HumanConversationEngine {
                     Regex("""\b(?:in|on)\s+${Regex.escape(timePart)}""", RegexOption.IGNORE_CASE),
                     "at $timePart"
                 ).ensureSentencePeriod()
+                val exp = "Always use \"at\" before exact clock times like \"at $timePart\"."
                 return GrammarAnalysis(
                     hasError = true,
                     correctedSentence = fixed,
-                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" Always use \"at\" for exact clock times.",
-                    shortTip = "Use \"at\" before exact clock times like \"at $timePart\"."
+                    explanation = exp,
+                    spokenCorrectionLine = "Good try! A better sentence is: \"$fixed\" $exp",
+                    shortTip = exp
                 )
             }
 
-        // 12. "more better" -> "better" / "much better"
+        Regex("""\b(?:in|at)\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)s?\b""", RegexOption.IGNORE_CASE)
+            .find(trimmed)?.let { m ->
+                val day = m.groupValues[1].replaceFirstChar { it.uppercaseChar() }
+                val fixed = trimmed.replace(
+                    Regex("""\b(?:in|at)\s+${Regex.escape(m.groupValues[1])}(s?)\b""", RegexOption.IGNORE_CASE),
+                    "on $day$1"
+                ).ensureSentencePeriod()
+                val exp = "Use \"on\" before days of the week (e.g., \"on $day\")."
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    explanation = exp,
+                    spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                    shortTip = exp
+                )
+            }
+
+        // 12. "more better" -> "much better"
         if (Regex("""\bmore\s+better\b""", RegexOption.IGNORE_CASE).containsMatchIn(lower)) {
             val fixed = trimmed.replace(Regex("""\bmore\s+better\b""", RegexOption.IGNORE_CASE), "much better")
                 .ensureSentencePeriod()
+            val exp = "\"Better\" is already comparative, so say \"better\" or \"much better\" instead of \"more better\"."
             return GrammarAnalysis(
                 hasError = true,
                 correctedSentence = fixed,
-                spokenCorrectionLine = "Nice try! Say \"better\" or \"much better\" instead of \"more better\". So: \"$fixed\"",
+                explanation = exp,
+                spokenCorrectionLine = "Nice try! $exp So: \"$fixed\"",
                 shortTip = "Say \"much better\" rather than \"more better\"."
             )
         }
 
-        // 13. Valid sentence -> offer a natural everyday expression when helpful
+        // 12b. Common article/plural/preposition errors
+        val quickFixes = listOf(
+            Triple(Regex("""\ba\s+(apple|orange|umbrella|elephant|hour|exam|idea|answer)\b""", RegexOption.IGNORE_CASE), "an $1", "Use \"an\" before words that start with a vowel sound."),
+            Triple(Regex("""\ban\s+(book|school|boy|girl|teacher|car|pen|friend|dog|cat|house)\b""", RegexOption.IGNORE_CASE), "a $1", "Use \"a\" before words that start with a consonant sound."),
+            Triple(Regex("""\bdiscuss\s+about\b""", RegexOption.IGNORE_CASE), "discuss", "Do not use \"about\" directly after \"discuss\" — just say \"discuss\"."),
+            Triple(Regex("""\breturn\s+back\b""", RegexOption.IGNORE_CASE), "return", "\"Return\" already means to go or come back, so you don't need \"back\"."),
+            Triple(Regex("""\bdo\s+a\s+mistake\b""", RegexOption.IGNORE_CASE), "make a mistake", "In English, we say \"make a mistake\", not \"do a mistake\"."),
+            Triple(Regex("""\bsay\s+me\b""", RegexOption.IGNORE_CASE), "tell me", "Use \"tell me\" (not \"say me\") when a listener is mentioned right after."),
+            Triple(Regex("""\bchildrens\b""", RegexOption.IGNORE_CASE), "children", "\"Children\" is already plural, so do not add \"s\"."),
+            Triple(Regex("""\bpeoples\b""", RegexOption.IGNORE_CASE), "people", "Use \"people\" (without \"s\") when referring to more than one person."),
+            Triple(Regex("""\binformations\b""", RegexOption.IGNORE_CASE), "information", "\"Information\" is uncountable in English and has no plural \"s\"."),
+            Triple(Regex("""\bhomeworks\b""", RegexOption.IGNORE_CASE), "homework", "\"Homework\" is uncountable in English and has no plural \"s\".")
+        )
+        for ((pattern, replacement, exp) in quickFixes) {
+            if (pattern.containsMatchIn(trimmed)) {
+                val fixed = trimmed.replace(pattern, replacement).replaceFirstChar { it.uppercaseChar() }.ensureSentencePeriod()
+                return GrammarAnalysis(
+                    hasError = true,
+                    correctedSentence = fixed,
+                    explanation = exp,
+                    spokenCorrectionLine = "Good try! Say \"$fixed\" $exp",
+                    shortTip = exp
+                )
+            }
+        }
+
+        // 13. Valid sentence -> offer a natural everyday expression only when it genuinely improves phrasing
         Regex("""\bi\s+(?:study|read)\s+in\s+class\s+(\d{1,2}[A-Za-z]?)\b""", RegexOption.IGNORE_CASE)
             .find(trimmed)?.let { m ->
                 val cls = m.groupValues[1].uppercase()
@@ -574,7 +1024,8 @@ object HumanConversationEngine {
                 return GrammarAnalysis(
                     hasError = false,
                     naturalExpression = natural,
-                    spokenCorrectionLine = "Very good! You can also say, \"$natural\"",
+                    explanation = "Your sentence is grammatically correct!",
+                    spokenCorrectionLine = "Very good! Your sentence is correct. You can also say, \"$natural\"",
                     shortTip = "Try natural phrasing like \"$natural\"."
                 )
             }
@@ -586,6 +1037,7 @@ object HumanConversationEngine {
                 return GrammarAnalysis(
                     hasError = false,
                     naturalExpression = natural,
+                    explanation = "Your sentence is grammatically correct!",
                     spokenCorrectionLine = "Excellent! Your sentence is correct. You can also say, \"$natural\""
                 )
             }
@@ -599,12 +1051,16 @@ object HumanConversationEngine {
                 return GrammarAnalysis(
                     hasError = false,
                     naturalExpression = "I usually wake up at $timePart.",
+                    explanation = "Your sentence is grammatically correct!",
                     spokenCorrectionLine = "Excellent! Your sentence is correct. Adding \"usually\" makes it sound even more natural."
                 )
             }
         }
 
-        return GrammarAnalysis(hasError = false)
+        return GrammarAnalysis(
+            hasError = false,
+            explanation = "Your sentence is grammatically correct!"
+        )
     }
 
     // =========================================================================
