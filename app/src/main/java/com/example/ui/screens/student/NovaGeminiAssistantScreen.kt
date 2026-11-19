@@ -198,16 +198,6 @@ fun NovaGeminiAssistantScreen(
         )
     }
 
-    val quickReplies = remember(activeMode, messages) {
-        val lastNova = messages.lastOrNull { it.isNova }?.text
-        val hasUser = messages.any { !it.isNova }
-        com.example.service.NovaAssistantBrain.getQuickReplies(
-            mode = activeMode,
-            lastNovaText = lastNova,
-            hasUserMessages = hasUser
-        )
-    }
-
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -414,38 +404,6 @@ fun NovaGeminiAssistantScreen(
                                 Text("Preparing...", fontSize = 11.sp, color = Color(0xFFBAE6FD))
                             }
                         }
-                    }
-                }
-            }
-        }
-
-        // 4b. Context-Aware 1-Tap Quick Reply Chips
-        if (!isThinking && quickReplies.isNotEmpty()) {
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 2.dp, bottom = 2.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(quickReplies) { (chipLabel, chipPrompt) ->
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color(0xFF1E1444),
-                        border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.55f)),
-                        modifier = Modifier
-                            .defaultMinSize(minHeight = 36.dp)
-                            .clickable { viewModel.sendNovaGeminiMessage(chipPrompt) }
-                            .testTag("nova_quick_reply_chip")
-                    ) {
-                        Text(
-                            text = chipLabel,
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFE9D5FF),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                            maxLines = 1
-                        )
                     }
                 }
             }
