@@ -149,9 +149,14 @@ fun NovaAiChatScreen(
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
     var showTopicPickerDialog by remember { mutableStateOf(false) }
     var showTopicFilterSheet by remember { mutableStateOf(false) }
+    var showVoiceStudio by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
     var bottomInputText by remember { mutableStateOf("") }
     val isTtsEngineSpeaking by viewModel.ttsManager.isSpeaking.collectAsState()
+    val selectedPersona by viewModel.novaVoicePersona.collectAsState()
+    val activeVoiceLabel by viewModel.activeVoiceLabel.collectAsState()
+    val voiceReplyEnabled by viewModel.aiVoiceReplyEnabled.collectAsState()
+    val cloudHumanVoiceEnabled by viewModel.cloudHumanVoiceEnabled.collectAsState()
     var manualTtsPlaying by remember { mutableStateOf(false) }
     val isTtsPlaying = isTtsEngineSpeaking || manualTtsPlaying
 
@@ -280,21 +285,47 @@ fun NovaAiChatScreen(
 
                 Spacer(Modifier.width(10.dp))
 
-                // Header Title & Subtitle
+                // Header Title & Clickable Indian Female Voice Chip
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Nova AI Chat",
-                        fontSize = 19.sp,
+                        text = "Nova AI • ${selectedPersona.displayName}",
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
-                        letterSpacing = 0.2.sp
+                        letterSpacing = 0.2.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        text = "English Speaking Practice",
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = Color(0xFFC4B5FD)
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF1E1438),
+                        border = BorderStroke(1.dp, Color(0xFFEC4899).copy(alpha = 0.45f)),
+                        modifier = Modifier
+                            .padding(top = 2.dp)
+                            .clickable { showVoiceStudio = true }
+                            .testTag("nova_chat_voice_selector_btn")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.RecordVoiceOver,
+                                contentDescription = "Select Indian Female Voice",
+                                tint = Color(0xFFF472B6),
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Text(
+                                text = "${selectedPersona.displayName} • Indian Voice ▾",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFFCE7F3),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
 
                 // Restart Conversation Button
@@ -824,8 +855,24 @@ fun NovaAiChatScreen(
     }
 
     // =========================================================================
-    // MODALS: Hint, Examples, Translate, Topic Switcher
+    // MODALS: Voice Studio, Hint, Examples, Translate, Topic Switcher
     // =========================================================================
+
+    if (showVoiceStudio) {
+        com.example.ui.components.NovaVoiceStudioDialog(
+            selectedPersona = selectedPersona,
+            activeVoiceLabel = activeVoiceLabel,
+            voiceReplyEnabled = voiceReplyEnabled,
+            cloudHumanVoiceEnabled = cloudHumanVoiceEnabled,
+            isSpeaking = isTtsEngineSpeaking,
+            onSelectPersona = { viewModel.setNovaVoicePersona(it) },
+            onToggleVoiceReply = { viewModel.setAiVoiceReplyEnabled(it) },
+            onToggleCloudHumanVoice = { viewModel.setCloudHumanVoiceEnabled(it) },
+            onPreviewVoice = { viewModel.previewNovaVoice() },
+            onStopVoice = { viewModel.ttsManager.stop() },
+            onDismiss = { showVoiceStudio = false }
+        )
+    }
 
     // 1. Hint Dialog
     if (showHintDialog) {

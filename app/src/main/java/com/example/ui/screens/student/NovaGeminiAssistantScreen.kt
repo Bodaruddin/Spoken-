@@ -80,6 +80,9 @@ fun NovaGeminiAssistantScreen(
     val activeMode by viewModel.novaGeminiMode.collectAsState()
     val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
     val voiceReplyEnabled by viewModel.aiVoiceReplyEnabled.collectAsState()
+    val selectedPersona by viewModel.novaVoicePersona.collectAsState()
+    val activeVoiceLabel by viewModel.activeVoiceLabel.collectAsState()
+    val cloudHumanVoiceEnabled by viewModel.cloudHumanVoiceEnabled.collectAsState()
     val speechState by viewModel.speechManager.speechState.collectAsState()
     val isTtsSpeaking by viewModel.ttsManager.isSpeaking.collectAsState()
     val pendingAttachments by viewModel.pendingNovaAttachments.collectAsState()
@@ -90,6 +93,7 @@ fun NovaGeminiAssistantScreen(
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     var isProcessingAttachment by remember { mutableStateOf(false) }
     var showAttachmentOptions by remember { mutableStateOf(false) }
+    var showVoiceStudio by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     BackHandler { viewModel.selectStudentTab(StudentTab.HOME) }
@@ -177,19 +181,30 @@ fun NovaGeminiAssistantScreen(
     val modes = remember {
         listOf(
             "General AI" to "✨",
+            "Roleplay" to "🎭",
+            "Speaking Tutor" to "🗣️",
             "Grammar Fix" to "✍️",
             "Translator" to "🔤",
-            "Writing Coach" to "📝",
-            "Speaking Tutor" to "🗣️"
+            "Writing Coach" to "📝"
         )
     }
 
     val starterPrompts = remember {
         listOf(
-            StarterPrompt("✍️ Fix Grammar", "Check and fix this sentence: I goes to school yesterday and meet my friend."),
-            StarterPrompt("📖 Learn Tenses", "Explain Present Perfect vs Past Simple with 4 easy everyday examples."),
-            StarterPrompt("🔤 Assamese Translate", "Translate 'How are you preparing for your English exam today?' into Assamese and Hindi."),
-            StarterPrompt("📷 Scan Notes / Photo", "Tap Camera or Image below to snap or upload your homework photo and ask me to explain it!")
+            StarterPrompt("🎭 Café Roleplay", "Let's do a fun café order roleplay!"),
+            StarterPrompt("✨ Upgrade My English", "Teach me 5 natural phrases to replace boring English!"),
+            StarterPrompt("🗣️ Tongue Twister", "Give me a fun Indian-friendly tongue twister for V and W!"),
+            StarterPrompt("🔤 Assamese & Hindi", "Translate 'How are you preparing for your English exam today?' into Assamese and Hindi.")
+        )
+    }
+
+    val quickReplies = remember(activeMode, messages) {
+        val lastNova = messages.lastOrNull { it.isNova }?.text
+        val hasUser = messages.any { !it.isNova }
+        com.example.service.NovaAssistantBrain.getQuickReplies(
+            mode = activeMode,
+            lastNovaText = lastNova,
+            hasUserMessages = hasUser
         )
     }
 
@@ -200,8 +215,10 @@ fun NovaGeminiAssistantScreen(
     ) {
         // 1. Top Header
         NovaAssistantTopBar(
-            isGeminiConfigured = isGeminiConfigured,
+            voicePersonaName = selectedPersona.displayName,
+            isSpeaking = isTtsSpeaking,
             voiceReplyEnabled = voiceReplyEnabled,
+            onOpenVoiceStudio = { showVoiceStudio = true },
             onToggleVoice = { viewModel.setAiVoiceReplyEnabled(!voiceReplyEnabled) },
             onNewChat = { viewModel.clearNovaGeminiSession() }
         )
@@ -402,6 +419,38 @@ fun NovaGeminiAssistantScreen(
             }
         }
 
+        // 4b. Context-Aware 1-Tap Quick Reply Chips
+        if (!isThinking && quickReplies.isNotEmpty()) {
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp, bottom = 2.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(quickReplies) { (chipLabel, chipPrompt) ->
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF1E1444),
+                        border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.55f)),
+                        modifier = Modifier
+                            .defaultMinSize(minHeight = 36.dp)
+                            .clickable { viewModel.sendNovaGeminiMessage(chipPrompt) }
+                            .testTag("nova_quick_reply_chip")
+                    ) {
+                        Text(
+                            text = chipLabel,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFE9D5FF),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+
         // 5. Sleek Single-Row Input Bar: [+] [Mic]  [Ask Nova AI anything...]  [Send]
         Surface(
             shape = RoundedCornerShape(26.dp),
@@ -541,6 +590,22 @@ fun NovaGeminiAssistantScreen(
                 }
             }
         }
+        // 6. Indian Female Voice Studio Dialog
+        if (showVoiceStudio) {
+            com.example.ui.components.NovaVoiceStudioDialog(
+                selectedPersona = selectedPersona,
+                activeVoiceLabel = activeVoiceLabel,
+                voiceReplyEnabled = voiceReplyEnabled,
+                cloudHumanVoiceEnabled = cloudHumanVoiceEnabled,
+                isSpeaking = isTtsSpeaking,
+                onSelectPersona = { viewModel.setNovaVoicePersona(it) },
+                onToggleVoiceReply = { viewModel.setAiVoiceReplyEnabled(it) },
+                onToggleCloudHumanVoice = { viewModel.setCloudHumanVoiceEnabled(it) },
+                onPreviewVoice = { viewModel.previewNovaVoice() },
+                onStopVoice = { viewModel.ttsManager.stop() },
+                onDismiss = { showVoiceStudio = false }
+            )
+        }
     }
 }
 
@@ -548,8 +613,10 @@ private data class StarterPrompt(val title: String, val prompt: String)
 
 @Composable
 private fun NovaAssistantTopBar(
-    isGeminiConfigured: Boolean,
+    voicePersonaName: String,
+    isSpeaking: Boolean,
     voiceReplyEnabled: Boolean,
+    onOpenVoiceStudio: () -> Unit,
     onToggleVoice: () -> Unit,
     onNewChat: () -> Unit
 ) {
@@ -568,7 +635,12 @@ private fun NovaAssistantTopBar(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(Color(0xFF06B6D4), Color(0xFF6366F1), Color(0xFFEC4899))))
+                    .background(
+                        Brush.linearGradient(
+                            if (isSpeaking) listOf(Color(0xFFEC4899), Color(0xFF38BDF8), Color(0xFFA855F7))
+                            else listOf(Color(0xFF06B6D4), Color(0xFF6366F1), Color(0xFFEC4899))
+                        )
+                    )
                     .padding(2.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -581,14 +653,37 @@ private fun NovaAssistantTopBar(
             }
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("Nova AI", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    text = if (isGeminiConfigured) "Personal English Tutor • Files, Image & Camera ready" else "On-Device English Tutor • Files, Image & Camera ready",
-                    fontSize = 11.sp,
-                    color = Color(0xFFC4B5FD),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Text("Nova AI • $voicePersonaName", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFF1E1644),
+                    border = BorderStroke(1.dp, Color(0xFFEC4899).copy(alpha = 0.45f)),
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .clickable { onOpenVoiceStudio() }
+                        .testTag("nova_voice_selector_btn")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.RecordVoiceOver,
+                            contentDescription = "Change Indian Female Voice",
+                            tint = Color(0xFFF472B6),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = if (isSpeaking) "$voicePersonaName speaking..." else "Indian Female Voice ▾",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFFCE7F3),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
             IconButton(onClick = onToggleVoice, modifier = Modifier.size(48.dp).testTag("nova_gemini_voice_toggle_btn")) {
                 Icon(if (voiceReplyEnabled) Icons.Rounded.VolumeUp else Icons.Rounded.VolumeOff, if (voiceReplyEnabled) "Disable Voice Reply" else "Enable Voice Reply", tint = if (voiceReplyEnabled) Color(0xFF67E8F9) else Color(0xFF94A3B8), modifier = Modifier.size(20.dp))

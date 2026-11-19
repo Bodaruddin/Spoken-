@@ -98,9 +98,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
     val supabaseStatus: StateFlow<com.example.data.remote.SupabaseConnectionState> = _supabaseStatus.asStateFlow()
 
+    val novaVoicePersona: StateFlow<com.example.service.NovaVoicePersona> = ttsManager.voicePersona
+    val activeVoiceLabel: StateFlow<String> = ttsManager.activeVoiceLabel
+    val cloudHumanVoiceEnabled: StateFlow<Boolean> = ttsManager.cloudHumanVoiceEnabled
+
     init {
         appPreferences.getSupabaseUrl()?.let { supabaseService.supabaseUrl = it }
         appPreferences.getSupabaseAnonKey()?.let { supabaseService.supabaseAnonKey = it }
+        ttsManager.setGeminiApiKeyProvider {
+            if (_aiProviderType.value == "CUSTOM_ENDPOINT") "" else getEffectiveGeminiApiKey()
+        }
+        ttsManager.setVoicePersona(
+            com.example.service.NovaVoicePersona.fromId(appPreferences.getNovaVoicePersona())
+        )
+        ttsManager.setCloudHumanVoiceEnabled(appPreferences.isCloudHumanVoiceEnabled())
         viewModelScope.launch(Dispatchers.IO) {
             syncWithSupabase()
         }
@@ -2292,6 +2303,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _aiVoiceReplyEnabled.value = enabled
     }
 
+    fun setNovaVoicePersona(persona: com.example.service.NovaVoicePersona) {
+        appPreferences.setNovaVoicePersona(persona.id)
+        ttsManager.setVoicePersona(persona)
+    }
+
+    fun setCloudHumanVoiceEnabled(enabled: Boolean) {
+        appPreferences.setCloudHumanVoiceEnabled(enabled)
+        ttsManager.setCloudHumanVoiceEnabled(enabled)
+    }
+
+    fun previewNovaVoice() {
+        ttsManager.previewVoice()
+    }
+
     fun setActiveCoachQuestion(question: String) {
         _activeCoachQuestion.value = question
     }
@@ -2401,12 +2426,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (!saved.isNullOrEmpty()) {
             _novaGeminiMessages.value = saved
         } else {
-            val studentName = currentUser.value.name.ifBlank { "Friend" }
+            val studentName = currentUser.value.name.trim().substringBefore(" ").ifBlank { "Friend" }
+            val voiceName = ttsManager.voicePersona.value.displayName
             val welcome = NovaChatMessage(
                 id = "nova_gemini_welcome_${System.currentTimeMillis()}",
                 isNova = true,
-                text = "Hi $studentName! I'm Nova AI, your Gemini-style learning companion.\n\nAsk me anything — fix grammar, explain tenses, translate into Assamese or Hindi, write speeches & essays, or help with your studies!",
-                audioPrompt = "Hi $studentName! I'm Nova AI. Ask me anything about English, grammar, writing, translation, or your studies!",
+                text = "Hey $studentName! I'm $voiceName, your Nova speaking buddy.\n\nNo boring textbook drills here — we can do fun Café or Interview roleplays, upgrade your everyday English, try tongue twisters, translate to Assamese or Hindi, or check your grammar!",
+                audioPrompt = "Hey $studentName! I'm $voiceName, your Nova speaking buddy. Let's have a fun conversation, try a roleplay, or upgrade your English today!",
                 isQuestion = false,
                 questionNumber = 1
             )
@@ -2418,12 +2444,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val studentId = currentUser.value.id.ifBlank { "default_student" }
         appPreferences.clearNovaSession(studentId, "nova_gemini_assistant_v1")
         _novaGeminiModelUsed.value = ""
-        val studentName = currentUser.value.name.ifBlank { "Friend" }
+        val studentName = currentUser.value.name.trim().substringBefore(" ").ifBlank { "Friend" }
+        val voiceName = ttsManager.voicePersona.value.displayName
         val welcome = NovaChatMessage(
             id = "nova_gemini_welcome_${System.currentTimeMillis()}",
             isNova = true,
-            text = "Started a fresh chat, $studentName! What would you like to explore or learn with Nova AI today?",
-            audioPrompt = "Started a fresh chat! What would you like to explore today?",
+            text = "Fresh chat started, $studentName! I'm $voiceName — want to jump into a Café roleplay, practice an interview, or chat about your day?",
+            audioPrompt = "Fresh chat started, $studentName! Want to try a fun roleplay or chat about your day?",
             isQuestion = false,
             questionNumber = 1
         )
@@ -2523,11 +2550,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (aiResult.isSuccess) {
                     aiResult.getOrThrow()
                 } else {
-                    val err = aiResult.exceptionOrNull()?.message ?: "Network error"
-                    buildLocalNovaAssistantFallback(cleanPrompt, activeMode, studentName, err) to "On-Device Tutor"
+                    com.example.service.NovaAssistantBrain.generateSmartReply(
+                        prompt = cleanPrompt,
+                        mode = activeMode,
+                        studentName = studentName,
+                        chatHistory = priorHistory,
+                        persona = ttsManager.voicePersona.value
+                    ) to "${ttsManager.voicePersona.value.displayName} • Smart Tutor"
                 }
             } else {
-                buildLocalNovaAssistantFallback(cleanPrompt, activeMode, studentName, null) to "On-Device Tutor"
+                com.example.service.NovaAssistantBrain.generateSmartReply(
+                    prompt = cleanPrompt,
+                    mode = activeMode,
+                    studentName = studentName,
+                    chatHistory = priorHistory,
+                    persona = ttsManager.voicePersona.value
+                ) to "${ttsManager.voicePersona.value.displayName} • Smart Tutor"
             }
 
             _novaGeminiModelUsed.value = usedModel
@@ -2547,91 +2585,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             if (_aiVoiceReplyEnabled.value) {
                 val spokenPreview = HumanConversationEngine.buildSpokenAudioPrompt(
-                    replyText.lineSequence().take(4).joinToString(" "),
+                    replyText.lineSequence().take(6).joinToString(" "),
                     null
-                ).take(320)
+                ).take(420)
                 if (spokenPreview.isNotBlank()) speakAudio(spokenPreview)
             }
         }
-    }
-
-    private fun buildLocalNovaAssistantFallback(
-        prompt: String,
-        mode: String,
-        studentName: String,
-        cloudNotice: String?
-    ): String {
-        val lower = prompt.lowercase()
-        val noticeHeader = if (!cloudNotice.isNullOrBlank()) {
-            "Cloud Gemini Note: $cloudNotice\n\n"
-        } else {
-            ""
-        }
-        val body = when {
-            lower.contains("translate") || mode == "Translator" -> {
-                val targetSentence = prompt
-                    .replace(Regex("(?i)translate( this)?( into| to)?( assamese| hindi| bengali)?[:\\s-]*"), "")
-                    .trim()
-                    .ifBlank { prompt }
-                val translated = com.example.util.AssameseTranslator.translate(targetSentence)
-                buildString {
-                    append("Translation Helper\n\n")
-                    append("English: \"$targetSentence\"\n")
-                    if (translated.assameseText.isNotBlank()) {
-                        append("Assamese: ${translated.assameseText}\n")
-                    }
-                    append("\nTip: Ask your Teacher or Admin to connect Cloud AI for full multi-language translations.")
-                }
-            }
-            lower.contains("grammar") || lower.contains("fix") || lower.contains("correct") || mode == "Grammar Fix" -> {
-                val targetSentence = prompt
-                    .replace(Regex("(?i)^(check|fix|correct)( this| my)?( sentence| grammar)?[:\\s-]*"), "")
-                    .trim()
-                    .ifBlank { prompt }
-                val grammarCheck = HumanConversationEngine.analyzeGrammarDeterministic(targetSentence, isVoiceInput = false)
-                if (grammarCheck.hasError && !grammarCheck.correctedSentence.isNullOrBlank()) {
-                    HumanConversationEngine.formatMandatoryMistakeResponse(
-                        originalSentence = targetSentence,
-                        correctedSentence = grammarCheck.correctedSentence,
-                        explanation = grammarCheck.explanation ?: grammarCheck.shortTip
-                            ?: "Check the sentence grammar and verb form.",
-                        naturalEnglish = grammarCheck.naturalExpression,
-                        continuationText = "Would you like to try another sentence for grammar practice?"
-                    )
-                } else {
-                    "Great job! Your sentence \"$targetSentence\" is grammatically correct.\n\nWould you like to practice another English sentence?"
-                }
-            }
-            lower.contains("tense") -> {
-                buildString {
-                    append("Quick English Tenses Guide\n\n")
-                    append("1. Present Simple (habits/facts): \"I study English every day.\"\n")
-                    append("2. Past Simple (finished action): \"I studied English yesterday.\"\n")
-                    append("3. Present Perfect (past action connected to now): \"I have studied English for two years.\"\n")
-                    append("4. Future Simple (plans/promises): \"I will practice speaking tomorrow.\"\n\n")
-                    append("Try writing a sentence using one of these tenses and I will check your grammar!")
-                }
-            }
-            lower.contains("idiom") || lower.contains("vocabulary") || lower.contains("words") -> {
-                buildString {
-                    append("5 Useful Daily English Expressions\n\n")
-                    append("• Break the ice — start a friendly conversation\n")
-                    append("• Piece of cake — something very easy to do\n")
-                    append("• Once in a blue moon — happens very rarely\n")
-                    append("• Hit the books — start studying seriously\n")
-                    append("• Keep it up — continue doing great work\n\n")
-                    append("Use one of these expressions in a sentence to practice!")
-                }
-            }
-            else -> {
-                buildString {
-                    append("Hi $studentName! I'm currently running in On-Device Tutor mode.\n\n")
-                    append("• Cloud AI answers can be enabled by your Teacher or Admin from their panel.\n")
-                    append("• Meanwhile, you can use Grammar Fix, Assamese Translation, or Tenses Guide right here!")
-                }
-            }
-        }
-        return "$noticeHeader$body"
     }
 
     fun advanceToNextNovaPrompt() {

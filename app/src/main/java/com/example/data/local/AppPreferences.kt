@@ -73,6 +73,8 @@ class AppPreferences(context: Context) {
         private const val KEY_SUPABASE_ANON_KEY = "key_supabase_anon_key"
         private const val KEY_SUPPRESSED_DEFAULT_SUBMISSIONS = "key_suppressed_default_submissions"
         private const val KEY_PENDING_RESET_STUDENTS = "key_pending_reset_students"
+        private const val KEY_NOVA_VOICE_PERSONA = "key_nova_voice_persona"
+        private const val KEY_CLOUD_HUMAN_VOICE = "key_cloud_human_voice"
     }
 
 
@@ -2150,6 +2152,22 @@ class AppPreferences(context: Context) {
         val arr = JSONArray()
         tokens.forEach { arr.put(it) }
         prefs.edit().putString(KEY_PENDING_RESET_STUDENTS, arr.toString()).apply()
+    }
+
+    fun getNovaVoicePersona(): String {
+        return prefs.getString(KEY_NOVA_VOICE_PERSONA, "ANANYA") ?: "ANANYA"
+    }
+
+    fun setNovaVoicePersona(personaId: String) {
+        prefs.edit().putString(KEY_NOVA_VOICE_PERSONA, personaId).apply()
+    }
+
+    fun isCloudHumanVoiceEnabled(): Boolean {
+        return prefs.getBoolean(KEY_CLOUD_HUMAN_VOICE, true)
+    }
+
+    fun setCloudHumanVoiceEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_CLOUD_HUMAN_VOICE, enabled).apply()
     }
 }
 

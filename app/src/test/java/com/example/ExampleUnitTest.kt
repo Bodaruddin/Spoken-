@@ -1132,5 +1132,92 @@ class ExampleUnitTest {
         assertTrue(voiceErrorDet.hasError)
         assertEquals("I go to school every day.", voiceErrorDet.correctedSentence)
     }
+
+    @Test
+    fun testNovaVoicePersonaResolutionAndProperties() {
+        assertEquals(com.example.service.NovaVoicePersona.ANANYA, com.example.service.NovaVoicePersona.fromId(null))
+        assertEquals(com.example.service.NovaVoicePersona.ANANYA, com.example.service.NovaVoicePersona.fromId("unknown"))
+        assertEquals(com.example.service.NovaVoicePersona.PRIYA, com.example.service.NovaVoicePersona.fromId("priya"))
+        assertEquals(com.example.service.NovaVoicePersona.MEERA, com.example.service.NovaVoicePersona.fromId("MEERA"))
+
+        assertEquals("Ananya", com.example.service.NovaVoicePersona.ANANYA.displayName)
+        assertEquals("Priya", com.example.service.NovaVoicePersona.PRIYA.displayName)
+        assertEquals("Meera", com.example.service.NovaVoicePersona.MEERA.displayName)
+        assertTrue(com.example.service.NovaVoicePersona.entries.all { it.stylePrompt.contains("Indian", ignoreCase = true) })
+    }
+
+    @Test
+    fun testNovaAssistantBrainEngagingRepliesRoleplayAndQuickReplies() {
+        // 1. Warm greeting uses selected persona name & student first name
+        val greeting = com.example.service.NovaAssistantBrain.generateSmartReply(
+            prompt = "Hi Nova",
+            mode = "General AI",
+            studentName = "Riya Sharma",
+            chatHistory = emptyList(),
+            persona = com.example.service.NovaVoicePersona.PRIYA
+        )
+        assertTrue(greeting.contains("Riya"))
+        assertFalse(greeting.contains("On-Device Tutor mode", ignoreCase = true))
+
+        // 2. Boredom handling offers fun challenges
+        val funReply = com.example.service.NovaAssistantBrain.generateSmartReply(
+            prompt = "This is boring",
+            mode = "General AI",
+            studentName = "Aarav",
+            chatHistory = emptyList(),
+            persona = com.example.service.NovaVoicePersona.ANANYA
+        )
+        assertTrue(funReply.contains("Roleplay", ignoreCase = true))
+        assertTrue(funReply.contains("Tongue Twister", ignoreCase = true))
+
+        // 3. Multi-turn Roleplay stays in character
+        val cafeStart = com.example.service.NovaAssistantBrain.generateSmartReply(
+            prompt = "Let's do a café order roleplay!",
+            mode = "Roleplay",
+            studentName = "Riya",
+            chatHistory = emptyList(),
+            persona = com.example.service.NovaVoicePersona.ANANYA
+        )
+        assertTrue(cafeStart.contains("barista", ignoreCase = true))
+
+        val cafeTurn2 = com.example.service.NovaAssistantBrain.generateSmartReply(
+            prompt = "Hi! Can I please get one iced latte?",
+            mode = "Roleplay",
+            studentName = "Riya",
+            chatHistory = listOf(
+                com.example.data.model.NovaChatMessage(isNova = true, text = cafeStart)
+            ),
+            persona = com.example.service.NovaVoicePersona.ANANYA
+        )
+        assertTrue(cafeTurn2.contains("Coach note", ignoreCase = true))
+
+        // 4. Upgrade My English coaching
+        val upgrade = com.example.service.NovaAssistantBrain.generateSmartReply(
+            prompt = "Upgrade my sentence: I am good in English and I do hard work.",
+            mode = "General AI",
+            studentName = "Riya",
+            chatHistory = emptyList()
+        )
+        assertTrue(upgrade.contains("good at English", ignoreCase = true))
+
+        // 5. Grammar fix strips command prefix cleanly
+        val grammarFix = com.example.service.NovaAssistantBrain.generateSmartReply(
+            prompt = "Fix this: I am go to school every day.",
+            mode = "Grammar Fix",
+            studentName = "Riya",
+            chatHistory = emptyList()
+        )
+        assertTrue(grammarFix.contains("I go to school every day."))
+
+        // 6. Context-aware quick replies adapt to conversation context
+        val cafeChips = com.example.service.NovaAssistantBrain.getQuickReplies(
+            mode = "Roleplay",
+            lastNovaText = cafeStart,
+            hasUserMessages = true
+        )
+        assertTrue(cafeChips.isNotEmpty())
+        assertTrue(cafeChips.any { it.first.contains("coffee", ignoreCase = true) || it.first.contains("bill", ignoreCase = true) })
+    }
 }
+
 

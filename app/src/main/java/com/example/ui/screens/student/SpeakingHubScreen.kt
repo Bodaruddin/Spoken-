@@ -1343,8 +1343,14 @@ fun PronunciationSection(
     var queryInput by remember { mutableStateOf("") }
     val searchedResult by viewModel.searchedPhoneticResult.collectAsState()
     val isSearching by viewModel.isSearchingPhonetics.collectAsState()
+    val selectedPersona by viewModel.novaVoicePersona.collectAsState()
+    val activeVoiceLabel by viewModel.activeVoiceLabel.collectAsState()
+    val voiceReplyEnabled by viewModel.aiVoiceReplyEnabled.collectAsState()
+    val cloudHumanVoiceEnabled by viewModel.cloudHumanVoiceEnabled.collectAsState()
+    val isTtsSpeaking by viewModel.ttsManager.isSpeaking.collectAsState()
     var selectedCategory by remember { mutableStateOf("🔥 Trending") }
     var actionToast by remember { mutableStateOf<String?>(null) }
+    var showVoiceStudio by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -1399,23 +1405,41 @@ fun PronunciationSection(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        // Nova AI Pill
+                        // Clickable Nova AI • Indian Female Voice Selector Pill
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF4F46E5).copy(alpha = 0.85f),
-                            border = BorderStroke(1.dp, Color(0xFF818CF8))
+                            color = if (isTtsSpeaking) Color(0xFF831843).copy(alpha = 0.9f) else Color(0xFF311B6B).copy(alpha = 0.9f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isTtsSpeaking) Color(0xFFF472B6) else Color(0xFFEC4899).copy(alpha = 0.7f)
+                            ),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { showVoiceStudio = true }
+                                .testTag("phonetics_voice_selector_btn")
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
-                                Text("✨", fontSize = 11.sp)
+                                Icon(
+                                    imageVector = Icons.Rounded.RecordVoiceOver,
+                                    contentDescription = "Change Indian Female Voice",
+                                    tint = Color(0xFFF472B6),
+                                    modifier = Modifier.size(13.dp)
+                                )
                                 Text(
-                                    "Nova AI",
+                                    text = if (isTtsSpeaking) {
+                                        "${selectedPersona.displayName} speaking..."
+                                    } else {
+                                        "Nova AI • ${selectedPersona.displayName} (Indian Voice) ▾"
+                                    },
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -1428,7 +1452,7 @@ fun PronunciationSection(
                         )
 
                         Text(
-                            text = "Type any word to look up IPA, syllables & native speech tips",
+                            text = "Type any word for IPA, syllables & Indian female voice coaching",
                             fontSize = 12.sp,
                             lineHeight = 16.sp,
                             color = Color(0xFFCBD5E1)
@@ -1962,12 +1986,33 @@ fun PronunciationSection(
                                         modifier = Modifier.weight(1f),
                                         verticalArrangement = Arrangement.spacedBy(2.dp)
                                     ) {
-                                        Text(
-                                            "Speech Coach",
-                                            fontSize = 14.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                "Speech Coach • ${selectedPersona.displayName}",
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                            IconButton(
+                                                onClick = {
+                                                    viewModel.speakAudio("${res.word}. ${res.coachingTip}", slow = false)
+                                                },
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .testTag("phonetics_search_coach_speak_btn")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.VolumeUp,
+                                                    contentDescription = "Listen to Speech Coach tip",
+                                                    tint = Color(0xFF38BDF8),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
                                         Text(
                                             res.coachingTip,
                                             fontSize = 12.5.sp,
@@ -2341,6 +2386,11 @@ fun PronunciationSection(
                 drill = drill,
                 speechState = speechState,
                 evaluation = evaluation,
+                voicePersonaName = selectedPersona.displayName,
+                onOpenVoiceStudio = { showVoiceStudio = true },
+                onSpeakTip = { tipText ->
+                    viewModel.speakAudio("${drill.wordOrSentence}. $tipText", slow = false)
+                },
                 onClose = { viewModel.closePronunciationDrill() },
                 onPlayNormal = { viewModel.speakAudio(drill.wordOrSentence, slow = false) },
                 onPlaySlow = { viewModel.speakAudio(drill.wordOrSentence, slow = true) },
@@ -2363,6 +2413,22 @@ fun PronunciationSection(
                     viewModel.speakAudio(drill.wordOrSentence, slow = false)
                     viewModel.simulateVoiceInput(drill.wordOrSentence)
                 }
+            )
+        }
+
+        if (showVoiceStudio) {
+            com.example.ui.components.NovaVoiceStudioDialog(
+                selectedPersona = selectedPersona,
+                activeVoiceLabel = activeVoiceLabel,
+                voiceReplyEnabled = voiceReplyEnabled,
+                cloudHumanVoiceEnabled = cloudHumanVoiceEnabled,
+                isSpeaking = isTtsSpeaking,
+                onSelectPersona = { viewModel.setNovaVoicePersona(it) },
+                onToggleVoiceReply = { viewModel.setAiVoiceReplyEnabled(it) },
+                onToggleCloudHumanVoice = { viewModel.setCloudHumanVoiceEnabled(it) },
+                onPreviewVoice = { viewModel.previewNovaVoice() },
+                onStopVoice = { viewModel.ttsManager.stop() },
+                onDismiss = { showVoiceStudio = false }
             )
         }
 
@@ -2624,6 +2690,9 @@ fun ActivePronunciationDrillCard(
     drill: PronunciationDrill,
     speechState: SpeechState,
     evaluation: com.example.data.model.SpeakingEvaluation?,
+    voicePersonaName: String = "Ananya",
+    onOpenVoiceStudio: () -> Unit = {},
+    onSpeakTip: (String) -> Unit = {},
     onClose: () -> Unit,
     onPlayNormal: () -> Unit,
     onPlaySlow: () -> Unit,
@@ -2717,37 +2786,74 @@ fun ActivePronunciationDrillCard(
                     .padding(horizontal = 18.dp, vertical = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // 1. Top Header Row: Active Practice badge & circular close button
+                // 1. Top Header Row: Active Practice badge, Indian Voice pill & circular close button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(22.dp),
-                        color = Color(0xFF031C38).copy(alpha = 0.9f),
-                        border = BorderStroke(1.5.dp, Color(0xFF00D2FF)),
-                        modifier = Modifier.testTag("active_practice_badge")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        Surface(
+                            shape = RoundedCornerShape(22.dp),
+                            color = Color(0xFF031C38).copy(alpha = 0.9f),
+                            border = BorderStroke(1.5.dp, Color(0xFF00D2FF)),
+                            modifier = Modifier.testTag("active_practice_badge")
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Mic,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(17.dp)
-                            )
-                            Text(
-                                text = "Active Practice",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White,
-                                maxLines = 1,
-                                softWrap = false
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Mic,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Active Practice",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = Color(0xFF281552).copy(alpha = 0.95f),
+                            border = BorderStroke(1.dp, Color(0xFFEC4899).copy(alpha = 0.7f)),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(18.dp))
+                                .clickable { onOpenVoiceStudio() }
+                                .testTag("active_drill_voice_btn")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.RecordVoiceOver,
+                                    contentDescription = "Select Indian Female Voice",
+                                    tint = Color(0xFFF472B6),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = "$voicePersonaName ▾",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFCE7F3),
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
                     }
 
@@ -2975,26 +3081,39 @@ fun ActivePronunciationDrillCard(
 
                         Spacer(Modifier.width(12.dp))
 
+                        val tipText = drill.tips.ifBlank {
+                            "Start with a crisp pronunciation, stress the key syllables, and end clearly."
+                        }
                         Column(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
                             Text(
-                                text = "Coaching Tip",
+                                text = "Coaching Tip • $voicePersonaName",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color(0xFF00E5FF),
                                 maxLines = 1
                             )
-                            val tipText = drill.tips.ifBlank {
-                                "Start with a crisp pronunciation, stress the key syllables, and end clearly."
-                            }
                             Text(
                                 text = tipText,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = Color.White,
                                 lineHeight = 16.sp
+                            )
+                        }
+                        IconButton(
+                            onClick = { onSpeakTip(tipText) },
+                            modifier = Modifier
+                                .size(42.dp)
+                                .testTag("active_drill_tip_speak_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.VolumeUp,
+                                contentDescription = "Listen to Coaching Tip",
+                                tint = Color(0xFF00E5FF),
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }

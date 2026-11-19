@@ -1235,5 +1235,91 @@ class ExampleRobolectricTest {
     assertTrue(vm.vocabularyChallengeProgress.value.completedModes.isEmpty())
     assertTrue(vm.examSubmissions.value.none { it.studentId == "std_001" || it.studentId == "stu_alex_1" })
   }
+
+  @Test
+  fun `tts manager formats expressive indian prosody chunks and voice studio switches personas`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    app.getSharedPreferences("linguaquest_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+    val vm = MainViewModel(app)
+
+    // 1. Clean speech replaces coaching emojis & stiff abbreviations naturally
+    val raw = "❌ Your Sentence: \"I am go.\" ✅ Correct Sentence: \"I go.\" 📖 Explanation: Use e.g. simple present 🌟 Natural English: \"I go daily!\""
+    val clean = vm.ttsManager.cleanTextForSpeech(raw)
+    assertFalse(clean.contains("❌"))
+    assertFalse(clean.contains("✅"))
+    assertTrue(clean.contains("You said:"))
+    assertTrue(clean.contains("Try saying:"))
+    assertTrue(clean.contains("Here is why:"))
+    assertTrue(clean.contains("Even more naturally:"))
+    assertTrue(clean.contains("for example"))
+
+    // 2. Prosody chunking breaks expressive sentences and preserves question intonation markers
+    val chunks = vm.ttsManager.splitIntoProsodyChunks("Hi there! How is your day going? Let's practice English together.")
+    assertEquals(3, chunks.size)
+    assertTrue(chunks[0].endsWith("!"))
+    assertTrue(chunks[1].endsWith("?"))
+    assertTrue(chunks[2].endsWith("."))
+
+    // 3. Persona selection persists via AppPreferences and updates active label
+    assertEquals(com.example.service.NovaVoicePersona.ANANYA, vm.novaVoicePersona.value)
+    vm.setNovaVoicePersona(com.example.service.NovaVoicePersona.MEERA)
+    assertEquals(com.example.service.NovaVoicePersona.MEERA, vm.novaVoicePersona.value)
+    assertTrue(vm.activeVoiceLabel.value.contains("Meera"))
+    assertEquals(com.example.service.NovaVoicePersona.MEERA.id, AppPreferences(app).getNovaVoicePersona())
+
+    // 4. Voice Studio opens from NovaGeminiAssistantScreen and switches persona on tap
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    composeTestRule.setContent {
+      com.example.ui.screens.student.NovaGeminiAssistantScreen(viewModel = vm)
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("nova_mode_roleplay").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("nova_voice_selector_btn").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("nova_voice_studio_dialog").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("voice_persona_priya").performClick()
+    composeTestRule.waitForIdle()
+
+    assertEquals(com.example.service.NovaVoicePersona.PRIYA, vm.novaVoicePersona.value)
+    composeTestRule.onNodeWithTag("close_voice_studio_btn").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("nova_voice_studio_dialog").assertDoesNotExist()
+  }
+
+  @Test
+  fun `phonetics page exposes indian female voice studio and speaks drills and coaching tips`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    app.getSharedPreferences("linguaquest_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+    val vm = MainViewModel(app)
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    vm.selectSpeakingSubTab(SpeakingSubTab.PRONUNCIATION_COACH)
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.SpeakingHubScreen(viewModel = vm)
+    }
+    composeTestRule.waitForIdle()
+
+    // 1. Phonetics hero card shows Indian Female Voice selector and opens Voice Studio
+    composeTestRule.onNodeWithTag("phonetics_voice_selector_btn").assertIsDisplayed().performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("nova_voice_studio_dialog").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("voice_persona_meera").performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(com.example.service.NovaVoicePersona.MEERA, vm.novaVoicePersona.value)
+    composeTestRule.onNodeWithTag("close_voice_studio_btn").performClick()
+    composeTestRule.waitForIdle()
+
+    // 2. Slow (0.7x), Normal, and Coaching Tip audio buttons all trigger TtsManager
+    val beforeCount = vm.ttsManager.speakAttemptCount
+    composeTestRule.onNodeWithTag("active_drill_slow_btn").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("active_drill_normal_btn").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("active_drill_tip_speak_btn").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(beforeCount + 3, vm.ttsManager.speakAttemptCount)
+  }
 }
+
+
 
