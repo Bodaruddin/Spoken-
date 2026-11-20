@@ -924,6 +924,8 @@ fun ActiveGameRunner(
     // (Word Match/Vocabulary Challenge, SentenceBuilderGame, GrammarChallengeGame & FastVocabularyGame manage their own 2-level BackHandler internally)
     if (
         gameType != ActiveGameType.WORD_MATCH &&
+        gameType != ActiveGameType.MISSING_LETTERS &&
+        gameType != ActiveGameType.LISTEN_CHOOSE &&
         gameType != ActiveGameType.SENTENCE_BUILDER &&
         gameType != ActiveGameType.GRAMMAR_CHALLENGE &&
         gameType != ActiveGameType.FAST_VOCABULARY
@@ -936,6 +938,20 @@ fun ActiveGameRunner(
     when (gameType) {
         ActiveGameType.WORD_MATCH -> {
             VocabularyChallengeGame(
+                viewModel = viewModel,
+                onClose = onClose,
+                modifier = modifier
+            )
+        }
+        ActiveGameType.MISSING_LETTERS -> {
+            MissingLettersGame(
+                viewModel = viewModel,
+                onClose = onClose,
+                modifier = modifier
+            )
+        }
+        ActiveGameType.LISTEN_CHOOSE -> {
+            ListenAndChooseGame(
                 viewModel = viewModel,
                 onClose = onClose,
                 modifier = modifier
@@ -999,9 +1015,9 @@ fun ActiveGameRunner(
                 // Dedicated games with real, validated logic
                 when (gameType) {
                     ActiveGameType.WORD_MATCH -> VocabularyChallengeGame(viewModel, onClose)
-                    ActiveGameType.MISSING_LETTERS -> MissingLettersGame(viewModel)
+                    ActiveGameType.MISSING_LETTERS -> MissingLettersGame(viewModel, onClose)
                     ActiveGameType.SENTENCE_BUILDER -> SentenceBuilderGame(viewModel, onClose)
-                    ActiveGameType.LISTEN_CHOOSE -> ListenAndChooseGame(viewModel)
+                    ActiveGameType.LISTEN_CHOOSE -> ListenAndChooseGame(viewModel, onClose)
                     ActiveGameType.PRONUNCIATION_BATTLE -> PronunciationBattleGame(viewModel, onClose)
                     ActiveGameType.FAST_VOCABULARY -> FastVocabularyGame(viewModel)
                     ActiveGameType.GRAMMAR_CHALLENGE -> GrammarChallengeGame(viewModel, onClose)
@@ -1022,9 +1038,17 @@ fun ActiveGameRunner(
 private data class LetterChoice(val id: Int, val char: Char, var isUsed: Boolean = false)
 
 @Composable
-fun MissingLettersGame(viewModel: MainViewModel) {
+fun MissingLettersGame(
+    viewModel: MainViewModel,
+    onClose: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
     val challenges by viewModel.missingLettersChallenges.collectAsState()
     var selectedCategory by remember { mutableStateOf("All") }
+
+    BackHandler {
+        onClose()
+    }
 
     // Collect all available categories dynamically from existing challenges
     val allCategories = remember(challenges) {
@@ -1043,219 +1067,509 @@ fun MissingLettersGame(viewModel: MainViewModel) {
     var challengeIndex by remember(selectedCategory) { mutableIntStateOf(0) }
     val current = filteredChallenges.getOrNull(challengeIndex % maxOf(1, filteredChallenges.size))
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xFF060921),
+                        Color(0xFF0C123B),
+                        Color(0xFF100930),
+                        Color(0xFF060418)
+                    )
+                )
+            )
     ) {
-        // Category Selector Chips Row
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Select Word Category:", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoyalBlue)
-            Row(
+        ArcadeBackgroundWaves()
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Glowing Cosmic Header Banner
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = Color.Transparent,
+                border = BorderStroke(
+                    1.5.dp,
+                    Brush.horizontalGradient(
+                        listOf(Color(0xFF818CF8), Color(0xFF38BDF8), Color(0xFF22D3EE))
+                    )
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .testTag("missing_letters_header_card")
             ) {
-                allCategories.forEach { cat ->
-                    val isSelected = selectedCategory.equals(cat, ignoreCase = true)
-                    val emoji = when (cat.lowercase()) {
-                        "all" -> "🌟"
-                        "animals" -> "🐾"
-                        "vegetables" -> "🥦"
-                        "fruits" -> "🍎"
-                        "general" -> "📚"
-                        "objects" -> "📦"
-                        "grammar" -> "⚡"
-                        else -> "🏷️"
-                    }
-                    val count = if (cat == "All") challenges.size else challenges.count { it.category.equals(cat, ignoreCase = true) }
-
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant,
-                        border = BorderStroke(1.dp, if (isSelected) RoyalBlue else Color.Transparent),
-                        modifier = Modifier.clickable {
-                            selectedCategory = cat
-                        }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(emoji, fontSize = 14.sp)
-                            Text(
-                                text = "$cat ($count)",
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 12.sp,
-                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    Color(0xFF131946).copy(alpha = 0.94f),
+                                    Color(0xFF1A2660).copy(alpha = 0.92f),
+                                    Color(0xFF0F1B49).copy(alpha = 0.94f)
+                                )
                             )
-                        }
-                    }
-                }
-            }
-        }
-
-        if (current == null || filteredChallenges.isEmpty()) {
-            // Empty State
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text("🏷️", fontSize = 36.sp)
-                    Text("No words in category '$selectedCategory' yet", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text("Teachers can add new words to this category from the Teacher Panel.", fontSize = 12.sp, color = MutedGray, textAlign = TextAlign.Center)
-                    Button(
-                        onClick = { selectedCategory = "All" },
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("View All Categories")
-                    }
-                }
-            }
-        } else {
-            val targetWord = remember(current.id) { current.fullWord.trim().uppercase() }
-            val missingIndices = remember(current.id) {
-                current.missingIndices.filter { it in targetWord.indices }.toSet()
-            }
-
-            // Letter choices: missing letters + distractors (normalized uppercase)
-            val choices = remember(current.id) {
-                val missingChars = missingIndices.map { targetWord[it] }
-                val alphabetDistractors = listOf('A', 'E', 'I', 'O', 'U', 'R', 'S', 'T', 'L', 'N', 'D', 'C')
-                    .filterNot { missingChars.contains(it) }
-                    .shuffled()
-                    .take(4)
-                val combined = (missingChars + alphabetDistractors).shuffled()
-                combined.mapIndexed { idx, ch -> LetterChoice(idx, ch, false) }
-            }
-
-            // Slots state: maps slotIndex -> LetterChoice? placed into it
-            var placedSlots by remember(current.id) {
-                mutableStateOf(missingIndices.associateWith { null as LetterChoice? })
-            }
-            var choicePool by remember(current.id) { mutableStateOf(choices) }
-            var isVerified by remember(current.id) { mutableStateOf<Boolean?>(null) }
-            var hasAwarded by remember(current.id) { mutableStateOf(false) }
-
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        )
+                        .padding(horizontal = 14.dp, vertical = 11.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Complete Spelling:", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFFEFF6FF)
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(Color(0xFFC084FC), Color(0xFF8B5CF6), Color(0xFF6366F1))
+                                        )
+                                    )
+                                    .border(
+                                        1.dp,
+                                        Color(0xFFE9D5FF).copy(alpha = 0.55f),
+                                        RoundedCornerShape(12.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = current.category,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = RoyalBlue,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    text = "abc",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 17.sp,
+                                    color = Color.White
+                                )
+                            }
+
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = "Missing Letters",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 18.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Interactive Learning Challenge",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFCBD5E1),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
-                        Text(
-                            "Word ${(challengeIndex % filteredChallenges.size) + 1}/${filteredChallenges.size}",
-                            fontSize = 12.sp,
-                            color = RoyalBlue,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
 
-                    // Clue Card with High-Contrast Text
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFF0F1E42),
-                        border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        IconButton(
+                            onClick = onClose,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("close_game_button")
                         ) {
-                            Text("💡 Clue & Meaning:", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF60A5FA))
-                            Text(
-                                text = current.hint,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color.White
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Close Game",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
+                }
+            }
 
-                    // Word Letter Slots (Adaptive width & wrapping FlowRow so long words never clip)
-                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                        val count = targetWord.length
-                        val spacing = if (count > 9) 3.dp else 5.dp
-                        val computedSize = ((maxWidth - (spacing * (count - 1))) / count).coerceIn(24.dp, 38.dp)
-                        val fontSize = when {
-                            computedSize < 28.dp -> 13.sp
-                            computedSize < 34.dp -> 15.sp
-                            else -> 17.sp
+            // Category Selector Chips Row
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Select Word Category:",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color.White
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(1.dp)
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF6366F1).copy(alpha = 0.65f), Color.Transparent)
+                                )
+                            )
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .testTag("missing_letters_category_row"),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    allCategories.forEach { cat ->
+                        val isSelected = selectedCategory.equals(cat, ignoreCase = true)
+                        val count = if (cat == "All") {
+                            challenges.size
+                        } else {
+                            challenges.count { it.category.equals(cat, ignoreCase = true) }
+                        }
+                        val (catIcon, catTint) = when (cat.lowercase()) {
+                            "all" -> Icons.Rounded.Star to Color(0xFFFACC15)
+                            "animals" -> Icons.Rounded.Pets to Color(0xFF38BDF8)
+                            "vegetables" -> Icons.Rounded.Eco to Color(0xFF4ADE80)
+                            "fruits" -> Icons.Rounded.LocalFlorist to Color(0xFFFB7185)
+                            "general" -> Icons.Rounded.MenuBook to Color(0xFFFDE047)
+                            "objects" -> Icons.Rounded.Inventory2 to Color(0xFFFDBA74)
+                            "grammar" -> Icons.Rounded.Bolt to Color(0xFFFACC15)
+                            else -> Icons.Rounded.Label to Color(0xFFC4B5FD)
                         }
 
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        Surface(
+                            shape = RoundedCornerShape(50),
+                            color = Color.Transparent,
+                            border = BorderStroke(
+                                width = if (isSelected) 1.5.dp else 1.2.dp,
+                                brush = if (isSelected) {
+                                    Brush.horizontalGradient(
+                                        listOf(Color(0xFF7DD3FC), Color(0xFF38BDF8), Color(0xFFBAE6FD))
+                                    )
+                                } else {
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            Color(0xFF38BDF8).copy(alpha = 0.45f),
+                                            Color(0xFF8B5CF6).copy(alpha = 0.55f)
+                                        )
+                                    )
+                                }
+                            ),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .clickable { selectedCategory = cat }
+                                .testTag("missing_letters_cat_${cat.lowercase().replace(" ", "_")}")
                         ) {
-                            targetWord.forEachIndexed { idx, fixedChar ->
-                                val isMissing = missingIndices.contains(idx)
-                                val placedChoice = placedSlots[idx]
-
-                                Surface(
-                                    shape = RoundedCornerShape(if (computedSize < 30.dp) 6.dp else 8.dp),
-                                    color = when {
-                                        !isMissing -> MaterialTheme.colorScheme.surfaceVariant
-                                        placedChoice != null -> Color(0xFFDBEAFE)
-                                        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                                    },
-                                    border = BorderStroke(
-                                        1.5.dp,
-                                        when {
-                                            isVerified == true -> EmeraldSuccess
-                                            isVerified == false -> CoralAccent
-                                            isMissing -> RoyalBlue
-                                            else -> Color.Transparent
+                            Row(
+                                modifier = Modifier
+                                    .background(
+                                        brush = if (isSelected) {
+                                            Brush.horizontalGradient(
+                                                listOf(
+                                                    Color(0xFF0077FF),
+                                                    Color(0xFF00B4FF),
+                                                    Color(0xFF00D4FF)
+                                                )
+                                            )
+                                        } else {
+                                            Brush.horizontalGradient(
+                                                listOf(
+                                                    Color(0xFF0D1438).copy(alpha = 0.92f),
+                                                    Color(0xFF13143F).copy(alpha = 0.92f)
+                                                )
+                                            )
                                         }
-                                    ),
-                                    modifier = Modifier
-                                        .size(computedSize)
-                                        .clickable(enabled = isMissing && placedChoice != null) {
-                                            // Remove placed letter and restore into choice pool
-                                            if (placedChoice != null) {
-                                                val updatedSlots = placedSlots.toMutableMap()
-                                                updatedSlots[idx] = null
-                                                placedSlots = updatedSlots
+                                    )
+                                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = catIcon,
+                                    contentDescription = null,
+                                    tint = catTint,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "$cat ($count)",
+                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                    fontSize = 12.5.sp,
+                                    color = if (isSelected) Color.White else Color(0xFFE2E8F0)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
-                                                choicePool = choicePool.map {
-                                                    if (it.id == placedChoice.id) it.copy(isUsed = false) else it
-                                                }
-                                                isVerified = null
-                                            }
-                                        }
+            if (current == null || filteredChallenges.isEmpty()) {
+                // Cosmic Empty State
+                Card(
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    border = BorderStroke(
+                        1.5.dp,
+                        Brush.horizontalGradient(listOf(Color(0xFF38BDF8), Color(0xFFA855F7)))
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color(0xFF090F2E), Color(0xFF141142))
+                                )
+                            )
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Label,
+                            contentDescription = null,
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Text(
+                            text = "No words in category '$selectedCategory' yet",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "Teachers can add new words to this category from the Teacher Panel.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF94A3B8),
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = { selectedCategory = "All" },
+                            shape = RoundedCornerShape(50),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Text("View All Categories", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            } else {
+                val targetWord = remember(current.id) { current.fullWord.trim().uppercase() }
+                val missingIndices = remember(current.id) {
+                    current.missingIndices.filter { it in targetWord.indices }.toSet()
+                }
+
+                // Letter choices: missing letters + distractors (normalized uppercase)
+                val choices = remember(current.id) {
+                    val missingChars = missingIndices.map { targetWord[it] }
+                    val alphabetDistractors = listOf('A', 'E', 'I', 'O', 'U', 'R', 'S', 'T', 'L', 'N', 'D', 'C')
+                        .filterNot { missingChars.contains(it) }
+                        .shuffled()
+                        .take(4)
+                    val combined = (missingChars + alphabetDistractors).shuffled()
+                    combined.mapIndexed { idx, ch -> LetterChoice(idx, ch, false) }
+                }
+
+                // Slots state: maps slotIndex -> LetterChoice? placed into it
+                var placedSlots by remember(current.id) {
+                    mutableStateOf(missingIndices.associateWith { null as LetterChoice? })
+                }
+                var choicePool by remember(current.id) { mutableStateOf(choices) }
+                var isVerified by remember(current.id) { mutableStateOf<Boolean?>(null) }
+                var hasAwarded by remember(current.id) { mutableStateOf(false) }
+
+                Card(
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    border = BorderStroke(
+                        1.8.dp,
+                        Brush.linearGradient(
+                            listOf(
+                                Color(0xFF38BDF8),
+                                Color(0xFF2563EB),
+                                Color(0xFFA855F7),
+                                Color(0xFF22D3EE)
+                            )
+                        )
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("missing_letters_challenge_card")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color(0xFF090F2E),
+                                        Color(0xFF0D153D),
+                                        Color(0xFF151245)
+                                    )
+                                )
+                            )
+                            .padding(horizontal = 14.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(15.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Header Row: Trophy + Complete Spelling + Word Count Badge
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.EmojiEvents,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFACC15),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Text(
+                                    text = "Complete Spelling:",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 16.5.sp,
+                                    color = Color.White
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color(0xFF2E1065).copy(alpha = 0.88f),
+                                border = BorderStroke(1.2.dp, Color(0xFFA855F7))
+                            ) {
+                                Text(
+                                    text = "Word ${(challengeIndex % filteredChallenges.size) + 1}/${filteredChallenges.size}",
+                                    fontSize = 12.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
+
+                        // Clue & Meaning Inner Neon Box
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFF06102C).copy(alpha = 0.92f),
+                            border = BorderStroke(
+                                1.3.dp,
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF0284C7), Color(0xFF38BDF8), Color(0xFF6366F1))
+                                )
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Lightbulb,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFACC15),
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                    Text(
+                                        text = "Clue & Meaning:",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF22D3EE)
+                                    )
+                                }
+                                Text(
+                                    text = current.hint,
+                                    fontSize = 14.5.sp,
+                                    lineHeight = 20.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White
+                                )
+                            }
+                        }
+
+                        // Word Letter Slots (Adaptive width keeping standard 8-9 letter words on one clean row)
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            val count = maxOf(1, targetWord.length)
+                            val spacing = if (count > 8) 3.dp else 5.dp
+                            val safeMaxWidth = (maxWidth - 4.dp).coerceAtLeast(180.dp)
+                            val computedSize = ((safeMaxWidth - (spacing * (count - 1))) / count)
+                                .coerceIn(24.dp, 38.dp)
+                            val slotFontSize = when {
+                                computedSize < 28.dp -> 13.sp
+                                computedSize < 34.dp -> 16.sp
+                                else -> 18.sp
+                            }
+
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                targetWord.forEachIndexed { idx, fixedChar ->
+                                    val isMissing = missingIndices.contains(idx)
+                                    val placedChoice = placedSlots[idx]
+
+                                    val slotBrush = when {
+                                        isVerified == true && isMissing -> Brush.verticalGradient(
+                                            listOf(Color(0xFF065F46), Color(0xFF064E3B))
+                                        )
+                                        isVerified == false && isMissing && placedChoice != null -> Brush.verticalGradient(
+                                            listOf(Color(0xFF7F1D1D), Color(0xFF450A0A))
+                                        )
+                                        isMissing && placedChoice != null -> Brush.verticalGradient(
+                                            listOf(Color(0xFF00B4FF), Color(0xFF0066FF))
+                                        )
+                                        isMissing -> Brush.verticalGradient(
+                                            listOf(Color(0xFF060E28), Color(0xFF081130))
+                                        )
+                                        else -> Brush.verticalGradient(
+                                            listOf(Color(0xFF172554), Color(0xFF0B1332))
+                                        )
+                                    }
+
+                                    val borderColor = when {
+                                        isVerified == true -> EmeraldSuccess
+                                        isVerified == false && isMissing -> CoralAccent
+                                        isMissing && placedChoice != null -> Color(0xFF7DD3FC)
+                                        isMissing -> Color(0xFF00D4FF)
+                                        else -> Color(0xFF3B82F6).copy(alpha = 0.55f)
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .size(computedSize)
+                                            .clip(RoundedCornerShape(if (computedSize < 30.dp) 7.dp else 9.dp))
+                                            .background(slotBrush)
+                                            .border(
+                                                width = if (isMissing) 1.7.dp else 1.2.dp,
+                                                color = borderColor,
+                                                shape = RoundedCornerShape(if (computedSize < 30.dp) 7.dp else 9.dp)
+                                            )
+                                            .clickable(enabled = isMissing && placedChoice != null) {
+                                                // Remove placed letter and restore into choice pool
+                                                if (placedChoice != null) {
+                                                    val updatedSlots = placedSlots.toMutableMap()
+                                                    updatedSlots[idx] = null
+                                                    placedSlots = updatedSlots
+
+                                                    choicePool = choicePool.map {
+                                                        if (it.id == placedChoice.id) it.copy(isUsed = false) else it
+                                                    }
+                                                    isVerified = null
+                                                }
+                                            }
+                                            .testTag("missing_letter_slot_$idx"),
+                                        contentAlignment = Alignment.Center
+                                    ) {
                                         val charText = when {
                                             !isMissing -> fixedChar.toString()
                                             placedChoice != null -> placedChoice.char.toString()
@@ -1264,136 +1578,287 @@ fun MissingLettersGame(viewModel: MainViewModel) {
                                         Text(
                                             text = charText,
                                             fontWeight = FontWeight.ExtraBold,
-                                            fontSize = fontSize,
+                                            fontSize = slotFontSize,
                                             color = when {
-                                                isVerified == true -> EmeraldSuccess
-                                                isVerified == false && placedChoice != null -> CoralAccent
-                                                isMissing && placedChoice != null -> RoyalBlue
-                                                isMissing -> MutedGray
-                                                else -> MaterialTheme.colorScheme.onSurface
+                                                isVerified == true -> Color(0xFF6EE7B7)
+                                                isVerified == false && isMissing && placedChoice != null -> Color(0xFFFCA5A5)
+                                                isMissing && placedChoice == null -> Color(0xFFBAE6FD)
+                                                else -> Color.White
                                             }
                                         )
                                     }
                                 }
                             }
                         }
-                    }
 
-                    Text("Tap letters below to fill blanks (tap a placed letter to undo):", fontSize = 11.sp, color = MutedGray)
-
-                    // Letter Choice Bank
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        choicePool.forEach { choice ->
-                            val isUsed = choice.isUsed
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isUsed) MaterialTheme.colorScheme.surfaceVariant else RoyalBlue,
+                        // Translucent Inner Panel for Tap Instruction + Letter Choice Bank
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFF121642).copy(alpha = 0.72f),
+                            border = BorderStroke(
+                                1.dp,
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color(0xFF4F46E5).copy(alpha = 0.45f),
+                                        Color(0xFF1E293B).copy(alpha = 0.35f)
+                                    )
+                                )
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
                                 modifier = Modifier
-                                    .size(42.dp)
-                                    .clickable(enabled = !isUsed) {
-                                        // Find first empty missing slot
-                                        val firstEmptySlot = missingIndices.sorted().firstOrNull { placedSlots[it] == null }
-                                        if (firstEmptySlot != null) {
-                                            val updatedSlots = placedSlots.toMutableMap()
-                                            updatedSlots[firstEmptySlot] = choice
-                                            placedSlots = updatedSlots
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Info,
+                                        contentDescription = null,
+                                        tint = Color(0xFFE2E8F0),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Text(
+                                        text = "Tap letters below to fill blanks (tap a placed letter to undo):",
+                                        fontSize = 11.5.sp,
+                                        color = Color(0xFFCBD5E1)
+                                    )
+                                }
 
-                                            choicePool = choicePool.map {
-                                                if (it.id == choice.id) it.copy(isUsed = true) else it
-                                            }
-                                            isVerified = null
+                                // Glossy Electric-Blue Letter Choice Bank
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    choicePool.forEach { choice ->
+                                        val isUsed = choice.isUsed
+                                        Box(
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(
+                                                    brush = if (isUsed) {
+                                                        Brush.verticalGradient(
+                                                            listOf(
+                                                                Color(0xFF0B112B).copy(alpha = 0.75f),
+                                                                Color(0xFF0A1026).copy(alpha = 0.75f)
+                                                            )
+                                                        )
+                                                    } else {
+                                                        Brush.verticalGradient(
+                                                            listOf(Color(0xFF00B4FF), Color(0xFF0066FF))
+                                                        )
+                                                    }
+                                                )
+                                                .border(
+                                                    width = 1.2.dp,
+                                                    color = if (isUsed) Color(0xFF334155) else Color(0xFF7DD3FC),
+                                                    shape = RoundedCornerShape(10.dp)
+                                                )
+                                                .clickable(enabled = !isUsed) {
+                                                    val firstEmptySlot = missingIndices.sorted().firstOrNull { placedSlots[it] == null }
+                                                    if (firstEmptySlot != null) {
+                                                        val updatedSlots = placedSlots.toMutableMap()
+                                                        updatedSlots[firstEmptySlot] = choice
+                                                        placedSlots = updatedSlots
+
+                                                        choicePool = choicePool.map {
+                                                            if (it.id == choice.id) it.copy(isUsed = true) else it
+                                                        }
+                                                        isVerified = null
+                                                    }
+                                                }
+                                                .testTag("missing_letter_choice_${choice.id}"),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = choice.char.toString(),
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 18.sp,
+                                                color = if (isUsed) Color(0xFF475569) else Color.White
+                                            )
                                         }
                                     }
+                                }
+                            }
+                        }
+
+                        // Action Buttons Row (Clear All + Verify Spelling Pill Buttons)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color(0xFF0B102E),
+                                border = BorderStroke(
+                                    1.3.dp,
+                                    Brush.horizontalGradient(
+                                        listOf(Color(0xFF64748B), Color(0xFF94A3B8), Color(0xFF475569))
+                                    )
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable {
+                                        placedSlots = missingIndices.associateWith { null }
+                                        choicePool = choicePool.map { it.copy(isUsed = false) }
+                                        isVerified = null
+                                    }
+                                    .testTag("missing_letters_clear_btn")
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Refresh,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
                                     Text(
-                                        text = choice.char.toString(),
+                                        text = "Clear All",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp,
-                                        color = if (isUsed) MutedGray else Color.White
+                                        fontSize = 14.sp,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.2.dp, Color(0xFF93C5FD).copy(alpha = 0.65f)),
+                                modifier = Modifier
+                                    .weight(1.25f)
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable {
+                                        val allFilled = missingIndices.all { placedSlots[it] != null }
+                                        if (!allFilled) {
+                                            isVerified = false
+                                            return@clickable
+                                        }
+                                        val assembled = targetWord.mapIndexed { idx, ch ->
+                                            if (missingIndices.contains(idx)) {
+                                                placedSlots[idx]?.char ?: ' '
+                                            } else {
+                                                ch
+                                            }
+                                        }.joinToString("")
+
+                                        if (assembled.equals(targetWord, ignoreCase = true)) {
+                                            isVerified = true
+                                            if (!hasAwarded) {
+                                                hasAwarded = true
+                                                viewModel.rewardGameWin(40, 15)
+                                            }
+                                            viewModel.speakAudio(targetWord)
+                                        } else {
+                                            isVerified = false
+                                        }
+                                    }
+                                    .testTag("missing_letters_verify_btn")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(
+                                                    Color(0xFFA855F7),
+                                                    Color(0xFF3B82F6),
+                                                    Color(0xFF00D4FF)
+                                                )
+                                            )
+                                        ),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "Verify Spelling",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp,
+                                        color = Color.White
                                     )
                                 }
                             }
                         }
-                    }
 
-                    // Action Buttons
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(
-                            onClick = {
-                                // Reset all slots and choice pool
-                                placedSlots = missingIndices.associateWith { null }
-                                choicePool = choicePool.map { it.copy(isUsed = false) }
-                                isVerified = null
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Clear All")
-                        }
-
-                        Button(
-                            onClick = {
-                                // Check if all slots are filled
-                                val allFilled = missingIndices.all { placedSlots[it] != null }
-                                if (!allFilled) {
-                                    isVerified = false
-                                    return@Button
-                                }
-                                val assembled = targetWord.mapIndexed { idx, ch ->
-                                    if (missingIndices.contains(idx)) {
-                                        placedSlots[idx]?.char ?: ' '
-                                    } else {
-                                        ch
-                                    }
-                                }.joinToString("")
-
-                                if (assembled.equals(targetWord, ignoreCase = true)) {
-                                    isVerified = true
-                                    if (!hasAwarded) {
-                                        hasAwarded = true
-                                        viewModel.rewardGameWin(40, 15)
-                                    }
-                                    viewModel.speakAudio(targetWord)
+                        // Verification Feedback
+                        isVerified?.let { correct ->
+                            Text(
+                                text = if (correct) {
+                                    "🎉 Correct! Perfect spelling."
                                 } else {
-                                    isVerified = false
-                                }
-                            },
-                            modifier = Modifier.weight(1.3f),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
-                        ) {
-                            Text("Verify Spelling")
+                                    "❌ Incorrect letter placed. Tap any placed tile to remove and retry!"
+                                },
+                                color = if (correct) EmeraldSuccess else CoralAccent,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center
+                            )
                         }
-                    }
 
-                    // Verification Feedback
-                    isVerified?.let { correct ->
-                        Text(
-                            text = if (correct) "🎉 Correct! Perfect spelling." else "❌ Incorrect letter placed. Tap any placed tile to remove and retry!",
-                            color = if (correct) EmeraldSuccess else CoralAccent,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    if (isVerified == true) {
-                        Button(
-                            onClick = {
-                                challengeIndex = (challengeIndex + 1) % filteredChallenges.size
-                                isVerified = null
-                                hasAwarded = false
-                            },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Next Word Challenge ➡️")
+                        if (isVerified == true) {
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.2.dp, Color(0xFF6EE7B7).copy(alpha = 0.7f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable {
+                                        challengeIndex = (challengeIndex + 1) % filteredChallenges.size
+                                        isVerified = null
+                                        hasAwarded = false
+                                    }
+                                    .testTag("missing_letters_next_btn")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color(0xFF10B981), Color(0xFF059669))
+                                            )
+                                        ),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = "Next Word Challenge",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.5.sp,
+                                        color = Color.White
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1401,6 +1866,7 @@ fun MissingLettersGame(viewModel: MainViewModel) {
         }
     }
 }
+
 
 // =========================================================================
 // 3. SENTENCE BUILDER GAME - Choose a Challenge Page + Pack-Scoped Gameplay
@@ -1952,133 +2418,883 @@ fun SentenceBuilderGame(
 // 4. LISTEN & CHOOSE GAME - Guarded single-award with answer reveal
 // =========================================================================
 @Composable
-fun ListenAndChooseGame(viewModel: MainViewModel) {
+fun ListenAndChooseGame(
+    viewModel: MainViewModel,
+    onClose: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
     val challenges by viewModel.listenChooseChallenges.collectAsState()
     var challengeIndex by remember { mutableIntStateOf(0) }
-    val current = challenges.getOrNull(challengeIndex) ?: return
+    val current = challenges.getOrNull(challengeIndex)
 
-    var selectedOption by remember(current.id) { mutableStateOf<Int?>(null) }
-    var hasAwarded by remember(current.id) { mutableStateOf(false) }
+    BackHandler {
+        onClose()
+    }
 
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth()
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xFF060921),
+                        Color(0xFF0C123B),
+                        Color(0xFF100930),
+                        Color(0xFF060418)
+                    )
+                )
+            )
     ) {
+        ArcadeBackgroundWaves()
+
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Glowing Cosmic Header Card
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = Color.Transparent,
+                border = BorderStroke(
+                    1.5.dp,
+                    Brush.horizontalGradient(
+                        listOf(Color(0xFFBAE6FD), Color(0xFF38BDF8), Color(0xFF6366F1))
+                    )
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("listen_choose_header_card")
             ) {
-                Text("Listening Comprehension Drill", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text(
-                    "${challengeIndex + 1}/${challenges.size}",
-                    fontSize = 12.sp,
-                    color = RoyalBlue,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Audio Player Controls
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = { viewModel.speakAudio(current.audioScript, slow = false) },
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
-                ) {
-                    Icon(Icons.Rounded.VolumeUp, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Play Audio 🔊", fontSize = 13.sp)
-                }
-
-                OutlinedButton(
-                    onClick = { viewModel.speakAudio(current.audioScript, slow = true) },
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text("🐢 Slow 0.75x", fontSize = 12.sp)
-                }
-            }
-
-            Text(
-                text = current.question,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            // Multiple Choice Options
-            current.options.forEachIndexed { index, opt ->
-                val isSelected = selectedOption == index
-                val isCorrectAnswer = index == current.correctIndex
-                val hasGuessed = selectedOption != null
-
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = when {
-                        hasGuessed && isCorrectAnswer -> Color(0xFFDCFCE7)
-                        isSelected && !isCorrectAnswer -> Color(0xFFFEE2E2)
-                        else -> MaterialTheme.colorScheme.surfaceVariant
-                    },
-                    border = BorderStroke(
-                        1.5.dp,
-                        when {
-                            hasGuessed && isCorrectAnswer -> EmeraldSuccess
-                            isSelected && !isCorrectAnswer -> CoralAccent
-                            else -> Color.Transparent
-                        }
-                    ),
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(enabled = selectedOption == null) {
-                            selectedOption = index
-                            if (index == current.correctIndex && !hasAwarded) {
-                                hasAwarded = true
-                                viewModel.rewardGameWin(40, 15)
-                            }
-                        }
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    Color(0xFF211B63).copy(alpha = 0.94f),
+                                    Color(0xFF151E54).copy(alpha = 0.92f),
+                                    Color(0xFF0C2A6E).copy(alpha = 0.94f)
+                                )
+                            )
+                        )
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
                 ) {
                     Row(
-                        modifier = Modifier.padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = opt,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp,
-                            color = when {
-                                hasGuessed && isCorrectAnswer -> Color(0xFF166534)
-                                isSelected && !isCorrectAnswer -> Color(0xFF991B1B)
-                                else -> MaterialTheme.colorScheme.onSurface
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (hasGuessed && isCorrectAnswer) {
-                            Text("✓ Correct", color = Color(0xFF166534), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        } else if (isSelected && !isCorrectAnswer) {
-                            Text("✗ Incorrect", color = CoralAccent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Glowing Headphones + Waveform Badge
+                            Box(
+                                modifier = Modifier
+                                    .size(50.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(
+                                        Brush.radialGradient(
+                                            listOf(
+                                                Color(0xFF38BDF8).copy(alpha = 0.35f),
+                                                Color(0xFF7C3AED).copy(alpha = 0.25f),
+                                                Color(0xFF13194A).copy(alpha = 0.85f)
+                                            )
+                                        )
+                                    )
+                                    .border(
+                                        1.2.dp,
+                                        Color(0xFF7DD3FC).copy(alpha = 0.65f),
+                                        RoundedCornerShape(14.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Headphones,
+                                    contentDescription = null,
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(30.dp)
+                                )
+                            }
+
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = "Listen & Choose",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 19.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Interactive Learning Challenge",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFCBD5E1),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color(0xFF93C5FD).copy(alpha = 0.8f),
+                                modifier = Modifier.size(18.dp)
+                            )
+
+                            Surface(
+                                shape = CircleShape,
+                                color = Color(0xFF0B133A).copy(alpha = 0.9f),
+                                border = BorderStroke(1.2.dp, Color(0xFF7DD3FC).copy(alpha = 0.8f)),
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .clickable { onClose() }
+                                    .testTag("close_game_button")
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = "Close Game",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            if (selectedOption != null) {
-                Button(
-                    onClick = {
-                        challengeIndex = (challengeIndex + 1) % challenges.size
-                        selectedOption = null
-                        hasAwarded = false
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+            if (current == null || challenges.isEmpty()) {
+                Card(
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    border = BorderStroke(
+                        1.5.dp,
+                        Brush.horizontalGradient(listOf(Color(0xFF38BDF8), Color(0xFFA855F7)))
+                    ),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Next Question ➡️")
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.verticalGradient(listOf(Color(0xFF090F2E), Color(0xFF141142)))
+                            )
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Headphones,
+                            contentDescription = null,
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(42.dp)
+                        )
+                        Text(
+                            text = "No listening drills available yet",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Teachers can add Listen & Choose drills from the Teacher Panel.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF94A3B8),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                var selectedOption by remember(current.id) { mutableStateOf<Int?>(null) }
+                var isVerified by remember(current.id) { mutableStateOf<Boolean?>(null) }
+                var missingSelectionWarning by remember(current.id) { mutableStateOf(false) }
+                var hasAwarded by remember(current.id) { mutableStateOf(false) }
+                var isSlowSpeed by remember { mutableStateOf(true) }
+                var showSpeedMenu by remember { mutableStateOf(false) }
+                var isWaveformPlaying by remember(current.id) { mutableStateOf(false) }
+
+                LaunchedEffect(isWaveformPlaying) {
+                    if (isWaveformPlaying) {
+                        delay(2600L)
+                        isWaveformPlaying = false
+                    }
+                }
+
+                Card(
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                    border = BorderStroke(
+                        1.8.dp,
+                        Brush.linearGradient(
+                            listOf(
+                                Color(0xFF8B5CF6),
+                                Color(0xFF3B82F6),
+                                Color(0xFF22D3EE),
+                                Color(0xFFA855F7)
+                            )
+                        )
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("listen_choose_main_card")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color(0xFF090F2E),
+                                        Color(0xFF0D153D),
+                                        Color(0xFF141142)
+                                    )
+                                )
+                            )
+                            .padding(horizontal = 14.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // Drill Title Pill + Counter Pill
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.2.dp, Color(0xFFA855F7).copy(alpha = 0.7f)),
+                                modifier = Modifier.weight(1f, fill = false)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(
+                                                    Color(0xFF4C1D95).copy(alpha = 0.9f),
+                                                    Color(0xFF2E1065).copy(alpha = 0.9f)
+                                                )
+                                            )
+                                        )
+                                        .padding(start = 5.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                Brush.linearGradient(
+                                                    listOf(Color(0xFFD946EF), Color(0xFF7C3AED))
+                                                )
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.TrackChanges,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(17.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = "Listening Comprehension Drill",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.width(8.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color(0xFF131A4A),
+                                border = BorderStroke(1.2.dp, Color(0xFF4F46E5).copy(alpha = 0.75f))
+                            ) {
+                                Text(
+                                    text = "${challengeIndex + 1} / ${challenges.size}",
+                                    fontSize = 12.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+
+                        // Audio Waveform Player Strip
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.Transparent,
+                            border = BorderStroke(
+                                1.2.dp,
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        Color(0xFF6366F1).copy(alpha = 0.6f),
+                                        Color(0xFF0284C7).copy(alpha = 0.6f)
+                                    )
+                                )
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(
+                                                Color(0xFF121A4B).copy(alpha = 0.94f),
+                                                Color(0xFF0B153D).copy(alpha = 0.94f)
+                                            )
+                                        )
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Glowing Circular Play Button
+                                Box(
+                                    modifier = Modifier
+                                        .size(54.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.linearGradient(
+                                                listOf(
+                                                    Color(0xFF38BDF8),
+                                                    Color(0xFF3B82F6),
+                                                    Color(0xFF9333EA)
+                                                )
+                                            )
+                                        )
+                                        .border(1.8.dp, Color(0xFFBAE6FD), CircleShape)
+                                        .clickable {
+                                            isWaveformPlaying = true
+                                            viewModel.speakAudio(current.audioScript, slow = isSlowSpeed)
+                                        }
+                                        .testTag("listen_choose_play_btn"),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.PlayArrow,
+                                        contentDescription = "Play Audio",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+
+                                // Glowing Waveform Visualization
+                                val barHeights = remember {
+                                    listOf(
+                                        0.28f, 0.45f, 0.35f, 0.68f, 0.50f,
+                                        0.85f, 0.96f, 0.60f, 0.92f, 0.72f,
+                                        0.84f, 0.52f, 0.75f, 0.42f, 0.56f,
+                                        0.30f, 0.24f
+                                    )
+                                }
+                                Canvas(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(42.dp)
+                                ) {
+                                    val barCount = barHeights.size
+                                    val barWidth = (size.width / (barCount * 1.9f)).coerceIn(2.dp.toPx(), 4.5.dp.toPx())
+                                    val totalBarsWidth = barCount * barWidth
+                                    val gap = ((size.width - totalBarsWidth) / maxOf(1, barCount - 1)).coerceAtLeast(2.dp.toPx())
+                                    val brush = Brush.horizontalGradient(
+                                        listOf(
+                                            Color(0xFF818CF8),
+                                            Color(0xFFA855F7),
+                                            Color(0xFF38BDF8),
+                                            Color(0xFF6366F1)
+                                        )
+                                    )
+                                    barHeights.forEachIndexed { idx, factor ->
+                                        val activeBoost = if (isWaveformPlaying && idx % 2 == 0) 1.0f else if (isWaveformPlaying) 0.85f else 1.0f
+                                        val h = (size.height * factor * activeBoost).coerceIn(4.dp.toPx(), size.height)
+                                        val x = idx * (barWidth + gap)
+                                        val y = (size.height - h) / 2f
+                                        drawRoundRect(
+                                            brush = brush,
+                                            topLeft = Offset(x, y),
+                                            size = Size(barWidth, h),
+                                            cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f),
+                                            alpha = if (idx >= barCount - 2) 0.4f else 0.95f
+                                        )
+                                    }
+                                }
+
+                                // Speed Selector Pill (0.75x / 1.0x)
+                                Box {
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = Color(0xFF0A143A),
+                                        border = BorderStroke(1.2.dp, Color(0xFF38BDF8).copy(alpha = 0.65f)),
+                                        modifier = Modifier
+                                            .heightIn(min = 42.dp)
+                                            .clip(RoundedCornerShape(50))
+                                            .clickable { showSpeedMenu = true }
+                                            .testTag("listen_choose_speed_btn")
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Speed,
+                                                contentDescription = "Playback Speed",
+                                                tint = Color(0xFF93C5FD),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = if (isSlowSpeed) "0.75x" else "1.0x",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.5.sp
+                                            )
+                                            Icon(
+                                                imageVector = Icons.Rounded.KeyboardArrowDown,
+                                                contentDescription = null,
+                                                tint = Color(0xFFCBD5E1),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+
+                                    DropdownMenu(
+                                        expanded = showSpeedMenu,
+                                        onDismissRequest = { showSpeedMenu = false },
+                                        modifier = Modifier.background(Color(0xFF0F1742))
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    "0.75x (Slow)",
+                                                    color = Color.White,
+                                                    fontWeight = if (isSlowSpeed) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            onClick = {
+                                                isSlowSpeed = true
+                                                showSpeedMenu = false
+                                                isWaveformPlaying = true
+                                                viewModel.speakAudio(current.audioScript, slow = true)
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    "1.0x (Normal)",
+                                                    color = Color.White,
+                                                    fontWeight = if (!isSlowSpeed) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            onClick = {
+                                                isSlowSpeed = false
+                                                showSpeedMenu = false
+                                                isWaveformPlaying = true
+                                                viewModel.speakAudio(current.audioScript, slow = false)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Question Row with Purple "?" Badge
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(top = 2.dp)
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(Color(0xFFC084FC), Color(0xFF7C3AED))
+                                        )
+                                    )
+                                    .border(
+                                        1.dp,
+                                        Color(0xFFE9D5FF).copy(alpha = 0.55f),
+                                        RoundedCornerShape(10.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Help,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            Text(
+                                text = current.question,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.5.sp,
+                                lineHeight = 22.sp,
+                                color = Color.White,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        // Multiple Choice Option Pills
+                        current.options.forEachIndexed { index, opt ->
+                            val isSelected = selectedOption == index
+                            val isCorrectAnswer = index == current.correctIndex
+                            val verifiedState = isVerified
+
+                            val (optIcon, optTint) = remember(opt, index) {
+                                val lower = opt.lowercase()
+                                when {
+                                    "airport" in lower || "plane" in lower || "flight" in lower ->
+                                        Icons.Rounded.Flight to Color(0xFF38BDF8)
+                                    "subway" in lower || "train" in lower || "bus" in lower || "station" in lower ->
+                                        Icons.Rounded.DirectionsTransit to Color(0xFF4ADE80)
+                                    "coffee" in lower || "cafe" in lower || "tea" in lower || "restaurant" in lower ->
+                                        Icons.Rounded.LocalCafe to Color(0xFFFB923C)
+                                    "library" in lower || "book" in lower || "school" in lower || "study" in lower ->
+                                        Icons.Rounded.MenuBook to Color(0xFFC084FC)
+                                    index % 4 == 0 -> Icons.Rounded.Flight to Color(0xFF38BDF8)
+                                    index % 4 == 1 -> Icons.Rounded.DirectionsTransit to Color(0xFF4ADE80)
+                                    index % 4 == 2 -> Icons.Rounded.LocalCafe to Color(0xFFFB923C)
+                                    else -> Icons.Rounded.MenuBook to Color(0xFFC084FC)
+                                }
+                            }
+
+                            val pillBackground = when {
+                                verifiedState != null && isCorrectAnswer -> Brush.horizontalGradient(
+                                    listOf(Color(0xFF065F46).copy(alpha = 0.88f), Color(0xFF064E3B).copy(alpha = 0.88f))
+                                )
+                                verifiedState == false && isSelected && !isCorrectAnswer -> Brush.horizontalGradient(
+                                    listOf(Color(0xFF7F1D1D).copy(alpha = 0.88f), Color(0xFF450A0A).copy(alpha = 0.88f))
+                                )
+                                isSelected -> Brush.horizontalGradient(
+                                    listOf(Color(0xFF1D4ED8).copy(alpha = 0.72f), Color(0xFF3B0764).copy(alpha = 0.72f))
+                                )
+                                else -> Brush.horizontalGradient(
+                                    listOf(
+                                        Color(0xFF0E1642).copy(alpha = 0.92f),
+                                        Color(0xFF141D52).copy(alpha = 0.88f)
+                                    )
+                                )
+                            }
+
+                            val pillBorder = when {
+                                verifiedState != null && isCorrectAnswer -> Brush.horizontalGradient(
+                                    listOf(EmeraldSuccess, Color(0xFF6EE7B7))
+                                )
+                                verifiedState == false && isSelected && !isCorrectAnswer -> Brush.horizontalGradient(
+                                    listOf(CoralAccent, Color(0xFFFCA5A5))
+                                )
+                                isSelected -> Brush.horizontalGradient(
+                                    listOf(Color(0xFF38BDF8), Color(0xFFA855F7))
+                                )
+                                else -> Brush.horizontalGradient(
+                                    listOf(
+                                        Color(0xFF38BDF8).copy(alpha = 0.55f),
+                                        Color(0xFF6366F1).copy(alpha = 0.5f)
+                                    )
+                                )
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color.Transparent,
+                                border = BorderStroke(if (isSelected || verifiedState != null) 1.6.dp else 1.2.dp, pillBorder),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 52.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable(enabled = verifiedState != true) {
+                                        selectedOption = index
+                                        missingSelectionWarning = false
+                                        if (verifiedState == false) {
+                                            isVerified = null
+                                        }
+                                    }
+                                    .testTag("listen_choose_option_$index")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(pillBackground)
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    // Radio Indicator Circle
+                                    Box(
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                when {
+                                                    verifiedState != null && isCorrectAnswer -> EmeraldSuccess
+                                                    verifiedState == false && isSelected -> CoralAccent
+                                                    isSelected -> Color(0xFF38BDF8)
+                                                    else -> Color.Transparent
+                                                }
+                                            )
+                                            .border(
+                                                width = 1.6.dp,
+                                                color = when {
+                                                    verifiedState != null && isCorrectAnswer -> Color(0xFF6EE7B7)
+                                                    verifiedState == false && isSelected -> Color(0xFFFCA5A5)
+                                                    isSelected -> Color(0xFFBAE6FD)
+                                                    else -> Color(0xFF93C5FD).copy(alpha = 0.85f)
+                                                },
+                                                shape = CircleShape
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (isSelected || (verifiedState != null && isCorrectAnswer)) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(8.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color.White)
+                                            )
+                                        }
+                                    }
+
+                                    Icon(
+                                        imageVector = optIcon,
+                                        contentDescription = null,
+                                        tint = optTint,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+
+                                    Text(
+                                        text = opt,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp,
+                                        color = Color.White,
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    when {
+                                        verifiedState != null && isCorrectAnswer -> {
+                                            Text(
+                                                text = "✓ Correct",
+                                                color = Color(0xFF6EE7B7),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                        verifiedState == false && isSelected && !isCorrectAnswer -> {
+                                            Text(
+                                                text = "✗ Retry",
+                                                color = Color(0xFFFCA5A5),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                        else -> {
+                                            Icon(
+                                                imageVector = Icons.Rounded.ChevronRight,
+                                                contentDescription = null,
+                                                tint = Color(0xFF93C5FD),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Action Buttons Row (Clear All + Verify Answer)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color(0xFF0B102E),
+                                border = BorderStroke(
+                                    1.3.dp,
+                                    Brush.horizontalGradient(
+                                        listOf(Color(0xFF64748B), Color(0xFF94A3B8), Color(0xFF475569))
+                                    )
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable {
+                                        selectedOption = null
+                                        isVerified = null
+                                        missingSelectionWarning = false
+                                    }
+                                    .testTag("listen_choose_clear_btn")
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Refresh,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "Clear All",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.2.dp, Color(0xFF93C5FD).copy(alpha = 0.65f)),
+                                modifier = Modifier
+                                    .weight(1.25f)
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable {
+                                        val picked = selectedOption
+                                        if (picked == null) {
+                                            missingSelectionWarning = true
+                                            return@clickable
+                                        }
+                                        missingSelectionWarning = false
+                                        val correct = picked == current.correctIndex
+                                        isVerified = correct
+                                        if (correct && !hasAwarded) {
+                                            hasAwarded = true
+                                            viewModel.rewardGameWin(40, 15)
+                                        }
+                                    }
+                                    .testTag("listen_choose_verify_btn")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(
+                                                    Color(0xFFA855F7),
+                                                    Color(0xFF3B82F6),
+                                                    Color(0xFF00D4FF)
+                                                )
+                                            )
+                                        ),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(19.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "Verify Answer",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+
+                        if (missingSelectionWarning) {
+                            Text(
+                                text = "Select one answer option above before verifying.",
+                                color = Color(0xFFFACC15),
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 12.5.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        isVerified?.let { correct ->
+                            Text(
+                                text = if (correct) {
+                                    "🎉 Great listening! You earned +40 XP & +15 Coins."
+                                } else {
+                                    "❌ Not quite right. Tap another option or Clear All to try again!"
+                                },
+                                color = if (correct) Color(0xFF6EE7B7) else Color(0xFFFCA5A5),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        if (isVerified != null) {
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = Color.Transparent,
+                                border = BorderStroke(1.2.dp, Color(0xFF6EE7B7).copy(alpha = 0.7f)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .clickable {
+                                        challengeIndex = (challengeIndex + 1) % challenges.size
+                                        selectedOption = null
+                                        isVerified = null
+                                        missingSelectionWarning = false
+                                        hasAwarded = false
+                                    }
+                                    .testTag("listen_choose_next_btn")
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color(0xFF10B981), Color(0xFF059669))
+                                            )
+                                        ),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = "Next Question",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.5.sp,
+                                        color = Color.White
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -3299,6 +4515,169 @@ fun FastVocabularyGame(
                     }
                 }
 
+                // My Progress Summary Card placed at the top of the page
+                val packIdsSet = remember(packs) { packs.map { it.id }.toSet() }
+                val playedCount = progress.playedPackIds.count { it in packIdsSet }
+
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFF1A0E3F).copy(alpha = 0.92f),
+                    border = BorderStroke(1.3.dp, Color(0xFF7C3AED).copy(alpha = 0.8f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("fv_my_progress_card")
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(1.dp)
+                                    .background(Color(0xFF7C3AED).copy(alpha = 0.55f))
+                            )
+                            Icon(
+                                imageVector = Icons.Rounded.EmojiEvents,
+                                contentDescription = null,
+                                tint = Color(0xFFFACC15),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "My Progress",
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(1.dp)
+                                    .background(Color(0xFF7C3AED).copy(alpha = 0.55f))
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Min),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 1. Challenges Played
+                            Row(
+                                modifier = Modifier.weight(1.1f),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.BarChart,
+                                    contentDescription = "Challenges Played",
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Challenges Played",
+                                        color = Color(0xFFCBD5E1),
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "$playedCount / ${packs.size}",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 15.sp
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .fillMaxHeight()
+                                    .padding(vertical = 4.dp)
+                                    .background(Color(0xFF4C1D95))
+                            )
+
+                            // 2. Total XP
+                            Row(
+                                modifier = Modifier
+                                    .weight(0.95f)
+                                    .padding(horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Star,
+                                    contentDescription = "Total XP",
+                                    tint = Color(0xFFFACC15),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Total XP",
+                                        color = Color(0xFFCBD5E1),
+                                        fontSize = 10.sp,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "${progress.totalXpEarned}",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 15.sp
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .fillMaxHeight()
+                                    .padding(vertical = 4.dp)
+                                    .background(Color(0xFF4C1D95))
+                            )
+
+                            // 3. Best Score
+                            Row(
+                                modifier = Modifier
+                                    .weight(0.95f)
+                                    .padding(start = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.MilitaryTech,
+                                    contentDescription = "Best Score",
+                                    tint = Color(0xFFF59E0B),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Best Score",
+                                        color = Color(0xFFCBD5E1),
+                                        fontSize = 10.sp,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = "${progress.bestScorePercent}%",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 15.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Hero Banner: Cosmic Owl on Left + Angled Ribbon & Subtitle on Right
                 Box(
                     modifier = Modifier
@@ -3306,6 +4685,7 @@ fun FastVocabularyGame(
                         .height(176.dp)
                         .clip(RoundedCornerShape(22.dp))
                         .background(Color(0xFF140738))
+                        .testTag("fv_hero_banner")
                 ) {
                     Image(
                         painter = painterResource(R.drawable.img_grammar_challenge_hero),
@@ -3593,169 +4973,6 @@ fun FastVocabularyGame(
                                 }
                                 if (rowPacks.size == 1) {
                                     Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // My Progress Summary Card (Challenges Played, Total XP, Best Score %)
-                val packIdsSet = remember(packs) { packs.map { it.id }.toSet() }
-                val playedCount = progress.playedPackIds.count { it in packIdsSet }
-
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color(0xFF1A0E3F).copy(alpha = 0.92f),
-                    border = BorderStroke(1.3.dp, Color(0xFF7C3AED).copy(alpha = 0.8f)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("fv_my_progress_card")
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(1.dp)
-                                    .background(Color(0xFF7C3AED).copy(alpha = 0.55f))
-                            )
-                            Icon(
-                                imageVector = Icons.Rounded.EmojiEvents,
-                                contentDescription = null,
-                                tint = Color(0xFFFACC15),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "My Progress",
-                                color = Color.White,
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 14.sp
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(1.dp)
-                                    .background(Color(0xFF7C3AED).copy(alpha = 0.55f))
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(IntrinsicSize.Min),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 1. Challenges Played
-                            Row(
-                                modifier = Modifier.weight(1.1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.BarChart,
-                                    contentDescription = "Challenges Played",
-                                    tint = Color(0xFF38BDF8),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Column {
-                                    Text(
-                                        text = "Challenges Played",
-                                        color = Color(0xFFCBD5E1),
-                                        fontSize = 10.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = "$playedCount / ${packs.size}",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 15.sp
-                                    )
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .width(1.dp)
-                                    .fillMaxHeight()
-                                    .padding(vertical = 4.dp)
-                                    .background(Color(0xFF4C1D95))
-                            )
-
-                            // 2. Total XP
-                            Row(
-                                modifier = Modifier
-                                    .weight(0.95f)
-                                    .padding(horizontal = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Star,
-                                    contentDescription = "Total XP",
-                                    tint = Color(0xFFFACC15),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Column {
-                                    Text(
-                                        text = "Total XP",
-                                        color = Color(0xFFCBD5E1),
-                                        fontSize = 10.sp,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = "${progress.totalXpEarned}",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 15.sp
-                                    )
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .width(1.dp)
-                                    .fillMaxHeight()
-                                    .padding(vertical = 4.dp)
-                                    .background(Color(0xFF4C1D95))
-                            )
-
-                            // 3. Best Score
-                            Row(
-                                modifier = Modifier
-                                    .weight(0.95f)
-                                    .padding(start = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.MilitaryTech,
-                                    contentDescription = "Best Score",
-                                    tint = Color(0xFFF59E0B),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Column {
-                                    Text(
-                                        text = "Best Score",
-                                        color = Color(0xFFCBD5E1),
-                                        fontSize = 10.sp,
-                                        maxLines = 1
-                                    )
-                                    Text(
-                                        text = "${progress.bestScorePercent}%",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 15.sp
-                                    )
                                 }
                             }
                         }

@@ -470,61 +470,7 @@ private fun VocabularyChallengeSelectionView(
                 }
             }
 
-            // Progress Card
-            item {
-                val clearedCount = enabledConfigs.count { it.activityType.name in progress.completedModes }
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF130E35)),
-                    border = BorderStroke(1.2.dp, Color(0xFF7C3AED).copy(alpha = 0.7f)),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("vocab_challenge_progress_card")
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "🏆 My Vocabulary Progress",
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 14.sp,
-                            color = Color.White
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            ProgressMetric(
-                                label = "Modes Cleared",
-                                value = "$clearedCount / ${maxOf(1, enabledConfigs.size)}",
-                                color = Color(0xFF38BDF8)
-                            )
-                            ProgressMetric(
-                                label = "Total XP",
-                                value = "${progress.totalXpEarned}",
-                                color = Color(0xFFFACC15)
-                            )
-                            ProgressMetric(
-                                label = "Best Score",
-                                value = "${progress.bestAccuracyPercent}%",
-                                color = Color(0xFF34D399)
-                            )
-                        }
-                    }
-                }
-            }
         }
-    }
-}
-
-@Composable
-private fun ProgressMetric(label: String, value: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = color)
-        Text(text = label, fontSize = 11.sp, color = Color(0xFFCBD5E1))
     }
 }
 

@@ -438,6 +438,9 @@ class ExampleRobolectricTest {
       )
     }
 
+    composeTestRule.onNodeWithTag("vocab_challenge_progress_card").assertDoesNotExist()
+    composeTestRule.onNodeWithText("🏆 My Vocabulary Progress").assertDoesNotExist()
+
     composeTestRule.onNodeWithTag("vocab_challenge_modes_list")
       .performScrollToNode(hasTestTag("vocab_mode_card_picture_matching"))
     composeTestRule.onNodeWithTag("vocab_mode_card_picture_matching").assertIsDisplayed()
@@ -1316,6 +1319,11 @@ class ExampleRobolectricTest {
     }
     composeTestRule.waitForIdle()
 
+    // 0. Removed sub-tab pill bar (Topics Path / AI Coach / Daily Challenge) is no longer displayed
+    composeTestRule.onNodeWithTag("speaking_tab_topics_path").assertDoesNotExist()
+    composeTestRule.onNodeWithTag("speaking_tab_ai_coach").assertDoesNotExist()
+    composeTestRule.onNodeWithTag("speaking_tab_daily_challenge").assertDoesNotExist()
+
     // 1. Phonetics hero card shows Indian Female Voice selector and opens Voice Studio
     composeTestRule.onNodeWithTag("phonetics_voice_selector_btn").assertIsDisplayed().performClick()
     composeTestRule.waitForIdle()
@@ -1493,7 +1501,120 @@ class ExampleRobolectricTest {
     assertFalse(ttsManager.hasPendingSpeechForTesting())
     ttsManager.shutdown()
   }
+
+  @Test
+  fun `conversation topics roadmap omits removed mode switcher pill bar`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val vm = MainViewModel(app)
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    vm.selectStudentTab(StudentTab.PRACTICE)
+    vm.selectSpeakingSubTab(SpeakingSubTab.TOPICS_ROADMAP)
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.ConversationTopicsRoadmapScreen(
+        viewModel = vm,
+        onTopicSelected = {},
+        onOpenCoachDirectly = {}
+      )
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Week 1").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Topics Path").assertDoesNotExist()
+    composeTestRule.onNodeWithText("English Adventure").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Phonetics").assertDoesNotExist()
+    composeTestRule.onNodeWithText("Daily Challenge").assertDoesNotExist()
+  }
+
+  @Test
+  fun `fast vocabulary challenge displays my progress card above hero banner and pack grid`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val vm = MainViewModel(app)
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    vm.launchGame(com.example.ui.ActiveGameType.FAST_VOCABULARY)
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.GamesHubScreen(viewModel = vm)
+    }
+    composeTestRule.waitForIdle()
+
+    val progressBounds = composeTestRule.onNodeWithTag("fv_my_progress_card")
+      .assertIsDisplayed()
+      .fetchSemanticsNode()
+      .boundsInRoot
+    val heroBounds = composeTestRule.onNodeWithTag("fv_hero_banner")
+      .assertIsDisplayed()
+      .fetchSemanticsNode()
+      .boundsInRoot
+    val gridBounds = composeTestRule.onNodeWithTag("fv_challenge_packs_grid")
+      .fetchSemanticsNode()
+      .boundsInRoot
+
+    assertTrue(progressBounds.bottom <= heroBounds.top + 1f)
+    assertTrue(progressBounds.bottom <= gridBounds.top + 1f)
+  }
+
+  @Test
+  fun `missing letters redesigned cosmic screen keeps elephant slots on single row and renders header and actions`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val vm = MainViewModel(app)
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    vm.launchGame(com.example.ui.ActiveGameType.MISSING_LETTERS)
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.GamesHubScreen(viewModel = vm)
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("missing_letters_header_card").assertIsDisplayed()
+    composeTestRule.onNodeWithText("abc").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Missing Letters").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("missing_letters_category_row").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("missing_letters_challenge_card").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Complete Spelling:").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Clue & Meaning:").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("missing_letters_clear_btn").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("missing_letters_verify_btn").assertIsDisplayed()
+
+    // First default challenge (ELEPHANT, 8 chars) should fit on a single horizontal row
+    val firstSlotBounds = composeTestRule.onNodeWithTag("missing_letter_slot_0")
+      .fetchSemanticsNode()
+      .boundsInRoot
+    val lastSlotBounds = composeTestRule.onNodeWithTag("missing_letter_slot_7")
+      .fetchSemanticsNode()
+      .boundsInRoot
+    assertTrue(kotlin.math.abs(firstSlotBounds.top - lastSlotBounds.top) < 2f)
+  }
+
+  @Test
+  fun `listen and choose redesigned cosmic screen renders waveform player, options, clear and verify answer`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val vm = MainViewModel(app)
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    vm.launchGame(com.example.ui.ActiveGameType.LISTEN_CHOOSE)
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.GamesHubScreen(viewModel = vm)
+    }
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("listen_choose_header_card").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Listen & Choose").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("listen_choose_main_card").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Listening Comprehension Drill").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("listen_choose_play_btn").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("listen_choose_speed_btn").assertIsDisplayed()
+    composeTestRule.onNodeWithText("0.75x").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("listen_choose_clear_btn").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("listen_choose_verify_btn").assertIsDisplayed()
+
+    val firstChallenge = vm.listenChooseChallenges.value.first()
+    val correctOptTag = "listen_choose_option_${firstChallenge.correctIndex}"
+    composeTestRule.onNodeWithTag(correctOptTag).performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("listen_choose_verify_btn").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("listen_choose_next_btn").performScrollTo().assertIsDisplayed()
+  }
 }
-
-
 

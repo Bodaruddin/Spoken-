@@ -37,11 +37,9 @@ import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BusinessCenter
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.School
-import androidx.compose.material.icons.rounded.TrackChanges
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -72,7 +70,6 @@ import com.example.R
 import com.example.data.model.SpeakingPrompt
 import com.example.data.model.SpeakingWeek
 import com.example.ui.MainViewModel
-import com.example.ui.SpeakingSubTab
 import com.example.ui.StudentTab
 
 private data class TopicCardVisualStyle(
@@ -140,7 +137,6 @@ private fun resolveTopicCardStyle(
  * - Transparent ambient overlay letting the cosmic purple-navy theme shine through.
  * - Top bar with streak counter, vertical divider, glowing Random Topic pill, and profile shortcut.
  * - Illuminated Section 1 / Week 1 hero card with Nova AI robot banner art.
- * - Sleek pill switcher (Topics Path, English Adventure, Phonetics, plus extra modes).
  * - Full-width dark-glass topic cards with glowing neon circular icon badges and chevron buttons.
  * - Floating glowing "Nova AI" pill in the bottom-right corner.
  */
@@ -471,53 +467,7 @@ fun ConversationTopicsRoadmapScreen(
 
                 Spacer(Modifier.height(12.dp))
 
-                // 3. Mode Pill Switcher Row (Topics Path, English Adventure, Phonetics, ...)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RoadmapModePill(
-                        title = "Topics Path",
-                        emoji = "🗺️",
-                        icon = Icons.Rounded.Explore,
-                        isSelected = true,
-                        onClick = {}
-                    )
-                    RoadmapModePill(
-                        title = "English Adventure",
-                        emoji = "🏝️",
-                        isSelected = false,
-                        onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.ENGLISH_ADVENTURE) }
-                    )
-                    RoadmapModePill(
-                        title = "Phonetics",
-                        emoji = "🎯",
-                        icon = Icons.Rounded.TrackChanges,
-                        iconTint = Color(0xFFF43F5E),
-                        isSelected = false,
-                        onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.PRONUNCIATION_COACH) }
-                    )
-                    RoadmapModePill(
-                        title = "Nova AI Chat",
-                        emoji = "🤖",
-                        iconRes = R.drawable.img_nova_ai_robot,
-                        isSelected = false,
-                        onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.AI_PARTNER) }
-                    )
-                    RoadmapModePill(
-                        title = "Daily Challenge",
-                        emoji = "⚡",
-                        isSelected = false,
-                        onClick = { viewModel.selectSpeakingSubTab(SpeakingSubTab.DAILY_CHALLENGE) }
-                    )
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                // 4. Vertical List of Cosmic Glass Topic Cards
+                // 3. Vertical List of Cosmic Glass Topic Cards
                 if (weekPrompts.isEmpty()) {
                     Surface(
                         shape = RoundedCornerShape(20.dp),
@@ -784,83 +734,6 @@ private fun FloatingNovaAiPillButton(
                 color = Color.White,
                 fontSize = 13.5.sp,
                 fontWeight = FontWeight.ExtraBold
-            )
-        }
-    }
-}
-
-@Composable
-private fun RoadmapModePill(
-    title: String,
-    emoji: String,
-    isSelected: Boolean,
-    icon: ImageVector? = null,
-    iconTint: Color = Color.White,
-    iconRes: Int? = null,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = Color.Transparent,
-        border = BorderStroke(
-            width = 1.2.dp,
-            color = if (isSelected) Color(0xFFD8B4FE).copy(alpha = 0.85f) else Color(0xFF283462)
-        ),
-        modifier = Modifier
-            .defaultMinSize(minHeight = 38.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .clickable { onClick() }
-    ) {
-        Row(
-            modifier = Modifier
-                .background(
-                    if (isSelected) {
-                        Brush.horizontalGradient(
-                            listOf(Color(0xFF9333EA), Color(0xFF6366F1))
-                        )
-                    } else {
-                        Brush.horizontalGradient(
-                            listOf(
-                                Color(0xFF0E1433).copy(alpha = 0.88f),
-                                Color(0xFF0B1028).copy(alpha = 0.92f)
-                            )
-                        )
-                    }
-                )
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            when {
-                iconRes != null -> {
-                    Image(
-                        painter = painterResource(id = iconRes),
-                        contentDescription = title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(16.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                    )
-                }
-                icon != null -> {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = if (isSelected) Color.White else iconTint,
-                        modifier = Modifier.size(15.dp)
-                    )
-                }
-                else -> {
-                    Text(text = emoji, fontSize = 13.sp)
-                }
-            }
-            Text(
-                text = title,
-                fontSize = 12.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) Color.White else Color(0xFFCBD5E1),
-                maxLines = 1,
-                softWrap = false
             )
         }
     }
