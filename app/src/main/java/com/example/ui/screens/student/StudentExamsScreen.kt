@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Exam
 import com.example.data.model.ExamQuestion
+import com.example.data.model.ExamQuestionType
 import com.example.data.model.ExamSubmission
 import com.example.ui.MainViewModel
 import com.example.ui.theme.*
@@ -158,7 +159,7 @@ fun StudentExamsScreen(
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text("🎓", fontSize = 18.sp)
                                 Text(
-                                    text = "MCQ Examination Center",
+                                    text = "Online Examination Center",
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 18.sp,
                                     color = Color.White
@@ -508,7 +509,7 @@ private fun ExamCard(
             ) {
                 ParamBadge(icon = Icons.Rounded.Timer, label = "${exam.durationMinutes} Mins")
                 VerticalDivider(modifier = Modifier.height(18.dp), color = Color(0xFF1E293B))
-                ParamBadge(icon = Icons.Rounded.Quiz, label = "${exam.questionsCount} MCQs")
+                ParamBadge(icon = Icons.Rounded.Quiz, label = exam.questionBreakdownLabel)
                 VerticalDivider(modifier = Modifier.height(18.dp), color = Color(0xFF1E293B))
                 ParamBadge(icon = Icons.Rounded.Scoreboard, label = "${exam.totalMarks} Marks")
                 VerticalDivider(modifier = Modifier.height(18.dp), color = Color(0xFF1E293B))
@@ -517,11 +518,23 @@ private fun ExamCard(
 
             // Completed State vs Start State
             if (isCompleted && submission != null) {
+                val isPendingReview = submission.gradingStatus == "PENDING_REVIEW"
                 // Completed Summary Strip
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = if (submission.isPassed) Color(0xFF0A2E1F) else Color(0xFF2E1313),
-                    border = BorderStroke(1.dp, if (submission.isPassed) EmeraldSuccess else CoralAccent),
+                    color = when {
+                        isPendingReview -> Color(0xFF172554)
+                        submission.isPassed -> Color(0xFF0A2E1F)
+                        else -> Color(0xFF2E1313)
+                    },
+                    border = BorderStroke(
+                        1.dp,
+                        when {
+                            isPendingReview -> Color(0xFF38BDF8)
+                            submission.isPassed -> EmeraldSuccess
+                            else -> CoralAccent
+                        }
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -529,18 +542,41 @@ private fun ExamCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(if (submission.isPassed) "🏆" else "⚠️", fontSize = 16.sp)
                                 Text(
-                                    text = if (submission.isPassed) "Passed • Grade ${submission.grade}" else "Needs Improvement",
+                                    when {
+                                        isPendingReview -> "⏳"
+                                        submission.isPassed -> "🏆"
+                                        else -> "⚠️"
+                                    },
+                                    fontSize = 16.sp
+                                )
+                                Text(
+                                    text = when {
+                                        isPendingReview -> "Submitted • Pending Teacher Grading"
+                                        submission.isPassed -> "Passed • Grade ${submission.grade}"
+                                        else -> "Needs Improvement"
+                                    },
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
-                                    color = if (submission.isPassed) EmeraldSuccess else CoralAccent
+                                    color = when {
+                                        isPendingReview -> Color(0xFF7DD3FC)
+                                        submission.isPassed -> EmeraldSuccess
+                                        else -> CoralAccent
+                                    }
                                 )
                             }
                             Text(
-                                text = "Score: ${submission.scoreObtained}/${submission.totalMarks} (${submission.percentage}%) • Cert ID: ${submission.certificateId}",
+                                text = if (isPendingReview) {
+                                    if (exam.mcqCount > 0) {
+                                        "MCQ Score so far: ${submission.scoreObtained}/${submission.totalMarks} • Written answers sent to teacher"
+                                    } else {
+                                        "Your written answers have been submitted for teacher review"
+                                    }
+                                } else {
+                                    "Score: ${submission.scoreObtained}/${submission.totalMarks} (${submission.percentage}%) • Cert ID: ${submission.certificateId}"
+                                },
                                 fontSize = 11.sp,
                                 color = Color(0xFFE2E8F0)
                             )
@@ -548,12 +584,16 @@ private fun ExamCard(
 
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (submission.isPassed) EmeraldSuccess else CoralAccent
+                            color = when {
+                                isPendingReview -> Color(0xFF0284C7)
+                                submission.isPassed -> EmeraldSuccess
+                                else -> CoralAccent
+                            }
                         ) {
                             Text(
-                                text = "${submission.percentage}%",
+                                text = if (isPendingReview) "REVIEW" else "${submission.percentage}%",
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 13.sp,
+                                fontSize = if (isPendingReview) 11.sp else 13.sp,
                                 color = Color.White,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
@@ -702,7 +742,12 @@ private fun ExamCard(
                                     color = Color(0xFFCBD5E1)
                                 )
                             } else {
-                                Text("Start MCQ Exam", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                Text(
+                                    text = if (exam.hasLongQuestions) "Start Exam" else "Start MCQ Exam",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = Color.White
+                                )
                                 Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                             }
                         }
@@ -764,12 +809,13 @@ private fun MetricPill(
 internal fun LiveExamModal(
     exam: Exam,
     onDismiss: () -> Unit,
-    onSubmit: (selectedAnswers: Map<String, Int>, timeTakenSeconds: Int) -> Unit
+    onSubmit: (selectedAnswers: Map<String, Int>, writtenAnswers: Map<String, String>, timeTakenSeconds: Int) -> Unit
 ) {
     val context = LocalContext.current
     var hasStarted by remember { mutableStateOf(false) }
     var currentQuestionIndex by remember { mutableStateOf(0) }
     val selectedAnswers = remember { mutableStateMapOf<String, Int>() }
+    val writtenAnswers = remember { mutableStateMapOf<String, String>() }
     var timeRemainingSeconds by remember(exam.id) { mutableIntStateOf(exam.durationMinutes * 60) }
     var effectiveDurationSeconds by remember(exam.id) { mutableIntStateOf(exam.durationMinutes * 60) }
     var showSubmitConfirmation by remember { mutableStateOf(false) }
@@ -812,7 +858,7 @@ internal fun LiveExamModal(
             override fun onFinish() {
                 timeRemainingSeconds = 0
                 // Auto-submit exam when timer or access window reaches 0
-                onSubmit(selectedAnswers.toMap(), effectiveDurationSeconds)
+                onSubmit(selectedAnswers.toMap(), writtenAnswers.toMap(), effectiveDurationSeconds)
             }
         }.start()
 
@@ -938,7 +984,11 @@ internal fun LiveExamModal(
                         items(exam.questions.size) { idx ->
                             val q = exam.questions[idx]
                             val isCurrent = idx == currentQuestionIndex
-                            val isAnswered = selectedAnswers.containsKey(q.id)
+                            val isAnswered = if (q.questionType == ExamQuestionType.LONG_ANSWER) {
+                                !writtenAnswers[q.id].isNullOrBlank()
+                            } else {
+                                selectedAnswers.containsKey(q.id)
+                            }
 
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
@@ -973,6 +1023,8 @@ internal fun LiveExamModal(
                     // Question Content Card
                     currentQuestion?.let { q ->
                         val selectedOpt = selectedAnswers[q.id]
+                        val currentWritten = writtenAnswers[q.id] ?: ""
+                        val isLongQuestion = q.questionType == ExamQuestionType.LONG_ANSWER
 
                         Card(
                             shape = RoundedCornerShape(20.dp),
@@ -989,23 +1041,45 @@ internal fun LiveExamModal(
                                     .verticalScroll(rememberScrollState()),
                                 verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
-                                // Question Number & Points
+                                // Question Number, Type Badge & Points
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF1E293B)
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            text = "Question ${currentQuestionIndex + 1}",
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF93C5FD),
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFF1E293B)
+                                        ) {
+                                            Text(
+                                                text = "Question ${currentQuestionIndex + 1}",
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF93C5FD),
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = if (isLongQuestion) Color(0xFF312E81) else Color(0xFF0F2537),
+                                            border = BorderStroke(
+                                                1.dp,
+                                                if (isLongQuestion) Color(0xFFA78BFA).copy(alpha = 0.6f) else Color(0xFF0284C7).copy(alpha = 0.5f)
+                                            )
+                                        ) {
+                                            Text(
+                                                text = if (isLongQuestion) "✍️ Written Answer" else "MCQ",
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isLongQuestion) Color(0xFFE9D5FF) else Color(0xFF7DD3FC),
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
+                                        }
                                     }
 
                                     Text(
@@ -1027,62 +1101,134 @@ internal fun LiveExamModal(
 
                                 Spacer(Modifier.height(4.dp))
 
-                                // Options A, B, C, D
-                                val optionLetters = listOf("A", "B", "C", "D")
-                                q.options.forEachIndexed { optIdx, optText ->
-                                    val isSelected = selectedOpt == optIdx
-                                    val letter = optionLetters.getOrElse(optIdx) { "${optIdx + 1}" }
+                                if (isLongQuestion) {
+                                    val wordCount = remember(currentWritten) {
+                                        currentWritten.trim().split(Regex("\\s+")).count { it.isNotBlank() }
+                                    }
 
                                     Surface(
-                                        shape = RoundedCornerShape(14.dp),
-                                        color = if (isSelected) Color(0xFF1E3A8A).copy(alpha = 0.6f) else Color(0xFF070B1F),
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = Color(0xFF070B1F),
                                         border = BorderStroke(
-                                            1.5.dp,
-                                            if (isSelected) Color(0xFF38BDF8) else Color(0xFF1E293B)
+                                            1.4.dp,
+                                            if (currentWritten.isNotBlank()) Color(0xFF8B5CF6) else Color(0xFF1E293B)
                                         ),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(14.dp))
-                                            .clickable { selectedAnswers[q.id] = optIdx }
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Row(
+                                        Column(
                                             modifier = Modifier.padding(14.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            verticalArrangement = Arrangement.spacedBy(10.dp)
                                         ) {
-                                            // Letter Circle Badge
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(30.dp)
-                                                    .clip(CircleShape)
-                                                    .background(
-                                                        if (isSelected) Color(0xFF38BDF8) else Color(0xFF1E293B)
-                                                    ),
-                                                contentAlignment = Alignment.Center
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
-                                                    text = letter,
-                                                    fontSize = 12.sp,
+                                                    text = "Your Answer Box",
+                                                    fontSize = 12.5.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = if (isSelected) Color(0xFF090D26) else Color(0xFFCBD5E1)
+                                                    color = Color(0xFFC4B5FD)
+                                                )
+                                                Text(
+                                                    text = "$wordCount words • ${currentWritten.length} chars",
+                                                    fontSize = 11.sp,
+                                                    color = Color(0xFF94A3B8)
                                                 )
                                             }
 
-                                            Text(
-                                                text = optText,
-                                                fontSize = 14.sp,
-                                                color = if (isSelected) Color.White else Color(0xFFCBD5E1),
-                                                modifier = Modifier.weight(1f)
+                                            OutlinedTextField(
+                                                value = currentWritten,
+                                                onValueChange = { writtenAnswers[q.id] = it },
+                                                placeholder = {
+                                                    Text(
+                                                        "Write your detailed answer clearly inside this box...",
+                                                        fontSize = 13.5.sp,
+                                                        color = Color(0xFF64748B)
+                                                    )
+                                                },
+                                                minLines = 7,
+                                                maxLines = 14,
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedContainerColor = Color(0xFF0B132B),
+                                                    unfocusedContainerColor = Color(0xFF0B132B),
+                                                    focusedBorderColor = Color(0xFF8B5CF6),
+                                                    unfocusedBorderColor = Color(0xFF334155),
+                                                    focusedTextColor = Color.White,
+                                                    unfocusedTextColor = Color.White,
+                                                    cursorColor = Color(0xFF38BDF8)
+                                                ),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .testTag("exam_long_answer_input_${q.id}")
                                             )
 
-                                            RadioButton(
-                                                selected = isSelected,
-                                                onClick = { selectedAnswers[q.id] = optIdx },
-                                                colors = RadioButtonDefaults.colors(
-                                                    selectedColor = Color(0xFF38BDF8),
-                                                    unselectedColor = Color(0xFF475569)
-                                                )
+                                            Text(
+                                                text = "Tip: Write in complete sentences. Your teacher will review and award up to ${q.marks} marks.",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF94A3B8)
                                             )
+                                        }
+                                    }
+                                } else {
+                                    // Options A, B, C, D
+                                    val optionLetters = listOf("A", "B", "C", "D")
+                                    q.options.forEachIndexed { optIdx, optText ->
+                                        val isSelected = selectedOpt == optIdx
+                                        val letter = optionLetters.getOrElse(optIdx) { "${optIdx + 1}" }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(14.dp),
+                                            color = if (isSelected) Color(0xFF1E3A8A).copy(alpha = 0.6f) else Color(0xFF070B1F),
+                                            border = BorderStroke(
+                                                1.5.dp,
+                                                if (isSelected) Color(0xFF38BDF8) else Color(0xFF1E293B)
+                                            ),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .clickable { selectedAnswers[q.id] = optIdx }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(14.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            ) {
+                                                // Letter Circle Badge
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(30.dp)
+                                                        .clip(CircleShape)
+                                                        .background(
+                                                            if (isSelected) Color(0xFF38BDF8) else Color(0xFF1E293B)
+                                                        ),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = letter,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isSelected) Color(0xFF090D26) else Color(0xFFCBD5E1)
+                                                    )
+                                                }
+
+                                                Text(
+                                                    text = optText,
+                                                    fontSize = 14.sp,
+                                                    color = if (isSelected) Color.White else Color(0xFFCBD5E1),
+                                                    modifier = Modifier.weight(1f)
+                                                )
+
+                                                RadioButton(
+                                                    selected = isSelected,
+                                                    onClick = { selectedAnswers[q.id] = optIdx },
+                                                    colors = RadioButtonDefaults.colors(
+                                                        selectedColor = Color(0xFF38BDF8),
+                                                        unselectedColor = Color(0xFF475569)
+                                                    )
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1140,8 +1286,14 @@ internal fun LiveExamModal(
 
     // Submit Confirmation Dialog
     if (showSubmitConfirmation) {
-        val answeredCount = selectedAnswers.size
-        val unansweredCount = exam.questionsCount - answeredCount
+        val answeredCount = exam.questions.count { q ->
+            if (q.questionType == ExamQuestionType.LONG_ANSWER) {
+                !writtenAnswers[q.id].isNullOrBlank()
+            } else {
+                selectedAnswers.containsKey(q.id)
+            }
+        }
+        val unansweredCount = (exam.questionsCount - answeredCount).coerceAtLeast(0)
 
         AlertDialog(
             onDismissRequest = { showSubmitConfirmation = false },
@@ -1156,7 +1308,13 @@ internal fun LiveExamModal(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Text("Once submitted, your final marks and verified certificate will be generated immediately.")
+                    Text(
+                        if (exam.hasLongQuestions) {
+                            "Your written answers will be sent to your teacher for review and final grading."
+                        } else {
+                            "Once submitted, your final marks and verified certificate will be generated immediately."
+                        }
+                    )
                 }
             },
             confirmButton = {
@@ -1164,9 +1322,10 @@ internal fun LiveExamModal(
                     onClick = {
                         showSubmitConfirmation = false
                         val timeTaken = (effectiveDurationSeconds - timeRemainingSeconds).coerceAtLeast(1)
-                        onSubmit(selectedAnswers.toMap(), timeTaken)
+                        onSubmit(selectedAnswers.toMap(), writtenAnswers.toMap(), timeTaken)
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess)
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                    modifier = Modifier.testTag("exam_confirm_submit_btn")
                 ) {
                     Text("Confirm & Submit", color = Color.White, fontWeight = FontWeight.Bold)
                 }
@@ -1283,7 +1442,15 @@ private fun PreExamBriefing(
                             desc = "Exam automatically hides from the student panel once this window ends."
                         )
                     }
-                    RuleItem(icon = Icons.Rounded.Quiz, title = "${exam.questionsCount} Multiple Choice Questions", desc = "Each question carries ${exam.questions.firstOrNull()?.marks ?: 5} marks. Total marks: ${exam.totalMarks}.")
+                    RuleItem(
+                        icon = Icons.Rounded.Quiz,
+                        title = "${exam.questionBreakdownLabel} (${exam.questionsCount} Total)",
+                        desc = if (exam.hasLongQuestions) {
+                            "Includes written answer questions evaluated by your teacher. Total marks: ${exam.totalMarks}."
+                        } else {
+                            "Each question carries ${exam.questions.firstOrNull()?.marks ?: 5} marks. Total marks: ${exam.totalMarks}."
+                        }
+                    )
                     RuleItem(icon = Icons.Rounded.WorkspacePremium, title = "Pass Criteria: ${exam.passingPercentage}% (${exam.passingMarks} Marks)", desc = "Score ${exam.passingPercentage}% or above to generate your official Verified Certificate.")
                     RuleItem(icon = Icons.Rounded.Download, title = "PDF Certificate Download", desc = "Includes your score, award grade, official seal, and faculty digital signatures.")
                 }
@@ -1413,6 +1580,8 @@ internal fun ExamReviewDialog(
                     }
                 }
 
+                val isPendingReview = submission.gradingStatus == "PENDING_REVIEW"
+
                 // Review Score Banner
                 Card(
                     shape = RoundedCornerShape(16.dp),
@@ -1420,31 +1589,68 @@ internal fun ExamReviewDialog(
                     border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier.padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column {
-                            Text(exam.title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                            Text("Score: ${submission.scoreObtained}/${submission.totalMarks} (${submission.percentage}%) • Grade ${submission.grade}", fontSize = 12.sp, color = Color(0xFF38BDF8))
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (submission.isPassed) EmeraldSuccess else CoralAccent
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (submission.isPassed) "PASSED" else "RETAKE",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                color = Color.White,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(exam.title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                Text(
+                                    if (isPendingReview) {
+                                        "Written answers submitted • Current score: ${submission.scoreObtained}/${submission.totalMarks}"
+                                    } else {
+                                        "Score: ${submission.scoreObtained}/${submission.totalMarks} (${submission.percentage}%) • Grade ${submission.grade}"
+                                    },
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF38BDF8)
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = when {
+                                    isPendingReview -> Color(0xFF0284C7)
+                                    submission.isPassed -> EmeraldSuccess
+                                    else -> CoralAccent
+                                }
+                            ) {
+                                Text(
+                                    text = when {
+                                        isPendingReview -> "PENDING"
+                                        submission.isPassed -> "PASSED"
+                                        else -> "RETAKE"
+                                    },
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
+                        if (submission.teacherFeedback.isNotBlank()) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF0F172A),
+                                border = BorderStroke(1.dp, Color(0xFF334155)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "👩‍🏫 Teacher Feedback: ${submission.teacherFeedback}",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFFFDE68A),
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
                         }
                     }
                 }
 
-                // Questions List with Student's Choices vs Correct Answer
+                // Questions List with Student's Choices / Written Answers vs Expected / Correct Answer
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
@@ -1453,113 +1659,215 @@ internal fun ExamReviewDialog(
                 ) {
                     items(exam.questions.size) { qIdx ->
                         val q = exam.questions[qIdx]
-                        val selectedOptIdx = submission.selectedAnswers[q.id]
-                        val isCorrect = selectedOptIdx != null && selectedOptIdx == q.correctOptionIndex
 
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFF0B132B)),
-                            border = BorderStroke(
-                                1.dp,
-                                if (isCorrect) EmeraldSuccess.copy(alpha = 0.4f) else CoralAccent.copy(alpha = 0.4f)
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                        if (q.questionType == ExamQuestionType.LONG_ANSWER) {
+                            val studentAnswer = submission.writtenAnswers[q.id].orEmpty()
+                            val awardedScore = submission.longAnswerScores[q.id]
+
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B132B)),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isPendingReview) Color(0xFF8B5CF6).copy(alpha = 0.55f)
+                                    else EmeraldSuccess.copy(alpha = 0.45f)
+                                ),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Text(
-                                        "Question ${qIdx + 1} (${q.marks} Marks)",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF93C5FD)
-                                    )
-                                    Text(
-                                        text = if (isCorrect) "✓ Correct (+${q.marks})" else "✗ Incorrect (0)",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        color = if (isCorrect) EmeraldSuccess else CoralAccent
-                                    )
-                                }
-
-                                Text(q.question, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
-
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    val letters = listOf("A", "B", "C", "D")
-                                    q.options.forEachIndexed { optIdx, optText ->
-                                        val isChosen = selectedOptIdx == optIdx
-                                        val isTheCorrectOne = q.correctOptionIndex == optIdx
-
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = when {
-                                                isTheCorrectOne -> EmeraldSuccess.copy(alpha = 0.2f)
-                                                isChosen && !isTheCorrectOne -> CoralAccent.copy(alpha = 0.2f)
-                                                else -> Color.Transparent
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "Question ${qIdx + 1} • Written (${q.marks} Marks)",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = Color(0xFFC4B5FD)
+                                        )
+                                        Text(
+                                            text = if (isPendingReview || awardedScore == null) {
+                                                "⏳ Pending Review"
+                                            } else {
+                                                "Scored: $awardedScore / ${q.marks}"
                                             },
-                                            border = BorderStroke(
-                                                1.dp,
-                                                when {
-                                                    isTheCorrectOne -> EmeraldSuccess
-                                                    isChosen && !isTheCorrectOne -> CoralAccent
-                                                    else -> Color(0xFF1E293B)
-                                                }
-                                            ),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
+                                            color = if (isPendingReview || awardedScore == null) Color(0xFF7DD3FC) else EmeraldSuccess
+                                        )
+                                    }
+
+                                    Text(q.question, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
+
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFF090D26),
+                                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(10.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                "Your Written Answer:",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF93C5FD)
+                                            )
+                                            Text(
+                                                text = studentAnswer.ifBlank { "(No answer submitted)" },
+                                                fontSize = 12.5.sp,
+                                                color = if (studentAnswer.isBlank()) Color(0xFF64748B) else Color.White
+                                            )
+                                        }
+                                    }
+
+                                    if (q.expectedAnswer.isNotBlank()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = Color(0xFF06281E),
+                                            border = BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.4f)),
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
-                                            Row(
-                                                modifier = Modifier.padding(8.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                            ) {
-                                                Text(
-                                                    "${letters.getOrElse(optIdx) { "" }}.",
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 12.sp,
-                                                    color = when {
+                                            Text(
+                                                text = "📘 Model Answer: ${q.expectedAnswer}",
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFFA7F3D0),
+                                                modifier = Modifier.padding(10.dp)
+                                            )
+                                        }
+                                    }
+
+                                    if (q.explanation.isNotBlank()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFF0F172A),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = "💡 Note: ${q.explanation}",
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFF38BDF8),
+                                                modifier = Modifier.padding(8.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            val selectedOptIdx = submission.selectedAnswers[q.id]
+                            val isCorrect = selectedOptIdx != null && selectedOptIdx == q.correctOptionIndex
+
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF0B132B)),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isCorrect) EmeraldSuccess.copy(alpha = 0.4f) else CoralAccent.copy(alpha = 0.4f)
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "Question ${qIdx + 1} (${q.marks} Marks)",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF93C5FD)
+                                        )
+                                        Text(
+                                            text = if (isCorrect) "✓ Correct (+${q.marks})" else "✗ Incorrect (0)",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
+                                            color = if (isCorrect) EmeraldSuccess else CoralAccent
+                                        )
+                                    }
+
+                                    Text(q.question, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        val letters = listOf("A", "B", "C", "D")
+                                        q.options.forEachIndexed { optIdx, optText ->
+                                            val isChosen = selectedOptIdx == optIdx
+                                            val isTheCorrectOne = q.correctOptionIndex == optIdx
+
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = when {
+                                                    isTheCorrectOne -> EmeraldSuccess.copy(alpha = 0.2f)
+                                                    isChosen && !isTheCorrectOne -> CoralAccent.copy(alpha = 0.2f)
+                                                    else -> Color.Transparent
+                                                },
+                                                border = BorderStroke(
+                                                    1.dp,
+                                                    when {
                                                         isTheCorrectOne -> EmeraldSuccess
                                                         isChosen && !isTheCorrectOne -> CoralAccent
-                                                        else -> Color(0xFF94A3B8)
+                                                        else -> Color(0xFF1E293B)
                                                     }
-                                                )
-                                                Text(
-                                                    optText,
-                                                    fontSize = 12.5.sp,
-                                                    color = when {
-                                                        isTheCorrectOne -> Color.White
-                                                        isChosen && !isTheCorrectOne -> Color(0xFFFCA5A5)
-                                                        else -> Color(0xFF94A3B8)
-                                                    },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                if (isTheCorrectOne) {
-                                                    Text("✓ Correct Answer", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = EmeraldSuccess)
-                                                } else if (isChosen) {
-                                                    Text("Your Choice", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CoralAccent)
+                                                ),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Text(
+                                                        "${letters.getOrElse(optIdx) { "" }}.",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 12.sp,
+                                                        color = when {
+                                                            isTheCorrectOne -> EmeraldSuccess
+                                                            isChosen && !isTheCorrectOne -> CoralAccent
+                                                            else -> Color(0xFF94A3B8)
+                                                        }
+                                                    )
+                                                    Text(
+                                                        optText,
+                                                        fontSize = 12.5.sp,
+                                                        color = when {
+                                                            isTheCorrectOne -> Color.White
+                                                            isChosen && !isTheCorrectOne -> Color(0xFFFCA5A5)
+                                                            else -> Color(0xFF94A3B8)
+                                                        },
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    if (isTheCorrectOne) {
+                                                        Text("✓ Correct Answer", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = EmeraldSuccess)
+                                                    } else if (isChosen) {
+                                                        Text("Your Choice", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = CoralAccent)
+                                                    }
                                                 }
                                             }
                                         }
                                     }
-                                }
 
-                                if (q.explanation.isNotBlank()) {
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF0F172A),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(
-                                            text = "💡 Explanation: ${q.explanation}",
-                                            fontSize = 11.5.sp,
-                                            color = Color(0xFF38BDF8),
-                                            modifier = Modifier.padding(8.dp)
-                                        )
+                                    if (q.explanation.isNotBlank()) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFF0F172A),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = "💡 Explanation: ${q.explanation}",
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFF38BDF8),
+                                                modifier = Modifier.padding(8.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }

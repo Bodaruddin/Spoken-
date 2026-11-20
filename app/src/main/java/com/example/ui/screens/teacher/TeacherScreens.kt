@@ -4715,7 +4715,7 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                         .padding(end = 8.dp)
                 ) {
                     Text(
-                        text = "MCQ Examination Management",
+                        text = "Examination Management",
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp,
                         color = Color.White,
@@ -4723,7 +4723,7 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "Create timed tests, assign marks & award certificates",
+                        text = "Create MCQ & written tests, grade answers & award certs",
                         fontSize = 11.sp,
                         color = Color(0xFF94A3B8),
                         maxLines = 1,
@@ -4734,7 +4734,8 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                     onClick = { showCreateExamDialog = true },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.testTag("teacher_create_exam_btn")
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
                     Spacer(Modifier.width(4.dp))
@@ -4976,7 +4977,7 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("⏱️ ${exam.durationMinutes} Mins", fontSize = 11.sp, color = Color(0xFF38BDF8), fontWeight = FontWeight.Bold)
-                        Text("📝 ${exam.questionsCount} MCQs", fontSize = 11.sp, color = Color(0xFFCBD5E1))
+                        Text("📝 ${exam.questionBreakdownLabel}", fontSize = 11.sp, color = Color(0xFFCBD5E1))
                         Text("🎯 ${exam.totalMarks} Marks", fontSize = 11.sp, color = AmberGold, fontWeight = FontWeight.Bold)
                         Text("🏆 Pass: ${exam.passingPercentage}%", fontSize = 11.sp, color = EmeraldSuccess)
                     }
@@ -5059,7 +5060,7 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
         }
     }
 
-    // --- Create MCQ Exam Dialog ---
+    // --- Create Exam Dialog (MCQ & Long Answer) ---
     if (showCreateExamDialog) {
         TeacherCreateOrEditExamDialog(
             academicClasses = academicClasses,
@@ -5067,13 +5068,13 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
             onDismiss = { showCreateExamDialog = false },
             onExamSaved = { savedExam ->
                 showCreateExamDialog = false
-                toastMsg = "Published exam '${savedExam.title}' (${savedExam.questionsCount} MCQs, ${savedExam.durationMinutes} mins)!"
+                toastMsg = "Published exam '${savedExam.title}' (${savedExam.questionBreakdownLabel}, ${savedExam.durationMinutes} mins)!"
             },
             viewModel = viewModel
         )
     }
 
-    // --- Edit Existing MCQ Exam Dialog ---
+    // --- Edit Existing Exam Dialog ---
     editingExam?.let { examToEdit ->
         TeacherCreateOrEditExamDialog(
             academicClasses = academicClasses,
@@ -5086,6 +5087,8 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
             viewModel = viewModel
         )
     }
+
+    var submissionToGrade by remember { mutableStateOf<Pair<Exam, ExamSubmission>?>(null) }
 
     // --- Submissions & Results Dialog ---
     selectedExamForSubmissions?.let { exam ->
@@ -5110,43 +5113,88 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(submissionsForExam) { sub ->
+                            val isPending = sub.gradingStatus == "PENDING_REVIEW"
+                            val hasWrittenToReview = exam.hasLongQuestions || sub.writtenAnswers.isNotEmpty()
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = Color(0xFF0F172A),
-                                border = BorderStroke(1.dp, if (sub.isPassed) EmeraldSuccess.copy(alpha = 0.5f) else Color(0xFF334155)),
+                                border = BorderStroke(
+                                    1.dp,
+                                    when {
+                                        isPending -> Color(0xFF38BDF8).copy(alpha = 0.65f)
+                                        sub.isPassed -> EmeraldSuccess.copy(alpha = 0.5f)
+                                        else -> Color(0xFF334155)
+                                    }
+                                ),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
+                                Column(
                                     modifier = Modifier.padding(10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(sub.studentAvatar, fontSize = 20.sp)
-                                        Column {
-                                            Text(sub.studentName, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
-                                            Text(
-                                                "Class ${sub.studentClass} • Score: ${sub.scoreObtained}/${sub.totalMarks} (${sub.percentage}%) • Grade ${sub.grade}",
-                                                fontSize = 10.5.sp,
-                                                color = Color(0xFF94A3B8)
-                                            )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text(sub.studentAvatar, fontSize = 20.sp)
+                                            Column {
+                                                Text(sub.studentName, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
+                                                Text(
+                                                    if (isPending) {
+                                                        "Class ${sub.studentClass} • ⏳ Needs Written Grading"
+                                                    } else {
+                                                        "Class ${sub.studentClass} • Score: ${sub.scoreObtained}/${sub.totalMarks} (${sub.percentage}%) • Grade ${sub.grade}"
+                                                    },
+                                                    fontSize = 10.5.sp,
+                                                    color = if (isPending) Color(0xFF7DD3FC) else Color(0xFF94A3B8)
+                                                )
+                                            }
                                         }
                                     }
 
-                                    if (sub.isPassed) {
-                                        Button(
-                                            onClick = { selectedSubmissionForCert = sub },
-                                            shape = RoundedCornerShape(8.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = AmberGold),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                                        ) {
-                                            Icon(Icons.Rounded.WorkspacePremium, contentDescription = null, tint = Color(0xFF78350F), modifier = Modifier.size(13.dp))
-                                            Spacer(Modifier.width(3.dp))
-                                            Text("Certificate", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF78350F))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (hasWrittenToReview) {
+                                            Button(
+                                                onClick = { submissionToGrade = exam to sub },
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (isPending) Color(0xFF2563EB) else Color(0xFF1E293B)
+                                                ),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                                modifier = Modifier.testTag("teacher_grade_submission_btn_${sub.id}")
+                                            ) {
+                                                Icon(Icons.Rounded.RateReview, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    if (isPending) "Grade Written" else "Edit Grade",
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+
+                                        if (sub.isPassed && !isPending) {
+                                            Button(
+                                                onClick = { selectedSubmissionForCert = sub },
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = AmberGold),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                            ) {
+                                                Icon(Icons.Rounded.WorkspacePremium, contentDescription = null, tint = Color(0xFF78350F), modifier = Modifier.size(13.dp))
+                                                Spacer(Modifier.width(3.dp))
+                                                Text("Certificate", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF78350F))
+                                            }
                                         }
                                     }
                                 }
@@ -5158,6 +5206,26 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
             confirmButton = {
                 TextButton(onClick = { selectedExamForSubmissions = null }) {
                     Text("Close")
+                }
+            }
+        )
+    }
+
+    // --- Teacher Written Answer Grading Dialog ---
+    submissionToGrade?.let { (examToGrade, subToGrade) ->
+        TeacherGradeWrittenExamDialog(
+            exam = examToGrade,
+            submission = subToGrade,
+            onDismiss = { submissionToGrade = null },
+            onSaveGrade = { scoresMap, feedback ->
+                val graded = viewModel.gradeExamSubmission(
+                    submissionId = subToGrade.id,
+                    longAnswerScores = scoresMap,
+                    teacherFeedback = feedback
+                )
+                submissionToGrade = null
+                if (graded != null) {
+                    toastMsg = "Graded ${graded.studentName}: ${graded.scoreObtained}/${graded.totalMarks} (${graded.percentage}%)"
                 }
             }
         )
@@ -5236,12 +5304,14 @@ private fun TeacherCreateOrEditExamDialog(
 
     // Form inputs for adding or editing a single question
     var editingQuestionIndex by remember { mutableStateOf<Int?>(null) }
+    var currentQuestionType by remember { mutableStateOf(ExamQuestionType.MCQ) }
     var currentQuestionText by remember { mutableStateOf("") }
     var optA by remember { mutableStateOf("") }
     var optB by remember { mutableStateOf("") }
     var optC by remember { mutableStateOf("") }
     var optD by remember { mutableStateOf("") }
     var correctOptIndex by remember { mutableIntStateOf(0) }
+    var expectedLongAnswer by remember { mutableStateOf("") }
     var marksForQuestion by remember { mutableIntStateOf(5) }
     var questionExplanation by remember { mutableStateOf("") }
 
@@ -5255,12 +5325,12 @@ private fun TeacherCreateOrEditExamDialog(
                 Text(if (isEditing) "✏️" else "📝", fontSize = 20.sp)
                 Column {
                     Text(
-                        text = if (isEditing) "Edit MCQ Examination" else "Create MCQ Examination",
+                        text = if (isEditing) "Edit Examination" else "Create Examination",
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
                     Text(
-                        text = "Define duration, student access time & questions",
+                        text = "Add MCQ or Long Written Questions & set schedule",
                         fontSize = 11.5.sp,
                         color = Color(0xFF94A3B8)
                     )
@@ -5627,6 +5697,7 @@ private fun TeacherCreateOrEditExamDialog(
                 // Added Questions List View (with Edit & Remove controls)
                 questionsList.forEachIndexed { qIndex, q ->
                     val isBeingEdited = editingQuestionIndex == qIndex
+                    val isLongQ = q.questionType == ExamQuestionType.LONG_ANSWER
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = if (isBeingEdited) Color(0xFF172554) else Color(0xFF0F172A),
@@ -5638,31 +5709,54 @@ private fun TeacherCreateOrEditExamDialog(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = if (isLongQ) Color(0xFF312E81) else Color(0xFF0F2537)
+                                    ) {
+                                        Text(
+                                            text = if (isLongQ) "WRITTEN" else "MCQ",
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = if (isLongQ) Color(0xFFE9D5FF) else Color(0xFF7DD3FC),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                    Text(
+                                        "Q${qIndex + 1}: ${q.question}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                                 Text(
-                                    "Q${qIndex + 1}: ${q.question}",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    "Correct: Option ${listOf("A", "B", "C", "D").getOrElse(q.correctOptionIndex) { "" }} • ${q.marks} Marks",
+                                    text = if (isLongQ) {
+                                        "Long Written Answer Box • ${q.marks} Marks"
+                                    } else {
+                                        "Correct: Option ${listOf("A", "B", "C", "D").getOrElse(q.correctOptionIndex) { "" }} • ${q.marks} Marks"
+                                    },
                                     fontSize = 10.5.sp,
-                                    color = EmeraldSuccess
+                                    color = if (isLongQ) Color(0xFFC4B5FD) else EmeraldSuccess
                                 )
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(
                                     onClick = {
                                         editingQuestionIndex = qIndex
+                                        currentQuestionType = q.questionType
                                         currentQuestionText = q.question
                                         optA = q.options.getOrElse(0) { "" }
                                         optB = q.options.getOrElse(1) { "" }
                                         optC = q.options.getOrElse(2) { "" }
                                         optD = q.options.getOrElse(3) { "" }
                                         correctOptIndex = q.correctOptionIndex
+                                        expectedLongAnswer = q.expectedAnswer
                                         marksForQuestion = q.marks
                                         questionExplanation = q.explanation
                                     },
@@ -5715,6 +5809,7 @@ private fun TeacherCreateOrEditExamDialog(
                                         optB = ""
                                         optC = ""
                                         optD = ""
+                                        expectedLongAnswer = ""
                                         questionExplanation = ""
                                     },
                                     contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
@@ -5724,64 +5819,160 @@ private fun TeacherCreateOrEditExamDialog(
                             }
                         }
 
+                        // Question Type Toggle (MCQ vs Long Written Answer)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Question Format:", fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FilterChip(
+                                    selected = currentQuestionType == ExamQuestionType.MCQ,
+                                    onClick = {
+                                        currentQuestionType = ExamQuestionType.MCQ
+                                        if (marksForQuestion > 10) marksForQuestion = 5
+                                    },
+                                    label = {
+                                        Text(
+                                            "MCQ (Options)",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFF0284C7),
+                                        selectedLabelColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("question_type_mcq_chip")
+                                )
+                                FilterChip(
+                                    selected = currentQuestionType == ExamQuestionType.LONG_ANSWER,
+                                    onClick = {
+                                        currentQuestionType = ExamQuestionType.LONG_ANSWER
+                                        if (marksForQuestion < 5) marksForQuestion = 10
+                                    },
+                                    label = {
+                                        Text(
+                                            "Long Answer (Box)",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFF7C3AED),
+                                        selectedLabelColor = Color.White
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("question_type_long_chip")
+                                )
+                            }
+                        }
+
                         OutlinedTextField(
                             value = currentQuestionText,
                             onValueChange = { currentQuestionText = it },
-                            placeholder = { Text("Enter question prompt...", fontSize = 12.sp) },
-                            modifier = Modifier.fillMaxWidth(),
-                            minLines = 2
+                            placeholder = {
+                                Text(
+                                    if (currentQuestionType == ExamQuestionType.LONG_ANSWER) {
+                                        "Enter essay / long question prompt..."
+                                    } else {
+                                        "Enter question prompt..."
+                                    },
+                                    fontSize = 12.sp
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("exam_question_prompt_input"),
+                            minLines = if (currentQuestionType == ExamQuestionType.LONG_ANSWER) 3 else 2
                         )
 
-                        // 4 Option Inputs
-                        OutlinedTextField(
-                            value = optA,
-                            onValueChange = { optA = it },
-                            label = { Text("Option A") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = optB,
-                            onValueChange = { optB = it },
-                            label = { Text("Option B") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = optC,
-                            onValueChange = { optC = it },
-                            label = { Text("Option C") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = optD,
-                            onValueChange = { optD = it },
-                            label = { Text("Option D") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        // Correct Option Selector
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("Which option is correct?", fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
-                            Row(
+                        if (currentQuestionType == ExamQuestionType.MCQ) {
+                            // 4 Option Inputs
+                            OutlinedTextField(
+                                value = optA,
+                                onValueChange = { optA = it },
+                                label = { Text("Option A") },
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf("A", "B", "C", "D").forEachIndexed { idx, label ->
-                                    FilterChip(
-                                        selected = correctOptIndex == idx,
-                                        onClick = { correctOptIndex = idx },
-                                        label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = EmeraldSuccess,
-                                            selectedLabelColor = Color.White
-                                        ),
-                                        modifier = Modifier.weight(1f)
-                                    )
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = optB,
+                                onValueChange = { optB = it },
+                                label = { Text("Option B") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = optC,
+                                onValueChange = { optC = it },
+                                label = { Text("Option C") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = optD,
+                                onValueChange = { optD = it },
+                                label = { Text("Option D") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+
+                            // Correct Option Selector
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text("Which option is correct?", fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    listOf("A", "B", "C", "D").forEachIndexed { idx, label ->
+                                        FilterChip(
+                                            selected = correctOptIndex == idx,
+                                            onClick = { correctOptIndex = idx },
+                                            label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = EmeraldSuccess,
+                                                selectedLabelColor = Color.White
+                                            ),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
                                 }
                             }
+                        } else {
+                            // Long Answer Question Config
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF1E1B4B).copy(alpha = 0.6f),
+                                border = BorderStroke(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.45f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "✍️ Students will see a multi-line Answer Box to type their full written response.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFE9D5FF),
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
+
+                            OutlinedTextField(
+                                value = expectedLongAnswer,
+                                onValueChange = { expectedLongAnswer = it },
+                                label = { Text("Model / Expected Answer (Optional)") },
+                                placeholder = {
+                                    Text(
+                                        "Key points or sample answer for grading & student review...",
+                                        fontSize = 11.sp
+                                    )
+                                },
+                                minLines = 3,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("exam_long_expected_answer_input")
+                            )
                         }
 
                         // Marks for this question
@@ -5791,8 +5982,13 @@ private fun TeacherCreateOrEditExamDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("Marks:", fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                            val markOptions = if (currentQuestionType == ExamQuestionType.LONG_ANSWER) {
+                                listOf(5, 10, 15, 20)
+                            } else {
+                                listOf(2, 5, 10)
+                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                listOf(2, 5, 10).forEach { m ->
+                                markOptions.forEach { m ->
                                     FilterChip(
                                         selected = marksForQuestion == m,
                                         onClick = { marksForQuestion = m },
@@ -5805,29 +6001,56 @@ private fun TeacherCreateOrEditExamDialog(
                         OutlinedTextField(
                             value = questionExplanation,
                             onValueChange = { questionExplanation = it },
-                            label = { Text("Explanation (Optional)") },
+                            label = {
+                                Text(
+                                    if (currentQuestionType == ExamQuestionType.LONG_ANSWER) {
+                                        "Grading Note / Tip (Optional)"
+                                    } else {
+                                        "Explanation (Optional)"
+                                    }
+                                )
+                            },
                             placeholder = { Text("Rationale displayed in review", fontSize = 11.sp) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
 
+                        val canAddQuestion = currentQuestionText.isNotBlank() &&
+                            (currentQuestionType == ExamQuestionType.LONG_ANSWER ||
+                                (optA.isNotBlank() && optB.isNotBlank()))
+
                         Button(
                             onClick = {
-                                if (currentQuestionText.isNotBlank() && optA.isNotBlank() && optB.isNotBlank()) {
+                                if (canAddQuestion) {
                                     val editIdx = editingQuestionIndex
-                                    val newQuestion = ExamQuestion(
-                                        id = if (editIdx != null) questionsList[editIdx].id else "q_${System.currentTimeMillis()}_${questionsList.size}",
-                                        question = currentQuestionText.trim(),
-                                        options = listOf(
-                                            optA.trim(),
-                                            optB.trim(),
-                                            optC.ifBlank { "None of the above" }.trim(),
-                                            optD.ifBlank { "All of the above" }.trim()
-                                        ),
-                                        correctOptionIndex = correctOptIndex,
-                                        marks = marksForQuestion,
-                                        explanation = questionExplanation.trim()
-                                    )
+                                    val newQuestion = if (currentQuestionType == ExamQuestionType.LONG_ANSWER) {
+                                        ExamQuestion(
+                                            id = if (editIdx != null) questionsList[editIdx].id else "q_${System.currentTimeMillis()}_${questionsList.size}",
+                                            question = currentQuestionText.trim(),
+                                            options = emptyList(),
+                                            correctOptionIndex = 0,
+                                            marks = marksForQuestion,
+                                            explanation = questionExplanation.trim(),
+                                            questionType = ExamQuestionType.LONG_ANSWER,
+                                            expectedAnswer = expectedLongAnswer.trim()
+                                        )
+                                    } else {
+                                        ExamQuestion(
+                                            id = if (editIdx != null) questionsList[editIdx].id else "q_${System.currentTimeMillis()}_${questionsList.size}",
+                                            question = currentQuestionText.trim(),
+                                            options = listOf(
+                                                optA.trim(),
+                                                optB.trim(),
+                                                optC.ifBlank { "None of the above" }.trim(),
+                                                optD.ifBlank { "All of the above" }.trim()
+                                            ),
+                                            correctOptionIndex = correctOptIndex,
+                                            marks = marksForQuestion,
+                                            explanation = questionExplanation.trim(),
+                                            questionType = ExamQuestionType.MCQ,
+                                            expectedAnswer = ""
+                                        )
+                                    }
                                     if (editIdx != null && editIdx in questionsList.indices) {
                                         questionsList[editIdx] = newQuestion
                                         editingQuestionIndex = null
@@ -5840,17 +6063,25 @@ private fun TeacherCreateOrEditExamDialog(
                                     optB = ""
                                     optC = ""
                                     optD = ""
+                                    expectedLongAnswer = ""
                                     questionExplanation = ""
                                 }
                             },
+                            enabled = canAddQuestion,
                             shape = RoundedCornerShape(10.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("add_exam_question_btn")
                         ) {
                             Icon(if (editingQuestionIndex != null) Icons.Rounded.Check else Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(4.dp))
                             Text(
-                                text = if (editingQuestionIndex != null) "Update Question Q${editingQuestionIndex!! + 1}" else "Add Question to Exam",
+                                text = when {
+                                    editingQuestionIndex != null -> "Update Question Q${editingQuestionIndex!! + 1}"
+                                    currentQuestionType == ExamQuestionType.LONG_ANSWER -> "Add Long Question to Exam"
+                                    else -> "Add MCQ Question to Exam"
+                                },
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 12.sp
                             )
@@ -5944,6 +6175,228 @@ private fun TeacherCreateOrEditExamDialog(
             }
         )
     }
+}
+
+@Composable
+private fun TeacherGradeWrittenExamDialog(
+    exam: Exam,
+    submission: ExamSubmission,
+    onDismiss: () -> Unit,
+    onSaveGrade: (longAnswerScores: Map<String, Int>, teacherFeedback: String) -> Unit
+) {
+    val longQuestions = remember(exam.id) {
+        exam.questions.filter { it.questionType == ExamQuestionType.LONG_ANSWER }
+    }
+    val scoresMap = remember(submission.id) {
+        mutableStateMapOf<String, Int>().apply {
+            longQuestions.forEach { q ->
+                put(q.id, submission.longAnswerScores[q.id] ?: 0)
+            }
+        }
+    }
+    var teacherFeedback by remember(submission.id) { mutableStateOf(submission.teacherFeedback) }
+
+    val mcqEarned = remember(exam.id, submission.id) {
+        exam.questions
+            .filter { it.questionType == ExamQuestionType.MCQ }
+            .sumOf { q ->
+                if (submission.selectedAnswers[q.id] == q.correctOptionIndex) q.marks else 0
+            }
+    }
+    val longEarned = longQuestions.sumOf { q -> scoresMap[q.id] ?: 0 }
+    val previewTotal = mcqEarned + longEarned
+    val maxTotal = exam.questions.sumOf { it.marks }.let { if (it > 0) it else submission.totalMarks }
+    val previewPct = if (maxTotal > 0) (previewTotal * 100) / maxTotal else 0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column {
+                Text("Grade Written Answers", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(
+                    "${submission.studentName} • ${exam.title}",
+                    fontSize = 11.5.sp,
+                    color = Color(0xFF94A3B8)
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF0F172A),
+                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Projected Final Score", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                            Text(
+                                "$previewTotal / $maxTotal ($previewPct%)",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 15.sp,
+                                color = if (previewPct >= exam.passingPercentage) EmeraldSuccess else AmberGold
+                            )
+                        }
+                        if (exam.mcqCount > 0) {
+                            Text(
+                                "MCQ: $mcqEarned pts",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF7DD3FC)
+                            )
+                        }
+                    }
+                }
+
+                if (longQuestions.isEmpty()) {
+                    Text(
+                        "No long-answer questions found in this exam.",
+                        fontSize = 12.5.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                } else {
+                    longQuestions.forEachIndexed { idx, q ->
+                        val studentText = submission.writtenAnswers[q.id].orEmpty()
+                        val currentAwarded = scoresMap[q.id] ?: 0
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF090D26),
+                            border = BorderStroke(1.dp, Color(0xFF334155)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "Written Q${idx + 1}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFC4B5FD)
+                                    )
+                                    Text(
+                                        "Max ${q.marks} Marks",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = AmberGold
+                                    )
+                                }
+                                Text(q.question, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFF0F172A),
+                                    border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            "Student's Written Answer:",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF38BDF8)
+                                        )
+                                        Text(
+                                            text = studentText.ifBlank { "(No written answer submitted)" },
+                                            fontSize = 12.sp,
+                                            color = if (studentText.isBlank()) Color(0xFF64748B) else Color.White
+                                        )
+                                    }
+                                }
+
+                                if (q.expectedAnswer.isNotBlank()) {
+                                    Text(
+                                        text = "Reference Answer: ${q.expectedAnswer}",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFFA7F3D0)
+                                    )
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Award Marks:", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = { scoresMap[q.id] = (currentAwarded - 1).coerceAtLeast(0) },
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("-", fontWeight = FontWeight.Bold)
+                                        }
+                                        Text(
+                                            "$currentAwarded / ${q.marks}",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 13.sp,
+                                            color = EmeraldSuccess
+                                        )
+                                        OutlinedButton(
+                                            onClick = { scoresMap[q.id] = (currentAwarded + 1).coerceAtMost(q.marks) },
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("+", fontWeight = FontWeight.Bold)
+                                        }
+                                        TextButton(
+                                            onClick = { scoresMap[q.id] = q.marks },
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("Full", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AmberGold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = teacherFeedback,
+                    onValueChange = { teacherFeedback = it },
+                    label = { Text("Teacher Feedback (Optional)") },
+                    placeholder = { Text("Great explanation and clear sentence structure!") },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSaveGrade(scoresMap.toMap(), teacherFeedback) },
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
+                modifier = Modifier.testTag("save_teacher_exam_grade_btn")
+            ) {
+                Text("Save Grade", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -154,6 +154,7 @@ fun NovaAiChatScreen(
     var bottomInputText by remember { mutableStateOf("") }
     val isTtsEngineSpeaking by viewModel.ttsManager.isSpeaking.collectAsState()
     val selectedPersona by viewModel.novaVoicePersona.collectAsState()
+    val selectedSpeed by viewModel.voiceSpeedPreset.collectAsState()
     val activeVoiceLabel by viewModel.activeVoiceLabel.collectAsState()
     val voiceReplyEnabled by viewModel.aiVoiceReplyEnabled.collectAsState()
     val cloudHumanVoiceEnabled by viewModel.cloudHumanVoiceEnabled.collectAsState()
@@ -870,7 +871,9 @@ fun NovaAiChatScreen(
             onToggleCloudHumanVoice = { viewModel.setCloudHumanVoiceEnabled(it) },
             onPreviewVoice = { viewModel.previewNovaVoice() },
             onStopVoice = { viewModel.ttsManager.stop() },
-            onDismiss = { showVoiceStudio = false }
+            onDismiss = { showVoiceStudio = false },
+            selectedSpeed = selectedSpeed,
+            onSelectSpeed = { viewModel.setVoiceSpeedPreset(it) }
         )
     }
 

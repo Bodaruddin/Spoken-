@@ -81,6 +81,7 @@ fun NovaGeminiAssistantScreen(
     val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
     val voiceReplyEnabled by viewModel.aiVoiceReplyEnabled.collectAsState()
     val selectedPersona by viewModel.novaVoicePersona.collectAsState()
+    val selectedSpeed by viewModel.voiceSpeedPreset.collectAsState()
     val activeVoiceLabel by viewModel.activeVoiceLabel.collectAsState()
     val cloudHumanVoiceEnabled by viewModel.cloudHumanVoiceEnabled.collectAsState()
     val speechState by viewModel.speechManager.speechState.collectAsState()
@@ -562,7 +563,9 @@ fun NovaGeminiAssistantScreen(
                 onToggleCloudHumanVoice = { viewModel.setCloudHumanVoiceEnabled(it) },
                 onPreviewVoice = { viewModel.previewNovaVoice() },
                 onStopVoice = { viewModel.ttsManager.stop() },
-                onDismiss = { showVoiceStudio = false }
+                onDismiss = { showVoiceStudio = false },
+                selectedSpeed = selectedSpeed,
+                onSelectSpeed = { viewModel.setVoiceSpeedPreset(it) }
             )
         }
     }

@@ -99,6 +99,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val supabaseStatus: StateFlow<com.example.data.remote.SupabaseConnectionState> = _supabaseStatus.asStateFlow()
 
     val novaVoicePersona: StateFlow<com.example.service.NovaVoicePersona> = ttsManager.voicePersona
+    val voiceSpeedPreset: StateFlow<com.example.service.VoiceSpeedPreset> = ttsManager.voiceSpeedPreset
     val activeVoiceLabel: StateFlow<String> = ttsManager.activeVoiceLabel
     val cloudHumanVoiceEnabled: StateFlow<Boolean> = ttsManager.cloudHumanVoiceEnabled
 
@@ -110,6 +111,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         ttsManager.setVoicePersona(
             com.example.service.NovaVoicePersona.fromId(appPreferences.getNovaVoicePersona())
+        )
+        ttsManager.setVoiceSpeedPreset(
+            com.example.service.VoiceSpeedPreset.fromId(appPreferences.getNovaVoiceSpeedPreset())
         )
         ttsManager.setCloudHumanVoiceEnabled(appPreferences.isCloudHumanVoiceEnabled())
         viewModelScope.launch(Dispatchers.IO) {
@@ -565,7 +569,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun submitStudentExam(
         examId: String,
         selectedAnswers: Map<String, Int>,
-        timeTakenSeconds: Int
+        timeTakenSeconds: Int,
+        writtenAnswers: Map<String, String> = emptyMap()
     ): ExamSubmission {
         val student = currentUser.value
         val submission = repository.submitExam(
@@ -575,7 +580,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             studentClass = student.studentClass,
             studentAvatar = student.avatarEmoji,
             selectedAnswers = selectedAnswers,
-            timeTakenSeconds = timeTakenSeconds
+            timeTakenSeconds = timeTakenSeconds,
+            writtenAnswers = writtenAnswers
         )
         if (supabaseService.isConfigured()) {
             viewModelScope.launch(Dispatchers.IO) {
@@ -585,6 +591,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         return submission
+    }
+
+    fun gradeExamSubmission(
+        submissionId: String,
+        longAnswerScores: Map<String, Int>,
+        teacherFeedback: String = ""
+    ): ExamSubmission? {
+        val graded = repository.gradeExamSubmission(
+            submissionId = submissionId,
+            longAnswerScores = longAnswerScores,
+            teacherFeedback = teacherFeedback
+        )
+        if (graded != null && supabaseService.isConfigured()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    supabaseService.saveExamSubmission(graded)
+                } catch (_: Exception) {}
+            }
+        }
+        return graded
     }
 
     // Game Management helpers
@@ -2309,6 +2335,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setNovaVoicePersona(persona: com.example.service.NovaVoicePersona) {
         appPreferences.setNovaVoicePersona(persona.id)
         ttsManager.setVoicePersona(persona)
+    }
+
+    fun setVoiceSpeedPreset(preset: com.example.service.VoiceSpeedPreset) {
+        appPreferences.setNovaVoiceSpeedPreset(preset.id)
+        ttsManager.setVoiceSpeedPreset(preset)
     }
 
     fun setCloudHumanVoiceEnabled(enabled: Boolean) {

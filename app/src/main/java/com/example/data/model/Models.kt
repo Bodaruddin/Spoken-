@@ -269,14 +269,21 @@ data class StudentSubmission(
     val status: String = "PENDING" // "PENDING" or "GRADED"
 )
 
-// --- MCQ Online Examination & Certificate Models ---
+// --- MCQ & Written Online Examination & Certificate Models ---
+enum class ExamQuestionType {
+    MCQ,
+    LONG_ANSWER
+}
+
 data class ExamQuestion(
     val id: String,
     val question: String,
-    val options: List<String>, // Exactly 4 options: A, B, C, D
-    val correctOptionIndex: Int, // 0 to 3
+    val options: List<String> = emptyList(), // 4 options (A..D) for MCQ; empty for LONG_ANSWER
+    val correctOptionIndex: Int = 0, // 0 to 3 for MCQ
     val marks: Int = 5,
-    val explanation: String = ""
+    val explanation: String = "",
+    val questionType: ExamQuestionType = ExamQuestionType.MCQ,
+    val expectedAnswer: String = "" // Optional sample/reference answer for LONG_ANSWER
 )
 
 data class Exam(
@@ -297,6 +304,15 @@ data class Exam(
     val availableUntilMillis: Long = 0L // 0L = No deadline (always open)
 ) {
     val questionsCount: Int get() = questions.size
+    val mcqCount: Int get() = questions.count { it.questionType == ExamQuestionType.MCQ }
+    val longQuestionCount: Int get() = questions.count { it.questionType == ExamQuestionType.LONG_ANSWER }
+    val hasLongQuestions: Boolean get() = questions.any { it.questionType == ExamQuestionType.LONG_ANSWER }
+    val questionBreakdownLabel: String
+        get() = when {
+            longQuestionCount == 0 -> "$questionsCount MCQs"
+            mcqCount == 0 -> "$questionsCount Written"
+            else -> "$mcqCount MCQ + $longQuestionCount Written"
+        }
     val passingMarks: Int get() = (totalMarks * passingPercentage) / 100
     val hasTimeWindow: Boolean get() = availableFromMillis > 0L || availableUntilMillis > 0L
 
@@ -319,11 +335,15 @@ data class ExamSubmission(
     val studentClass: String,
     val studentAvatar: String = "🎓",
     val selectedAnswers: Map<String, Int> = emptyMap(), // questionId -> selectedOptionIndex (0..3)
+    val writtenAnswers: Map<String, String> = emptyMap(), // questionId -> student's written answer
+    val longAnswerScores: Map<String, Int> = emptyMap(), // questionId -> marks awarded by teacher
+    val gradingStatus: String = "AUTO_GRADED", // "AUTO_GRADED", "PENDING_REVIEW", "GRADED"
+    val teacherFeedback: String = "",
     val scoreObtained: Int,
     val totalMarks: Int,
     val percentage: Int,
     val isPassed: Boolean,
-    val grade: String, // "O", "A+", "A", "B+", "B", "C"
+    val grade: String, // "O", "A+", "A", "B+", "B", "C", "F"
     val performanceTitle: String = "Academic Distinction", // "Outstanding Distinction", "Distinction", "Merit", "Satisfactory"
     val timeTakenSeconds: Int = 0,
     val completedAt: String = "Today",

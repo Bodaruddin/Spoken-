@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.service.NovaVoicePersona
+import com.example.service.VoiceSpeedPreset
 
 @Composable
 fun NovaVoiceStudioDialog(
@@ -38,7 +39,9 @@ fun NovaVoiceStudioDialog(
     onToggleCloudHumanVoice: (Boolean) -> Unit,
     onPreviewVoice: () -> Unit,
     onStopVoice: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    selectedSpeed: VoiceSpeedPreset = VoiceSpeedPreset.NATURAL,
+    onSelectSpeed: (VoiceSpeedPreset) -> Unit = {}
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -149,6 +152,63 @@ fun NovaVoiceStudioDialog(
                             isSelected = persona == selectedPersona,
                             onSelect = { onSelectPersona(persona) }
                         )
+                    }
+
+                    // Speaking Pace Selector
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF1B133D),
+                        border = BorderStroke(1.dp, Color(0xFF3B2A70)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Speaking Pace",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                VoiceSpeedPreset.entries.forEach { preset ->
+                                    val isSpeedSelected = preset == selectedSpeed
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (isSpeedSelected) Color(0xFF281956) else Color(0xFF130D2E),
+                                        border = BorderStroke(
+                                            1.2.dp,
+                                            if (isSpeedSelected) Color(0xFF38BDF8) else Color(0xFF3B2A70)
+                                        ),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .heightIn(min = 48.dp)
+                                            .clickable { onSelectSpeed(preset) }
+                                            .testTag("voice_speed_${preset.id.lowercase()}")
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                text = preset.label,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = if (isSpeedSelected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isSpeedSelected) Color(0xFF67E8F9) else Color(0xFFCBD5E1),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     // Toggles

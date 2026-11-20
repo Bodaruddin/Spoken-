@@ -34,6 +34,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -339,21 +340,54 @@ fun EnglishAdventureScreen(
         if (showChestRewardDialog) {
             val targetChestWorld = activeChestWorld ?: currentWorld
             val isChestClaimed = progress.claimedChestWorldIds.contains(targetChestWorld.id)
+            val completedTasksCount = targetChestWorld.levels.count { lvl ->
+                lvl.isCompleted ||
+                    (progress.levelStars[lvl.id] ?: 0) > 0 ||
+                    progress.completedLevelIds.contains(lvl.id)
+            }
+            val totalTasksCount = targetChestWorld.levels.size
+            val isAllTasksCompleted = totalTasksCount > 0 && completedTasksCount >= totalTasksCount
 
             AlertDialog(
                 onDismissRequest = { showChestRewardDialog = false },
                 icon = {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_adventure_chest),
-                        contentDescription = "Chest",
-                        modifier = Modifier.size(80.dp)
-                    )
+                    Box(contentAlignment = Alignment.Center) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_adventure_chest),
+                            contentDescription = "Chest",
+                            modifier = Modifier
+                                .size(80.dp)
+                                .graphicsLayer {
+                                    alpha = if (!isAllTasksCompleted && !isChestClaimed) 0.55f else 1f
+                                }
+                        )
+                        if (!isAllTasksCompleted && !isChestClaimed) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color(0xCC0F172A),
+                                border = BorderStroke(1.5.dp, Color(0xFFF59E0B))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Lock,
+                                    contentDescription = "Treasure Locked",
+                                    tint = Color(0xFFFBBF24),
+                                    modifier = Modifier
+                                        .padding(8.dp)
+                                        .size(22.dp)
+                                )
+                            }
+                        }
+                    }
                 },
                 title = {
                     Text(
-                        if (isChestClaimed) "🎁 Treasure Already Claimed!" else "🌴 Island Treasure Unlocked!",
+                        when {
+                            isChestClaimed -> "🎁 Treasure Already Claimed!"
+                            !isAllTasksCompleted -> "🔒 Treasure Chest Locked!"
+                            else -> "🌴 Island Treasure Unlocked!"
+                        },
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFFFACC15),
+                        color = if (!isAllTasksCompleted && !isChestClaimed) Color(0xFFFBBF24) else Color(0xFFFACC15),
                         fontSize = 18.sp
                     )
                 },
@@ -363,14 +397,33 @@ fun EnglishAdventureScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            if (isChestClaimed)
-                                "You have already collected this realm's treasure chest! Explore more challenges to discover more loot."
-                            else
-                                "You discovered hidden captain's loot buried on the sands of ${targetChestWorld.name}!",
+                            when {
+                                isChestClaimed ->
+                                    "You have already collected this realm's treasure chest! Explore more challenges to discover more loot."
+                                !isAllTasksCompleted ->
+                                    "Complete all $totalTasksCount tasks in ${targetChestWorld.name} ($completedTasksCount/$totalTasksCount completed) to unlock and claim this treasure chest!"
+                                else ->
+                                    "Awesome work completing all $totalTasksCount tasks in ${targetChestWorld.name}! Claim your hidden captain's loot!"
+                            },
                             color = Color.White,
                             textAlign = TextAlign.Center,
                             fontSize = 13.sp
                         )
+                        if (!isAllTasksCompleted && !isChestClaimed) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF1E293B),
+                                border = BorderStroke(1.dp, Color(0xFF475569))
+                            ) {
+                                Text(
+                                    text = "Tasks Completed: $completedTasksCount / $totalTasksCount",
+                                    color = Color(0xFFFDE047),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -403,26 +456,40 @@ fun EnglishAdventureScreen(
                     }
                 },
                 confirmButton = {
-                    if (isChestClaimed) {
-                        Button(
-                            onClick = { showChestRewardDialog = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
-                        ) {
-                            Text("Got It! 👍")
+                    when {
+                        isChestClaimed -> {
+                            Button(
+                                onClick = { showChestRewardDialog = false },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                            ) {
+                                Text("Got It! 👍")
+                            }
                         }
-                    } else {
-                        Button(
-                            onClick = {
-                                viewModel.claimChestAdventureReward(targetChestWorld.id, 50, 25)
-                                showChestRewardDialog = false
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
-                        ) {
-                            Text("Claim Loot!")
+                        !isAllTasksCompleted -> {
+                            Button(
+                                onClick = { showChestRewardDialog = false },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF475569)),
+                                modifier = Modifier.testTag("adventure_chest_locked_ok_btn")
+                            ) {
+                                Text("Complete Tasks First")
+                            }
+                        }
+                        else -> {
+                            Button(
+                                onClick = {
+                                    viewModel.claimChestAdventureReward(targetChestWorld.id, 50, 25)
+                                    showChestRewardDialog = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                                modifier = Modifier.testTag("adventure_claim_loot_btn")
+                            ) {
+                                Text("Claim Loot!")
+                            }
                         }
                     }
                 },
-                containerColor = Color(0xFF0F172A)
+                containerColor = Color(0xFF0F172A),
+                modifier = Modifier.testTag("adventure_chest_dialog")
             )
         }
 
@@ -515,7 +582,9 @@ private fun AdventureMainView(
         // 3. SCROLLABLE ADVENTURE CONTENT
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("adventure_island_list"),
             contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -814,6 +883,13 @@ private fun AdventureMainView(
                 // D3. Bottom Treasure Chest for this Realm
                 item(key = "realm_chest_${world.id}") {
                     val isChestClaimed = progress.claimedChestWorldIds.contains(world.id)
+                    val completedLevelsCount = levelsList.count { lvl ->
+                        lvl.isCompleted ||
+                            (progress.levelStars[lvl.id] ?: 0) > 0 ||
+                            progress.completedLevelIds.contains(lvl.id)
+                    }
+                    val totalLevelsCount = levelsList.size
+                    val isChestUnlocked = totalLevelsCount > 0 && completedLevelsCount >= totalLevelsCount
 
                     Box(
                         modifier = Modifier
@@ -826,29 +902,79 @@ private fun AdventureMainView(
                             modifier = Modifier
                                 .clickable { onOpenChest(world) }
                                 .padding(8.dp)
+                                .testTag("adventure_chest_card_${world.id}")
                         ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_adventure_chest),
-                                contentDescription = "Golden Treasure Chest with Gems",
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier.size(width = 160.dp, height = 105.dp)
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.ic_adventure_chest),
+                                    contentDescription = if (isChestUnlocked || isChestClaimed) {
+                                        "Golden Treasure Chest with Gems"
+                                    } else {
+                                        "Locked Treasure Chest"
+                                    },
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier
+                                        .size(width = 160.dp, height = 105.dp)
+                                        .graphicsLayer {
+                                            alpha = if (!isChestUnlocked && !isChestClaimed) 0.58f else 1f
+                                        }
+                                )
+                                if (!isChestUnlocked && !isChestClaimed) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color(0xDD0F172A),
+                                        border = BorderStroke(1.5.dp, Color(0xFFF59E0B)),
+                                        shadowElevation = 6.dp
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Lock,
+                                            contentDescription = "Locked",
+                                            tint = Color(0xFFFBBF24),
+                                            modifier = Modifier
+                                                .padding(8.dp)
+                                                .size(22.dp)
+                                        )
+                                    }
+                                }
+                            }
                             Spacer(Modifier.height(4.dp))
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = Color(0x99000000),
-                                border = BorderStroke(1.dp, if (isChestClaimed) Color(0xFF10B981) else Color(0xFFFBBF24)),
+                                color = Color(0xB3000000),
+                                border = BorderStroke(
+                                    1.dp,
+                                    when {
+                                        isChestClaimed -> Color(0xFF10B981)
+                                        isChestUnlocked -> Color(0xFFFBBF24)
+                                        else -> Color(0xFF64748B)
+                                    }
+                                ),
                                 shadowElevation = 4.dp
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                                 ) {
-                                    Text(if (isChestClaimed) "✅" else "✨", fontSize = 12.sp)
+                                    Text(
+                                        text = when {
+                                            isChestClaimed -> "✅"
+                                            isChestUnlocked -> "✨"
+                                            else -> "🔒"
+                                        },
+                                        fontSize = 12.sp
+                                    )
                                     Spacer(Modifier.width(4.dp))
                                     Text(
-                                        if (isChestClaimed) "${world.name} Treasure Claimed" else "Tap to Claim ${world.name} Loot",
-                                        color = if (isChestClaimed) Color(0xFF4ADE80) else Color(0xFFFDE047),
+                                        text = when {
+                                            isChestClaimed -> "${world.name} Treasure Claimed"
+                                            isChestUnlocked -> "Tap to Claim ${world.name} Loot"
+                                            else -> "Complete All Tasks ($completedLevelsCount/$totalLevelsCount) to Unlock Loot"
+                                        },
+                                        color = when {
+                                            isChestClaimed -> Color(0xFF4ADE80)
+                                            isChestUnlocked -> Color(0xFFFDE047)
+                                            else -> Color(0xFFCBD5E1)
+                                        },
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.5.sp
                                     )

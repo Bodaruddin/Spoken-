@@ -186,14 +186,19 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
                 LiveExamModal(
                     exam = exam,
                     onDismiss = { viewModel.closeStudentExam() },
-                    onSubmit = { answersMap, timeTakenSeconds ->
+                    onSubmit = { answersMap, writtenMap, timeTakenSeconds ->
                         val newSub = viewModel.submitStudentExam(
                             examId = exam.id,
                             selectedAnswers = answersMap,
-                            timeTakenSeconds = timeTakenSeconds
+                            timeTakenSeconds = timeTakenSeconds,
+                            writtenAnswers = writtenMap
                         )
                         viewModel.closeStudentExam()
-                        viewModel.openExamCertificate(newSub)
+                        if (newSub.gradingStatus == "PENDING_REVIEW") {
+                            viewModel.openExamReview(exam, newSub)
+                        } else {
+                            viewModel.openExamCertificate(newSub)
+                        }
                     }
                 )
             }

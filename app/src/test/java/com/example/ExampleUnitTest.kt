@@ -1160,6 +1160,11 @@ class ExampleUnitTest {
         })
         // Keep Android neural pitch within natural studio range (<= 1.05f) to avoid robotic vocoder artifacts
         assertTrue(com.example.service.NovaVoicePersona.entries.all { it.basePitch in 0.95f..1.05f })
+        // Keep default persona speaking rates unhurried & natural (<= 0.90f) so AI never sounds rushed
+        assertTrue(com.example.service.NovaVoicePersona.entries.all { it.baseRate in 0.80f..0.90f })
+        assertEquals(com.example.service.VoiceSpeedPreset.NATURAL, com.example.service.VoiceSpeedPreset.fromId(null))
+        assertEquals(com.example.service.VoiceSpeedPreset.RELAXED, com.example.service.VoiceSpeedPreset.fromId("relaxed"))
+        assertTrue(com.example.service.VoiceSpeedPreset.NATURAL.cloudSpeed < 1.0f)
     }
 
     @Test
@@ -1300,6 +1305,123 @@ class ExampleUnitTest {
         )
         assertFalse(schoolCustom.transliteration.contains("Assamese Meaning"))
         assertTrue(schoolCustom.transliteration.contains("school-loi", ignoreCase = true))
+    }
+
+    @Test
+    fun testAdventureTreasureChestLockedUntilAllTasksCompleted() {
+        val repository = LinguaQuestRepository(null)
+        val vocabWorld = repository.adventureWorlds.value.first { it.id == "world_vocab" }
+        assertTrue(vocabWorld.levels.isNotEmpty())
+
+        // 1. Before completing all levels in Vocabulary Island, chest claim MUST fail and award 0 XP/Coins
+        val initialXp = repository.adventureProgress.value.totalXp
+        val initialCoins = repository.adventureProgress.value.totalCoins
+        assertFalse(repository.isAdventureWorldTasksCompleted(vocabWorld))
+        assertFalse(repository.claimAdventureChest("world_vocab", 50, 25))
+        assertEquals(initialXp, repository.adventureProgress.value.totalXp)
+        assertEquals(initialCoins, repository.adventureProgress.value.totalCoins)
+        assertFalse(repository.adventureProgress.value.claimedChestWorldIds.contains("world_vocab"))
+
+        // 2. Completing only the first level is still NOT enough to claim chest loot
+        val firstLevel = vocabWorld.levels.first()
+        firstLevel.missions.forEach { m ->
+            repository.completeAdventureMission(vocabWorld.id, firstLevel.id, m.id, 90)
+        }
+        val midWorld = repository.adventureWorlds.value.first { it.id == "world_vocab" }
+        assertFalse(repository.isAdventureWorldTasksCompleted(midWorld))
+        assertFalse(repository.claimAdventureChest("world_vocab", 50, 25))
+
+        // 3. Completing ALL remaining levels unlocks the treasure chest loot (one-time claim)
+        vocabWorld.levels.drop(1).forEach { lvl ->
+            lvl.missions.forEach { m ->
+                repository.completeAdventureMission(vocabWorld.id, lvl.id, m.id, 90)
+            }
+        }
+        val completedWorld = repository.adventureWorlds.value.first { it.id == "world_vocab" }
+        assertTrue(repository.isAdventureWorldTasksCompleted(completedWorld))
+
+        val beforeClaimXp = repository.adventureProgress.value.totalXp
+        val beforeClaimCoins = repository.adventureProgress.value.totalCoins
+        assertTrue(repository.claimAdventureChest("world_vocab", 50, 25))
+        assertEquals(beforeClaimXp + 50, repository.adventureProgress.value.totalXp)
+        assertEquals(beforeClaimCoins + 25, repository.adventureProgress.value.totalCoins)
+        assertTrue(repository.adventureProgress.value.claimedChestWorldIds.contains("world_vocab"))
+
+        // 4. Duplicate claim fails cleanly
+        assertFalse(repository.claimAdventureChest("world_vocab", 50, 25))
+    }
+
+    @Test
+    fun testLongAnswerExamCreationSubmissionAndTeacherGrading() {
+        val repository = LinguaQuestRepository(null)
+
+        val mcqQ = com.example.data.model.ExamQuestion(
+            id = "q_mcq_1",
+            question = "Choose the correct verb: 'She ___ to school every day.'",
+            options = listOf("go", "goes", "going", "gone"),
+            correctOptionIndex = 1,
+            marks = 5,
+            questionType = com.example.data.model.ExamQuestionType.MCQ
+        )
+        val longQ = com.example.data.model.ExamQuestion(
+            id = "q_long_1",
+            question = "Write a short paragraph explaining why daily English reading improves fluency.",
+            marks = 15,
+            questionType = com.example.data.model.ExamQuestionType.LONG_ANSWER,
+            expectedAnswer = "Daily reading builds vocabulary, grammar intuition, and sentence rhythm."
+        )
+
+        val exam = repository.createExam(
+            title = "Comprehension & Essay Exam",
+            description = "Answer both MCQ and written questions.",
+            teacherName = "Prof. Eleanor Vance",
+            targetClass = "Class 10",
+            subjectCategory = "English Grammar",
+            durationMinutes = 25,
+            passingPercentage = 60,
+            questions = listOf(mcqQ, longQ)
+        )
+
+        assertEquals(20, exam.totalMarks)
+        assertEquals(1, exam.mcqCount)
+        assertEquals(1, exam.longQuestionCount)
+        assertTrue(exam.hasLongQuestions)
+        assertEquals("1 MCQ + 1 Written", exam.questionBreakdownLabel)
+
+        val submission = repository.submitExam(
+            examId = exam.id,
+            studentId = "stu_10",
+            studentName = "Alex Morgan",
+            studentClass = "Class 10",
+            studentAvatar = "🦉",
+            selectedAnswers = mapOf("q_mcq_1" to 1),
+            writtenAnswers = mapOf(
+                "q_long_1" to "Reading English books daily exposes learners to natural phrasing and strengthens vocabulary."
+            ),
+            timeTakenSeconds = 420
+        )
+
+        assertEquals("PENDING_REVIEW", submission.gradingStatus)
+        assertEquals(5, submission.scoreObtained)
+        assertEquals(20, submission.totalMarks)
+        assertFalse(submission.isPassed)
+        assertTrue(submission.writtenAnswers["q_long_1"]?.contains("vocabulary") == true)
+
+        val graded = repository.gradeExamSubmission(
+            submissionId = submission.id,
+            longAnswerScores = mapOf("q_long_1" to 13),
+            teacherFeedback = "Well-structured answer with clear examples!"
+        )
+
+        assertNotNull(graded)
+        assertEquals("GRADED", graded!!.gradingStatus)
+        assertEquals(18, graded.scoreObtained)
+        assertEquals(20, graded.totalMarks)
+        assertEquals(90, graded.percentage)
+        assertTrue(graded.isPassed)
+        assertEquals("O", graded.grade)
+        assertEquals(13, graded.longAnswerScores["q_long_1"])
+        assertEquals("Well-structured answer with clear examples!", graded.teacherFeedback)
     }
 }
 

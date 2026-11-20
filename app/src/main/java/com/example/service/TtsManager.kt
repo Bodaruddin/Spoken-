@@ -49,7 +49,7 @@ enum class NovaVoicePersona(
         displayName = "Ananya",
         subtitle = "Warm & Clear Female Voice",
         basePitch = 1.00f,
-        baseRate = 0.96f,
+        baseRate = 0.86f,
         geminiVoiceName = "Aoede",
         stylePrompt = "Warm, natural, crystal-clear Indian English female mentor voice",
         localeBadge = "en-IN",
@@ -61,7 +61,7 @@ enum class NovaVoicePersona(
         displayName = "Priya",
         subtitle = "Bright & Lively Female Voice",
         basePitch = 1.03f,
-        baseRate = 1.00f,
+        baseRate = 0.89f,
         geminiVoiceName = "Zephyr",
         stylePrompt = "Bright, cheerful, expressive Indian English female friend voice",
         localeBadge = "en-IN",
@@ -73,7 +73,7 @@ enum class NovaVoicePersona(
         displayName = "Meera",
         subtitle = "Calm & Articulate Female Voice",
         basePitch = 0.98f,
-        baseRate = 0.92f,
+        baseRate = 0.83f,
         geminiVoiceName = "Kore",
         stylePrompt = "Calm, gentle, articulate Indian English female teacher voice",
         localeBadge = "en-IN",
@@ -85,7 +85,7 @@ enum class NovaVoicePersona(
         displayName = "Clara",
         subtitle = "Crisp British English Female",
         basePitch = 1.00f,
-        baseRate = 0.95f,
+        baseRate = 0.85f,
         geminiVoiceName = "Leda",
         stylePrompt = "Crisp, clear British English female pronunciation coach voice",
         localeBadge = "en-GB",
@@ -97,7 +97,7 @@ enum class NovaVoicePersona(
         displayName = "Emma",
         subtitle = "Natural American English Female",
         basePitch = 1.01f,
-        baseRate = 0.97f,
+        baseRate = 0.87f,
         geminiVoiceName = "Aoede",
         stylePrompt = "Natural, fluent American English female conversation partner voice",
         localeBadge = "en-US",
@@ -109,7 +109,7 @@ enum class NovaVoicePersona(
         displayName = "Sophia",
         subtitle = "Warm Studio English Female",
         basePitch = 0.99f,
-        baseRate = 0.94f,
+        baseRate = 0.85f,
         geminiVoiceName = "Zephyr",
         stylePrompt = "Warm, studio-clear American English female mentor voice",
         localeBadge = "en-US",
@@ -121,7 +121,7 @@ enum class NovaVoicePersona(
         displayName = "Grace",
         subtitle = "Gentle Everyday English Female",
         basePitch = 1.02f,
-        baseRate = 0.96f,
+        baseRate = 0.86f,
         geminiVoiceName = "Kore",
         stylePrompt = "Gentle, relaxed Australian English female speaking tutor voice",
         localeBadge = "en-AU",
@@ -135,6 +135,23 @@ enum class NovaVoicePersona(
     companion object {
         fun fromId(id: String?): NovaVoicePersona {
             return entries.firstOrNull { it.id.equals(id, ignoreCase = true) } ?: ANANYA
+        }
+    }
+}
+
+enum class VoiceSpeedPreset(
+    val id: String,
+    val label: String,
+    val androidMultiplier: Float,
+    val cloudSpeed: Float
+) {
+    RELAXED(id = "RELAXED", label = "Slow & Clear", androidMultiplier = 0.88f, cloudSpeed = 0.80f),
+    NATURAL(id = "NATURAL", label = "Natural", androidMultiplier = 1.00f, cloudSpeed = 0.90f),
+    BRISK(id = "BRISK", label = "Standard", androidMultiplier = 1.12f, cloudSpeed = 1.00f);
+
+    companion object {
+        fun fromId(id: String?): VoiceSpeedPreset {
+            return entries.firstOrNull { it.id.equals(id, ignoreCase = true) } ?: NATURAL
         }
     }
 }
@@ -154,6 +171,9 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
 
     private val _voicePersona = MutableStateFlow(NovaVoicePersona.ANANYA)
     val voicePersona: StateFlow<NovaVoicePersona> = _voicePersona.asStateFlow()
+
+    private val _voiceSpeedPreset = MutableStateFlow(VoiceSpeedPreset.NATURAL)
+    val voiceSpeedPreset: StateFlow<VoiceSpeedPreset> = _voiceSpeedPreset.asStateFlow()
 
     private val _activeVoiceLabel = MutableStateFlow("Ananya • Indian Female (en-IN)")
     val activeVoiceLabel: StateFlow<String> = _activeVoiceLabel.asStateFlow()
@@ -211,6 +231,25 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         if (isInitialized) {
             applyBestVoiceForPersona()
         }
+    }
+
+    fun setVoiceSpeedPreset(preset: VoiceSpeedPreset) {
+        _voiceSpeedPreset.value = preset
+        if (isInitialized) {
+            try {
+                tts?.setSpeechRate(effectiveAndroidSpeechRate(_voicePersona.value, slowSpeed = false))
+            } catch (_: Throwable) { }
+        }
+    }
+
+    internal fun effectiveAndroidSpeechRate(persona: NovaVoicePersona, slowSpeed: Boolean): Float {
+        if (slowSpeed) return 0.68f
+        return (persona.baseRate * _voiceSpeedPreset.value.androidMultiplier).coerceIn(0.68f, 1.05f)
+    }
+
+    internal fun effectiveCloudPlaybackSpeed(slowSpeed: Boolean): Float {
+        if (slowSpeed) return 0.74f
+        return _voiceSpeedPreset.value.cloudSpeed
     }
 
     fun setCloudHumanVoiceEnabled(enabled: Boolean) {
@@ -476,7 +515,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                 (persona.basePitch + 0.08f).coerceAtMost(1.12f)
             }
             engine.setPitch(effectivePitch)
-            engine.setSpeechRate(persona.baseRate)
+            engine.setSpeechRate(effectiveAndroidSpeechRate(persona, slowSpeed = false))
         } catch (_: Throwable) { }
     }
 
@@ -497,6 +536,8 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             .replace(Regex("\\betc\\.", RegexOption.IGNORE_CASE), "and so on")
             .replace(Regex("\\bvs\\.", RegexOption.IGNORE_CASE), "versus")
             .replace(" & ", " and ")
+            // Add subtle conversational pauses around dashes
+            .replace(Regex("\\s+[—–-]\\s+"), ", ")
             // Remove emojis & pictographs
             .replace(Regex("[\\p{So}\\p{Cn}\\uD83C-\\uDBFF\\uDC00-\\uDFFF]+"), " ")
             // Remove markdown bold/italic/headers
@@ -605,7 +646,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         if (!isInitialized) return
 
         val persona = _voicePersona.value
-        val baseRate = if (slowSpeed) 0.72f else persona.baseRate
+        val baseRate = effectiveAndroidSpeechRate(persona, slowSpeed)
         val effectivePitch = if (activeAndroidVoiceConfirmedFemale) {
             persona.basePitch
         } else {
@@ -617,7 +658,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
 
         try {
             engine.stop()
-            // Re-assert Indian female voice and stable studio pitch/rate ONCE per utterance group
+            // Re-assert female voice and natural unhurried studio pitch/rate ONCE per utterance group
             activeAndroidVoice?.let { engine.voice = it }
             engine.setPitch(effectivePitch)
             engine.setSpeechRate(baseRate)
@@ -635,7 +676,8 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                 engine.speak(chunk, queueMode, bundle, utteranceId)
 
                 if (idx < chunks.lastIndex) {
-                    engine.playSilentUtterance(90L, TextToSpeech.QUEUE_ADD, "Speakly_${groupId}_pause_$idx")
+                    val pauseMs = if (chunk.endsWith("?") || chunk.endsWith("!")) 260L else 210L
+                    engine.playSilentUtterance(pauseMs, TextToSpeech.QUEUE_ADD, "Speakly_${groupId}_pause_$idx")
                 }
             } catch (_: Throwable) { }
         }
@@ -805,10 +847,11 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                 track.setVolume(AudioTrack.getMaxVolume())
             } catch (_: Throwable) { }
 
-            if (slowSpeed) {
+            val targetSpeed = effectiveCloudPlaybackSpeed(slowSpeed)
+            if (kotlin.math.abs(targetSpeed - 1.0f) > 0.01f) {
                 try {
                     track.playbackParams = PlaybackParams().apply {
-                        speed = 0.78f
+                        speed = targetSpeed
                         pitch = 1.0f
                     }
                 } catch (_: Throwable) { }

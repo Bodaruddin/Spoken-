@@ -2054,6 +2054,10 @@ class SupabaseService {
                 put("correct_option_index", q.correctOptionIndex)
                 put("marks", q.marks)
                 put("explanation", q.explanation)
+                put("questionType", q.questionType.name)
+                put("question_type", q.questionType.name)
+                put("expectedAnswer", q.expectedAnswer)
+                put("expected_answer", q.expectedAnswer)
             }
             qArr.put(qObj)
         }
@@ -2226,6 +2230,12 @@ class SupabaseService {
                     if (optArr != null) {
                         for (k in 0 until optArr.length()) options.add(optArr.getString(k))
                     }
+                    val qTypeRaw = qObj.optString("questionType", qObj.optString("question_type", "MCQ")).uppercase()
+                    val qType = if (qTypeRaw == ExamQuestionType.LONG_ANSWER.name) {
+                        ExamQuestionType.LONG_ANSWER
+                    } else {
+                        ExamQuestionType.MCQ
+                    }
                     questions.add(
                         ExamQuestion(
                             id = qObj.optString("id", "q_$j"),
@@ -2233,7 +2243,9 @@ class SupabaseService {
                             options = options,
                             correctOptionIndex = if (qObj.has("correctOptionIndex")) qObj.optInt("correctOptionIndex", 0) else qObj.optInt("correct_option_index", 0),
                             marks = qObj.optInt("marks", 5),
-                            explanation = qObj.optString("explanation", "")
+                            explanation = qObj.optString("explanation", ""),
+                            questionType = qType,
+                            expectedAnswer = qObj.optString("expectedAnswer", qObj.optString("expected_answer", ""))
                         )
                     )
                 }
@@ -2324,9 +2336,16 @@ class SupabaseService {
     suspend fun saveExamSubmission(submission: ExamSubmission): Boolean = withContext(Dispatchers.IO) {
         if (!isConfigured()) return@withContext false
         var saved = false
+        val encodedSubId = try { java.net.URLEncoder.encode(submission.id, "UTF-8") } catch (_: Exception) { submission.id }
 
         val answersObj = JSONObject()
         submission.selectedAnswers.forEach { (k, v) -> answersObj.put(k, v) }
+
+        val writtenObj = JSONObject()
+        submission.writtenAnswers.forEach { (k, v) -> writtenObj.put(k, v) }
+
+        val longScoresObj = JSONObject()
+        submission.longAnswerScores.forEach { (k, v) -> longScoresObj.put(k, v) }
 
         val subObj = JSONObject().apply {
             put("id", submission.id)
@@ -2362,26 +2381,59 @@ class SupabaseService {
             put("certificateId", submission.certificateId)
         }
 
+        val subSyncObj = JSONObject(subObj.toString()).apply {
+            put("writtenAnswers", writtenObj)
+            put("written_answers", writtenObj)
+            put("longAnswerScores", longScoresObj)
+            put("long_answer_scores", longScoresObj)
+            put("gradingStatus", submission.gradingStatus)
+            put("grading_status", submission.gradingStatus)
+            put("teacherFeedback", submission.teacherFeedback)
+            put("teacher_feedback", submission.teacherFeedback)
+        }
+
         try {
-            val postReq = Request.Builder()
-                .url("$supabaseUrl/rest/v1/exam_submissions")
+            val patchReq = Request.Builder()
+                .url("$supabaseUrl/rest/v1/exam_submissions?id=eq.$encodedSubId")
                 .addHeader("apikey", supabaseAnonKey)
                 .addHeader("Authorization", "Bearer $supabaseAnonKey")
-                .addHeader("Prefer", "resolution=merge-duplicates")
-                .post(subObj.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Prefer", "return=representation")
+                .patch(subObj.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            client.newCall(postReq).execute().use { resp ->
-                if (resp.isSuccessful) saved = true
+            var patched = false
+            client.newCall(patchReq).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string() ?: ""
+                    if (body.trim().startsWith("[") && body.trim() != "[]") {
+                        patched = true
+                        saved = true
+                    }
+                }
+            }
+
+            if (!patched) {
+                val postReq = Request.Builder()
+                    .url("$supabaseUrl/rest/v1/exam_submissions")
+                    .addHeader("apikey", supabaseAnonKey)
+                    .addHeader("Authorization", "Bearer $supabaseAnonKey")
+                    .addHeader("Prefer", "resolution=merge-duplicates")
+                    .post(subObj.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                client.newCall(postReq).execute().use { resp ->
+                    if (resp.isSuccessful) saved = true
+                }
             }
         } catch (_: Exception) {}
 
         try {
+            cleanSyncRows("SUBMISSION_SYNC", submission.id)
             val evalObj = JSONObject().apply {
                 put("student_id", "SUBMISSION_SYNC")
                 put("target_phrase", submission.id)
                 put("spoken_text", submission.examId)
-                put("feedback", subObj.toString())
+                put("feedback", subSyncObj.toString())
                 put("overall_score", submission.percentage)
             }
             val postReq = Request.Builder()
@@ -2410,6 +2462,16 @@ class SupabaseService {
             if (ansObj != null) {
                 ansObj.keys().forEach { k -> answers[k] = ansObj.optInt(k, 0) }
             }
+            val writtenObj = obj.optJSONObject("written_answers") ?: obj.optJSONObject("writtenAnswers")
+            val writtenAnswers = mutableMapOf<String, String>()
+            if (writtenObj != null) {
+                writtenObj.keys().forEach { k -> writtenAnswers[k] = writtenObj.optString(k, "") }
+            }
+            val longScoresObj = obj.optJSONObject("long_answer_scores") ?: obj.optJSONObject("longAnswerScores")
+            val longAnswerScores = mutableMapOf<String, Int>()
+            if (longScoresObj != null) {
+                longScoresObj.keys().forEach { k -> longAnswerScores[k] = longScoresObj.optInt(k, 0) }
+            }
             return ExamSubmission(
                 id = id,
                 examId = obj.optString("examId", obj.optString("exam_id", "")),
@@ -2419,6 +2481,10 @@ class SupabaseService {
                 studentClass = obj.optString("studentClass", obj.optString("student_class", "Class 10")),
                 studentAvatar = obj.optString("studentAvatar", obj.optString("student_avatar", "🎓")),
                 selectedAnswers = answers,
+                writtenAnswers = writtenAnswers,
+                longAnswerScores = longAnswerScores,
+                gradingStatus = obj.optString("gradingStatus", obj.optString("grading_status", "AUTO_GRADED")),
+                teacherFeedback = obj.optString("teacherFeedback", obj.optString("teacher_feedback", "")),
                 scoreObtained = if (obj.has("scoreObtained")) obj.optInt("scoreObtained", 0) else obj.optInt("score_obtained", 0),
                 totalMarks = if (obj.has("totalMarks")) obj.optInt("totalMarks", 50) else obj.optInt("total_marks", 50),
                 percentage = obj.optInt("percentage", 0),
@@ -2467,7 +2533,16 @@ class SupabaseService {
                             try {
                                 val obj = JSONObject(feedback)
                                 val sub = parseSubJson(obj, targetId)
-                                if (sub != null && seenIds.add(sub.id)) list.add(sub)
+                                if (sub != null) {
+                                    if (seenIds.add(sub.id)) {
+                                        list.add(sub)
+                                    } else {
+                                        val existingIdx = list.indexOfFirst { it.id == sub.id }
+                                        if (existingIdx >= 0) {
+                                            list[existingIdx] = sub
+                                        }
+                                    }
+                                }
                             } catch (_: Exception) {}
                         }
                     }

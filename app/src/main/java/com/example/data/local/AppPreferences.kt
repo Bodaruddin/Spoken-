@@ -75,6 +75,7 @@ class AppPreferences(context: Context) {
         private const val KEY_PENDING_RESET_STUDENTS = "key_pending_reset_students"
         private const val KEY_NOVA_VOICE_PERSONA = "key_nova_voice_persona"
         private const val KEY_CLOUD_HUMAN_VOICE = "key_cloud_human_voice"
+        private const val KEY_NOVA_VOICE_SPEED = "key_nova_voice_speed"
     }
 
 
@@ -1199,6 +1200,8 @@ class AppPreferences(context: Context) {
             qObj.put("correctOptionIndex", q.correctOptionIndex)
             qObj.put("marks", q.marks)
             qObj.put("explanation", q.explanation)
+            qObj.put("questionType", q.questionType.name)
+            qObj.put("expectedAnswer", q.expectedAnswer)
             qArr.put(qObj)
         }
         obj.put("questions", qArr)
@@ -1216,6 +1219,12 @@ class AppPreferences(context: Context) {
                 if (optArr != null) {
                     for (j in 0 until optArr.length()) options.add(optArr.getString(j))
                 }
+                val typeStr = qObj.optString("questionType", "MCQ").uppercase()
+                val parsedType = if (typeStr == ExamQuestionType.LONG_ANSWER.name) {
+                    ExamQuestionType.LONG_ANSWER
+                } else {
+                    ExamQuestionType.MCQ
+                }
                 questions.add(
                     ExamQuestion(
                         id = qObj.optString("id", "q_$i"),
@@ -1223,7 +1232,9 @@ class AppPreferences(context: Context) {
                         options = options,
                         correctOptionIndex = qObj.optInt("correctOptionIndex", 0),
                         marks = qObj.optInt("marks", 5),
-                        explanation = qObj.optString("explanation", "")
+                        explanation = qObj.optString("explanation", ""),
+                        questionType = parsedType,
+                        expectedAnswer = qObj.optString("expectedAnswer", "")
                     )
                 )
             }
@@ -1269,6 +1280,17 @@ class AppPreferences(context: Context) {
         val answersObj = JSONObject()
         sub.selectedAnswers.forEach { (k, v) -> answersObj.put(k, v) }
         obj.put("selectedAnswers", answersObj)
+
+        val writtenObj = JSONObject()
+        sub.writtenAnswers.forEach { (k, v) -> writtenObj.put(k, v) }
+        obj.put("writtenAnswers", writtenObj)
+
+        val longScoresObj = JSONObject()
+        sub.longAnswerScores.forEach { (k, v) -> longScoresObj.put(k, v) }
+        obj.put("longAnswerScores", longScoresObj)
+
+        obj.put("gradingStatus", sub.gradingStatus)
+        obj.put("teacherFeedback", sub.teacherFeedback)
         return obj
     }
 
@@ -1282,6 +1304,24 @@ class AppPreferences(context: Context) {
                 selectedAnswers[k] = answersObj.optInt(k, 0)
             }
         }
+        val writtenObj = obj.optJSONObject("writtenAnswers")
+        val writtenAnswers = mutableMapOf<String, String>()
+        if (writtenObj != null) {
+            val keys = writtenObj.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                writtenAnswers[k] = writtenObj.optString(k, "")
+            }
+        }
+        val longScoresObj = obj.optJSONObject("longAnswerScores")
+        val longAnswerScores = mutableMapOf<String, Int>()
+        if (longScoresObj != null) {
+            val keys = longScoresObj.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                longAnswerScores[k] = longScoresObj.optInt(k, 0)
+            }
+        }
         return ExamSubmission(
             id = obj.optString("id", ""),
             examId = obj.optString("examId", ""),
@@ -1291,6 +1331,10 @@ class AppPreferences(context: Context) {
             studentClass = obj.optString("studentClass", ""),
             studentAvatar = obj.optString("studentAvatar", "🎓"),
             selectedAnswers = selectedAnswers,
+            writtenAnswers = writtenAnswers,
+            longAnswerScores = longAnswerScores,
+            gradingStatus = obj.optString("gradingStatus", "AUTO_GRADED"),
+            teacherFeedback = obj.optString("teacherFeedback", ""),
             scoreObtained = obj.optInt("scoreObtained", 0),
             totalMarks = obj.optInt("totalMarks", 100),
             percentage = obj.optInt("percentage", 0),
@@ -2168,6 +2212,14 @@ class AppPreferences(context: Context) {
 
     fun setCloudHumanVoiceEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_CLOUD_HUMAN_VOICE, enabled).apply()
+    }
+
+    fun getNovaVoiceSpeedPreset(): String {
+        return prefs.getString(KEY_NOVA_VOICE_SPEED, "NATURAL") ?: "NATURAL"
+    }
+
+    fun setNovaVoiceSpeedPreset(speedId: String) {
+        prefs.edit().putString(KEY_NOVA_VOICE_SPEED, speedId).apply()
     }
 }
 

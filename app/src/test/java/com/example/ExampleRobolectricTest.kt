@@ -10,6 +10,9 @@ import com.example.data.model.NovaChatMessage
 import com.example.data.model.Role
 import com.example.data.model.SpeakingPrompt
 import com.example.data.model.VocabularyActivityType
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -19,7 +22,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToKey
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextInput
 import com.example.ui.MainViewModel
 import com.example.ui.SpeakingSubTab
 import com.example.ui.StudentTab
@@ -897,7 +902,7 @@ class ExampleRobolectricTest {
       com.example.ui.screens.student.LiveExamModal(
         exam = sampleExam,
         onDismiss = {},
-        onSubmit = { _, _ -> }
+        onSubmit = { _, _, _ -> }
       )
     }
     composeTestRule.waitForIdle()
@@ -1288,6 +1293,11 @@ class ExampleRobolectricTest {
     assertEquals(com.example.service.NovaVoicePersona.CLARA, vm.novaVoicePersona.value)
     assertTrue(vm.activeVoiceLabel.value.contains("Clara"))
 
+    composeTestRule.onNodeWithTag("voice_speed_relaxed").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(com.example.service.VoiceSpeedPreset.RELAXED, vm.voiceSpeedPreset.value)
+    assertEquals("RELAXED", AppPreferences(app).getNovaVoiceSpeedPreset())
+
     composeTestRule.onNodeWithTag("close_voice_studio_btn").performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("nova_voice_studio_dialog").assertDoesNotExist()
@@ -1326,6 +1336,135 @@ class ExampleRobolectricTest {
     composeTestRule.onNodeWithTag("active_drill_tip_speak_btn").performScrollTo().performClick()
     composeTestRule.waitForIdle()
     assertEquals(beforeCount + 3, vm.ttsManager.speakAttemptCount)
+  }
+
+  @Test
+  fun `adventure treasure chest stays locked until all island tasks are completed`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    app.getSharedPreferences("linguaquest_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+    val vm = MainViewModel(app)
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.EnglishAdventureScreen(viewModel = vm)
+    }
+    composeTestRule.waitForIdle()
+
+    // 1. Tapping Vocabulary Island chest while tasks are incomplete shows locked dialog without Claim button
+    composeTestRule.onNodeWithTag("adventure_island_list").performScrollToKey("realm_chest_world_vocab")
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("adventure_chest_card_world_vocab").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("adventure_chest_dialog").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("adventure_chest_locked_ok_btn").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("adventure_claim_loot_btn").assertDoesNotExist()
+
+    composeTestRule.onNodeWithTag("adventure_chest_locked_ok_btn").performClick()
+    composeTestRule.waitForIdle()
+    assertTrue(vm.adventureProgress.value.claimedChestWorldIds.isEmpty())
+
+    // 2. Complete all levels in world_vocab
+    val vocabWorld = vm.adventureWorlds.value.first { it.id == "world_vocab" }
+    vocabWorld.levels.forEach { lvl ->
+      lvl.missions.forEach { mission ->
+        vm.repository.completeAdventureMission(vocabWorld.id, lvl.id, mission.id, 95)
+      }
+    }
+    composeTestRule.waitForIdle()
+
+    // 3. Re-opening chest now shows Claim Loot button and claiming awards XP + Coins
+    composeTestRule.onNodeWithTag("adventure_island_list").performScrollToKey("realm_chest_world_vocab")
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("adventure_chest_card_world_vocab").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("adventure_claim_loot_btn").assertIsDisplayed().performClick()
+    composeTestRule.waitForIdle()
+    assertTrue(vm.adventureProgress.value.claimedChestWorldIds.contains("world_vocab"))
+  }
+
+  @Test
+  fun `teacher creates long written exam and student types answer inside answer box`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    app.getSharedPreferences("speakly_local_db", Context.MODE_PRIVATE).edit().clear().commit()
+    val vm = MainViewModel(app)
+    vm.unifiedLogin("eleanor.vance@linguaquest.edu", "1234")
+
+    var testExamForStudent by mutableStateOf<com.example.data.model.Exam?>(null)
+    var submittedWritten: Map<String, String> = emptyMap()
+    composeTestRule.setContent {
+      val currentExam = testExamForStudent
+      if (currentExam == null) {
+        com.example.ui.screens.teacher.TeacherExamsManagementScreen(viewModel = vm)
+      } else {
+        com.example.ui.screens.student.LiveExamModal(
+          exam = currentExam,
+          onDismiss = {},
+          onSubmit = { _, writtenAnswers, _ ->
+            submittedWritten = writtenAnswers
+          }
+        )
+      }
+    }
+    composeTestRule.waitForIdle()
+
+    // 1. Teacher opens Create Exam dialog and adds a Long Answer (written) question
+    composeTestRule.onNodeWithTag("teacher_create_exam_btn").performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("exam_dialog_title_input").performScrollTo().performTextInput("Written Essay Exam")
+    composeTestRule.onNodeWithTag("question_type_long_chip").performScrollTo().performClick()
+    composeTestRule.onNodeWithTag("exam_question_prompt_input")
+      .performScrollTo()
+      .performTextInput("Describe your favorite festival in 4-5 English sentences.")
+    composeTestRule.onNodeWithTag("exam_long_expected_answer_input")
+      .performScrollTo()
+      .performTextInput("Name the festival, how you celebrate it, and why you enjoy it.")
+    composeTestRule.onNodeWithTag("add_exam_question_btn").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("exam_dialog_save_btn").performClick()
+    composeTestRule.waitForIdle()
+
+    val createdExam = vm.exams.value.firstOrNull { it.title == "Written Essay Exam" }
+    assertNotNull(createdExam)
+    assertEquals(1, createdExam!!.longQuestionCount)
+    assertEquals(
+      com.example.data.model.ExamQuestionType.LONG_ANSWER,
+      createdExam.questions.first().questionType
+    )
+
+    // Verify AppPreferences persisted LONG_ANSWER exam question cleanly
+    val prefs = AppPreferences(app)
+    val persistedExam = prefs.getExams()?.firstOrNull { it.id == createdExam.id }
+    assertNotNull(persistedExam)
+    assertEquals(
+      com.example.data.model.ExamQuestionType.LONG_ANSWER,
+      persistedExam!!.questions.first().questionType
+    )
+
+    // 2. Verify LiveExamModal renders the Answer Box for the student to write inside
+    testExamForStudent = createdExam
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("exam_briefing_begin_button").performClick()
+    composeTestRule.waitForIdle()
+
+    val longQId = createdExam.questions.first().id
+    val studentEssay = "My favorite festival is Bihu. We celebrate with traditional songs, pitha sweets, and family gatherings."
+    composeTestRule.onNodeWithTag("exam_long_answer_input_$longQId")
+      .performScrollTo()
+      .assertIsDisplayed()
+      .performTextInput(studentEssay)
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithText("Submit Exam").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("exam_confirm_submit_btn").performClick()
+    composeTestRule.waitForIdle()
+
+    assertEquals(studentEssay, submittedWritten[longQId])
   }
 }
 

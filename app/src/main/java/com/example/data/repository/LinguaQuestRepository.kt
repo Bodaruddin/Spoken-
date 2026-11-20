@@ -1427,7 +1427,8 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         studentClass: String,
         studentAvatar: String,
         selectedAnswers: Map<String, Int>,
-        timeTakenSeconds: Int
+        timeTakenSeconds: Int,
+        writtenAnswers: Map<String, String> = emptyMap()
     ): ExamSubmission {
         val exam = _exams.value.find { it.id == examId }
             ?: _exams.value.first()
@@ -1437,35 +1438,27 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
 
         exam.questions.forEach { q ->
             totalMarksPossible += q.marks
-            val selected = selectedAnswers[q.id]
-            if (selected != null && selected == q.correctOptionIndex) {
-                calculatedScore += q.marks
+            if (q.questionType == ExamQuestionType.MCQ) {
+                val selected = selectedAnswers[q.id]
+                if (selected != null && selected == q.correctOptionIndex) {
+                    calculatedScore += q.marks
+                }
             }
         }
         if (totalMarksPossible <= 0) totalMarksPossible = exam.totalMarks
 
+        val cleanedWritten = writtenAnswers
+            .mapValues { it.value.trim() }
+            .filterValues { it.isNotEmpty() }
+
+        val hasLongQuestions = exam.hasLongQuestions
+        val gradingStatus = if (hasLongQuestions) "PENDING_REVIEW" else "AUTO_GRADED"
+
         val percentage = if (totalMarksPossible > 0) (calculatedScore * 100) / totalMarksPossible else 0
-        val isPassed = percentage >= exam.passingPercentage
+        val isPassed = !hasLongQuestions && percentage >= exam.passingPercentage
 
-        val grade = when {
-            percentage >= 90 -> "O"
-            percentage >= 80 -> "A+"
-            percentage >= 70 -> "A"
-            percentage >= 60 -> "B+"
-            percentage >= 50 -> "B"
-            percentage >= 40 -> "C"
-            else -> "F"
-        }
-
-        val performanceTitle = when {
-            percentage >= 90 -> "Outstanding Performance"
-            percentage >= 80 -> "Excellent Performance"
-            percentage >= 70 -> "First Class Distinction"
-            percentage >= 60 -> "Higher Merit"
-            percentage >= 50 -> "Merit Pass"
-            percentage >= 40 -> "Passing Grade"
-            else -> "Course Completion"
-        }
+        val grade = computeExamGrade(percentage)
+        val performanceTitle = computeExamPerformanceTitle(percentage)
 
         val randomCertNum = String.format("%06d", (100..999999).random())
         val certificateId = "SPK-2026-$randomCertNum"
@@ -1479,6 +1472,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             studentClass = studentClass,
             studentAvatar = studentAvatar,
             selectedAnswers = selectedAnswers,
+            writtenAnswers = cleanedWritten,
+            longAnswerScores = emptyMap(),
+            gradingStatus = gradingStatus,
+            teacherFeedback = "",
             scoreObtained = calculatedScore,
             totalMarks = totalMarksPossible,
             percentage = percentage,
@@ -1497,6 +1494,88 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         appPreferences?.saveExamSubmissions(_examSubmissions.value)
 
         return submission
+    }
+
+    fun gradeExamSubmission(
+        submissionId: String,
+        longAnswerScores: Map<String, Int>,
+        teacherFeedback: String = ""
+    ): ExamSubmission? {
+        val currentList = _examSubmissions.value.toMutableList()
+        val idx = currentList.indexOfFirst { it.id == submissionId }
+        if (idx < 0) return null
+
+        val existing = currentList[idx]
+        val exam = _exams.value.find { it.id == existing.examId }
+
+        var recalculatedScore = 0
+        var totalMarksPossible = 0
+        val clampedLongScores = mutableMapOf<String, Int>()
+
+        if (exam != null && exam.questions.isNotEmpty()) {
+            exam.questions.forEach { q ->
+                totalMarksPossible += q.marks
+                if (q.questionType == ExamQuestionType.LONG_ANSWER) {
+                    val awarded = (longAnswerScores[q.id] ?: 0).coerceIn(0, q.marks)
+                    clampedLongScores[q.id] = awarded
+                    recalculatedScore += awarded
+                } else {
+                    val selected = existing.selectedAnswers[q.id]
+                    if (selected != null && selected == q.correctOptionIndex) {
+                        recalculatedScore += q.marks
+                    }
+                }
+            }
+        } else {
+            longAnswerScores.forEach { (k, v) ->
+                val clean = v.coerceAtLeast(0)
+                clampedLongScores[k] = clean
+                recalculatedScore += clean
+            }
+            totalMarksPossible = existing.totalMarks
+        }
+
+        if (totalMarksPossible <= 0) totalMarksPossible = existing.totalMarks.coerceAtLeast(1)
+        val passingPct = exam?.passingPercentage ?: 60
+        val percentage = (recalculatedScore * 100) / totalMarksPossible
+        val isPassed = percentage >= passingPct
+
+        val updated = existing.copy(
+            longAnswerScores = clampedLongScores,
+            gradingStatus = "GRADED",
+            teacherFeedback = teacherFeedback.trim(),
+            scoreObtained = recalculatedScore,
+            totalMarks = totalMarksPossible,
+            percentage = percentage,
+            isPassed = isPassed,
+            grade = computeExamGrade(percentage),
+            performanceTitle = computeExamPerformanceTitle(percentage)
+        )
+
+        currentList[idx] = updated
+        _examSubmissions.value = currentList
+        appPreferences?.saveExamSubmissions(currentList)
+        return updated
+    }
+
+    private fun computeExamGrade(percentage: Int): String = when {
+        percentage >= 90 -> "O"
+        percentage >= 80 -> "A+"
+        percentage >= 70 -> "A"
+        percentage >= 60 -> "B+"
+        percentage >= 50 -> "B"
+        percentage >= 40 -> "C"
+        else -> "F"
+    }
+
+    private fun computeExamPerformanceTitle(percentage: Int): String = when {
+        percentage >= 90 -> "Outstanding Performance"
+        percentage >= 80 -> "Excellent Performance"
+        percentage >= 70 -> "First Class Distinction"
+        percentage >= 60 -> "Higher Merit"
+        percentage >= 50 -> "Merit Pass"
+        percentage >= 40 -> "Passing Grade"
+        else -> "Course Completion"
     }
 
 
@@ -4931,15 +5010,49 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         saveAdventureStateToPreferences()
     }
 
+    fun isAdventureWorldTasksCompleted(
+        world: AdventureWorld,
+        progress: AdventureProgress = _adventureProgress.value
+    ): Boolean {
+        if (world.levels.isEmpty()) return false
+        return world.levels.all { lvl ->
+            lvl.isCompleted ||
+                (progress.levelStars[lvl.id] ?: 0) > 0 ||
+                progress.completedLevelIds.contains(lvl.id)
+        }
+    }
+
+    fun getWorldTaskCompletionCounts(
+        world: AdventureWorld,
+        progress: AdventureProgress = _adventureProgress.value
+    ): Pair<Int, Int> {
+        val completed = world.levels.count { lvl ->
+            lvl.isCompleted ||
+                (progress.levelStars[lvl.id] ?: 0) > 0 ||
+                progress.completedLevelIds.contains(lvl.id)
+        }
+        return completed to world.levels.size
+    }
+
     fun claimAdventureChest(worldId: String, xp: Int, coins: Int): Boolean {
         val curr = _adventureProgress.value
         if (curr.claimedChestWorldIds.contains(worldId)) {
             return false // Already claimed for this world
         }
+        val world = _adventureWorlds.value.firstOrNull { it.id == worldId }
+        if (world == null || !isAdventureWorldTasksCompleted(world, curr)) {
+            return false // Student must complete all tasks in this world before claiming treasure loot
+        }
+        var actuallyClaimed = false
         _adventureProgress.update { current ->
-            if (current.claimedChestWorldIds.contains(worldId)) {
+            val currentWorld = _adventureWorlds.value.firstOrNull { it.id == worldId }
+            if (current.claimedChestWorldIds.contains(worldId) ||
+                currentWorld == null ||
+                !isAdventureWorldTasksCompleted(currentWorld, current)
+            ) {
                 current
             } else {
+                actuallyClaimed = true
                 current.copy(
                     claimedChestWorldIds = current.claimedChestWorldIds + worldId,
                     totalCoins = current.totalCoins + coins,
@@ -4947,8 +5060,10 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 )
             }
         }
-        saveAdventureStateToPreferences()
-        return true
+        if (actuallyClaimed) {
+            saveAdventureStateToPreferences()
+        }
+        return actuallyClaimed
     }
 
     // Admin World Management
