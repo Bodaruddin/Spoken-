@@ -1423,6 +1423,29 @@ class ExampleUnitTest {
         assertEquals(13, graded.longAnswerScores["q_long_1"])
         assertEquals("Well-structured answer with clear examples!", graded.teacherFeedback)
     }
+
+    @Test
+    fun testFastSpeechStartOfflineVoicePriorityAndCloudDeadline() {
+        // 1. Offline local female voice outscores network-buffered female voice to avoid start-of-speech buffering lag
+        val offlineScore = com.example.service.TtsManager.scoreVoiceSignature(
+            descriptor = "en-in-x-enc-local female neural",
+            country = "IN",
+            quality = android.speech.tts.Voice.QUALITY_HIGH,
+            isNetworkRequired = false,
+            preferredCountry = "IN"
+        )
+        val networkScore = com.example.service.TtsManager.scoreVoiceSignature(
+            descriptor = "en-in-x-ene-network female neural",
+            country = "IN",
+            quality = android.speech.tts.Voice.QUALITY_VERY_HIGH,
+            isNetworkRequired = true,
+            preferredCountry = "IN"
+        )
+        assertTrue(offlineScore > networkScore)
+
+        // 2. Cloud TTS first-chunk onset deadline stays tight so slow networks fall back immediately without dead silence
+        assertTrue(com.example.service.TtsManager.CLOUD_FIRST_CHUNK_DEADLINE_MS in 800L..1500L)
+    }
 }
 
 

@@ -2940,19 +2940,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 grammarExplanation = effectiveExplanation
                             )
 
-                            val turnExamples = if (effectiveAiEval.exampleAnswers.isNotEmpty()) {
+                            val immediateExamples = if (effectiveAiEval.exampleAnswers.isNotEmpty()) {
                                 effectiveAiEval.exampleAnswers
                             } else {
-                                com.example.util.ExampleAnswerGenerator.generateWithAi(
-                                    question = nextCoachQuestion,
-                                    topic = activeTopic,
-                                    apiKey = effectiveKey,
-                                    model = _activeAiModel.value
-                                )
+                                com.example.util.ExampleAnswerGenerator.generateForQuestion(nextCoachQuestion, activeTopic)
                             }
                             val spokenAudioPrompt = HumanConversationEngine.buildSpokenAudioPrompt(coachReply, effectiveAiEval)
+                            val novaTurnId = "nova_reply_${System.currentTimeMillis()}"
                             val novaTurn = NovaChatMessage(
-                                id = "nova_reply_${System.currentTimeMillis()}",
+                                id = novaTurnId,
                                 isNova = true,
                                 text = coachReply,
                                 audioPrompt = spokenAudioPrompt,
@@ -2960,12 +2956,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 isQuestion = true,
                                 questionNumber = nextTurn,
                                 hint = effectiveAiEval.hint ?: _novaCurrentHint.value,
-                                exampleAnswers = turnExamples
+                                exampleAnswers = immediateExamples
                             )
                             val finalHistory = historyForNova + novaTurn
                             _novaChatMessages.value = finalHistory
                             if (!effectiveAiEval.hint.isNullOrBlank()) _novaCurrentHint.value = effectiveAiEval.hint
-                            _novaCurrentExamples.value = turnExamples
+                            _novaCurrentExamples.value = immediateExamples
                             _activeCoachQuestion.value = nextCoachQuestion
 
                             val studentId = currentUser.value.id.ifBlank { "default_student" }
@@ -2973,6 +2969,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                             if (_aiVoiceReplyEnabled.value && spokenAudioPrompt.isNotBlank()) {
                                 speakAudio(spokenAudioPrompt)
+                            }
+
+                            if (effectiveAiEval.exampleAnswers.isEmpty() &&
+                                effectiveKey.isNotBlank() &&
+                                nextCoachQuestion.isNotBlank() &&
+                                com.example.util.ExampleAnswerGenerator.matchCuratedExamples(nextCoachQuestion, activeTopic) == null
+                            ) {
+                                val targetTopic = activeTopic
+                                val targetModel = _activeAiModel.value
+                                viewModelScope.launch {
+                                    val aiExamples = try {
+                                        com.example.util.ExampleAnswerGenerator.generateWithAi(
+                                            question = nextCoachQuestion,
+                                            topic = targetTopic,
+                                            apiKey = effectiveKey,
+                                            model = targetModel
+                                        )
+                                    } catch (_: Throwable) {
+                                        emptyList()
+                                    }
+                                    if (aiExamples.isNotEmpty()) {
+                                        if (_activeCoachQuestion.value == nextCoachQuestion) {
+                                            _novaCurrentExamples.value = aiExamples
+                                        }
+                                        val updatedMessages = _novaChatMessages.value.map { msg ->
+                                            if (msg.id == novaTurnId) msg.copy(exampleAnswers = aiExamples) else msg
+                                        }
+                                        _novaChatMessages.value = updatedMessages
+                                        appPreferences.saveNovaSession(studentId, targetTopic.id, updatedMessages)
+                                    }
+                                }
                             }
                             effectiveAiEval
                         } else {

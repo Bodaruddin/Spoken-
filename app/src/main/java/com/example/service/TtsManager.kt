@@ -10,27 +10,39 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import android.util.Base64
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 enum class NovaVoicePersona(
     val id: String,
@@ -161,6 +173,11 @@ internal data class PcmAudioPayload(
     val sampleRate: Int
 )
 
+private data class PendingSpeechRequest(
+    val cleanText: String,
+    val slowSpeed: Boolean
+)
+
 class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     private val appContext = context.applicationContext
     private var tts: TextToSpeech? = TextToSpeech(appContext, this)
@@ -186,6 +203,10 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     private var localFallbackVoice: Voice? = null
     private var activeAndroidVoice: Voice? = null
     private var activeAndroidVoiceConfirmedFemale: Boolean = false
+    private var lastAppliedVoiceName: String? = null
+    private var lastAppliedPitch: Float? = null
+    private var lastAppliedRate: Float? = null
+    private var pendingSpeechRequest: PendingSpeechRequest? = null
     private var lastUtteranceGroupId: Long = 0L
     private var lastChunkIdForGroup: String? = null
     private var lastSpokenText: String = ""
@@ -200,17 +221,18 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     private var cloudTtsCooldownUntilMs = 0L
 
     private val cloudAudioCacheLock = Any()
-    private val cloudAudioCache = object : LinkedHashMap<String, PcmAudioPayload>(24, 0.75f, true) {
+    private val cloudAudioCache = object : LinkedHashMap<String, PcmAudioPayload>(48, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, PcmAudioPayload>?): Boolean {
-            return size > 24
+            return size > 48
         }
     }
 
     private val cloudTtsClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(8, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .writeTimeout(8, TimeUnit.SECONDS)
+            .connectTimeout(2500, TimeUnit.MILLISECONDS)
+            .readTimeout(4500, TimeUnit.MILLISECONDS)
+            .writeTimeout(2500, TimeUnit.MILLISECONDS)
+            .callTimeout(5500, TimeUnit.MILLISECONDS)
             .build()
     }
 
@@ -237,7 +259,9 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         _voiceSpeedPreset.value = preset
         if (isInitialized) {
             try {
-                tts?.setSpeechRate(effectiveAndroidSpeechRate(_voicePersona.value, slowSpeed = false))
+                val targetRate = effectiveAndroidSpeechRate(_voicePersona.value, slowSpeed = false)
+                tts?.setSpeechRate(targetRate)
+                lastAppliedRate = targetRate
             } catch (_: Throwable) { }
         }
     }
@@ -330,6 +354,12 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                         handleTtsUtteranceError()
                     }
                 })
+
+                val pending = pendingSpeechRequest
+                pendingSpeechRequest = null
+                if (pending != null) {
+                    speakWithAndroidProsody(pending.cleanText, pending.slowSpeed)
+                }
             }
         }
     }
@@ -344,6 +374,9 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                 primaryIndianVoice = fallback
                 activeAndroidVoice = fallback
                 activeAndroidVoiceConfirmedFemale = isConfirmedFemaleVoice(fallback)
+                lastAppliedVoiceName = fallback.name
+                lastAppliedPitch = null
+                lastAppliedRate = null
                 speakWithAndroidProsody(lastSpokenText, lastSlowSpeed)
                 return
             } catch (_: Throwable) { }
@@ -384,72 +417,23 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     }
 
     private fun scoreIndianFemaleVoice(voice: Voice): Int {
-        val combined = voiceDescriptor(voice)
-        val country = voice.locale?.country.orEmpty().uppercase(Locale.ROOT)
-
-        var score = 0
-        // Locale priority: Indian English first, then UK, AU, US
-        score += when (country) {
-            "IN" -> 1200
-            "GB", "UK" -> 420
-            "AU" -> 260
-            "US" -> 240
-            else -> 100
-        }
-
-        if (femaleTokenRegex.containsMatchIn(combined)) {
-            score += 750
-        }
-
-        if (matchesMaleSignature(combined)) {
-            score -= 1500
-        }
-
-        // Voice synthesis quality
-        score += when {
-            voice.quality >= Voice.QUALITY_VERY_HIGH -> 380
-            voice.quality >= Voice.QUALITY_HIGH -> 260
-            voice.quality >= Voice.QUALITY_NORMAL -> 120
-            else -> 20
-        }
-
-        // Prefer natural neural / wavenet voices; prefer offline-ready high-quality voices for zero lag & no dropouts
-        if (combined.contains("neural") || combined.contains("wavenet")) score += 180
-        if (!voice.isNetworkConnectionRequired) score += 90
-
-        return score
+        return scoreVoiceSignature(
+            descriptor = voiceDescriptor(voice),
+            country = voice.locale?.country.orEmpty(),
+            quality = voice.quality,
+            isNetworkRequired = voice.isNetworkConnectionRequired,
+            preferredCountry = "IN"
+        )
     }
 
     private fun scoreVoiceForCountry(voice: Voice, preferredCountry: String): Int {
-        val combined = voiceDescriptor(voice)
-        val country = voice.locale?.country.orEmpty().uppercase(Locale.ROOT)
-        val normalizedCountry = if (country == "UK") "GB" else country
-        val target = if (preferredCountry == "UK") "GB" else preferredCountry
-
-        var score = 0
-        score += when {
-            normalizedCountry == target -> 1400
-            normalizedCountry == "GB" -> 480
-            normalizedCountry == "US" -> 440
-            normalizedCountry == "AU" -> 420
-            normalizedCountry == "IN" -> 400
-            else -> 120
-        }
-        if (femaleTokenRegex.containsMatchIn(combined)) {
-            score += 750
-        }
-        if (matchesMaleSignature(combined)) {
-            score -= 1500
-        }
-        score += when {
-            voice.quality >= Voice.QUALITY_VERY_HIGH -> 380
-            voice.quality >= Voice.QUALITY_HIGH -> 260
-            voice.quality >= Voice.QUALITY_NORMAL -> 120
-            else -> 20
-        }
-        if (combined.contains("neural") || combined.contains("wavenet")) score += 180
-        if (!voice.isNetworkConnectionRequired) score += 90
-        return score
+        return scoreVoiceSignature(
+            descriptor = voiceDescriptor(voice),
+            country = voice.locale?.country.orEmpty(),
+            quality = voice.quality,
+            isNetworkRequired = voice.isNetworkConnectionRequired,
+            preferredCountry = preferredCountry
+        )
     }
 
     private fun applyBestVoiceForPersona() {
@@ -499,7 +483,10 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                         }
                     } catch (_: Throwable) { }
                 }
-                engine.voice = chosen
+                if (lastAppliedVoiceName != chosen.name) {
+                    engine.voice = chosen
+                    lastAppliedVoiceName = chosen.name
+                }
             } else {
                 val targetLocale = Locale("en", targetCountry)
                 try {
@@ -514,8 +501,15 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             } else {
                 (persona.basePitch + 0.08f).coerceAtMost(1.12f)
             }
-            engine.setPitch(effectivePitch)
-            engine.setSpeechRate(effectiveAndroidSpeechRate(persona, slowSpeed = false))
+            val effectiveRate = effectiveAndroidSpeechRate(persona, slowSpeed = false)
+            if (lastAppliedPitch != effectivePitch) {
+                engine.setPitch(effectivePitch)
+                lastAppliedPitch = effectivePitch
+            }
+            if (lastAppliedRate != effectiveRate) {
+                engine.setSpeechRate(effectiveRate)
+                lastAppliedRate = effectiveRate
+            }
         } catch (_: Throwable) { }
     }
 
@@ -585,9 +579,52 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         return chunks.ifEmpty { listOf(clean) }
     }
 
+    /**
+     * Splits cleaned text into a compact first cloud-TTS bite (<= 85 chars) plus grouped
+     * follow-up chunks (<= 180 chars) so playback begins immediately on chunk 0 while later chunks prefetch in parallel.
+     */
+    internal fun splitIntoCloudChunks(clean: String): List<String> {
+        val sentences = splitIntoProsodyChunks(clean)
+        if (sentences.isEmpty()) return listOf(clean)
+
+        val expandedFirst = if (sentences.first().length > 85) {
+            val firstSentence = sentences.first()
+            val commaSplit = Regex("^(.{20,85}?[,;:])\\s+(.+)$").find(firstSentence)
+            if (commaSplit != null) {
+                listOf(commaSplit.groupValues[1].trim(), commaSplit.groupValues[2].trim()) + sentences.drop(1)
+            } else {
+                sentences
+            }
+        } else {
+            sentences
+        }
+
+        if (expandedFirst.size == 1) return expandedFirst
+
+        val result = mutableListOf<String>()
+        result.add(expandedFirst.first())
+
+        var buffer = StringBuilder()
+        for (part in expandedFirst.drop(1)) {
+            if (buffer.isNotEmpty() && buffer.length + part.length + 1 > 180 && result.size < 4) {
+                result.add(buffer.toString().trim())
+                buffer = StringBuilder(part)
+            } else {
+                if (buffer.isNotEmpty()) buffer.append(" ")
+                buffer.append(part)
+            }
+        }
+        if (buffer.isNotEmpty()) {
+            result.add(buffer.toString().trim())
+        }
+        return result.ifEmpty { listOf(clean) }
+    }
+
     @androidx.annotation.VisibleForTesting
     var speakAttemptCount: Int = 0
         private set
+
+    internal fun hasPendingSpeechForTesting(): Boolean = pendingSpeechRequest != null
 
     fun speak(text: String, slowSpeed: Boolean = false) {
         val clean = cleanTextForSpeech(text)
@@ -605,8 +642,8 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             ""
         }
 
-        // If Cloud Human Voice is enabled and a direct Gemini API key is configured, synthesize natural female human audio
-        // for both normal conversations and slow 0.78x Phonetics drills, with instant Android neural fallback.
+        // If Cloud Human Voice is enabled and a direct Gemini API key is configured, use chunk-pipelined HD female synthesis
+        // with strict onset deadline and immediate offline fallback so speech never stalls.
         if (isCloudTtsReady() &&
             key.isNotBlank() &&
             !key.startsWith("cc_") &&
@@ -616,7 +653,15 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             return
         }
 
-        if (!isInitialized || tts == null) return
+        fallbackToAndroidSpeech(clean, slowSpeed)
+    }
+
+    private fun fallbackToAndroidSpeech(clean: String, slowSpeed: Boolean) {
+        if (!isInitialized || tts == null) {
+            pendingSpeechRequest = PendingSpeechRequest(clean, slowSpeed)
+            return
+        }
+        pendingSpeechRequest = null
         speakWithAndroidProsody(clean, slowSpeed)
     }
 
@@ -657,11 +702,24 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         lastUtteranceGroupId = groupId
 
         try {
-            engine.stop()
-            // Re-assert female voice and natural unhurried studio pitch/rate ONCE per utterance group
-            activeAndroidVoice?.let { engine.voice = it }
-            engine.setPitch(effectivePitch)
-            engine.setSpeechRate(baseRate)
+            // Avoid redundant engine.stop() / binder voice resets unless needed; QUEUE_FLUSH on chunk 0 clears prior speech immediately
+            if (_isSpeaking.value) {
+                engine.stop()
+            }
+            activeAndroidVoice?.let { v ->
+                if (lastAppliedVoiceName != v.name) {
+                    engine.voice = v
+                    lastAppliedVoiceName = v.name
+                }
+            }
+            if (lastAppliedPitch != effectivePitch) {
+                engine.setPitch(effectivePitch)
+                lastAppliedPitch = effectivePitch
+            }
+            if (lastAppliedRate != baseRate) {
+                engine.setSpeechRate(baseRate)
+                lastAppliedRate = baseRate
+            }
         } catch (_: Throwable) { }
 
         val bundle = Bundle()
@@ -676,7 +734,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                 engine.speak(chunk, queueMode, bundle, utteranceId)
 
                 if (idx < chunks.lastIndex) {
-                    val pauseMs = if (chunk.endsWith("?") || chunk.endsWith("!")) 260L else 210L
+                    val pauseMs = if (chunk.endsWith("?") || chunk.endsWith("!")) 220L else 170L
                     engine.playSilentUtterance(pauseMs, TextToSpeech.QUEUE_ADD, "Speakly_${groupId}_pause_$idx")
                 }
             } catch (_: Throwable) { }
@@ -684,205 +742,324 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     }
 
     private fun speakWithCloudHumanVoice(cleanText: String, apiKey: String, slowSpeed: Boolean) {
+        val requestGroupId = utteranceCounter.incrementAndGet()
+        lastUtteranceGroupId = requestGroupId
         cloudTtsJob = scope.launch {
             _isSpeaking.value = true
+            val persona = _voicePersona.value
+            val chunks = splitIntoCloudChunks(cleanText)
             try {
-                val persona = _voicePersona.value
-                val cacheKey = "${persona.id}|$cleanText"
-                val cached = synchronized(cloudAudioCacheLock) { cloudAudioCache[cacheKey] }
-
-                val audioPayload = cached ?: withContext(Dispatchers.IO) {
-                    fetchGeminiAudioBytes(cleanText, apiKey, persona)?.also { fetched ->
-                        synchronized(cloudAudioCacheLock) {
-                            cloudAudioCache[cacheKey] = fetched
-                        }
-                    }
-                }
-
-                if (!isActive) return@launch
-
-                if (audioPayload != null && audioPayload.pcmBytes.isNotEmpty()) {
-                    val played = withContext(Dispatchers.IO) {
-                        playPcmAudio(audioPayload, slowSpeed)
-                    }
-                    if (!isActive) return@launch
-                    _isSpeaking.value = false
-                    if (!played && isInitialized && tts != null) {
-                        speakWithAndroidProsody(cleanText, slowSpeed)
-                    }
-                } else {
-                    if (!isActive) return@launch
-                    _isSpeaking.value = false
-                    if (isInitialized && tts != null) {
-                        speakWithAndroidProsody(cleanText, slowSpeed)
-                    }
-                }
-            } catch (_: CancellationException) {
-                // Intentionally suppressed when a new utterance or stop() cancels playback
-            } catch (_: Throwable) {
-                if (isActive) {
-                    _isSpeaking.value = false
-                    if (isInitialized && tts != null) {
-                        speakWithAndroidProsody(cleanText, slowSpeed)
-                    }
-                }
-            }
-        }
-    }
-
-    private fun fetchGeminiAudioBytes(
-        cleanText: String,
-        apiKey: String,
-        persona: NovaVoicePersona
-    ): PcmAudioPayload? {
-        val candidateModels = listOf(
-            "gemini-2.5-flash-preview-tts",
-            "gemini-2.5-pro-preview-tts"
-        )
-        var anyAttempted = false
-        for (modelName in candidateModels) {
-            anyAttempted = true
-            try {
-                val url = "https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey"
-                // Pass clean spoken text directly so Gemini TTS never speaks stage directions aloud
-                val body = JSONObject().apply {
-                    put("contents", JSONArray().apply {
-                        put(JSONObject().apply {
-                            put("parts", JSONArray().apply {
-                                put(JSONObject().apply { put("text", cleanText) })
-                            })
-                        })
-                    })
-                    put("generationConfig", JSONObject().apply {
-                        put("responseModalities", JSONArray().apply { put("AUDIO") })
-                        put("speechConfig", JSONObject().apply {
-                            put("voiceConfig", JSONObject().apply {
-                                put("prebuiltVoiceConfig", JSONObject().apply {
-                                    put("voiceName", persona.geminiVoiceName)
-                                })
-                            })
-                        })
-                    })
-                }
-                val request = Request.Builder()
-                    .url(url)
-                    .post(body.toString().toRequestBody("application/json".toMediaType()))
-                    .build()
-                cloudTtsClient.newCall(request).execute().use { response ->
-                    val respStr = response.body?.string().orEmpty()
-                    if (response.isSuccessful && respStr.isNotBlank()) {
-                        val root = JSONObject(respStr)
-                        val parts = root.optJSONArray("candidates")
-                            ?.optJSONObject(0)
-                            ?.optJSONObject("content")
-                            ?.optJSONArray("parts")
-                        if (parts != null) {
-                            for (i in 0 until parts.length()) {
-                                val inlineData = parts.optJSONObject(i)?.optJSONObject("inlineData")
-                                val b64 = inlineData?.optString("data").orEmpty()
-                                val mimeType = inlineData?.optString("mimeType").orEmpty()
-                                if (b64.isNotBlank()) {
-                                    val rawBytes = Base64.decode(b64, Base64.DEFAULT)
-                                    val payload = extractPcmFromAudioPayload(rawBytes, mimeType)
-                                    if (payload.pcmBytes.isNotEmpty()) {
-                                        return payload
+                // Launch concurrent IO fetches (or immediate 0ms cache hits) across all chunks so Chunk 1+ are ready while Chunk 0 plays
+                val deferredChunks = chunks.map { chunk ->
+                    val chunkCacheKey = "${persona.id}|$chunk"
+                    val cached = synchronized(cloudAudioCacheLock) { cloudAudioCache[chunkCacheKey] }
+                    if (cached != null) {
+                        CompletableDeferred(cached)
+                    } else {
+                        async(Dispatchers.IO) {
+                            fetchGeminiAudioBytes(chunk, apiKey, persona)?.also { fetched ->
+                                if (fetched.pcmBytes.isNotEmpty() && fetched.pcmBytes.size <= 900_000) {
+                                    synchronized(cloudAudioCacheLock) {
+                                        cloudAudioCache[chunkCacheKey] = fetched
                                     }
                                 }
                             }
                         }
-                    } else {
-                        val lowerErr = respStr.lowercase(Locale.ROOT)
-                        val isPermanentAuthError = response.code == 401 ||
-                            response.code == 403 ||
-                            lowerErr.contains("api_key_invalid") ||
-                            lowerErr.contains("api key not valid") ||
-                            lowerErr.contains("permission_denied")
-                        if (isPermanentAuthError) {
-                            cloudTtsAuthBlocked = true
-                            updateActiveVoiceLabel()
-                            return null
-                        }
-                        // On model-specific 400/404/429, continue to the next candidate model
                     }
+                }
+
+                // Cap wait on Chunk 0 so user never waits several seconds of silence before AI starts speaking
+                val firstPayload = withTimeoutOrNull(CLOUD_FIRST_CHUNK_DEADLINE_MS) {
+                    deferredChunks.firstOrNull()?.await()
+                }
+
+                if (!isActive || utteranceCounter.get() != requestGroupId) {
+                    deferredChunks.forEach { it.cancel() }
+                    return@launch
+                }
+
+                if (firstPayload == null || firstPayload.pcmBytes.isEmpty()) {
+                    deferredChunks.forEach { it.cancel() }
+                    _isSpeaking.value = false
+                    fallbackToAndroidSpeech(cleanText, slowSpeed)
+                    return@launch
+                }
+
+                val unplayedRemainder = withContext(Dispatchers.IO) {
+                    streamCloudChunksToAudioTrack(
+                        firstPayload = firstPayload,
+                        chunks = chunks,
+                        deferredChunks = deferredChunks,
+                        slowSpeed = slowSpeed,
+                        requestGroupId = requestGroupId
+                    )
+                }
+
+                if (!isActive || utteranceCounter.get() != requestGroupId) return@launch
+                _isSpeaking.value = false
+                if (!unplayedRemainder.isNullOrBlank()) {
+                    fallbackToAndroidSpeech(unplayedRemainder, slowSpeed)
+                }
+            } catch (_: CancellationException) {
+                // Intentionally suppressed when a new utterance or stop() cancels playback
+            } catch (_: Throwable) {
+                if (isActive && utteranceCounter.get() == requestGroupId) {
+                    _isSpeaking.value = false
+                    fallbackToAndroidSpeech(cleanText, slowSpeed)
+                }
+            }
+        }
+    }
+
+    private suspend fun fetchGeminiAudioBytes(
+        cleanText: String,
+        apiKey: String,
+        persona: NovaVoicePersona
+    ): PcmAudioPayload? {
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=$apiKey"
+        // Pass clean spoken text directly so Gemini TTS never speaks stage directions aloud
+        val body = JSONObject().apply {
+            put("contents", JSONArray().apply {
+                put(JSONObject().apply {
+                    put("parts", JSONArray().apply {
+                        put(JSONObject().apply { put("text", cleanText) })
+                    })
+                })
+            })
+            put("generationConfig", JSONObject().apply {
+                put("responseModalities", JSONArray().apply { put("AUDIO") })
+                put("speechConfig", JSONObject().apply {
+                    put("voiceConfig", JSONObject().apply {
+                        put("prebuiltVoiceConfig", JSONObject().apply {
+                            put("voiceName", persona.geminiVoiceName)
+                        })
+                    })
+                })
+            })
+        }
+        val request = Request.Builder()
+            .url(url)
+            .post(body.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+
+        return try {
+            val (httpCode, isSuccess, respStr) = executeCancellableCall(cloudTtsClient.newCall(request))
+            if (isSuccess && respStr.isNotBlank()) {
+                val root = JSONObject(respStr)
+                val parts = root.optJSONArray("candidates")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("content")
+                    ?.optJSONArray("parts")
+                if (parts != null) {
+                    for (i in 0 until parts.length()) {
+                        val inlineData = parts.optJSONObject(i)?.optJSONObject("inlineData")
+                        val b64 = inlineData?.optString("data").orEmpty()
+                        val mimeType = inlineData?.optString("mimeType").orEmpty()
+                        if (b64.isNotBlank()) {
+                            val rawBytes = Base64.decode(b64, Base64.DEFAULT)
+                            val payload = extractPcmFromAudioPayload(rawBytes, mimeType)
+                            if (payload.pcmBytes.isNotEmpty()) {
+                                return payload
+                            }
+                        }
+                    }
+                }
+            } else if (!isSuccess) {
+                val lowerErr = respStr.lowercase(Locale.ROOT)
+                val isPermanentAuthError = httpCode == 401 ||
+                    httpCode == 403 ||
+                    lowerErr.contains("api_key_invalid") ||
+                    lowerErr.contains("api key not valid") ||
+                    lowerErr.contains("permission_denied")
+                if (isPermanentAuthError) {
+                    cloudTtsAuthBlocked = true
+                    updateActiveVoiceLabel()
+                    return null
+                }
+                if (httpCode >= 400) {
+                    cloudTtsCooldownUntilMs = System.currentTimeMillis() + 30_000L
+                    updateActiveVoiceLabel()
+                }
+            }
+            null
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (_: Throwable) {
+            if (currentCoroutineContext().isActive && !cloudTtsAuthBlocked) {
+                cloudTtsCooldownUntilMs = System.currentTimeMillis() + 30_000L
+                updateActiveVoiceLabel()
+            }
+            null
+        }
+    }
+
+    private suspend fun executeCancellableCall(call: Call): Triple<Int, Boolean, String> =
+        suspendCancellableCoroutine { cont ->
+            cont.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (cont.isActive) {
+                        cont.resumeWithException(e)
+                    }
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    response.use { resp ->
+                        val bodyStr = try {
+                            resp.body?.string().orEmpty()
+                        } catch (_: Throwable) {
+                            ""
+                        }
+                        if (cont.isActive) {
+                            cont.resume(Triple(resp.code, resp.isSuccessful, bodyStr))
+                        }
+                    }
+                }
+            })
+        }
+
+    private fun buildStreamAudioTrack(sampleRate: Int, slowSpeed: Boolean): AudioTrack {
+        val cleanRate = sampleRate.coerceIn(16000, 48000)
+        val minBuf = AudioTrack.getMinBufferSize(
+            cleanRate,
+            AudioFormat.CHANNEL_OUT_MONO,
+            AudioFormat.ENCODING_PCM_16BIT
+        ).coerceAtLeast(4096)
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(cleanRate)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes((minBuf * 2).coerceAtLeast(8192))
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .build()
+
+        try {
+            track.setVolume(AudioTrack.getMaxVolume())
+        } catch (_: Throwable) { }
+
+        val targetSpeed = effectiveCloudPlaybackSpeed(slowSpeed)
+        if (kotlin.math.abs(targetSpeed - 1.0f) > 0.01f) {
+            try {
+                track.playbackParams = PlaybackParams().apply {
+                    speed = targetSpeed
+                    pitch = 1.0f
                 }
             } catch (_: Throwable) { }
         }
-        if (anyAttempted && !cloudTtsAuthBlocked) {
-            // Brief 60-second cooldown on transient/model outage instead of permanent session disable
-            cloudTtsCooldownUntilMs = System.currentTimeMillis() + 60_000L
-            updateActiveVoiceLabel()
-        }
-        return null
+        return track
     }
 
-    private fun playPcmAudio(payload: PcmAudioPayload, slowSpeed: Boolean = false): Boolean {
-        val pcmBytes = payload.pcmBytes
-        val sampleRate = payload.sampleRate.coerceIn(16000, 48000)
+    private suspend fun streamCloudChunksToAudioTrack(
+        firstPayload: PcmAudioPayload,
+        chunks: List<String>,
+        deferredChunks: List<kotlinx.coroutines.Deferred<PcmAudioPayload?>>,
+        slowSpeed: Boolean,
+        requestGroupId: Long
+    ): String? {
+        var currentRate = firstPayload.sampleRate.coerceIn(16000, 48000)
+        var cleanupTrack: AudioTrack? = null
         return try {
-            val minBuf = AudioTrack.getMinBufferSize(
-                sampleRate,
-                AudioFormat.CHANNEL_OUT_MONO,
-                AudioFormat.ENCODING_PCM_16BIT
-            ).coerceAtLeast(4096)
+            var currentTrack = buildStreamAudioTrack(currentRate, slowSpeed)
+            cleanupTrack = currentTrack
+            activeAudioTrack = currentTrack
+            currentTrack.play()
 
-            val track = AudioTrack.Builder()
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .build()
-                )
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(sampleRate)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                        .build()
-                )
-                .setBufferSizeInBytes(minBuf.coerceAtLeast(pcmBytes.size.coerceAtMost(minBuf * 4)))
-                .setTransferMode(AudioTrack.MODE_STREAM)
-                .build()
-
-            try {
-                track.setVolume(AudioTrack.getMaxVolume())
-            } catch (_: Throwable) { }
-
-            val targetSpeed = effectiveCloudPlaybackSpeed(slowSpeed)
-            if (kotlin.math.abs(targetSpeed - 1.0f) > 0.01f) {
-                try {
-                    track.playbackParams = PlaybackParams().apply {
-                        speed = targetSpeed
-                        pitch = 1.0f
-                    }
-                } catch (_: Throwable) { }
+            if (!writePcmBytes(currentTrack, firstPayload.pcmBytes, requestGroupId)) {
+                releaseAudioTrackSafely(currentTrack)
+                return null
             }
 
-            activeAudioTrack = track
-            track.play()
+            for (i in 1 until deferredChunks.size) {
+                currentCoroutineContext().ensureActive()
+                if (activeAudioTrack !== currentTrack || utteranceCounter.get() != requestGroupId) {
+                    releaseAudioTrackSafely(currentTrack)
+                    return null
+                }
 
-            var offset = 0
-            val chunkSize = 4096
-            while (offset < pcmBytes.size && activeAudioTrack === track) {
-                val toWrite = minOf(chunkSize, pcmBytes.size - offset)
-                val written = track.write(pcmBytes, offset, toWrite)
-                if (written <= 0) break
-                offset += written
+                val nextPayload = withTimeoutOrNull(3500L) {
+                    deferredChunks[i].await()
+                }
+                if (nextPayload == null || nextPayload.pcmBytes.isEmpty()) {
+                    // Drain whatever played so far and hand off remainder cleanly to Android TTS
+                    deferredChunks.drop(i).forEach { it.cancel() }
+                    drainAndReleaseTrack(currentTrack, currentRate, 80L, requestGroupId)
+                    return chunks.drop(i).joinToString(" ")
+                }
+
+                val nextRate = nextPayload.sampleRate.coerceIn(16000, 48000)
+                if (nextRate != currentRate) {
+                    drainAndReleaseTrack(currentTrack, currentRate, 80L, requestGroupId)
+                    currentRate = nextRate
+                    currentTrack = buildStreamAudioTrack(currentRate, slowSpeed)
+                    cleanupTrack = currentTrack
+                    activeAudioTrack = currentTrack
+                    currentTrack.play()
+                } else {
+                    writeSilencePadding(currentTrack, currentRate, 90L, requestGroupId)
+                }
+
+                if (!writePcmBytes(currentTrack, nextPayload.pcmBytes, requestGroupId)) {
+                    releaseAudioTrackSafely(currentTrack)
+                    return null
+                }
             }
 
             // Pad ~150ms of trailing silence so the hardware buffer drains the final syllable cleanly without clipping
-            if (activeAudioTrack === track) {
-                val rawSilenceBytes = ((sampleRate * 2 * 150L) / 1000L).toInt()
-                val silenceBytes = ByteArray(if (rawSilenceBytes % 2 == 0) rawSilenceBytes else rawSilenceBytes + 1)
-                track.write(silenceBytes, 0, silenceBytes.size)
-                try { track.stop() } catch (_: Throwable) { }
-            }
-            try { track.release() } catch (_: Throwable) { }
-            if (activeAudioTrack === track) activeAudioTrack = null
-            true
+            drainAndReleaseTrack(currentTrack, currentRate, 150L, requestGroupId)
+            null
+        } catch (ce: CancellationException) {
+            releaseAudioTrackSafely(cleanupTrack)
+            throw ce
         } catch (_: Throwable) {
-            activeAudioTrack = null
-            false
+            releaseAudioTrackSafely(cleanupTrack)
+            chunks.joinToString(" ")
         }
+    }
+
+    private fun writePcmBytes(track: AudioTrack, pcmBytes: ByteArray, requestGroupId: Long): Boolean {
+        var offset = 0
+        val chunkSize = 4096
+        while (offset < pcmBytes.size &&
+            activeAudioTrack === track &&
+            utteranceCounter.get() == requestGroupId
+        ) {
+            val toWrite = minOf(chunkSize, pcmBytes.size - offset)
+            val written = track.write(pcmBytes, offset, toWrite)
+            if (written <= 0) return false
+            offset += written
+        }
+        return activeAudioTrack === track && utteranceCounter.get() == requestGroupId
+    }
+
+    private fun writeSilencePadding(track: AudioTrack, sampleRate: Int, ms: Long, requestGroupId: Long) {
+        if (activeAudioTrack !== track || utteranceCounter.get() != requestGroupId) return
+        val rawSilenceBytes = ((sampleRate * 2 * ms) / 1000L).toInt()
+        val silenceBytes = ByteArray(if (rawSilenceBytes % 2 == 0) rawSilenceBytes else rawSilenceBytes + 1)
+        track.write(silenceBytes, 0, silenceBytes.size)
+    }
+
+    private fun drainAndReleaseTrack(track: AudioTrack, sampleRate: Int, silenceMs: Long, requestGroupId: Long) {
+        if (activeAudioTrack === track && utteranceCounter.get() == requestGroupId) {
+            writeSilencePadding(track, sampleRate, silenceMs, requestGroupId)
+            try { track.stop() } catch (_: Throwable) { }
+        }
+        releaseAudioTrackSafely(track)
+    }
+
+    private fun releaseAudioTrackSafely(track: AudioTrack?) {
+        if (track == null) return
+        try { track.release() } catch (_: Throwable) { }
+        if (activeAudioTrack === track) activeAudioTrack = null
     }
 
     private fun stopCloudPlaybackOnly() {
@@ -899,6 +1076,8 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     }
 
     fun stop() {
+        pendingSpeechRequest = null
+        utteranceCounter.incrementAndGet()
         stopCloudPlaybackOnly()
         try { tts?.stop() } catch (_: Throwable) { }
         _isSpeaking.value = false
@@ -912,6 +1091,8 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     }
 
     companion object {
+        internal const val CLOUD_FIRST_CHUNK_DEADLINE_MS = 1400L
+
         private val femaleTokenRegex = Regex(
             "(^|[^a-z0-9])(female|woman|enc|ene|ena|ef|sangeeta|veena|lekha|neelam|aditi|kajal|raveena|priya|gba|gbc|gbg|fis|iog|sfg|tpf|tessa|samantha|karen|moira|serena|victoria|f00|f01|f02|f)([^a-z0-9]|$)"
         )
@@ -919,6 +1100,43 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             "(^|[^a-z0-9])(male|man|rishi|prabhat|end|ahp|daniel|arthur|oliver|george|alex|fred|m00|m01|iol|iom|rjs|tpd)([^a-z0-9]|$)"
         )
         private val sampleRateRegex = Regex("rate=(\\d+)", RegexOption.IGNORE_CASE)
+
+        internal fun scoreVoiceSignature(
+            descriptor: String,
+            country: String,
+            quality: Int,
+            isNetworkRequired: Boolean,
+            preferredCountry: String
+        ): Int {
+            val combined = descriptor.lowercase(Locale.ROOT)
+            val normalizedCountry = country.uppercase(Locale.ROOT).let { if (it == "UK") "GB" else it }
+            val target = preferredCountry.uppercase(Locale.ROOT).let { if (it == "UK") "GB" else it }
+
+            var score = 0
+            score += when {
+                normalizedCountry == target -> 1400
+                normalizedCountry == "GB" -> 480
+                normalizedCountry == "US" -> 440
+                normalizedCountry == "AU" -> 420
+                normalizedCountry == "IN" -> 400
+                else -> 120
+            }
+            if (femaleTokenRegex.containsMatchIn(combined)) {
+                score += 750
+            }
+            if (matchesMaleSignature(combined)) {
+                score -= 1500
+            }
+            score += when {
+                quality >= Voice.QUALITY_VERY_HIGH -> 380
+                quality >= Voice.QUALITY_HIGH -> 260
+                quality >= Voice.QUALITY_NORMAL -> 120
+                else -> 20
+            }
+            if (combined.contains("neural") || combined.contains("wavenet")) score += 180
+            if (!isNetworkRequired && quality >= Voice.QUALITY_NORMAL) score += 320
+            return score
+        }
 
         internal fun isConfirmedFemaleSignature(descriptor: String): Boolean {
             val combined = descriptor.lowercase(Locale.ROOT)

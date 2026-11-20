@@ -1466,6 +1466,33 @@ class ExampleRobolectricTest {
 
     assertEquals(studentEssay, submittedWritten[longQId])
   }
+
+  @Test
+  fun `tts manager splits long replies into compact first bite and queues speech before init`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    val ttsManager = com.example.service.TtsManager(app)
+
+    // 1. Long multi-sentence coaching text splits into a short first chunk (<= 85 chars) for rapid onset
+    val longFeedback =
+      "Great effort Alex! Try saying: I usually go to school by bus at eight o'clock every morning. What subject do you enjoy studying most at school?"
+    val cloudChunks = ttsManager.splitIntoCloudChunks(longFeedback)
+    assertTrue(cloudChunks.size >= 2)
+    assertTrue(cloudChunks.first().length <= 85)
+
+    // Long single first sentence also splits cleanly at comma boundary so first chunk is short
+    val longOpeningSentence =
+      "You spoke very clearly during this practice round, and your pronunciation of tricky words was awesome! Would you like to continue?"
+    val splitOpening = ttsManager.splitIntoCloudChunks(longOpeningSentence)
+    assertTrue(splitOpening.size >= 2)
+    assertTrue(splitOpening.first().length <= 85)
+
+    // 2. Calling speak() before TextToSpeech.OnInit completes queues utterance instead of dropping it, and stop() clears it
+    ttsManager.speak("Welcome to Speakly!", slowSpeed = false)
+    assertTrue(ttsManager.hasPendingSpeechForTesting())
+    ttsManager.stop()
+    assertFalse(ttsManager.hasPendingSpeechForTesting())
+    ttsManager.shutdown()
+  }
 }
 
 
