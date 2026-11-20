@@ -58,12 +58,10 @@ fun NovaVoiceStudioDialog(
                 .testTag("nova_voice_studio_dialog")
         ) {
             Column(
-                modifier = Modifier
-                    .padding(20.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Header
+                // Pinned Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -78,14 +76,14 @@ fun NovaVoiceStudioDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.RecordVoiceOver,
-                            contentDescription = "Indian Female Voice Studio",
+                            contentDescription = "Female Voice Studio",
                             tint = Color.White,
                             modifier = Modifier.size(22.dp)
                         )
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Nova Indian Voice Studio",
+                            text = "Nova Female Voice Studio",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White,
@@ -102,7 +100,7 @@ fun NovaVoiceStudioDialog(
                     }
                     IconButton(
                         onClick = onDismiss,
-                        modifier = Modifier.size(40.dp).testTag("close_voice_studio_btn")
+                        modifier = Modifier.size(48.dp).testTag("close_voice_studio_btn")
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
@@ -112,135 +110,92 @@ fun NovaVoiceStudioDialog(
                     }
                 }
 
-                // Persona Cards
-                Text(
-                    text = "Choose Indian Female Voice Persona",
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFC4B5FD)
-                )
+                // Scrollable Voice List & Toggles
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    val indianPersonas = NovaVoicePersona.entries.filter { it.isIndianVoice }
+                    val globalEnglishPersonas = NovaVoicePersona.entries.filter { !it.isIndianVoice }
 
-                NovaVoicePersona.entries.forEach { persona ->
-                    val isSelected = persona == selectedPersona
+                    Text(
+                        text = "Indian English Female Voices",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFC4B5FD)
+                    )
+
+                    indianPersonas.forEach { persona ->
+                        VoicePersonaOptionCard(
+                            persona = persona,
+                            isSelected = persona == selectedPersona,
+                            onSelect = { onSelectPersona(persona) }
+                        )
+                    }
+
+                    Text(
+                        text = "English Female Voices (UK • US • AU)",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF67E8F9),
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+
+                    globalEnglishPersonas.forEach { persona ->
+                        VoicePersonaOptionCard(
+                            persona = persona,
+                            isSelected = persona == selectedPersona,
+                            onSelect = { onSelectPersona(persona) }
+                        )
+                    }
+
+                    // Toggles
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = if (isSelected) Color(0xFF281956) else Color(0xFF1B133D),
-                        border = BorderStroke(
-                            1.3.dp,
-                            if (isSelected) Color(0xFF38BDF8) else Color(0xFF3B2A70)
-                        ),
+                        color = Color(0xFF1B133D),
+                        border = BorderStroke(1.dp, Color(0xFF3B2A70)),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .defaultMinSize(minHeight = 56.dp)
-                            .clickable { onSelectPersona(persona) }
-                            .testTag("voice_persona_${persona.id.lowercase()}")
+                            .padding(top = 2.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        Column(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isSelected) Brush.linearGradient(listOf(Color(0xFF38BDF8), Color(0xFFA855F7)))
-                                        else Brush.linearGradient(listOf(Color(0xFF312E81), Color(0xFF4C1D95)))
-                                    )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = persona.displayName.first().toString(),
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White
-                                )
-                            }
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text(
-                                        text = persona.displayName,
-                                        fontSize = 14.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                    Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = Color(0xFF1E3A5F)
-                                    ) {
-                                        Text(
-                                            text = "en-IN",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF67E8F9),
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Auto-Speak Replies", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                    Text("Nova automatically reads replies aloud", fontSize = 11.sp, color = Color(0xFF94A3B8))
                                 }
-                                Text(
-                                    text = persona.subtitle,
-                                    fontSize = 12.sp,
-                                    color = Color(0xFFCBD5E1)
+                                Switch(
+                                    checked = voiceReplyEnabled,
+                                    onCheckedChange = onToggleVoiceReply
                                 )
                             }
-                            if (isSelected) {
-                                Icon(
-                                    imageVector = Icons.Rounded.CheckCircle,
-                                    contentDescription = "Selected",
-                                    tint = Color(0xFF38BDF8),
-                                    modifier = Modifier.size(22.dp)
+                            HorizontalDivider(color = Color(0xFF2D2059))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Ultra-Natural Human Audio", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                    Text("Uses HD studio female voice when active, with natural on-device fallback", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                                }
+                                Switch(
+                                    checked = cloudHumanVoiceEnabled,
+                                    onCheckedChange = onToggleCloudHumanVoice
                                 )
                             }
                         }
                     }
                 }
 
-                // Toggles
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF1B133D),
-                    border = BorderStroke(1.dp, Color(0xFF3B2A70)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Auto-Speak Replies", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-                                Text("Nova automatically reads replies aloud", fontSize = 11.sp, color = Color(0xFF94A3B8))
-                            }
-                            Switch(
-                                checked = voiceReplyEnabled,
-                                onCheckedChange = onToggleVoiceReply
-                            )
-                        }
-                        HorizontalDivider(color = Color(0xFF2D2059))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Ultra-Natural Human Audio", fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-                                Text("Uses HD neural speech when cloud AI is active, with Indian voice fallback", fontSize = 11.sp, color = Color(0xFF94A3B8))
-                            }
-                            Switch(
-                                checked = cloudHumanVoiceEnabled,
-                                onCheckedChange = onToggleCloudHumanVoice
-                            )
-                        }
-                    }
-                }
-
-                // Preview & Done Buttons
+                // Pinned Preview & Done Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -286,6 +241,92 @@ fun NovaVoiceStudioDialog(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VoicePersonaOptionCard(
+    persona: NovaVoicePersona,
+    isSelected: Boolean,
+    onSelect: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = if (isSelected) Color(0xFF281956) else Color(0xFF1B133D),
+        border = BorderStroke(
+            1.3.dp,
+            if (isSelected) Color(0xFF38BDF8) else Color(0xFF3B2A70)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 56.dp)
+            .clickable { onSelect() }
+            .testTag("voice_persona_${persona.id.lowercase()}")
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(
+                        when {
+                            isSelected -> Brush.linearGradient(listOf(Color(0xFF38BDF8), Color(0xFFA855F7)))
+                            persona.isIndianVoice -> Brush.linearGradient(listOf(Color(0xFF312E81), Color(0xFF4C1D95)))
+                            else -> Brush.linearGradient(listOf(Color(0xFF0E7490), Color(0xFF4338CA)))
+                        }
+                    )
+            ) {
+                Text(
+                    text = persona.displayName.first().toString(),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = persona.displayName,
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (persona.isIndianVoice) Color(0xFF1E3A5F) else Color(0xFF134E4A)
+                    ) {
+                        Text(
+                            text = persona.localeBadge,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (persona.isIndianVoice) Color(0xFF67E8F9) else Color(0xFF5EEAD4),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+                Text(
+                    text = persona.subtitle,
+                    fontSize = 12.sp,
+                    color = Color(0xFFCBD5E1)
+                )
+            }
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircle,
+                    contentDescription = "Selected",
+                    tint = Color(0xFF38BDF8),
+                    modifier = Modifier.size(22.dp)
+                )
             }
         }
     }

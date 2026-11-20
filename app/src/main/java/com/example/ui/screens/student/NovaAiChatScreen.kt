@@ -312,12 +312,12 @@ fun NovaAiChatScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.RecordVoiceOver,
-                                contentDescription = "Select Indian Female Voice",
+                                contentDescription = "Select Female Voice",
                                 tint = Color(0xFFF472B6),
                                 modifier = Modifier.size(11.dp)
                             )
                             Text(
-                                text = "${selectedPersona.displayName} • Indian Voice ▾",
+                                text = "${selectedPersona.displayName} • ${selectedPersona.shortAccentLabel} ▾",
                                 fontSize = 10.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFFFCE7F3),
@@ -1210,14 +1210,16 @@ fun NovaAiChatScreen(
             val isTimeWordsTopic = currentTopic.title.contains("Time Words", ignoreCase = true) ||
                     currentTopic.id == "topic_time_words"
             val lessonQuestions = remember(currentTopic) { getQuestionsForTopic(currentTopic) }
-            val matchingLessonQ = remember(cleanQuestion, rawQuestion, lessonQuestions) {
+            val matchingLessonQ = remember(cleanQuestion, lessonQuestions) {
                 lessonQuestions.firstOrNull {
-                    it.questionText.trim().equals(cleanQuestion.trim(), ignoreCase = true) ||
-                            rawQuestion.contains(it.questionText.trim(), ignoreCase = true)
+                    it.questionText.trim().equals(cleanQuestion.trim(), ignoreCase = true)
                 }
             }
-            val bespokeAssamese = remember(matchingLessonQ, isTimeWordsTopic) {
-                if (matchingLessonQ != null && (isTimeWordsTopic || matchingLessonQ.questionNumber != 1)) {
+            val bespokeAssamese = remember(matchingLessonQ, isTimeWordsTopic, cleanQuestion) {
+                if (matchingLessonQ != null &&
+                    (matchingLessonQ.questionNumber != 1 ||
+                        (isTimeWordsTopic && cleanQuestion.contains("school", ignoreCase = true)))
+                ) {
                     matchingLessonQ.assameseTranslation
                 } else {
                     null
@@ -1471,7 +1473,11 @@ fun NovaAiChatScreen(
                                 Text("বাংলা / हिन्दी (Guidance):", fontSize = 10.5.sp, color = Color(0xFFF472B6), fontWeight = FontWeight.SemiBold)
                                 Spacer(Modifier.height(2.dp))
                                 val guideText = matchingLessonQ?.bengaliHindiTranslation
-                                    ?: "এই প্রশ্নের উত্তরে আপনার স্বাভাবিক অভিজ্ঞতা বা অভ্যাস সম্পূর্ণ বাক্যে বলুন। / इस प्रश्न के उत्तर में अपना अनुभव पूरे वाक्य में बोलें।"
+                                    ?.takeIf {
+                                        matchingLessonQ.questionNumber != 1 ||
+                                            (isTimeWordsTopic && cleanQuestion.contains("school", ignoreCase = true))
+                                    }
+                                    ?: com.example.util.AssameseTranslator.getBengaliHindiGuidance(cleanQuestion)
                                 Text(guideText, fontSize = 12.sp, color = Color(0xFFF1F5F9))
                             }
                         }
@@ -2176,17 +2182,30 @@ fun getQuestionsForTopic(topic: SpeakingPrompt): List<TopicLessonQuestion> {
     val q1Tip = topic.followUpTip.ifBlank { "Use 'at' for clock times and 'in the morning' or 'on weekdays'." }
     return when {
         topic.title.contains("Time Words", ignoreCase = true) || topic.id == "topic_time_words" -> {
+            val isSchoolQ1 = q1Text.contains("school", ignoreCase = true)
             listOf(
                 TopicLessonQuestion(
                     questionNumber = 1,
                     questionText = q1Text,
                     hintText = q1Tip,
-                    exampleAnswers = listOf(
-                        "I usually go to school at 8:00 AM on weekdays.",
-                        "I leave for school at 8:30 in the morning."
-                    ),
-                    assameseTranslation = "তুমি সাধাৰণতে কেতিয়া স্কুললৈ যোৱা?",
-                    bengaliHindiTranslation = "তুমি সাধারণত কখন স্কুলে যাও? / आप आमतौर पर स्कूल कब जाते हैं?"
+                    exampleAnswers = if (isSchoolQ1) {
+                        listOf(
+                            "I usually go to school at 8:00 AM on weekdays.",
+                            "I leave for school at 8:30 in the morning."
+                        )
+                    } else {
+                        com.example.util.ExampleAnswerGenerator.generateForQuestion(q1Text, topic)
+                    },
+                    assameseTranslation = if (isSchoolQ1) {
+                        "তুমি সাধাৰণতে কেতিয়া স্কুললৈ যোৱা?"
+                    } else {
+                        com.example.util.AssameseTranslator.translate(q1Text).assameseText
+                    },
+                    bengaliHindiTranslation = if (isSchoolQ1) {
+                        "তুমি সাধারণত কখন স্কুলে যাও? / आप आमतौर पर स्कूल कब जाते हैं?"
+                    } else {
+                        com.example.util.AssameseTranslator.getBengaliHindiGuidance(q1Text)
+                    }
                 ),
                 TopicLessonQuestion(
                     questionNumber = 2,
@@ -2243,7 +2262,7 @@ fun getQuestionsForTopic(topic: SpeakingPrompt): List<TopicLessonQuestion> {
                     hintText = topic.followUpTip.ifBlank { "Express your core thoughts clearly using complete sentences." },
                     exampleAnswers = com.example.util.ExampleAnswerGenerator.generateForQuestion(topic.question, topic),
                     assameseTranslation = com.example.util.AssameseTranslator.translate(topic.question).assameseText,
-                    bengaliHindiTranslation = "এই বিষয়ে আপনার মতামত জানান।"
+                    bengaliHindiTranslation = com.example.util.AssameseTranslator.getBengaliHindiGuidance(topic.question)
                 ),
                 TopicLessonQuestion(
                     questionNumber = 2,

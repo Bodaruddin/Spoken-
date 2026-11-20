@@ -1425,7 +1425,7 @@ fun PronunciationSection(
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.RecordVoiceOver,
-                                    contentDescription = "Change Indian Female Voice",
+                                    contentDescription = "Change Female Voice",
                                     tint = Color(0xFFF472B6),
                                     modifier = Modifier.size(13.dp)
                                 )
@@ -1433,7 +1433,7 @@ fun PronunciationSection(
                                     text = if (isTtsSpeaking) {
                                         "${selectedPersona.displayName} speaking..."
                                     } else {
-                                        "Nova AI • ${selectedPersona.displayName} (Indian Voice) ▾"
+                                        "Nova AI • ${selectedPersona.displayName} (${selectedPersona.shortAccentLabel}) ▾"
                                     },
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
@@ -1452,7 +1452,7 @@ fun PronunciationSection(
                         )
 
                         Text(
-                            text = "Type any word for IPA, syllables & Indian female voice coaching",
+                            text = "Type any word for IPA, syllables & clear female voice coaching",
                             fontSize = 12.sp,
                             lineHeight = 16.sp,
                             color = Color(0xFFCBD5E1)

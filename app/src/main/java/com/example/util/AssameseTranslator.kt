@@ -944,6 +944,37 @@ object AssameseTranslator {
         return rawMeaning.substringBefore("/").trim()
     }
 
+    fun getBengaliHindiGuidance(englishSentence: String): String {
+        val clean = extractCleanQuestion(englishSentence)
+        val lower = clean.lowercase().trim()
+        return when {
+            lower.contains("hello") && lower.contains("how are you") ->
+                "হ্যালো! আপনি কেমন আছেন? / नमस्ते! आप कैसे हैं?"
+            lower.contains("how are you") ->
+                "আপনি কেমন আছেন? / आप कैसे हैं?"
+            lower.contains("what is your name") ->
+                "আপনার নাম কী? / आपका नाम क्या है?"
+            lower.contains("tell me about yourself") || lower.contains("introduce yourself") ->
+                "আপনার নিজের সম্পর্কে বলুন। / अपने बारे में बताइए।"
+            lower.contains("go to school") ->
+                "তুমি সাধারণত কখন স্কুলে যাও? / आप आमतौर पर स्कूल कब जाते हैं?"
+            lower.contains("wake up") ->
+                "তুমি সকালে কখন ওঠো? / आप सुबह कितने बजे उठते हैं?"
+            lower.contains("where do you live") || lower.contains("where are you from") ->
+                "আপনি কোথায় থাকেন? / आप कहाँ रहते हैं?"
+            lower.contains("hobbies") || lower.contains("free time") ->
+                "আপনার শখ কী এবং অবসর সময়ে কী করতে ভালোবাসেন? / आपके शौक क्या हैं और खाली समय में क्या करना पसंद करते हैं?"
+            lower.contains("how was your day") ->
+                "আপনার আজকের দিনটি কেমন কাটল? / आपका आज का दिन कैसा रहा?"
+            lower.contains("how was your weekend") ->
+                "আপনার সপ্তাহান্ত কেমন কাটল? / आपका सप्ताहांत कैसा रहा?"
+            lower.contains("favorite") ->
+                "আপনার প্রিয় বিষয় বা পছন্দের জিনিসটি সম্পর্কে বলুন। / अपनी पसंदीदा चीज़ के बारे में बताइए।"
+            else ->
+                "এই প্রশ্নের উত্তরে আপনার স্বাভাবিক অভিজ্ঞতা বা মতামত সম্পূর্ণ ইংরেজি বাক্যে বলুন। / इस प्रश्न के उत्तर में अपने विचार पूरे अंग्रेज़ी वाक्य में बोलें।"
+        }
+    }
+
     /**
      * Translates the given English sentence to Assamese.
      * Uses custom Assamese text if provided, otherwise looks up curated sentences,
@@ -951,20 +982,20 @@ object AssameseTranslator {
      */
     fun translate(englishSentence: String, customAssamese: String? = null): TranslationResult {
         val cleanQuestion = extractCleanQuestion(englishSentence)
-
-        if (!customAssamese.isNullOrBlank()) {
-            val breakdown = generateBreakdown(cleanQuestion)
-            return TranslationResult(
-                assameseText = customAssamese.trim(),
-                transliteration = "অসমীয়া অৰ্থ (Assamese Meaning)",
-                wordBreakdown = breakdown
-            )
-        }
-
         val normalized = cleanQuestion.trim().lowercase()
             .replace(Regex("[^a-z0-9 ]"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
+
+        if (!customAssamese.isNullOrBlank()) {
+            val curated = curatedSentences[normalized]
+            val synth = synthesizeQuestionTranslation(cleanQuestion, cleanQuestion.lowercase().trim())
+            return TranslationResult(
+                assameseText = customAssamese.trim(),
+                transliteration = curated?.transliteration ?: synth?.transliteration ?: "",
+                wordBreakdown = curated?.wordBreakdown ?: generateBreakdown(cleanQuestion)
+            )
+        }
 
         curatedSentences[normalized]?.let { return it }
 

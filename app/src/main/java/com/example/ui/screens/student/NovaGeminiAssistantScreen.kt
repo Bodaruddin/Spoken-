@@ -206,6 +206,7 @@ fun NovaGeminiAssistantScreen(
         // 1. Top Header
         NovaAssistantTopBar(
             voicePersonaName = selectedPersona.displayName,
+            voiceAccentLabel = selectedPersona.shortAccentLabel,
             isSpeaking = isTtsSpeaking,
             voiceReplyEnabled = voiceReplyEnabled,
             onOpenVoiceStudio = { showVoiceStudio = true },
@@ -572,6 +573,7 @@ private data class StarterPrompt(val title: String, val prompt: String)
 @Composable
 private fun NovaAssistantTopBar(
     voicePersonaName: String,
+    voiceAccentLabel: String,
     isSpeaking: Boolean,
     voiceReplyEnabled: Boolean,
     onOpenVoiceStudio: () -> Unit,
@@ -628,12 +630,12 @@ private fun NovaAssistantTopBar(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.RecordVoiceOver,
-                            contentDescription = "Change Indian Female Voice",
+                            contentDescription = "Change Female Voice",
                             tint = Color(0xFFF472B6),
                             modifier = Modifier.size(12.dp)
                         )
                         Text(
-                            text = if (isSpeaking) "$voicePersonaName speaking..." else "Indian Female Voice ▾",
+                            text = if (isSpeaking) "$voicePersonaName speaking..." else "$voiceAccentLabel (Female) ▾",
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFFFCE7F3),

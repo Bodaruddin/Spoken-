@@ -1139,11 +1139,68 @@ class ExampleUnitTest {
         assertEquals(com.example.service.NovaVoicePersona.ANANYA, com.example.service.NovaVoicePersona.fromId("unknown"))
         assertEquals(com.example.service.NovaVoicePersona.PRIYA, com.example.service.NovaVoicePersona.fromId("priya"))
         assertEquals(com.example.service.NovaVoicePersona.MEERA, com.example.service.NovaVoicePersona.fromId("MEERA"))
+        assertEquals(com.example.service.NovaVoicePersona.CLARA, com.example.service.NovaVoicePersona.fromId("clara"))
+        assertEquals(com.example.service.NovaVoicePersona.EMMA, com.example.service.NovaVoicePersona.fromId("EMMA"))
+        assertEquals(com.example.service.NovaVoicePersona.SOPHIA, com.example.service.NovaVoicePersona.fromId("sophia"))
+        assertEquals(com.example.service.NovaVoicePersona.GRACE, com.example.service.NovaVoicePersona.fromId("grace"))
 
         assertEquals("Ananya", com.example.service.NovaVoicePersona.ANANYA.displayName)
         assertEquals("Priya", com.example.service.NovaVoicePersona.PRIYA.displayName)
         assertEquals("Meera", com.example.service.NovaVoicePersona.MEERA.displayName)
-        assertTrue(com.example.service.NovaVoicePersona.entries.all { it.stylePrompt.contains("Indian", ignoreCase = true) })
+        assertEquals("Clara", com.example.service.NovaVoicePersona.CLARA.displayName)
+        assertEquals("Emma", com.example.service.NovaVoicePersona.EMMA.displayName)
+        assertEquals("Sophia", com.example.service.NovaVoicePersona.SOPHIA.displayName)
+        assertEquals("Grace", com.example.service.NovaVoicePersona.GRACE.displayName)
+
+        assertTrue(com.example.service.NovaVoicePersona.entries.filter { it.isIndianVoice }.all {
+            it.stylePrompt.contains("Indian", ignoreCase = true) && it.localeBadge == "en-IN"
+        })
+        assertTrue(com.example.service.NovaVoicePersona.entries.filter { !it.isIndianVoice }.all {
+            it.stylePrompt.contains("English", ignoreCase = true) && it.localeBadge in listOf("en-GB", "en-US", "en-AU")
+        })
+        // Keep Android neural pitch within natural studio range (<= 1.05f) to avoid robotic vocoder artifacts
+        assertTrue(com.example.service.NovaVoicePersona.entries.all { it.basePitch in 0.95f..1.05f })
+    }
+
+    @Test
+    fun testPcmAudioPayloadAndFemaleVoiceSignatures() {
+        // 1. Raw PCM respects sample rate parameter in mimeType and enforces even 16-bit frame alignment
+        val rawOddPcm = byteArrayOf(1, 2, 3, 4, 5)
+        val rawParsed = com.example.service.TtsManager.extractPcmFromAudioPayload(
+            rawBytes = rawOddPcm,
+            mimeType = "audio/L16;codec=pcm;rate=24000"
+        )
+        assertEquals(24000, rawParsed.sampleRate)
+        assertEquals(4, rawParsed.pcmBytes.size)
+
+        // 2. RIFF/WAVE header is cleanly stripped and header sample rate (22050 Hz) is parsed
+        val wavBytes = ByteArray(48)
+        "RIFF".toByteArray(Charsets.US_ASCII).copyInto(wavBytes, 0)
+        "WAVE".toByteArray(Charsets.US_ASCII).copyInto(wavBytes, 8)
+        "fmt ".toByteArray(Charsets.US_ASCII).copyInto(wavBytes, 12)
+        // 22050 = 0x00005622 little-endian at offset 24..27
+        wavBytes[24] = 0x22.toByte()
+        wavBytes[25] = 0x56.toByte()
+        wavBytes[26] = 0x00
+        wavBytes[27] = 0x00
+        "data".toByteArray(Charsets.US_ASCII).copyInto(wavBytes, 36)
+        wavBytes[44] = 10
+        wavBytes[45] = 20
+        wavBytes[46] = 30
+        wavBytes[47] = 40
+
+        val wavParsed = com.example.service.TtsManager.extractPcmFromAudioPayload(wavBytes, "audio/wav")
+        assertEquals(22050, wavParsed.sampleRate)
+        assertEquals(4, wavParsed.pcmBytes.size)
+        assertEquals(10.toByte(), wavParsed.pcmBytes[0])
+
+        // 3. Female signature matching avoids substring collisions ("samantha" vs "man", "default" vs "ef")
+        assertTrue(com.example.service.TtsManager.isConfirmedFemaleSignature("en-in-x-enc-local"))
+        assertTrue(com.example.service.TtsManager.isConfirmedFemaleSignature("en-in-x-ene-network"))
+        assertTrue(com.example.service.TtsManager.isConfirmedFemaleSignature("en-us-samantha"))
+        assertFalse(com.example.service.TtsManager.isConfirmedFemaleSignature("en-in-x-end-local"))
+        assertFalse(com.example.service.TtsManager.isConfirmedFemaleSignature("default-voice"))
+        assertFalse(com.example.service.TtsManager.isConfirmedFemaleSignature("en-in-rishi"))
     }
 
     @Test
@@ -1218,6 +1275,33 @@ class ExampleUnitTest {
         assertTrue(cafeChips.isNotEmpty())
         assertTrue(cafeChips.any { it.first.contains("coffee", ignoreCase = true) || it.first.contains("bill", ignoreCase = true) })
     }
+
+    @Test
+    fun testQuestionTranslationAndExampleAnswersMatchExactQuestion() {
+        // 1. "What is your name?" must return direct name-answering examples
+        val nameExamples = com.example.util.ExampleAnswerGenerator.generateForQuestion("What is your name?")
+        assertEquals(2, nameExamples.size)
+        assertTrue(nameExamples.any { it.contains("My name is", ignoreCase = true) || it.contains("I'm", ignoreCase = true) })
+
+        // 2. "Hello! How are you?" must translate cleanly with real Romanized pronunciation and matching Bengali/Hindi
+        val greetingTrans = com.example.util.AssameseTranslator.translate("Hello! How are you?")
+        assertEquals("নমস্কাৰ! আপুনি কেনে আছে?", greetingTrans.assameseText)
+        assertEquals("Nomoxkar! Aapuni kene aase?", greetingTrans.transliteration)
+        assertFalse(greetingTrans.assameseText.contains("স্কুল"))
+
+        val greetingGuidance = com.example.util.AssameseTranslator.getBengaliHindiGuidance("Hello! How are you?")
+        assertTrue(greetingGuidance.contains("আপনি কেমন আছেন"))
+        assertTrue(greetingGuidance.contains("आप कैसे हैं"))
+
+        // 3. Passing customAssamese must NOT inject fake placeholder transliteration
+        val schoolCustom = com.example.util.AssameseTranslator.translate(
+            "When do you usually go to school?",
+            "তুমি সাধাৰণতে কেতিয়া স্কুললৈ যোৱা?"
+        )
+        assertFalse(schoolCustom.transliteration.contains("Assamese Meaning"))
+        assertTrue(schoolCustom.transliteration.contains("school-loi", ignoreCase = true))
+    }
 }
+
 
 

@@ -67,9 +67,26 @@ object ExampleAnswerGenerator {
                 "Hello! I am doing great today, thank you for asking. How about you?",
                 "Hi Nova! I'm doing really well and excited to practice speaking English today."
             )
-            lower.contains("what is your name") || lower.contains("tell me about yourself") || lower.contains("introduce yourself") -> listOf(
-                "Hello! I am a student who enjoys learning new skills and practicing spoken English every day.",
-                "Hi! Nice to meet you. In my free time, I love reading books, listening to music, and talking with friends."
+            lower.contains("what is your name") || lower.contains("may i know your name") ||
+                    (lower.contains("your name") && !lower.contains("friend") && !lower.contains("school")) -> listOf(
+                "My name is Aarav Sharma. Nice to meet you!",
+                "Hi! I'm Riya Das, and I am a student in Class 10."
+            )
+            lower.contains("tell me about yourself") || lower.contains("introduce yourself") -> listOf(
+                "Hello! My name is Aarav, and I am a student who enjoys learning new skills and practicing spoken English every day.",
+                "Hi! Nice to meet you. I'm Riya, and in my free time I love reading books, listening to music, and chatting with friends."
+            )
+            lower.contains("where are you from") -> listOf(
+                "I'm from Guwahati, Assam. It's a lively city near the Brahmaputra River.",
+                "I come from a small town in Assam, and I really love its peaceful greenery."
+            )
+            lower.contains("how old are you") -> listOf(
+                "I am fifteen years old, and I'm currently studying in Class 10.",
+                "I'm sixteen years old and enjoy learning new things at school."
+            )
+            lower.contains("which class") || lower.contains("what class") || lower.contains("what grade") -> listOf(
+                "I study in Class 10, and my favorite subject is English.",
+                "I am in Class 9 right now, and I enjoy both science and languages."
             )
             lower.contains("go to school") -> listOf(
                 "I usually go to school at 8:00 AM on weekdays.",

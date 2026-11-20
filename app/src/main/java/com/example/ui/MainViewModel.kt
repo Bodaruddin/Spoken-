@@ -2204,6 +2204,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _geminiApiKey.value = clean
         _isGeminiConfigured.value = isGeminiApiKeyConfigured()
         _apiKeySource.value = getApiKeySourceDescription()
+        ttsManager.refreshCloudVoiceAvailability()
     }
 
     fun clearCustomGeminiApiKey() {
@@ -2213,6 +2214,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _isGeminiConfigured.value = isGeminiApiKeyConfigured()
         _apiKeySource.value = getApiKeySourceDescription()
         _aiKeyTestResult.value = null
+        ttsManager.refreshCloudVoiceAvailability()
     }
 
     fun setAiProviderType(type: String) {
@@ -2221,6 +2223,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _aiProviderType.value = type
         _isGeminiConfigured.value = isGeminiApiKeyConfigured()
         _apiKeySource.value = getApiKeySourceDescription()
+        ttsManager.refreshCloudVoiceAvailability()
     }
 
     fun setCustomEndpointUrl(url: String) {

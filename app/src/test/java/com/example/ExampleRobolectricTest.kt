@@ -1279,10 +1279,15 @@ class ExampleRobolectricTest {
     composeTestRule.waitForIdle()
 
     composeTestRule.onNodeWithTag("nova_voice_studio_dialog").assertIsDisplayed()
-    composeTestRule.onNodeWithTag("voice_persona_priya").performClick()
+    composeTestRule.onNodeWithTag("voice_persona_priya").performScrollTo().performClick()
     composeTestRule.waitForIdle()
-
     assertEquals(com.example.service.NovaVoicePersona.PRIYA, vm.novaVoicePersona.value)
+
+    composeTestRule.onNodeWithTag("voice_persona_clara").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(com.example.service.NovaVoicePersona.CLARA, vm.novaVoicePersona.value)
+    assertTrue(vm.activeVoiceLabel.value.contains("Clara"))
+
     composeTestRule.onNodeWithTag("close_voice_studio_btn").performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("nova_voice_studio_dialog").assertDoesNotExist()
@@ -1305,7 +1310,10 @@ class ExampleRobolectricTest {
     composeTestRule.onNodeWithTag("phonetics_voice_selector_btn").assertIsDisplayed().performClick()
     composeTestRule.waitForIdle()
     composeTestRule.onNodeWithTag("nova_voice_studio_dialog").assertIsDisplayed()
-    composeTestRule.onNodeWithTag("voice_persona_meera").performClick()
+    composeTestRule.onNodeWithTag("voice_persona_emma").performScrollTo().performClick()
+    composeTestRule.waitForIdle()
+    assertEquals(com.example.service.NovaVoicePersona.EMMA, vm.novaVoicePersona.value)
+    composeTestRule.onNodeWithTag("voice_persona_meera").performScrollTo().performClick()
     composeTestRule.waitForIdle()
     assertEquals(com.example.service.NovaVoicePersona.MEERA, vm.novaVoicePersona.value)
     composeTestRule.onNodeWithTag("close_voice_studio_btn").performClick()
