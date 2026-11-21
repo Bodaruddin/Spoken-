@@ -4953,29 +4953,35 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // Category & Class Row
+                    // Category & Class Row + Edit/Delete Actions
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        FlowRow(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
                                 color = Color(0xFF131F46),
                                 border = BorderStroke(1.dp, RoyalBlue.copy(alpha = 0.5f))
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(Icons.Rounded.School, contentDescription = null, tint = Color(0xFF60A5FA), modifier = Modifier.size(12.dp))
                                     Text(
-                                        "Target: ${exam.targetClass}",
+                                        text = "Target: ${exam.targetClass}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF60A5FA)
+                                        color = Color(0xFF60A5FA),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -4989,14 +4995,16 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFA78BFA),
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
                         }
 
-                        // Edit & Delete buttons
+                        // Horizontal Edit & Delete buttons (fixed intrinsic width, never squished)
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Surface(
@@ -5004,12 +5012,13 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                                 color = Color(0xFF0C2444),
                                 border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.65f)),
                                 modifier = Modifier
+                                    .height(36.dp)
                                     .clip(RoundedCornerShape(10.dp))
                                     .clickable { editingExam = exam }
                                     .testTag("teacher_edit_exam_btn_${exam.id}")
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                                    modifier = Modifier.padding(horizontal = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
@@ -5021,23 +5030,36 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                                     )
                                     Text(
                                         text = "Edit",
-                                        fontSize = 11.sp,
+                                        fontSize = 11.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF7DD3FC)
+                                        color = Color(0xFF7DD3FC),
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
 
-                            IconButton(
-                                onClick = {
-                                    viewModel.deleteExam(exam.id)
-                                    toastMsg = "Deleted exam: ${exam.title}"
-                                },
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF3B0D16),
+                                border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
                                 modifier = Modifier
-                                    .size(30.dp)
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        viewModel.deleteExam(exam.id)
+                                        toastMsg = "Deleted exam: ${exam.title}"
+                                    }
                                     .testTag("teacher_delete_exam_btn_${exam.id}")
                             ) {
-                                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete Exam", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Rounded.DeleteOutline,
+                                        contentDescription = "Delete Exam",
+                                        tint = Color(0xFFF87171),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
