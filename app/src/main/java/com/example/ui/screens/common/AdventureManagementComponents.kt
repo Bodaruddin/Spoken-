@@ -1107,39 +1107,47 @@ fun TeacherAdventureProgressTracker(
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
                     ) {
                         Row(
+                            modifier = Modifier.weight(1f),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text("🗺️", fontSize = 24.sp)
-                            Column {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
-                                    "English Adventure Student Tracker",
+                                    text = "English Adventure Student Tracker",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 15.sp,
-                                    color = Color.White
+                                    color = Color.White,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    "Live Supabase sync across 5 Adventure Worlds",
+                                    text = "Live Supabase sync across 5 Adventure Worlds",
                                     fontSize = 11.sp,
-                                    color = Color(0xFF94A3B8)
+                                    color = Color(0xFF94A3B8),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
 
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF166534)
+                            color = Color(0xFF166534),
+                            border = BorderStroke(1.dp, Color(0xFF4ADE80).copy(alpha = 0.45f))
                         ) {
                             Text(
-                                "SUPABASE SYNCED",
+                                text = "SUPABASE SYNCED",
                                 color = Color(0xFF4ADE80),
-                                fontSize = 9.sp,
+                                fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
                             )
                         }
                     }

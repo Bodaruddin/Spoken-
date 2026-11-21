@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
@@ -102,82 +103,88 @@ fun SpeakingAndPhoneticsManagement(
             .fillMaxSize()
             .testTag("speaking_phonetics_management_screen")
     ) {
-        // Management Header Banner
-        Card(
+        // Management Header Banner (Sleek Cosmic Glassmorphic Card)
+        Surface(
             shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            color = Color(0xFF0D1333).copy(alpha = 0.96f),
+            border = BorderStroke(1.dp, Color(0xFF4F46E5).copy(alpha = 0.45f)),
+            shadowElevation = 4.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                Brush.linearGradient(listOf(Color(0xFF06B6D4), Color(0xFF6366F1), Color(0xFF9333EA)))
+                            )
+                            .padding(1.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    Brush.linearGradient(listOf(RoyalBlue, PurpleAccent))
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("🎙️", fontSize = 20.sp)
-                        }
-                        Column(modifier = Modifier.weight(1f, fill = false)) {
-                            Text(
-                                "AI Speaking & Phonetics Hub",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                if (userRole == Role.ADMIN) "Global Curriculum & Speech Admin"
-                                else "Teacher Speech Course Management",
-                                fontSize = 11.sp,
-                                color = MutedGray,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Text("🎙️", fontSize = 21.sp)
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = "AI Speaking & Phonetics",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.5.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = if (userRole == Role.ADMIN) "Global Curriculum & Speech Admin"
+                            else "Teacher Speech Course Management",
+                            fontSize = 11.sp,
+                            color = Color(0xFF94A3B8),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
 
-                    Spacer(Modifier.width(8.dp))
-
-                    // Contextual New Button (Single line, fully visible)
-                    Button(
-                        onClick = {
-                            when (currentTab) {
-                                SpeakingManageTab.SPEAKING_PROMPTS -> showCreatePromptDialog = true
-                                SpeakingManageTab.PHONETICS_DRILLS -> showCreateDrillDialog = true
-                                SpeakingManageTab.VOCAB_ASSAMESE -> showCreateVocabDialog = true
-                                SpeakingManageTab.ENGLISH_ADVENTURE -> { /* Handled in AdventureWorldsManagementList */ }
+                    // Contextual New Button (Glowing gradient pill, never wraps)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(
+                                Brush.horizontalGradient(listOf(Color(0xFF2563EB), Color(0xFF7C3AED)))
+                            )
+                            .clickable {
+                                when (currentTab) {
+                                    SpeakingManageTab.SPEAKING_PROMPTS -> showCreatePromptDialog = true
+                                    SpeakingManageTab.PHONETICS_DRILLS -> showCreateDrillDialog = true
+                                    SpeakingManageTab.VOCAB_ASSAMESE -> showCreateVocabDialog = true
+                                    SpeakingManageTab.ENGLISH_ADVENTURE -> { /* Handled in AdventureWorldsManagementList */ }
+                                }
                             }
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
-                        modifier = Modifier.testTag("create_item_button")
+                            .padding(horizontal = 13.dp, vertical = 10.dp)
+                            .testTag("create_item_button"),
+                        contentAlignment = Alignment.Center
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
                             Text(
                                 text = when (currentTab) {
                                     SpeakingManageTab.SPEAKING_PROMPTS -> "New Topic"
@@ -187,6 +194,7 @@ fun SpeakingAndPhoneticsManagement(
                                 },
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
+                                color = Color.White,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -194,18 +202,18 @@ fun SpeakingAndPhoneticsManagement(
                     }
                 }
 
-                // Segmented Tab Selector (Single line, horizontally scrollable, no text wrapping)
-                Row(
+                // Segmented Tab Selector (Clean LazyRow so count badges never clip on screen edge)
+                LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .horizontalScroll(rememberScrollState())
-                        .padding(4.dp),
+                        .background(Color(0xFF070B22))
+                        .padding(vertical = 4.dp),
+                    contentPadding = PaddingValues(horizontal = 5.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    SpeakingManageTab.values().forEach { tab ->
+                    items(SpeakingManageTab.values().toList()) { tab ->
                         val isSelected = currentTab == tab
                         val count = when (tab) {
                             SpeakingManageTab.SPEAKING_PROMPTS -> prompts.size
@@ -214,9 +222,14 @@ fun SpeakingAndPhoneticsManagement(
                             SpeakingManageTab.ENGLISH_ADVENTURE -> adventureWorlds.size
                         }
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) RoyalBlue else Color.Transparent,
+                            shape = RoundedCornerShape(11.dp),
+                            color = if (isSelected) Color(0xFF2563EB) else Color(0xFF141B41).copy(alpha = 0.65f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) Color(0xFF60A5FA) else Color(0xFF312E81).copy(alpha = 0.55f)
+                            ),
                             modifier = Modifier
+                                .clip(RoundedCornerShape(11.dp))
                                 .clickable { currentTab = tab }
                                 .testTag("manage_tab_${tab.name.lowercase()}")
                         ) {
@@ -231,7 +244,7 @@ fun SpeakingAndPhoneticsManagement(
                                     text = tab.title,
                                     fontSize = 12.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                    color = if (isSelected) Color.White else Color(0xFFCBD5E1),
                                     maxLines = 1,
                                     softWrap = false
                                 )
@@ -240,16 +253,16 @@ fun SpeakingAndPhoneticsManagement(
                                     modifier = Modifier
                                         .clip(CircleShape)
                                         .background(
-                                            if (isSelected) Color.White.copy(alpha = 0.25f)
-                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                            if (isSelected) Color.White.copy(alpha = 0.24f)
+                                            else Color(0xFF312E81).copy(alpha = 0.85f)
                                         )
-                                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
                                 ) {
                                     Text(
                                         text = "$count",
-                                        fontSize = 10.sp,
+                                        fontSize = 10.5.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                        color = if (isSelected) Color.White else Color(0xFF93C5FD),
                                         maxLines = 1,
                                         softWrap = false
                                     )
@@ -645,6 +658,7 @@ fun SpeakingAndPhoneticsManagement(
 // -------------------------------------------------------------
 // PROMPTS LIST
 // -------------------------------------------------------------
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PromptsManagementList(
     prompts: List<SpeakingPrompt>,
@@ -961,51 +975,73 @@ fun PromptsManagementList(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search speaking prompts...", fontSize = 13.sp, color = MutedGray, maxLines = 1) },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(20.dp)) },
+                placeholder = { Text("Search speaking prompts...", fontSize = 13.sp, color = Color(0xFF94A3B8), maxLines = 1) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp)) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Filled.Clear, contentDescription = "Clear", modifier = Modifier.size(16.dp))
+                        IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Filled.Clear, contentDescription = "Clear search", tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
                         }
                     }
                 },
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF38BDF8),
+                    unfocusedBorderColor = Color(0xFF3B4380),
+                    focusedContainerColor = Color(0xFF0D1433),
+                    unfocusedContainerColor = Color(0xFF0D1433).copy(alpha = 0.85f),
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                ),
                 singleLine = true,
                 maxLines = 1,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
                     .testTag("prompt_search_input")
             )
         }
 
         if (filtered.isEmpty()) {
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(36.dp),
-                    contentAlignment = Alignment.Center
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color(0xFF0D1333),
+                    border = BorderStroke(1.dp, Color(0xFF312E81).copy(alpha = 0.6f)),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = if (selectedWeekFilter != null) {
-                            "No topics in Week $selectedWeekFilter yet. Tap '+ New Topic' to add one."
-                        } else {
-                            "No speaking prompts found. Tap '+ New Topic' to add one."
-                        },
-                        color = MutedGray,
-                        fontSize = 13.sp
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (selectedWeekFilter != null) {
+                                "No topics in Week $selectedWeekFilter yet. Tap '+ New Topic' to add one."
+                            } else {
+                                "No speaking prompts found. Tap '+ New Topic' to add one."
+                            },
+                            color = Color(0xFF94A3B8),
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
         }
 
         items(filtered, key = { it.id }) { prompt ->
+            val levelColor = when (prompt.difficultyLevel) {
+                "Beginner" -> EmeraldSuccess
+                "Advanced" -> CoralAccent
+                else -> Color(0xFFC084FC)
+            }
+            val effectiveMilestone = if (prompt.milestoneTurns > 0) prompt.milestoneTurns else milestoneTarget
+
             Card(
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1333).copy(alpha = 0.96f), contentColor = Color.White),
+                border = BorderStroke(1.1.dp, Color(0xFF6366F1).copy(alpha = 0.45f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("prompt_card_${prompt.id}")
@@ -1014,122 +1050,176 @@ fun PromptsManagementList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
+                    // Metadata Pills — FlowRow guarantees horizontal chips with ZERO vertical text squishing
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF312E81).copy(alpha = 0.75f),
+                            border = BorderStroke(0.8.dp, Color(0xFF818CF8).copy(alpha = 0.55f))
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFF6366F1).copy(alpha = 0.2f)
-                            ) {
-                                Text(
-                                    text = "W${prompt.weekNumber}",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFFA5B4FC),
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
-                                )
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = RoyalBlue.copy(alpha = 0.12f)
-                            ) {
-                                Text(
-                                    prompt.category,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = RoyalBlue,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
-
-                            val levelColor = when (prompt.difficultyLevel) {
-                                "Beginner" -> EmeraldSuccess
-                                "Advanced" -> CoralAccent
-                                else -> PurpleAccent
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = levelColor.copy(alpha = 0.15f)
-                            ) {
-                                Text(
-                                    prompt.difficultyLevel,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = levelColor,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                                )
-                            }
+                            Text(
+                                text = "W${prompt.weekNumber}",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFFC7D2FE),
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
                         }
 
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF172554),
+                            border = BorderStroke(0.8.dp, Color(0xFF38BDF8).copy(alpha = 0.45f))
                         ) {
-                            val effectiveMilestone = if (prompt.milestoneTurns > 0) prompt.milestoneTurns else milestoneTarget
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = PurpleAccent.copy(alpha = 0.14f)
+                            Text(
+                                text = prompt.category,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF7DD3FC),
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = levelColor.copy(alpha = 0.16f),
+                            border = BorderStroke(0.8.dp, levelColor.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = prompt.difficultyLevel,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = levelColor,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF2E1065).copy(alpha = 0.85f),
+                            border = BorderStroke(0.8.dp, Color(0xFFA855F7).copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "🏆 $effectiveMilestone turns",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFD8B4FE),
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFF1E293B),
+                            border = BorderStroke(0.8.dp, Color(0xFF475569).copy(alpha = 0.7f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text(
-                                    text = "🏆 $effectiveMilestone turns",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = PurpleAccent,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                                Icon(
+                                    Icons.Rounded.Timer,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(12.dp),
+                                    tint = Color(0xFF94A3B8)
                                 )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Rounded.Timer, contentDescription = null, modifier = Modifier.size(13.dp), tint = MutedGray)
-                                    Spacer(Modifier.width(3.dp))
-                                    Text("Min ${prompt.minSpeakingSeconds}s", fontSize = 10.sp, color = MutedGray)
-                                }
+                                Text(
+                                    text = "Min ${prompt.minSpeakingSeconds}s",
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFCBD5E1),
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
                             }
                         }
                     }
 
+                    // Topic Title with glowing icon badge
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(prompt.emoji, fontSize = 22.sp)
-                        Text(prompt.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF17204A))
+                                .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(prompt.emoji, fontSize = 20.sp)
+                        }
+                        Text(
+                            text = prompt.title,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 16.5.sp,
+                            color = Color.White,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
                     }
-                    Text(prompt.question, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                    // Prompt Question Quote Box
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF070C24),
+                        border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = prompt.question,
+                            fontSize = 13.5.sp,
+                            lineHeight = 19.sp,
+                            color = Color(0xFFE2E8F0),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                        )
+                    }
 
                     if (prompt.recommendedKeywords.isNotEmpty()) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Keywords:", fontSize = 11.sp, color = MutedGray, fontWeight = FontWeight.SemiBold)
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                items(prompt.recommendedKeywords) { kw ->
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "Recommended Keywords",
+                                fontSize = 11.sp,
+                                color = Color(0xFF94A3B8),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                prompt.recommendedKeywords.forEach { kw ->
                                     Surface(
-                                        shape = RoundedCornerShape(6.dp),
-                                        color = EmeraldSuccess.copy(alpha = 0.1f)
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = EmeraldSuccess.copy(alpha = 0.14f),
+                                        border = BorderStroke(0.8.dp, EmeraldSuccess.copy(alpha = 0.35f))
                                     ) {
                                         Text(
-                                            kw,
-                                            fontSize = 10.sp,
-                                            color = EmeraldSuccess,
-                                            fontWeight = FontWeight.Medium,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            text = kw,
+                                            fontSize = 10.5.sp,
+                                            color = Color(0xFF6EE7B7),
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                         )
                                     }
                                 }
@@ -1139,53 +1229,120 @@ fun PromptsManagementList(
 
                     if (prompt.followUpTip.isNotBlank()) {
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF1A1440),
+                            border = BorderStroke(1.dp, Color(0xFF6366F1).copy(alpha = 0.35f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
-                                modifier = Modifier.padding(8.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.Top,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text("💡", fontSize = 12.sp)
-                                Text("Tip: ${prompt.followUpTip}", fontSize = 11.sp, color = MutedGray)
+                                Text("💡", fontSize = 13.sp)
+                                Text(
+                                    text = "Tip: ${prompt.followUpTip}",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFFCBD5E1)
+                                )
                             }
                         }
                     }
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    HorizontalDivider(color = Color(0xFF1E293B))
 
+                    // Action Bar: Listen TTS | Edit + Delete
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(
-                            onClick = { onSpeakAudio(prompt.question) },
-                            shape = RoundedCornerShape(10.dp)
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF0C2444),
+                            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                            modifier = Modifier
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable { onSpeakAudio(prompt.question) }
+                                .testTag("prompt_listen_tts_${prompt.id}")
                         ) {
-                            Icon(Icons.Rounded.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("Listen TTS", fontSize = 12.sp)
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.VolumeUp,
+                                    contentDescription = "Listen TTS",
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Listen TTS",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFBAE6FD),
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            FilledTonalButton(
-                                onClick = { onEdit(prompt) },
-                                shape = RoundedCornerShape(10.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF2E1065),
+                                border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.6f)),
+                                modifier = Modifier
+                                    .height(38.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { onEdit(prompt) }
+                                    .testTag("prompt_edit_${prompt.id}")
                             ) {
-                                Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Edit", fontSize = 11.sp)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Edit,
+                                        contentDescription = "Edit Topic",
+                                        tint = Color(0xFFD8B4FE),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Text(
+                                        text = "Edit",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             }
 
-                            IconButton(
-                                onClick = { onDelete(prompt) },
-                                modifier = Modifier.size(34.dp)
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF3B0D16),
+                                border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.6f)),
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { onDelete(prompt) }
+                                    .testTag("prompt_delete_${prompt.id}")
                             ) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Rounded.DeleteOutline,
+                                        contentDescription = "Delete Topic",
+                                        tint = Color(0xFFF87171),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -1328,9 +1485,10 @@ fun DrillsManagementList(
 
         items(filtered, key = { it.id }) { drill ->
             Card(
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0D1333).copy(alpha = 0.96f), contentColor = Color.White),
+                border = BorderStroke(1.1.dp, Color(0xFF6366F1).copy(alpha = 0.45f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("drill_card_${drill.id}")
@@ -1339,16 +1497,19 @@ fun DrillsManagementList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
                     ) {
-                        Column {
-                            Text(drill.wordOrSentence, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = RoyalBlue)
-                            Text(drill.ipaPhonetic, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = PurpleAccent)
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(drill.wordOrSentence, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = Color(0xFF7DD3FC))
+                            Text(drill.ipaPhonetic, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, color = Color(0xFFC4B5FD))
                         }
 
                         val diffColor = when (drill.difficulty.lowercase()) {
@@ -1358,14 +1519,17 @@ fun DrillsManagementList(
                         }
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = diffColor.copy(alpha = 0.15f)
+                            color = diffColor.copy(alpha = 0.16f),
+                            border = BorderStroke(0.8.dp, diffColor.copy(alpha = 0.5f))
                         ) {
                             Text(
-                                drill.difficulty,
+                                text = drill.difficulty,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = diffColor,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                             )
                         }
                     }

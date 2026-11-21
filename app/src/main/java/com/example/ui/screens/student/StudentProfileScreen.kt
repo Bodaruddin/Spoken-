@@ -39,11 +39,9 @@ fun StudentProfileScreen(
     val user by viewModel.currentUser.collectAsState()
     val profile by viewModel.studentProfile.collectAsState()
     val badges by viewModel.badges.collectAsState()
-    val vocabulary by viewModel.vocabularyWords.collectAsState()
     val isAdminSession by viewModel.isAdminSession.collectAsState()
     val isStreakBonusClaimedToday by viewModel.dailyStreakBonusClaimedToday.collectAsState()
 
-    var showVocabNotebook by remember { mutableStateOf(false) }
     var trophyFilter by remember { mutableStateOf("ALL") }
     var selectedBadge by remember { mutableStateOf<AchievementBadge?>(null) }
 
@@ -677,151 +675,6 @@ fun StudentProfileScreen(
                     SkillBar("⚡ Grammar Precision", profile.grammarScore, OrangeVibrant)
                     SkillBar("🎧 Listening Comprehension", profile.listeningScore, CyanAccent)
                     SkillBar("📚 Reading Comprehension", profile.readingScore, SoftPink)
-                }
-            }
-        }
-
-        // 5. Personal Vocabulary Notebook Vault (Audio Flashcards)
-        item {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
-                border = BorderStroke(1.2.dp, EmeraldSuccess.copy(alpha = 0.5f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showVocabNotebook = !showVocabNotebook }
-                    .testTag("student_vocab_vault_button")
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF0F382B)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("📚", fontSize = 24.sp)
-                        }
-                        Column(modifier = Modifier.weight(1f, fill = false)) {
-                            Text(
-                                text = "Personal Vocabulary Vault",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = Color.White
-                            )
-                            Text(
-                                text = "${vocabulary.size} words saved • Audio flashcards & Assamese",
-                                fontSize = 11.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = Color(0xFFCBD5E1)
-                            )
-                        }
-                    }
-                    Icon(
-                        if (showVocabNotebook) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                        contentDescription = "Expand Vocabulary",
-                        tint = Color(0xFF60A5FA)
-                    )
-                }
-            }
-        }
-
-        if (showVocabNotebook) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    vocabulary.forEach { word ->
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = CyberCardBg, contentColor = Color.White),
-                            border = BorderStroke(1.dp, Color(0xFF263366)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(word.word, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = Color.White)
-                                        Text(word.phonetic, fontSize = 12.sp, color = RoyalBlue, fontWeight = FontWeight.Medium)
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = Color(0xFF1E293B)
-                                        ) {
-                                            Text(
-                                                word.partOfSpeech,
-                                                fontSize = 10.sp,
-                                                color = Color(0xFFCBD5E1),
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-                                    if (word.assameseMeaning.isNotBlank()) {
-                                        Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = Color(0xFF064E3B).copy(alpha = 0.5f),
-                                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f))
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                            ) {
-                                                Text("অসমীয়া:", fontSize = 11.sp, color = Color(0xFF6EE7B7), fontWeight = FontWeight.Bold)
-                                                Text(word.assameseMeaning, fontSize = 11.sp, color = Color(0xFFFEF08A), fontWeight = FontWeight.Bold)
-                                                if (word.assameseTransliteration.isNotBlank()) {
-                                                    Text("(${word.assameseTransliteration})", fontSize = 10.sp, color = Color(0xFFCBD5E1), fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    Text(
-                                        text = word.meaning,
-                                        fontSize = 12.sp,
-                                        color = Color(0xFFCBD5E1)
-                                    )
-                                    Text(
-                                        text = "\"${word.exampleSentence}\"",
-                                        fontSize = 11.sp,
-                                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                        color = Color(0xFF94A3B8)
-                                    )
-                                }
-
-                                IconButton(
-                                    onClick = { viewModel.speakAudio("${word.word}. ${word.meaning}") },
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF1E3A8A).copy(alpha = 0.55f))
-                                ) {
-                                    Icon(Icons.Rounded.VolumeUp, contentDescription = "Listen", tint = Color(0xFF60A5FA))
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }

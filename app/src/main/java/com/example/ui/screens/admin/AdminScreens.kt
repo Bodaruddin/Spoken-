@@ -5,10 +5,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.Canvas
@@ -2189,43 +2191,48 @@ fun AdminCurriculumManagement(viewModel: MainViewModel, modifier: Modifier = Mod
         modifier = modifier
             .fillMaxSize()
     ) {
-        // Top Section Selector for Admin
+        // Top Section Selector for Admin (horizontally scrollable so every label is fully readable)
         Surface(
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp,
+            color = Color(0xFF0B102B).copy(alpha = 0.94f),
+            border = BorderStroke(1.dp, Color(0xFF312E81).copy(alpha = 0.5f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 AdminCurriculumSection.values().forEach { sec ->
                     val isSel = selectedSection == sec
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSel) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        border = if (isSel) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isSel) Color(0xFF2563EB) else Color(0xFF141B41),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSel) Color(0xFF60A5FA) else Color(0xFF334155).copy(alpha = 0.7f)
+                        ),
                         modifier = Modifier
-                            .weight(1f)
+                            .clip(RoundedCornerShape(14.dp))
                             .clickable { selectedSection = sec }
                             .testTag("admin_curriculum_section_${sec.name.lowercase()}")
                     ) {
                         Row(
-                            modifier = Modifier.padding(vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(sec.emoji, fontSize = 13.sp)
-                            Spacer(Modifier.width(4.dp))
+                            Text(sec.emoji, fontSize = 14.sp)
+                            Spacer(Modifier.width(6.dp))
                             Text(
-                                sec.title,
-                                fontSize = 10.5.sp,
+                                text = sec.title,
+                                fontSize = 12.sp,
                                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                color = if (isSel) Color.White else Color(0xFFCBD5E1),
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                softWrap = false
                             )
                         }
                     }
