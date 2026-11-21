@@ -202,12 +202,15 @@ fun NovaGeminiAssistantScreen(
         )
     }
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .testTag("nova_gemini_assistant_screen")
     ) {
-        // 1. Top Header
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // 1. Top Header
         NovaAssistantTopBar(
             voicePersonaName = selectedPersona.displayName,
             voiceAccentLabel = selectedPersona.shortAccentLabel,
@@ -578,32 +581,32 @@ fun NovaGeminiAssistantScreen(
                 onSelectSpeed = { viewModel.setVoiceSpeedPreset(it) }
             )
         }
-
-        // 7. Saved Chat History Bottom Sheet
-        if (showHistorySheet) {
-            NovaGeminiHistorySheet(
-                history = chatHistory,
-                activeSessionId = activeSessionId,
-                onSelectSession = { sessionId ->
-                    viewModel.openNovaGeminiHistorySession(sessionId)
-                },
-                onStartNewChat = {
-                    val savedPrevious = viewModel.clearNovaGeminiSession()
-                    if (savedPrevious) {
-                        Toast.makeText(context, "Previous chat saved to History", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                onDeleteSession = { sessionId ->
-                    viewModel.deleteNovaGeminiHistorySession(sessionId)
-                    Toast.makeText(context, "Chat deleted from History", Toast.LENGTH_SHORT).show()
-                },
-                onClearAllHistory = {
-                    viewModel.clearAllNovaGeminiHistory()
-                    Toast.makeText(context, "Chat history cleared", Toast.LENGTH_SHORT).show()
-                },
-                onDismiss = { showHistorySheet = false }
-            )
         }
+
+        // 7. Gemini-style Left-Side Chat History Drawer
+        NovaGeminiHistoryDrawerOverlay(
+            visible = showHistorySheet,
+            history = chatHistory,
+            activeSessionId = activeSessionId,
+            onSelectSession = { sessionId ->
+                viewModel.openNovaGeminiHistorySession(sessionId)
+            },
+            onStartNewChat = {
+                val savedPrevious = viewModel.clearNovaGeminiSession()
+                if (savedPrevious) {
+                    Toast.makeText(context, "Previous chat saved to History", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDeleteSession = { sessionId ->
+                viewModel.deleteNovaGeminiHistorySession(sessionId)
+                Toast.makeText(context, "Chat deleted from History", Toast.LENGTH_SHORT).show()
+            },
+            onClearAllHistory = {
+                viewModel.clearAllNovaGeminiHistory()
+                Toast.makeText(context, "Chat history cleared", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = { showHistorySheet = false }
+        )
     }
 }
 
