@@ -928,7 +928,8 @@ fun ActiveGameRunner(
         gameType != ActiveGameType.LISTEN_CHOOSE &&
         gameType != ActiveGameType.SENTENCE_BUILDER &&
         gameType != ActiveGameType.GRAMMAR_CHALLENGE &&
-        gameType != ActiveGameType.FAST_VOCABULARY
+        gameType != ActiveGameType.FAST_VOCABULARY &&
+        gameType != ActiveGameType.PICTURE_VOCAB
     ) {
         BackHandler {
             onClose()
@@ -978,6 +979,13 @@ fun ActiveGameRunner(
                 modifier = modifier
             )
         }
+        ActiveGameType.PICTURE_VOCAB -> {
+            PictureVocabGame(
+                viewModel = viewModel,
+                onClose = onClose,
+                modifier = modifier
+            )
+        }
         else -> {
             Column(
                 modifier = modifier
@@ -1021,7 +1029,7 @@ fun ActiveGameRunner(
                     ActiveGameType.PRONUNCIATION_BATTLE -> PronunciationBattleGame(viewModel, onClose)
                     ActiveGameType.FAST_VOCABULARY -> FastVocabularyGame(viewModel)
                     ActiveGameType.GRAMMAR_CHALLENGE -> GrammarChallengeGame(viewModel, onClose)
-                    ActiveGameType.PICTURE_VOCAB -> PictureVocabGame(viewModel)
+                    ActiveGameType.PICTURE_VOCAB -> PictureVocabGame(viewModel, onClose)
                     ActiveGameType.SPEAK_30_SECONDS -> Speak30SecondsGame(viewModel)
                     ActiveGameType.STORY_BUILDER -> StoryBuilderGame(viewModel)
                     ActiveGameType.CONVERSATION_CHALLENGE -> ConversationChallengeGame(viewModel)
@@ -2962,24 +2970,6 @@ fun ListenAndChooseGame(
                             val isCorrectAnswer = index == current.correctIndex
                             val verifiedState = isVerified
 
-                            val (optIcon, optTint) = remember(opt, index) {
-                                val lower = opt.lowercase()
-                                when {
-                                    "airport" in lower || "plane" in lower || "flight" in lower ->
-                                        Icons.Rounded.Flight to Color(0xFF38BDF8)
-                                    "subway" in lower || "train" in lower || "bus" in lower || "station" in lower ->
-                                        Icons.Rounded.DirectionsTransit to Color(0xFF4ADE80)
-                                    "coffee" in lower || "cafe" in lower || "tea" in lower || "restaurant" in lower ->
-                                        Icons.Rounded.LocalCafe to Color(0xFFFB923C)
-                                    "library" in lower || "book" in lower || "school" in lower || "study" in lower ->
-                                        Icons.Rounded.MenuBook to Color(0xFFC084FC)
-                                    index % 4 == 0 -> Icons.Rounded.Flight to Color(0xFF38BDF8)
-                                    index % 4 == 1 -> Icons.Rounded.DirectionsTransit to Color(0xFF4ADE80)
-                                    index % 4 == 2 -> Icons.Rounded.LocalCafe to Color(0xFFFB923C)
-                                    else -> Icons.Rounded.MenuBook to Color(0xFFC084FC)
-                                }
-                            }
-
                             val pillBackground = when {
                                 verifiedState != null && isCorrectAnswer -> Brush.horizontalGradient(
                                     listOf(Color(0xFF065F46).copy(alpha = 0.88f), Color(0xFF064E3B).copy(alpha = 0.88f))
@@ -3075,13 +3065,6 @@ fun ListenAndChooseGame(
                                             )
                                         }
                                     }
-
-                                    Icon(
-                                        imageVector = optIcon,
-                                        contentDescription = null,
-                                        tint = optTint,
-                                        modifier = Modifier.size(22.dp)
-                                    )
 
                                     Text(
                                         text = opt,
@@ -6632,157 +6615,8 @@ fun GrammarChallengeGame(
     }
 }
 
-// =========================================================================
-// 8. PICTURE VOCABULARY GAME - Visual object recognition with phonetic guide
-// =========================================================================
-private data class PictureItem(
-    val id: String,
-    val emoji: String,
-    val correctWord: String,
-    val phonetic: String,
-    val clue: String,
-    val options: List<String>
-)
+// PictureVocabGame has been modularized into PictureVocabularyGameScreen.kt
 
-@Composable
-fun PictureVocabGame(viewModel: MainViewModel) {
-    val dynamicChallenges by viewModel.pictureVocabChallenges.collectAsState()
-    val items = remember(dynamicChallenges) {
-        if (dynamicChallenges.isNotEmpty()) {
-            dynamicChallenges.map {
-                PictureItem(
-                    id = it.id,
-                    emoji = it.emoji,
-                    correctWord = it.word,
-                    phonetic = it.phonetic,
-                    clue = it.clue,
-                    options = if (it.options.contains(it.word)) it.options else (it.options + it.word)
-                )
-            }
-        } else {
-            listOf(
-                PictureItem("pv_1", "🩺", "Stethoscope", "/ˈsteθ.ə.skəʊp/", "An instrument used by medical doctors to listen to heart and lungs", listOf("Stethoscope", "Microscope", "Thermometer", "Telescope")),
-                PictureItem("pv_2", "✈️", "Airplane", "/ˈeə.pleɪn/", "A powered flying vehicle with fixed wings", listOf("Airplane", "Helicopter", "Submarine", "Spaceship")),
-                PictureItem("pv_3", "📚", "Library", "/ˈlaɪ.brər.i/", "A quiet room or building containing books for reading or study", listOf("Library", "Bakery", "Auditorium", "Laboratory")),
-                PictureItem("pv_4", "🍳", "Cooking", "/ˈkʊk.ɪŋ/", "The practice or skill of preparing food by combining ingredients", listOf("Cooking", "Gardening", "Sewing", "Painting")),
-                PictureItem("pv_5", "🎸", "Guitar", "/ɡɪˈtɑːr/", "A musical instrument having six strings played with fingers or pick", listOf("Guitar", "Violin", "Drum", "Saxophone")),
-                PictureItem("pv_6", "🏃", "Sprinting", "/ˈsprɪn.tɪŋ/", "Running at full speed over a short distance", listOf("Sprinting", "Swimming", "Jumping", "Climbing"))
-            )
-        }
-    }
-
-    var itemIndex by remember { mutableIntStateOf(0) }
-    if (items.isEmpty()) {
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("No Picture Vocabulary challenges found.", modifier = Modifier.padding(24.dp), color = MutedGray)
-        }
-        return
-    }
-    val current = items[itemIndex % items.size]
-    var selectedOption by remember(current.id) { mutableStateOf<String?>(null) }
-    var hasAwarded by remember(current.id) { mutableStateOf(false) }
-
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("🖼️ Picture Vocabulary Quiz", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = RoyalBlue)
-                Text("${itemIndex + 1}/${items.size}", fontSize = 12.sp, color = MutedGray)
-            }
-
-            // Big Emoji Visual Card
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF0F1E42),
-                border = BorderStroke(1.2.dp, RoyalBlue.copy(alpha = 0.5f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(current.emoji, fontSize = 54.sp)
-                    Text("Phonetic: ${current.phonetic}", fontSize = 12.sp, color = Color(0xFF93C5FD), fontWeight = FontWeight.Medium)
-                    Text(current.clue, fontSize = 12.sp, color = Color.White, textAlign = TextAlign.Center)
-                }
-            }
-
-            // 4 Options
-            current.options.forEach { opt ->
-                val isSelected = selectedOption == opt
-                val isCorrect = opt == current.correctWord
-                val hasGuessed = selectedOption != null
-
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = when {
-                        hasGuessed && isCorrect -> Color(0xFFDCFCE7)
-                        isSelected && !isCorrect -> Color(0xFFFEE2E2)
-                        else -> MaterialTheme.colorScheme.surfaceVariant
-                    },
-                    border = BorderStroke(
-                        1.dp,
-                        when {
-                            hasGuessed && isCorrect -> EmeraldSuccess
-                            isSelected && !isCorrect -> CoralAccent
-                            else -> Color.Transparent
-                        }
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = selectedOption == null) {
-                            selectedOption = opt
-                            if (opt == current.correctWord && !hasAwarded) {
-                                hasAwarded = true
-                                viewModel.rewardGameWin(40, 15)
-                                viewModel.speakAudio(current.correctWord)
-                            }
-                        }
-                ) {
-                    Text(
-                        text = opt,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp,
-                        color = when {
-                            hasGuessed && isCorrect -> Color(0xFF166534)
-                            isSelected && !isCorrect -> Color(0xFF991B1B)
-                            else -> MaterialTheme.colorScheme.onSurface
-                        },
-                        modifier = Modifier.padding(14.dp),
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            if (selectedOption != null) {
-                Button(
-                    onClick = {
-                        itemIndex = (itemIndex + 1) % items.size
-                        selectedOption = null
-                        hasAwarded = false
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
-                ) {
-                    Text("Next Visual Item ➡️")
-                }
-            }
-        }
-    }
-}
 
 // =========================================================================
 // 9. SPEAK 30 SECONDS GAME - Impromptu speaking with countdown & evaluation
