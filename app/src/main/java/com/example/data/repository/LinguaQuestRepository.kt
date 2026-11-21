@@ -2445,6 +2445,134 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             options = listOf("Next Tuesday at 9:00 AM", "This Friday at 3:00 PM", "Tomorrow at noon", "Next Monday at 10:00 AM"),
             correctIndex = 0,
             createdBy = "Dean Arthur Pendelton"
+        ),
+        ListenChooseChallenge(
+            id = "lc_5",
+            audioScript = "Heavy rain is expected across the coastal region this evening, so please carry an umbrella.",
+            question = "What weather is expected this evening?",
+            options = listOf("Sunny and dry skies", "Heavy rain along the coast", "Light snowfall overnight", "Strong desert winds"),
+            correctIndex = 1,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_6",
+            audioScript = "Welcome to Grand Horizon Hotel. Your room is on the sixth floor, and breakfast is served from seven to ten.",
+            question = "Which floor is the guest's room located on?",
+            options = listOf("The third floor", "The fifth floor", "The sixth floor", "The eighth floor"),
+            correctIndex = 2,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_7",
+            audioScript = "Your dental checkup has been rescheduled from Wednesday afternoon to Thursday at eleven thirty.",
+            question = "When is the rescheduled dental checkup?",
+            options = listOf("Thursday at 11:30 AM", "Wednesday afternoon", "Friday at 11:30 AM", "Tuesday at 10:30 AM"),
+            correctIndex = 0,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_8",
+            audioScript = "The express train to Boston will depart from platform nine instead of platform four due to track maintenance.",
+            question = "Which platform will the Boston express train leave from?",
+            options = listOf("Platform 4", "Platform 6", "Platform 9", "Platform 12"),
+            correctIndex = 2,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_9",
+            audioScript = "We have reserved a quiet corner table for four people under the name Sarah Miller at seven thirty tonight.",
+            question = "How many people is the table reserved for?",
+            options = listOf("Two people", "Four people", "Six people", "Eight people"),
+            correctIndex = 1,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_10",
+            audioScript = "Please remember that borrowed reference books must be returned within seven days to avoid a late fee.",
+            question = "Within how many days must the books be returned?",
+            options = listOf("Three days", "Five days", "Seven days", "Fourteen days"),
+            correctIndex = 2,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_11",
+            audioScript = "All winter jackets are thirty percent off today, and loyalty members receive an extra ten percent discount.",
+            question = "What items are thirty percent off today?",
+            options = listOf("Summer sandals", "Winter jackets", "Sports backpacks", "Formal trousers"),
+            correctIndex = 1,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_12",
+            audioScript = "Before submitting your science report on Friday, please double-check that every chart includes a clear title.",
+            question = "When is the science report due?",
+            options = listOf("Monday", "Wednesday", "Friday", "Saturday"),
+            correctIndex = 2,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_13",
+            audioScript = "Take one tablet after dinner with a full glass of water, and store the bottle in a cool dry place.",
+            question = "When should the patient take the tablet?",
+            options = listOf("Before breakfast", "After dinner", "At midnight", "Every two hours"),
+            correctIndex = 1,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_14",
+            audioScript = "The guided tour of the ancient history gallery begins in the main lobby in ten minutes.",
+            question = "Where does the guided museum tour begin?",
+            options = listOf("In the rooftop cafe", "At the gift shop", "In the main lobby", "Outside the parking gate"),
+            correctIndex = 2,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_15",
+            audioScript = "A courier left two sealed parcels for the marketing department at the front reception desk.",
+            question = "Where were the parcels left?",
+            options = listOf("In the conference room", "At the front reception desk", "Inside the cafeteria", "Near the elevator"),
+            correctIndex = 1,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_16",
+            audioScript = "Our evening yoga class starts at six fifteen in Studio B, and mats are provided free of charge.",
+            question = "Where is the evening yoga class held?",
+            options = listOf("Studio A", "Studio B", "The swimming pool deck", "The main courtyard"),
+            correctIndex = 1,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_17",
+            audioScript = "Could you pick up fresh tomatoes, whole wheat bread, and a dozen eggs on your way home from work?",
+            question = "Which item did the speaker ask for?",
+            options = listOf("A dozen eggs", "A bottle of honey", "Frozen strawberries", "A bag of pasta"),
+            correctIndex = 0,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_18",
+            audioScript = "If the router light stays orange, unplug the power cable for thirty seconds and then plug it back in.",
+            question = "How long should the router stay unplugged?",
+            options = listOf("Ten seconds", "Thirty seconds", "Two minutes", "Five minutes"),
+            correctIndex = 1,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_19",
+            audioScript = "The inter-school basketball final has been moved indoors to the community arena because of strong winds.",
+            question = "Why was the basketball final moved indoors?",
+            options = listOf("Because of strong winds", "Because of a broken scoreboard", "Because of heavy snow", "Because of road construction"),
+            correctIndex = 0,
+            createdBy = "System"
+        ),
+        ListenChooseChallenge(
+            id = "lc_20",
+            audioScript = "Thank you for coming in today. Our hiring manager will review your portfolio and email you our decision by Monday.",
+            question = "How will the candidate receive the hiring decision?",
+            options = listOf("By regular mail", "By phone call tonight", "By email by Monday", "In person tomorrow"),
+            correctIndex = 2,
+            createdBy = "System"
         )
     )
 
@@ -2453,7 +2581,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (!saved.isNullOrEmpty()) {
             val savedIds = saved.map { it.id }.toSet()
             val missingDefaults = defaultListenChooseChallenges.filter { it.id !in savedIds }
-            return saved + missingDefaults
+            val merged = saved + missingDefaults
+            if (missingDefaults.isNotEmpty()) {
+                appPreferences?.saveListenChooseChallenges(merged)
+            }
+            return merged
         }
         appPreferences?.saveListenChooseChallenges(defaultListenChooseChallenges)
         return defaultListenChooseChallenges

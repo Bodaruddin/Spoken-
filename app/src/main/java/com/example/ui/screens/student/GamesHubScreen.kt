@@ -2743,6 +2743,37 @@ fun SentenceBuilderGame(
 // =========================================================================
 // 4. LISTEN & CHOOSE GAME - Guarded single-award with answer reveal
 // =========================================================================
+private const val LISTEN_CHOOSE_ROUND_SIZE = 10
+
+private fun pickNextListenChooseRound(
+    pool: List<ListenChooseChallenge>,
+    seenIds: Set<String>,
+    lastFirstId: String?,
+    roundSize: Int = LISTEN_CHOOSE_ROUND_SIZE
+): Pair<List<ListenChooseChallenge>, Set<String>> {
+    if (pool.isEmpty()) return emptyList<ListenChooseChallenge>() to emptySet()
+    val targetCount = minOf(roundSize, pool.size)
+    val unseen = pool.filterNot { it.id in seenIds }.shuffled()
+    val seen = pool.filter { it.id in seenIds }.shuffled()
+
+    return if (unseen.size >= targetCount) {
+        val round = unseen.take(targetCount)
+        round to (seenIds + round.map { it.id })
+    } else {
+        val neededFromSeen = (targetCount - unseen.size).coerceAtLeast(0)
+        val combined = (unseen + seen.take(neededFromSeen)).toMutableList()
+        if (combined.size > 1 && lastFirstId != null && combined.first().id == lastFirstId) {
+            val swapIndex = combined.indexOfFirst { it.id != lastFirstId }
+            if (swapIndex > 0) {
+                val first = combined[0]
+                combined[0] = combined[swapIndex]
+                combined[swapIndex] = first
+            }
+        }
+        combined.toList() to combined.map { it.id }.toSet()
+    }
+}
+
 @Composable
 fun ListenAndChooseGame(
     viewModel: MainViewModel,
@@ -2750,8 +2781,65 @@ fun ListenAndChooseGame(
     modifier: Modifier = Modifier
 ) {
     val challenges by viewModel.listenChooseChallenges.collectAsState()
-    var challengeIndex by remember { mutableIntStateOf(0) }
-    val current = challenges.getOrNull(challengeIndex)
+    var seenIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var lastFirstId by remember { mutableStateOf<String?>(null) }
+    var roundNumber by remember { mutableIntStateOf(0) }
+    var sessionQuestionIds by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    fun startNewRound() {
+        val (round, updatedSeen) = pickNextListenChooseRound(
+            pool = challenges,
+            seenIds = seenIds,
+            lastFirstId = lastFirstId,
+            roundSize = LISTEN_CHOOSE_ROUND_SIZE
+        )
+        seenIds = updatedSeen
+        round.firstOrNull()?.id?.let { lastFirstId = it }
+        sessionQuestionIds = round.map { it.id }
+        roundNumber += 1
+    }
+
+    val challengeById = remember(challenges) { challenges.associateBy { it.id } }
+
+    // Keep the active 10-question round stable during gameplay, while initializing on entry
+    // or topping up if new cloud questions arrive when fewer than 10 were available.
+    LaunchedEffect(challenges) {
+        if (challenges.isEmpty()) {
+            sessionQuestionIds = emptyList()
+            return@LaunchedEffect
+        }
+        val validCurrentIds = sessionQuestionIds.filter { it in challengeById }
+        val targetCount = minOf(LISTEN_CHOOSE_ROUND_SIZE, challenges.size)
+        if (validCurrentIds.isEmpty()) {
+            startNewRound()
+        } else if (validCurrentIds.size < targetCount) {
+            val existingSet = validCurrentIds.toSet()
+            val extras = challenges
+                .filterNot { it.id in existingSet }
+                .sortedBy { if (it.id in seenIds) 1 else 0 }
+                .take(targetCount - validCurrentIds.size)
+                .map { it.id }
+            if (extras.isNotEmpty()) {
+                sessionQuestionIds = validCurrentIds + extras
+                seenIds = seenIds + extras
+            }
+        }
+    }
+
+    val sessionChallenges = remember(sessionQuestionIds, challengeById, challenges) {
+        val resolved = sessionQuestionIds.mapNotNull { challengeById[it] }
+        if (resolved.isNotEmpty()) resolved else challenges.take(LISTEN_CHOOSE_ROUND_SIZE)
+    }
+
+    var challengeIndex by remember(roundNumber) { mutableIntStateOf(0) }
+    var correctQuestionIds by remember(roundNumber) { mutableStateOf(setOf<String>()) }
+    val safeIndex = if (sessionChallenges.isNotEmpty()) challengeIndex.coerceIn(0, sessionChallenges.lastIndex) else 0
+    val current = sessionChallenges.getOrNull(safeIndex)
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(roundNumber, safeIndex) {
+        scrollState.animateScrollTo(0)
+    }
 
     BackHandler {
         onClose()
@@ -2776,7 +2864,7 @@ fun ListenAndChooseGame(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -2901,7 +2989,7 @@ fun ListenAndChooseGame(
                 }
             }
 
-            if (current == null || challenges.isEmpty()) {
+            if (current == null || sessionChallenges.isEmpty()) {
                 Card(
                     shape = RoundedCornerShape(22.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.Transparent),
@@ -2942,13 +3030,16 @@ fun ListenAndChooseGame(
                     }
                 }
             } else {
-                var selectedOption by remember(current.id) { mutableStateOf<Int?>(null) }
-                var isVerified by remember(current.id) { mutableStateOf<Boolean?>(null) }
-                var missingSelectionWarning by remember(current.id) { mutableStateOf(false) }
-                var hasAwarded by remember(current.id) { mutableStateOf(false) }
+                val shuffledOptions = remember(roundNumber, current.id) {
+                    current.options.mapIndexed { originalIndex, text -> originalIndex to text }.shuffled()
+                }
+                var selectedOption by remember(roundNumber, current.id) { mutableStateOf<Int?>(null) }
+                var isVerified by remember(roundNumber, current.id) { mutableStateOf<Boolean?>(null) }
+                var missingSelectionWarning by remember(roundNumber, current.id) { mutableStateOf(false) }
+                var hasAwarded by remember(roundNumber, current.id) { mutableStateOf(false) }
                 var isSlowSpeed by remember { mutableStateOf(true) }
                 var showSpeedMenu by remember { mutableStateOf(false) }
-                var isWaveformPlaying by remember(current.id) { mutableStateOf(false) }
+                var isWaveformPlaying by remember(roundNumber, current.id) { mutableStateOf(false) }
 
                 LaunchedEffect(isWaveformPlaying) {
                     if (isWaveformPlaying) {
@@ -3053,7 +3144,7 @@ fun ListenAndChooseGame(
                                 border = BorderStroke(1.2.dp, Color(0xFF4F46E5).copy(alpha = 0.75f))
                             ) {
                                 Text(
-                                    text = "${challengeIndex + 1} / ${challenges.size}",
+                                    text = "${safeIndex + 1} / ${sessionChallenges.size}",
                                     fontSize = 12.sp,
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold,
@@ -3282,10 +3373,10 @@ fun ListenAndChooseGame(
                             )
                         }
 
-                        // Multiple Choice Option Pills
-                        current.options.forEachIndexed { index, opt ->
-                            val isSelected = selectedOption == index
-                            val isCorrectAnswer = index == current.correctIndex
+                        // Multiple Choice Option Pills (options shuffled per round)
+                        shuffledOptions.forEachIndexed { displayIdx, (originalIndex, opt) ->
+                            val isSelected = selectedOption == originalIndex
+                            val isCorrectAnswer = originalIndex == current.correctIndex
                             val verifiedState = isVerified
 
                             val pillBackground = when {
@@ -3333,13 +3424,13 @@ fun ListenAndChooseGame(
                                     .heightIn(min = 52.dp)
                                     .clip(RoundedCornerShape(50))
                                     .clickable(enabled = verifiedState != true) {
-                                        selectedOption = index
+                                        selectedOption = originalIndex
                                         missingSelectionWarning = false
                                         if (verifiedState == false) {
                                             isVerified = null
                                         }
                                     }
-                                    .testTag("listen_choose_option_$index")
+                                    .testTag("listen_choose_option_$displayIdx")
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -3485,9 +3576,12 @@ fun ListenAndChooseGame(
                                         missingSelectionWarning = false
                                         val correct = picked == current.correctIndex
                                         isVerified = correct
-                                        if (correct && !hasAwarded) {
-                                            hasAwarded = true
-                                            viewModel.rewardGameWin(40, 15)
+                                        if (correct) {
+                                            correctQuestionIds = correctQuestionIds + current.id
+                                            if (!hasAwarded) {
+                                                hasAwarded = true
+                                                viewModel.rewardGameWin(40, 15)
+                                            }
                                         }
                                     }
                                     .testTag("listen_choose_verify_btn")
@@ -3551,47 +3645,146 @@ fun ListenAndChooseGame(
                         }
 
                         if (isVerified != null) {
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = Color.Transparent,
-                                border = BorderStroke(1.2.dp, Color(0xFF6EE7B7).copy(alpha = 0.7f)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .clickable {
-                                        challengeIndex = (challengeIndex + 1) % challenges.size
-                                        selectedOption = null
-                                        isVerified = null
-                                        missingSelectionWarning = false
-                                        hasAwarded = false
-                                    }
-                                    .testTag("listen_choose_next_btn")
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                listOf(Color(0xFF10B981), Color(0xFF059669))
-                                            )
-                                        ),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
+                            val isLastQuestion = safeIndex >= sessionChallenges.lastIndex
+                            if (isLastQuestion) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color(0xFF131444).copy(alpha = 0.94f),
+                                    border = BorderStroke(1.3.dp, Color(0xFFFACC15).copy(alpha = 0.7f)),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = "Next Question",
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 14.5.sp,
-                                        color = Color.White
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                    Column(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = "🏆 Round Completed!",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 15.5.sp,
+                                            color = Color(0xFFFDE047)
+                                        )
+                                        Text(
+                                            text = if (challenges.size > sessionChallenges.size) {
+                                                "Score: ${correctQuestionIds.size}/${sessionChallenges.size} correct! Tap Play Again for a fresh set."
+                                            } else {
+                                                "Score: ${correctQuestionIds.size}/${sessionChallenges.size} correct! Tap Play Again for a reshuffled round."
+                                            },
+                                            fontSize = 12.sp,
+                                            color = Color(0xFFCBD5E1),
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(50),
+                                                color = Color.Transparent,
+                                                border = BorderStroke(1.2.dp, Color(0xFF7DD3FC).copy(alpha = 0.8f)),
+                                                modifier = Modifier
+                                                    .weight(1.25f)
+                                                    .height(48.dp)
+                                                    .clip(RoundedCornerShape(50))
+                                                    .clickable { startNewRound() }
+                                                    .testTag("listen_choose_play_again_btn")
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .background(
+                                                            Brush.horizontalGradient(
+                                                                listOf(Color(0xFF0077FF), Color(0xFF00C6FF))
+                                                            )
+                                                        ),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Refresh,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text(
+                                                        text = "Play Again",
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        fontSize = 14.sp,
+                                                        color = Color.White
+                                                    )
+                                                }
+                                            }
+
+                                            Surface(
+                                                shape = RoundedCornerShape(50),
+                                                color = Color(0xFF0B102E),
+                                                border = BorderStroke(1.2.dp, Color(0xFF94A3B8).copy(alpha = 0.7f)),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(48.dp)
+                                                    .clip(RoundedCornerShape(50))
+                                                    .clickable { onClose() }
+                                                    .testTag("listen_choose_done_btn")
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = "Done",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.5.sp,
+                                                        color = Color.White
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = Color.Transparent,
+                                    border = BorderStroke(1.2.dp, Color(0xFF6EE7B7).copy(alpha = 0.7f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .clickable {
+                                            challengeIndex = (safeIndex + 1) % sessionChallenges.size
+                                            selectedOption = null
+                                            isVerified = null
+                                            missingSelectionWarning = false
+                                            hasAwarded = false
+                                        }
+                                        .testTag("listen_choose_next_btn")
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    listOf(Color(0xFF10B981), Color(0xFF059669))
+                                                )
+                                            ),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            text = "Next Question",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 14.5.sp,
+                                            color = Color.White
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
