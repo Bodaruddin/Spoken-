@@ -544,7 +544,7 @@ class AppPreferences(context: Context) {
                         title = obj.optString("title", type.title).ifBlank { type.title },
                         subtitle = obj.optString("subtitle", type.subtitle).ifBlank { type.subtitle },
                         xpReward = obj.optInt("xpReward", 50).coerceIn(10, 500),
-                        questionsPerRound = obj.optInt("questionsPerRound", 5).coerceIn(1, 30),
+                        questionsPerRound = obj.optInt("questionsPerRound", 10).coerceIn(1, 30),
                         isEnabled = obj.optBoolean("isEnabled", true)
                     )
                 )

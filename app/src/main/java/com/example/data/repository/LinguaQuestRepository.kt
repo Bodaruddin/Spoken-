@@ -1921,6 +1921,104 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             synonym = "Good fortune", antonym = "Misfortune",
             distractors = listOf("Careful long-term scheduling", "Disappointment after hard work", "Losing something valuable")
         ),
+        WordMatchChallenge(
+            id = "wm_7", word = "Empathy", definition = "Understanding and sharing another person's feelings",
+            category = "Character", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "🤝",
+            synonym = "Compassion", antonym = "Indifference",
+            distractors = listOf("Ignoring everyone around you", "Competing fiercely for prizes", "Memorizing historical dates")
+        ),
+        WordMatchChallenge(
+            id = "wm_8", word = "Curiosity", definition = "Strong desire to learn or discover something new",
+            category = "Mindset", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "✨",
+            synonym = "Inquisitiveness", antonym = "Apathy",
+            distractors = listOf("Refusing to ask questions", "Sleeping through the afternoon", "Repeating the same mistake")
+        ),
+        WordMatchChallenge(
+            id = "wm_9", word = "Perseverance", definition = "Continued steady effort despite obstacles or delays",
+            category = "Mindset", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "⛰️",
+            synonym = "Persistence", antonym = "Surrender",
+            distractors = listOf("Stopping as soon as work gets hard", "Talking loudly in class", "Choosing the easiest shortcut")
+        ),
+        WordMatchChallenge(
+            id = "wm_10", word = "Collaborate", definition = "Work jointly with others toward a shared goal",
+            category = "Communication", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "🧩",
+            synonym = "Cooperate", antonym = "Oppose",
+            distractors = listOf("Working strictly alone in silence", "Canceling a team meeting", "Hiding notes from classmates")
+        ),
+        WordMatchChallenge(
+            id = "wm_11", word = "Innovate", definition = "Introduce fresh ideas, methods, or original solutions",
+            category = "Academic", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "💡",
+            synonym = "Invent", antonym = "Imitate",
+            distractors = listOf("Copying an old answer word for word", "Deleting finished homework", "Avoiding new technology")
+        ),
+        WordMatchChallenge(
+            id = "wm_12", word = "Integrity", definition = "Honesty and strong moral principles in daily action",
+            category = "Character", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "⚖️",
+            synonym = "Honesty", antonym = "Deceit",
+            distractors = listOf("Breaking promises when convenient", "Collecting rare postage stamps", "Speaking at a fast pace")
+        ),
+        WordMatchChallenge(
+            id = "wm_13", word = "Adaptable", definition = "Able to adjust smoothly to changing conditions",
+            category = "Mindset", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "🌊",
+            synonym = "Flexible", antonym = "Rigid",
+            distractors = listOf("Refusing to change any habit", "Forgetting familiar routines", "Measuring distances accurately")
+        ),
+        WordMatchChallenge(
+            id = "wm_14", word = "Lucid", definition = "Expressed clearly and very easy to understand",
+            category = "Communication", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "💎",
+            synonym = "Clear", antonym = "Confusing",
+            distractors = listOf("Written in a secret code", "Spoken too softly to hear", "Filled with spelling errors")
+        ),
+        WordMatchChallenge(
+            id = "wm_15", word = "Altruism", definition = "Selfless concern for the wellbeing of other people",
+            category = "Values", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "❤️",
+            synonym = "Selflessness", antonym = "Selfishness",
+            distractors = listOf("Keeping every reward for yourself", "Studying ancient architecture", "Traveling across continents")
+        ),
+        WordMatchChallenge(
+            id = "wm_16", word = "Catalyst", definition = "Something that sparks rapid progress or positive change",
+            category = "Academic", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "⚡",
+            synonym = "Spark", antonym = "Obstacle",
+            distractors = listOf("A heavy stone that slows movement", "A quiet afternoon nap", "A list of classroom rules")
+        ),
+        WordMatchChallenge(
+            id = "wm_17", word = "Synthesize", definition = "Combine separate ideas into one unified whole",
+            category = "Academic", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "🧪",
+            synonym = "Integrate", antonym = "Separate",
+            distractors = listOf("Splitting a book into loose pages", "Forgetting a memorized speech", "Erasing notes on a whiteboard")
+        ),
+        WordMatchChallenge(
+            id = "wm_18", word = "Tenacious", definition = "Holding firmly to a goal without giving up easily",
+            category = "Character", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "🦁",
+            synonym = "Determined", antonym = "Hesitant",
+            distractors = listOf("Changing your mind every minute", "Walking slowly through a park", "Losing focus during a quiz")
+        ),
+        WordMatchChallenge(
+            id = "wm_19", word = "Concise", definition = "Giving lots of information clearly in just a few words",
+            category = "Communication", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "✂️",
+            synonym = "Brief", antonym = "Wordy",
+            distractors = listOf("Repeating the same story ten times", "Whispering behind a curtain", "Drawing colorful borders")
+        ),
+        WordMatchChallenge(
+            id = "wm_20", word = "Gratitude", definition = "Warm feeling of thankfulness and appreciation",
+            category = "Values", createdBy = "System",
+            activityType = VocabularyActivityType.MEANING_MATCHING.name, pictureEmoji = "🙏",
+            synonym = "Thankfulness", antonym = "Ingratitude",
+            distractors = listOf("Complaining about every gift", "Running a long marathon", "Organizing metal tools")
+        ),
 
         // 2. Picture Matching
         WordMatchChallenge(
@@ -1958,6 +2056,90 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             category = "Travel", createdBy = "System",
             activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🗼",
             distractors = listOf("Windmill", "Bridge", "Fountain")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_7", word = "Stethoscope", definition = "Medical tool used by doctors to listen to heartbeats",
+            category = "Science", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🩺",
+            distractors = listOf("Microscope", "Thermometer", "Headphones")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_8", word = "Hourglass", definition = "Sand timer used to measure passing minutes",
+            category = "History", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "⏳",
+            distractors = listOf("Compass", "Lantern", "Telescope")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_9", word = "Anchor", definition = "Heavy metal hook that keeps a ship in place",
+            category = "Travel", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "⚓",
+            distractors = listOf("Paddle", "Compass", "Bridge")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_10", word = "Umbrella", definition = "Folding canopy that shields you from rain or sun",
+            category = "Daily Life", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "☂️",
+            distractors = listOf("Parachute", "Backpack", "Raincoat")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_11", word = "Backpack", definition = "Bag carried on the shoulders for books or travel",
+            category = "Daily Life", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🎒",
+            distractors = listOf("Briefcase", "Suitcase", "Envelope")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_12", word = "Parachute", definition = "Fabric canopy used to descend safely through the air",
+            category = "Travel", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🪂",
+            distractors = listOf("Umbrella", "Balloon", "Helicopter")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_13", word = "Violin", definition = "Four-stringed wooden instrument played with a bow",
+            category = "Music", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🎻",
+            distractors = listOf("Trumpet", "Keyboard", "Drum")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_14", word = "Lantern", definition = "Portable glowing lamp enclosed in protective glass or paper",
+            category = "Daily Life", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🏮",
+            distractors = listOf("Hourglass", "Trophy", "Candle")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_15", word = "Globe", definition = "Spherical model showing Earth's continents and oceans",
+            category = "Geography", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🌍",
+            distractors = listOf("Compass", "Satellite", "Calendar")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_16", word = "Crown", definition = "Jeweled headpiece worn by a monarch or champion",
+            category = "History", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "👑",
+            distractors = listOf("Trophy", "Shield", "Helmet")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_17", word = "Rocket", definition = "Spacecraft launched high into orbit by powerful engines",
+            category = "Science", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🚀",
+            distractors = listOf("Airplane", "Satellite", "Submarine")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_18", word = "Palette", definition = "Flat board used by painters to mix vibrant colors",
+            category = "Art", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🎨",
+            distractors = listOf("Notebook", "Camera", "Easel")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_19", word = "Magnet", definition = "Object that creates a field attracting iron and steel",
+            category = "Science", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "🧲",
+            distractors = listOf("Battery", "Wrench", "Compass")
+        ),
+        WordMatchChallenge(
+            id = "wm_pic_20", word = "Camera", definition = "Optical device used to capture photographs and memories",
+            category = "Technology", createdBy = "System",
+            activityType = VocabularyActivityType.PICTURE_MATCHING.name, pictureEmoji = "📷",
+            distractors = listOf("Telescope", "Projector", "Binoculars")
         ),
 
         // 3. Synonyms
@@ -2003,6 +2185,104 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             synonym = "Immense", antonym = "Tiny",
             distractors = listOf("Minute", "Narrow", "Fragile")
         ),
+        WordMatchChallenge(
+            id = "wm_syn_7", word = "Radiant", definition = "Shining brightly with warmth, light, or joy",
+            category = "Descriptive", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "☀️",
+            synonym = "Glowing", antonym = "Dim",
+            distractors = listOf("Gloomy", "Cloudy", "Silent")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_8", word = "Swift", definition = "Happening quickly or moving with great speed",
+            category = "Actions", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "⚡",
+            synonym = "Rapid", antonym = "Slow",
+            distractors = listOf("Sluggish", "Delayed", "Heavy")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_9", word = "Tranquil", definition = "Free from disturbance; calm and serene",
+            category = "Nature", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🌿",
+            synonym = "Peaceful", antonym = "Chaotic",
+            distractors = listOf("Noisy", "Stormy", "Restless")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_10", word = "Clever", definition = "Quick to understand, learn, and devise smart ideas",
+            category = "Mindset", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🧠",
+            synonym = "Ingenious", antonym = "Foolish",
+            distractors = listOf("Clumsy", "Boring", "Careless")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_11", word = "Generous", definition = "Willing to give and share freely with others",
+            category = "Values", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🎁",
+            synonym = "Charitable", antonym = "Selfish",
+            distractors = listOf("Greedy", "Stingy", "Harsh")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_12", word = "Cautious", definition = "Careful to avoid potential problems or dangers",
+            category = "Character", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🛡️",
+            synonym = "Careful", antonym = "Reckless",
+            distractors = listOf("Careless", "Hasty", "Bold")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_13", word = "Fragile", definition = "Easily broken, shattered, or damaged",
+            category = "Descriptive", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🫧",
+            synonym = "Delicate", antonym = "Sturdy",
+            distractors = listOf("Solid", "Tough", "Rigid")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_14", word = "Humble", definition = "Having a modest view of one's own importance",
+            category = "Character", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🌾",
+            synonym = "Modest", antonym = "Arrogant",
+            distractors = listOf("Boastful", "Proud", "Loud")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_15", word = "Wealthy", definition = "Having a great deal of money or valuable resources",
+            category = "General", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "💰",
+            synonym = "Affluent", antonym = "Poor",
+            distractors = listOf("Needy", "Scarce", "Empty")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_16", word = "Benevolent", definition = "Well-meaning, warm, and kindly toward others",
+            category = "Values", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "💛",
+            synonym = "Kindhearted", antonym = "Cruel",
+            distractors = listOf("Hostile", "Cold", "Bitter")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_17", word = "Eloquent", definition = "Fluent, expressive, and persuasive in speech",
+            category = "Communication", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🎙️",
+            synonym = "Articulate", antonym = "Tongue-tied",
+            distractors = listOf("Mumbling", "Unclear", "Quiet")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_18", word = "Abundant", definition = "Present in large, generous quantities",
+            category = "Academic", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🌻",
+            synonym = "Plentiful", antonym = "Scarce",
+            distractors = listOf("Rare", "Limited", "Sparse")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_19", word = "Sturdy", definition = "Strongly and solidly built to last",
+            category = "Descriptive", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🪨",
+            synonym = "Durable", antonym = "Flimsy",
+            distractors = listOf("Weak", "Brittle", "Loose")
+        ),
+        WordMatchChallenge(
+            id = "wm_syn_20", word = "Curious", definition = "Eager to explore, question, and learn more",
+            category = "Mindset", createdBy = "System",
+            activityType = VocabularyActivityType.SYNONYMS.name, pictureEmoji = "🔎",
+            synonym = "Inquisitive", antonym = "Indifferent",
+            distractors = listOf("Bored", "Sleepy", "Distracted")
+        ),
 
         // 4. Opposite Words
         WordMatchChallenge(
@@ -2047,6 +2327,104 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             synonym = "Lasting", antonym = "Temporary",
             distractors = listOf("Steady", "Fixed", "Constant")
         ),
+        WordMatchChallenge(
+            id = "wm_opp_7", word = "Generous", definition = "Ready to give more than is strictly necessary",
+            category = "Values", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🎁",
+            synonym = "Giving", antonym = "Selfish",
+            distractors = listOf("Kind", "Helpful", "Warm")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_8", word = "Courageous", definition = "Showing bravery in facing fear or difficulty",
+            category = "Character", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🦁",
+            synonym = "Fearless", antonym = "Cowardly",
+            distractors = listOf("Bold", "Heroic", "Daring")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_9", word = "Ascend", definition = "Climb or move steadily upward",
+            category = "Actions", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "⛰️",
+            synonym = "Rise", antonym = "Descend",
+            distractors = listOf("Climb", "Soar", "Elevate")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_10", word = "Complex", definition = "Made of many interconnected and intricate parts",
+            category = "Academic", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🧩",
+            synonym = "Intricate", antonym = "Simple",
+            distractors = listOf("Detailed", "Layered", "Elaborate")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_11", word = "Victory", definition = "Success achieved in a contest or challenge",
+            category = "Achievements", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🏆",
+            synonym = "Triumph", antonym = "Defeat",
+            distractors = listOf("Glory", "Success", "Win")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_12", word = "Harmony", definition = "State of peaceful agreement and balance",
+            category = "Values", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🎶",
+            synonym = "Unity", antonym = "Conflict",
+            distractors = listOf("Peace", "Accord", "Balance")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_13", word = "Artificial", definition = "Made by humans rather than occurring in nature",
+            category = "Science", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🤖",
+            synonym = "Synthetic", antonym = "Natural",
+            distractors = listOf("Plastic", "Manmade", "Simulated")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_14", word = "Flexible", definition = "Capable of bending or adapting easily without breaking",
+            category = "Descriptive", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🌿",
+            synonym = "Supple", antonym = "Rigid",
+            distractors = listOf("Elastic", "Fluid", "Adaptable")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_15", word = "Innocent", definition = "Free from blame or wrongdoing",
+            category = "General", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🕊️",
+            synonym = "Blameless", antonym = "Guilty",
+            distractors = listOf("Pure", "Honest", "Gentle")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_16", word = "Include", definition = "Make someone or something part of a group",
+            category = "Actions", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "➕",
+            synonym = "Welcome", antonym = "Exclude",
+            distractors = listOf("Contain", "Invite", "Join")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_17", word = "Fragile", definition = "Delicate and easily broken",
+            category = "Descriptive", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🫧",
+            synonym = "Delicate", antonym = "Sturdy",
+            distractors = listOf("Brittle", "Thin", "Tender")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_18", word = "Bright", definition = "Giving out or reflecting plenty of light",
+            category = "Descriptive", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🌟",
+            synonym = "Luminous", antonym = "Dim",
+            distractors = listOf("Radiant", "Shiny", "Glowing")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_19", word = "Create", definition = "Bring something new into existence",
+            category = "Actions", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🎨",
+            synonym = "Build", antonym = "Destroy",
+            distractors = listOf("Design", "Craft", "Invent")
+        ),
+        WordMatchChallenge(
+            id = "wm_opp_20", word = "Humble", definition = "Modest and respectful rather than boastful",
+            category = "Character", createdBy = "System",
+            activityType = VocabularyActivityType.OPPOSITE_WORDS.name, pictureEmoji = "🙏",
+            synonym = "Modest", antonym = "Arrogant",
+            distractors = listOf("Polite", "Quiet", "Gentle")
+        ),
 
         // 5. Word Scramble
         WordMatchChallenge(
@@ -2084,6 +2462,90 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             category = "Achievements", createdBy = "System",
             activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🥇",
             scrambleHint = "Winning a competition or milestone"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_7", word = "BALANCE", definition = "An even and steady distribution of weight or effort",
+            category = "Mindset", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "⚖️",
+            scrambleHint = "Keeping study, rest, and play in steady harmony"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_8", word = "CLARITY", definition = "Quality of being clear, sharp, and easy to understand",
+            category = "Communication", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "✨",
+            scrambleHint = "Speaking so every listener understands immediately"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_9", word = "EXPLORE", definition = "Travel through or study an unfamiliar area to learn",
+            category = "Travel", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🧭",
+            scrambleHint = "To venture out and discover new places or ideas"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_10", word = "INSPIRE", definition = "Fill someone with enthusiasm and creative motivation",
+            category = "Values", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🌟",
+            scrambleHint = "To spark motivation and big dreams in others"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_11", word = "LIBRARY", definition = "Quiet room or building housing collections of books",
+            category = "Academic", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "📚",
+            scrambleHint = "A peaceful place filled with shelves of books to borrow"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_12", word = "HORIZON", definition = "Line where the earth's surface and the sky appear to meet",
+            category = "Nature", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🌅",
+            scrambleHint = "The distant line where the rising sun greets the sky"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_13", word = "SPEAKER", definition = "Person who delivers a talk or presentation to listeners",
+            category = "Communication", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🎤",
+            scrambleHint = "Someone addressing an audience on stage"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_14", word = "SUCCESS", definition = "Accomplishment of an aim, goal, or worthy purpose",
+            category = "Achievements", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🏆",
+            scrambleHint = "Reaching your goal through steady daily practice"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_15", word = "FREEDOM", definition = "State of being free to act, speak, and think independently",
+            category = "Values", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🕊️",
+            scrambleHint = "Liberty to choose your own path and express ideas"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_16", word = "SCIENCE", definition = "Systematic study of the natural world through observation",
+            category = "Academic", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🔬",
+            scrambleHint = "Discovering how the universe works via experiments"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_17", word = "CHAPTER", definition = "Main numbered division of a book or life story",
+            category = "Academic", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "📖",
+            scrambleHint = "A distinct section inside a novel or textbook"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_18", word = "GRAMMAR", definition = "System and structure of rules governing a language",
+            category = "Communication", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "📝",
+            scrambleHint = "Rules that organize words into accurate sentences"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_19", word = "MENTOR", definition = "Experienced and trusted adviser who guides learners",
+            category = "Character", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "🎓",
+            scrambleHint = "A wise guide who helps students grow in confidence"
+        ),
+        WordMatchChallenge(
+            id = "wm_scr_20", word = "DIAMOND", definition = "Precious crystal known for extraordinary brilliance and hardness",
+            category = "Descriptive", createdBy = "System",
+            activityType = VocabularyActivityType.WORD_SCRAMBLE.name, pictureEmoji = "💎",
+            scrambleHint = "A sparkling gemstone formed deep beneath the earth"
         )
     )
 
@@ -2117,7 +2579,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 VocabularyActivityType.OPPOSITE_WORDS -> 55
                 VocabularyActivityType.WORD_SCRAMBLE -> 65
             },
-            questionsPerRound = 5,
+            questionsPerRound = 10,
             isEnabled = true
         )
     }
@@ -4800,12 +5262,12 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 }
                 "VOCAB_MODE_CONFIG" -> {
                     val modeType = VocabularyActivityType.fromName(rc.category.ifBlank { rc.id.removePrefix("vm_mode_") })
-                    var parsedQuestions = 5
+                    var parsedQuestions = 10
                     var parsedEnabled = true
                     if (rc.extraData.trim().startsWith("{")) {
                         try {
                             val obj = org.json.JSONObject(rc.extraData)
-                            parsedQuestions = obj.optInt("questionsPerRound", 5).coerceIn(1, 30)
+                            parsedQuestions = obj.optInt("questionsPerRound", 10).coerceIn(1, 30)
                             parsedEnabled = obj.optBoolean("isEnabled", true)
                         } catch (_: Exception) {}
                     }

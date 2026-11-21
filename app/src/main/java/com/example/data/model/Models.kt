@@ -454,7 +454,7 @@ data class VocabularyModeConfig(
     val title: String = activityType.title,
     val subtitle: String = activityType.subtitle,
     val xpReward: Int = 50,
-    val questionsPerRound: Int = 5,
+    val questionsPerRound: Int = 10,
     val isEnabled: Boolean = true
 )
 

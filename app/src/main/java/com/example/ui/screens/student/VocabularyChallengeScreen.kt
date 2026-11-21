@@ -40,6 +40,53 @@ import com.example.ui.MainViewModel
 import com.example.ui.theme.CoralAccent
 import com.example.ui.theme.EmeraldSuccess
 
+private const val VOCAB_CHALLENGE_ROUND_SIZE = 10
+
+private object VocabularyRoundHistory {
+    private val seenIdsByMode = mutableMapOf<VocabularyActivityType, Set<String>>()
+    private val lastRoundIdsByMode = mutableMapOf<VocabularyActivityType, List<String>>()
+
+    fun nextRoundIds(
+        mode: VocabularyActivityType,
+        pool: List<WordMatchChallenge>,
+        roundSize: Int = VOCAB_CHALLENGE_ROUND_SIZE
+    ): List<String> {
+        if (pool.isEmpty()) return emptyList()
+        val targetCount = minOf(roundSize, pool.size)
+        val seenIds = seenIdsByMode[mode].orEmpty()
+        val lastRoundIds = lastRoundIdsByMode[mode].orEmpty()
+        val lastRoundSet = lastRoundIds.toSet()
+        val lastFirstId = lastRoundIds.firstOrNull()
+
+        val unseen = pool.filterNot { it.id in seenIds }.shuffled()
+        val selected = if (unseen.size >= targetCount) {
+            val picked = unseen.take(targetCount)
+            seenIdsByMode[mode] = seenIds + picked.map { it.id }
+            picked
+        } else {
+            val needed = (targetCount - unseen.size).coerceAtLeast(0)
+            val seenNotLast = pool.filter { it.id in seenIds && it.id !in lastRoundSet }.shuffled()
+            val seenFromLast = pool.filter { it.id in seenIds && it.id in lastRoundSet }.shuffled()
+            val fill = (seenNotLast + seenFromLast).take(needed)
+            val combined = (unseen + fill).shuffled().toMutableList()
+            if (combined.size > 1 && lastFirstId != null && combined.first().id == lastFirstId) {
+                val swapIndex = combined.indexOfFirst { it.id != lastFirstId }
+                if (swapIndex > 0) {
+                    val first = combined[0]
+                    combined[0] = combined[swapIndex]
+                    combined[swapIndex] = first
+                }
+            }
+            seenIdsByMode[mode] = combined.map { it.id }.toSet()
+            combined.toList()
+        }
+
+        val ids = selected.map { it.id }
+        lastRoundIdsByMode[mode] = ids
+        return ids
+    }
+}
+
 private data class ActivityPalette(
     val borderColor: Color,
     val badgeBg: Color,
@@ -408,12 +455,13 @@ private fun VocabularyChallengeSelectionView(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        val displayRoundSize = minOf(VOCAB_CHALLENGE_ROUND_SIZE, modeCount)
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
                                             color = Color.Black.copy(alpha = 0.35f)
                                         ) {
                                             Text(
-                                                text = "$modeCount Words",
+                                                text = "$displayRoundSize Words",
                                                 fontSize = 10.5.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = palette.accentText,
@@ -484,18 +532,57 @@ private fun VocabularyActivityPlayView(
     onRoundFinished: (correct: Int, total: Int, xpAwarded: Int) -> Unit
 ) {
     val palette = paletteForActivity(config.activityType)
+    val scrollState = rememberScrollState()
     var roundSeed by remember(config.activityType) { mutableIntStateOf(0) }
 
-    val roundItems = remember(items, config.activityType, config.questionsPerRound, roundSeed) {
-        val count = config.questionsPerRound.coerceIn(1, maxOf(1, items.size))
-        items.shuffled().take(count)
+    val itemsById = remember(items) { items.associateBy { it.id } }
+    var sessionIds by remember(config.activityType, roundSeed) {
+        mutableStateOf(
+            VocabularyRoundHistory.nextRoundIds(
+                mode = config.activityType,
+                pool = items,
+                roundSize = VOCAB_CHALLENGE_ROUND_SIZE
+            )
+        )
     }
 
-    var currentIndex by remember(roundItems) { mutableIntStateOf(0) }
-    var correctCount by remember(roundItems) { mutableIntStateOf(0) }
-    var streak by remember(roundItems) { mutableIntStateOf(0) }
-    var isRoundComplete by remember(roundItems) { mutableStateOf(false) }
-    var rewardSent by remember(roundItems) { mutableStateOf(false) }
+    LaunchedEffect(config.activityType, roundSeed, items) {
+        if (items.isEmpty()) return@LaunchedEffect
+        val validIds = sessionIds.filter { it in itemsById }
+        val targetCount = minOf(VOCAB_CHALLENGE_ROUND_SIZE, items.size)
+        if (validIds.isEmpty()) {
+            sessionIds = VocabularyRoundHistory.nextRoundIds(
+                mode = config.activityType,
+                pool = items,
+                roundSize = VOCAB_CHALLENGE_ROUND_SIZE
+            )
+        } else if (validIds.size < targetCount) {
+            val existingSet = validIds.toSet()
+            val extras = items
+                .filterNot { it.id in existingSet }
+                .shuffled()
+                .take(targetCount - validIds.size)
+                .map { it.id }
+            if (extras.isNotEmpty()) {
+                sessionIds = validIds + extras
+            }
+        }
+    }
+
+    val roundItems = remember(sessionIds, itemsById, items) {
+        val resolved = sessionIds.mapNotNull { itemsById[it] }
+        if (resolved.isNotEmpty()) resolved else items.take(VOCAB_CHALLENGE_ROUND_SIZE)
+    }
+
+    var currentIndex by remember(config.activityType, roundSeed) { mutableIntStateOf(0) }
+    var correctCount by remember(config.activityType, roundSeed) { mutableIntStateOf(0) }
+    var streak by remember(config.activityType, roundSeed) { mutableIntStateOf(0) }
+    var isRoundComplete by remember(config.activityType, roundSeed) { mutableStateOf(false) }
+    var rewardSent by remember(config.activityType, roundSeed) { mutableStateOf(false) }
+
+    LaunchedEffect(roundSeed, currentIndex, isRoundComplete) {
+        scrollState.animateScrollTo(0)
+    }
 
     LaunchedEffect(isRoundComplete) {
         if (isRoundComplete && !rewardSent && roundItems.isNotEmpty()) {
@@ -509,7 +596,7 @@ private fun VocabularyActivityPlayView(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -637,6 +724,16 @@ private fun VocabularyActivityPlayView(
                         fontSize = 14.sp,
                         color = palette.accentText
                     )
+                    Text(
+                        text = if (items.size > total) {
+                            "Finished all $total words! Tap Play Again for a brand-new set."
+                        } else {
+                            "Finished all $total words! Tap Play Again for a reshuffled round."
+                        },
+                        fontSize = 12.sp,
+                        color = Color(0xFFCBD5E1),
+                        textAlign = TextAlign.Center
+                    )
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
@@ -655,6 +752,7 @@ private fun VocabularyActivityPlayView(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
+                                .testTag("vocab_all_modes_btn")
                         ) {
                             Text("All Modes", color = Color.White, fontWeight = FontWeight.Bold)
                         }
@@ -665,14 +763,23 @@ private fun VocabularyActivityPlayView(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
+                                .testTag("vocab_play_again_btn")
                         ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Refresh,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
                             Text("Play Again", color = Color.White, fontWeight = FontWeight.ExtraBold)
                         }
                     }
                 }
             }
         } else {
-            val currentItem = roundItems[currentIndex]
+            val safeIndex = currentIndex.coerceIn(0, roundItems.lastIndex)
+            val currentItem = roundItems[safeIndex]
 
             // Progress Indicator Row
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -681,7 +788,7 @@ private fun VocabularyActivityPlayView(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "Question ${currentIndex + 1} of ${roundItems.size}",
+                        text = "Question ${safeIndex + 1} of ${roundItems.size}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFCBD5E1)
@@ -694,7 +801,7 @@ private fun VocabularyActivityPlayView(
                     )
                 }
                 LinearProgressIndicator(
-                    progress = { (currentIndex + 1).toFloat() / roundItems.size.toFloat() },
+                    progress = { (safeIndex + 1).toFloat() / roundItems.size.toFloat() },
                     color = palette.borderColor,
                     trackColor = Color(0xFF1E1B4B),
                     modifier = Modifier
@@ -707,8 +814,9 @@ private fun VocabularyActivityPlayView(
             if (config.activityType == VocabularyActivityType.WORD_SCRAMBLE) {
                 WordScrambleQuestionCard(
                     item = currentItem,
+                    roundSeed = roundSeed,
                     palette = palette,
-                    isLast = currentIndex == roundItems.lastIndex,
+                    isLast = safeIndex == roundItems.lastIndex,
                     onSpeak = onSpeak,
                     onCompleted = { solvedOnFirstOrRetry ->
                         if (solvedOnFirstOrRetry) {
@@ -717,8 +825,8 @@ private fun VocabularyActivityPlayView(
                         } else {
                             streak = 0
                         }
-                        if (currentIndex < roundItems.lastIndex) {
-                            currentIndex += 1
+                        if (safeIndex < roundItems.lastIndex) {
+                            currentIndex = safeIndex + 1
                         } else {
                             isRoundComplete = true
                         }
@@ -728,9 +836,10 @@ private fun VocabularyActivityPlayView(
                 McqVocabularyQuestionCard(
                     activityType = config.activityType,
                     item = currentItem,
+                    roundSeed = roundSeed,
                     allChallenges = allChallenges,
                     palette = palette,
-                    isLast = currentIndex == roundItems.lastIndex,
+                    isLast = safeIndex == roundItems.lastIndex,
                     onSpeak = onSpeak,
                     onAdvance = { wasCorrect ->
                         if (wasCorrect) {
@@ -739,8 +848,8 @@ private fun VocabularyActivityPlayView(
                         } else {
                             streak = 0
                         }
-                        if (currentIndex < roundItems.lastIndex) {
-                            currentIndex += 1
+                        if (safeIndex < roundItems.lastIndex) {
+                            currentIndex = safeIndex + 1
                         } else {
                             isRoundComplete = true
                         }
@@ -772,18 +881,19 @@ private fun RewardChip(label: String, bg: Color, border: Color) {
 private fun McqVocabularyQuestionCard(
     activityType: VocabularyActivityType,
     item: WordMatchChallenge,
+    roundSeed: Int,
     allChallenges: List<WordMatchChallenge>,
     palette: ActivityPalette,
     isLast: Boolean,
     onSpeak: (String) -> Unit,
     onAdvance: (wasCorrect: Boolean) -> Unit
 ) {
-    val (correctAnswer, options) = remember(item, activityType, allChallenges) {
+    val (correctAnswer, options) = remember(item.id, activityType, roundSeed, allChallenges) {
         buildMcqForActivity(item, activityType, allChallenges)
     }
 
-    var selectedOption by remember(item, activityType) { mutableStateOf<String?>(null) }
-    var showClue by remember(item, activityType) { mutableStateOf(false) }
+    var selectedOption by remember(item.id, activityType, roundSeed) { mutableStateOf<String?>(null) }
+    var showClue by remember(item.id, activityType, roundSeed) { mutableStateOf(false) }
     val isAnswered = selectedOption != null
     val isCorrect = selectedOption == correctAnswer
 
@@ -1063,17 +1173,18 @@ private fun McqVocabularyQuestionCard(
 @Composable
 private fun WordScrambleQuestionCard(
     item: WordMatchChallenge,
+    roundSeed: Int,
     palette: ActivityPalette,
     isLast: Boolean,
     onSpeak: (String) -> Unit,
     onCompleted: (solvedWithoutReveal: Boolean) -> Unit
 ) {
-    val cleanTarget = remember(item) {
+    val cleanTarget = remember(item.id) {
         item.word.trim().uppercase().filter { it.isLetter() }.ifBlank { "WORD" }
     }
 
-    var scrambleSeed by remember(item) { mutableIntStateOf(0) }
-    val letterTiles = remember(cleanTarget, scrambleSeed) {
+    var scrambleSeed by remember(item.id, roundSeed) { mutableIntStateOf(0) }
+    val letterTiles = remember(cleanTarget, roundSeed, scrambleSeed) {
         val indexed = cleanTarget.mapIndexed { idx, ch -> idx to ch }
         var shuffled = indexed.shuffled()
         if (cleanTarget.toSet().size > 1 && shuffled.map { it.second }.joinToString("") == cleanTarget) {
@@ -1082,9 +1193,9 @@ private fun WordScrambleQuestionCard(
         shuffled
     }
 
-    var placedIndices by remember(cleanTarget) { mutableStateOf<List<Int>>(emptyList()) }
-    var checkedCorrect by remember(cleanTarget) { mutableStateOf<Boolean?>(null) }
-    var revealedFullAnswer by remember(cleanTarget) { mutableStateOf(false) }
+    var placedIndices by remember(item.id, roundSeed) { mutableStateOf<List<Int>>(emptyList()) }
+    var checkedCorrect by remember(item.id, roundSeed) { mutableStateOf<Boolean?>(null) }
+    var revealedFullAnswer by remember(item.id, roundSeed) { mutableStateOf(false) }
 
     val builtWord = placedIndices.map { tileIdx -> letterTiles[tileIdx].second }.joinToString("")
     val hintText = item.scrambleHint.ifBlank { item.definition }.ifBlank { "Unscramble the English word" }
