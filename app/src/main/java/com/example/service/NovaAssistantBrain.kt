@@ -53,42 +53,58 @@ object NovaAssistantBrain {
         // 4. Casual greetings, "how are you", "who are you", boredom, jokes, motivation
         if (matchesGreeting(lower)) {
             val greetings = listOf(
-                "Hey $firstName! So nice to chat with you! I'm $voiceName, your Nova speaking buddy. How's your day going so far — chill or super busy?",
-                "Hi $firstName! Welcome back! Ready to make English feel effortless and fun today? Tell me one good thing that happened today, or tap a chip below for a quick roleplay!",
-                "Hey there $firstName! Glad you popped in! Just finished a cup of virtual masala chai and I'm ready to practice with you. What's on your mind today?"
+                "Hey $firstName! I'm $voiceName, your Nova AI assistant. Ask me anything — math, science, coding, general knowledge, writing, translations, or English practice!",
+                "Hi $firstName! Great to see you! What topic should we dive into today — study notes, coding, math, brainstorming, or a quick chat?",
+                "Hey there $firstName! Ready to help with any subject or question you have. What's on your mind today?"
             )
             return greetings[(trimmed.length + chatHistory.size) % greetings.size]
         }
 
         if (lower.contains("how are you") || lower.contains("how r u") || lower.contains("what's up") || lower.contains("whats up")) {
-            return "I'm doing super well, $firstName, thanks for asking! Honestly, chatting with you is the best part of my day. How are you feeling today — energetic, sleepy, or ready for a fun challenge?"
+            return "I'm doing great, $firstName, thanks for asking! What would you like to explore, solve, or build today?"
         }
 
         if (lower.contains("who are you") || lower.contains("your name")) {
-            return "I'm $voiceName (Nova AI) — your Indian English speaking buddy and tutor! Think of me like a friendly senior who helps you speak naturally, fix tricky grammar without judgment, and nail interviews or everyday chats. What should we try first?"
+            return "I'm $voiceName (Nova AI) — your all-purpose AI assistant! You can ask me about Math, Science, Coding, History, General Knowledge, Writing, Translations, Exam Prep, Photos/PDFs, or English practice. What should we work on first?"
+        }
+
+        // 4b. Quick Math & Equation Solver (works even offline!)
+        trySolveQuickMath(trimmed)?.let { mathAnswer ->
+            return mathAnswer
+        }
+
+        // 4c. Coding & Tech helpers (when offline)
+        if (mode == "Coding & Tech" || lower.contains("python") || lower.contains("kotlin") || lower.contains("java ") || lower.contains("html") || lower.contains("javascript") || lower.contains("coding") || lower.contains("program") || lower.contains("algorithm")) {
+            buildOfflineCodingReply(lower)?.let { return it }
+        }
+
+        // 4d. Science & Study helpers (when offline)
+        if (mode == "Study & Math" || lower.contains("black hole") || lower.contains("photosynthesis") || lower.contains("newton") || lower.contains("gravity") || lower.contains("science project") || lower.contains("solar system") || lower.contains("dna")) {
+            buildOfflineScienceReply(lower, firstName)?.let { return it }
         }
 
         if (lower.contains("bored") || lower.contains("boring") || lower.contains("fun") || lower.contains("game")) {
-            return "Let's fix that boredom right now, $firstName! Pick one mini-challenge and reply:\n\n" +
-                "1. 🎭 Café Roleplay: Pretend you're ordering a cold coffee & sandwich.\n" +
-                "2. 🗣️ Tongue Twister: Say \"She sells seashells by the seashore\" fast!\n" +
-                "3. ✨ Upgrade Challenge: Tell me one boring sentence like \"I am very tired\", and I'll make it sound like a pro!\n\nWhich one sounds fun?"
+            return "Let's shake off that boredom, $firstName! Pick one to try:\n\n" +
+                "1. 🧠 Brain Teaser or Science Fact\n" +
+                "2. 💻 Mini Coding Challenge\n" +
+                "3. 🎭 Interactive Roleplay\n" +
+                "4. 💡 Creative Story Starter\n\nWhich one sounds fun?"
         }
 
         if (lower.contains("joke") || lower.contains("laugh") || lower.contains("funny")) {
             val jokes = listOf(
-                "Here's a quick English wordplay joke for you, $firstName!\n\nWhy was the English book always so sad?\nBecause it had too many tense situations! 😄\n\nSpeaking of tenses — want to try making a funny sentence in Past Tense?",
-                "Okay, catch this one!\n\nTeacher: \"Use 'I' in a sentence.\"\nStudent: \"I is...\"\nTeacher: \"No! Always say 'I am'!\"\nStudent: \"Fine... I am the ninth letter of the alphabet!\" 😄\n\nWant another one or a fun tongue twister?"
+                "Here's a quick science joke for you, $firstName!\n\nWhy don't scientists trust atoms?\nBecause they make up everything! 😄",
+                "Here's a tech one!\n\nWhy do programmers prefer dark mode?\nBecause light attracts bugs! 😄"
             )
             return jokes[chatHistory.size % jokes.size]
         }
 
         if (lower.contains("motivat") || lower.contains("nervous") || lower.contains("scared") || lower.contains("afraid") || lower.contains("shy") || lower.contains("hesitat")) {
-            return "Hey $firstName, listen to me — every fluent speaker you admire once stumbled over simple words too. Even native speakers make grammar slips! The secret isn't perfection; it's speaking one real sentence every single day without fear.\n\nYou're already doing great by showing up here. Tell me one thing you love doing, in just one relaxed sentence!"
+            return "Hey $firstName — every expert started as a beginner. Break big goals into one small 10-minute step today, focus on progress over perfection, and keep going. Tell me what you're working on and let's tackle step 1 together!"
         }
 
         if (lower.contains("thank") || lower.contains("thanks") || lower.contains("awesome") || lower.contains("nice") || lower.contains("cool")) {
-            return "Anytime, $firstName! You're making awesome progress. Want to keep going with a quick 2-line roleplay, a pronunciation drill, or an English upgrade?"
+            return "You're very welcome, $firstName! Feel free to ask me about any other topic — math, science, coding, writing, GK, or languages."
         }
 
         // 5. "Upgrade my boring English" / natural phrasing
@@ -108,42 +124,43 @@ object NovaAssistantBrain {
 
         // 8. Tenses / Grammar topics
         if (lower.contains("tense")) {
-            return "Let's make tenses super simple, $firstName! Forget heavy textbook rules — just remember these 4 everyday patterns:\n\n" +
-                "1. Present Simple (habits): \"I drink chai every morning.\"\n" +
+            return "Let's make tenses super simple, $firstName! Remember these 4 everyday patterns:\n\n" +
+                "1. Present Simple (habits): \"I study every morning.\"\n" +
                 "2. Present Continuous (right now): \"I am chatting with Nova right now.\"\n" +
                 "3. Past Simple (finished): \"I watched a great movie yesterday.\"\n" +
-                "4. Present Perfect (experience/result): \"I have improved my English a lot this month!\"\n\n" +
-                "Your turn: write 1 real sentence about your day today, and I'll check & polish it!"
+                "4. Present Perfect (experience/result): \"I have learned a lot this month!\"\n\n" +
+                "Try writing a sentence and I'll help check it!"
         }
 
         // 9. Idioms / Vocabulary / Daily phrases
         if (lower.contains("idiom") || lower.contains("phrase") || lower.contains("vocabulary") || lower.contains("words") || lower.contains("slang")) {
-            return "Here are 4 natural phrases real speakers use every day (way more fun than textbook English!):\n\n" +
+            return "Here are 4 natural phrases people use every day:\n\n" +
                 "• \"No worries at all!\" → Friendly way to say \"It's okay.\"\n" +
                 "• \"I'm swamped today\" → \"I'm super busy today.\"\n" +
-                "• \"To be honest...\" → Great way to start sharing your opinion.\n" +
-                "• \"Let's catch up soon!\" → \"Let's talk/meet again soon.\"\n\n" +
-                "Try using one of these in a sentence right now — I'll cheer you on or polish it!"
+                "• \"To be honest...\" → Great way to share your opinion.\n" +
+                "• \"Let's catch up soon!\" → \"Let's talk/meet again soon.\""
         }
 
         // 10. Writing / Email / Speech / Essay help
-        if (mode == "Writing Coach" || lower.contains("email") || lower.contains("letter") || lower.contains("essay") || lower.contains("speech") || lower.contains("write ")) {
+        if (mode == "Writing Coach" || lower.contains("email") || lower.contains("letter") || lower.contains("essay") || lower.contains("speech")) {
             return buildWritingCoachReply(trimmed, lower, firstName)
         }
 
-        // 11. Speaking Tutor / general sentence conversation -> check grammar warmly + keep the chat alive!
-        val grammarCheck = HumanConversationEngine.analyzeGrammarDeterministic(trimmed, isVoiceInput = false)
-        if (grammarCheck.hasError && !grammarCheck.correctedSentence.isNullOrBlank()) {
-            return HumanConversationEngine.formatMandatoryMistakeResponse(
-                originalSentence = trimmed,
-                correctedSentence = grammarCheck.correctedSentence,
-                explanation = grammarCheck.explanation ?: grammarCheck.shortTip ?: "Try this cleaner structure.",
-                naturalEnglish = grammarCheck.naturalExpression,
-                continuationText = "Nice thought, $firstName! Let's keep chatting — can you tell me a little more about that in your next sentence?"
-            )
+        // 11. Only run English grammar-correction card when explicitly in Speaking Tutor mode
+        if (mode == "Speaking Tutor") {
+            val grammarCheck = HumanConversationEngine.analyzeGrammarDeterministic(trimmed, isVoiceInput = false)
+            if (grammarCheck.hasError && !grammarCheck.correctedSentence.isNullOrBlank()) {
+                return HumanConversationEngine.formatMandatoryMistakeResponse(
+                    originalSentence = trimmed,
+                    correctedSentence = grammarCheck.correctedSentence,
+                    explanation = grammarCheck.explanation ?: grammarCheck.shortTip ?: "Try this cleaner structure.",
+                    naturalEnglish = grammarCheck.naturalExpression,
+                    continuationText = "Nice thought, $firstName! Tell me a little more about that in your next sentence."
+                )
+            }
         }
 
-        // Intelligent conversational follow-up based on what the student actually talked about
+        // General multi-topic fallback when offline / live Gemini key is not yet connected
         return buildContextualConversationalReply(trimmed, lower, firstName, mode)
     }
 
@@ -394,6 +411,93 @@ object NovaAssistantBrain {
         }
     }
 
+    private fun trySolveQuickMath(prompt: String): String? {
+        // 1. Simple linear equation like "3x + 7 = 28" or "2x - 5 = 11"
+        val linearRegex = Regex("""(-?\d+(?:\.\d+)?)\s*([a-zA-Z])\s*([+-])\s*(\d+(?:\.\d+)?)\s*=\s*(-?\d+(?:\.\d+)?)""")
+        linearRegex.find(prompt)?.let { m ->
+            val a = m.groupValues[1].toDoubleOrNull() ?: return@let
+            val variable = m.groupValues[2]
+            val op = m.groupValues[3]
+            val b = m.groupValues[4].toDoubleOrNull() ?: return@let
+            val c = m.groupValues[5].toDoubleOrNull() ?: return@let
+            if (a != 0.0) {
+                val rhs = if (op == "+") c - b else c + b
+                val x = rhs / a
+                val xFormatted = if (x % 1.0 == 0.0) x.toLong().toString() else String.format("%.4f", x).trimEnd('0').trimEnd('.')
+                val rhsFormatted = if (rhs % 1.0 == 0.0) rhs.toLong().toString() else rhs.toString()
+                val oppositeStep = if (op == "+") "Subtract ${m.groupValues[4]} from" else "Add ${m.groupValues[4]} to"
+                return "Step-by-step solution for ${m.value}:\n\n" +
+                    "1. $oppositeStep both sides:\n   ${m.groupValues[1]}$variable = $rhsFormatted\n" +
+                    "2. Divide both sides by ${m.groupValues[1]}:\n   $variable = $rhsFormatted / ${m.groupValues[1]} = $xFormatted\n\n" +
+                    "✅ Answer: $variable = $xFormatted"
+            }
+        }
+
+        // 2. Direct arithmetic expression like "24 * 15", "144 / 12", "250 + 75", "100 - 37"
+        val arithRegex = Regex("""(-?\d+(?:\.\d+)?)\s*([+\-*/x×÷])\s*(-?\d+(?:\.\d+)?)""")
+        val cleaned = prompt.replace(Regex("(?i)(what is|calculate|solve|compute|evaluate|=|\\?)"), "").trim()
+        val match = arithRegex.find(cleaned)
+        if (match != null && cleaned.length <= 40) {
+            val left = match.groupValues[1].toDoubleOrNull() ?: return null
+            val op = match.groupValues[2]
+            val right = match.groupValues[3].toDoubleOrNull() ?: return null
+            val result = when (op) {
+                "+" -> left + right
+                "-" -> left - right
+                "*", "x", "×" -> left * right
+                "/", "÷" -> if (right != 0.0) left / right else return "Division by zero is undefined in mathematics."
+                else -> return null
+            }
+            val formatted = if (result % 1.0 == 0.0) result.toLong().toString() else String.format("%.6f", result).trimEnd('0').trimEnd('.')
+            return "📐 ${match.value} = $formatted"
+        }
+        return null
+    }
+
+    private fun buildOfflineCodingReply(lower: String): String? {
+        return when {
+            lower.contains("prime") && lower.contains("python") ->
+                "Here is a clean Python function to check if a number is prime:\n\n" +
+                    "```python\n" +
+                    "def is_prime(n: int) -> bool:\n" +
+                    "    if n <= 1:\n" +
+                    "        return False\n" +
+                    "    for i in range(2, int(n ** 0.5) + 1):\n" +
+                    "        if n % i == 0:\n" +
+                    "            return False\n" +
+                    "    return True\n\n" +
+                    "print(is_prime(29))  # True\n" +
+                    "```\n\n" +
+                    "How it works: Numbers ≤ 1 are not prime. We only check divisors up to √n, which makes it fast (O(√n))."
+            lower.contains("python") ->
+                "I'd love to help with Python! For unlimited code generation, debugging, and custom algorithms across any programming language, connect a Gemini API key in Admin AI Settings."
+            else -> null
+        }
+    }
+
+    private fun buildOfflineScienceReply(lower: String, firstName: String): String? {
+        return when {
+            lower.contains("black hole") ->
+                "🌌 Black Holes Explained Simply:\n\n" +
+                    "1. What it is: A region in space where gravity is so strong that nothing — not even light — can escape.\n" +
+                    "2. How it forms: When a massive star runs out of fuel and collapses inward under its own gravity.\n" +
+                    "3. Everyday analogy: Imagine placing a super-heavy bowling ball on a stretched trampoline — it creates a deep funnel where marbles roll in and can't climb back out.\n" +
+                    "4. Event Horizon: The 'point of no return' boundary around a black hole."
+            lower.contains("photosynthesis") ->
+                "🌿 Photosynthesis Explained:\n\n" +
+                    "Plants use sunlight, water (H₂O), and carbon dioxide (CO₂) inside chlorophyll to make glucose (food) and release oxygen (O₂).\n\n" +
+                    "Equation: 6CO₂ + 6H₂O + Sunlight → C₆H₁₂O₆ + 6O₂"
+            lower.contains("science project") ->
+                "🔬 5 Creative Science Project Ideas for $firstName:\n\n" +
+                    "1. Smart Plant Watering Indicator using soil moisture sensing.\n" +
+                    "2. Solar Oven using a cardboard box & aluminum foil to test heat retention.\n" +
+                    "3. Natural Water Filtration layered column (gravel, sand, activated charcoal).\n" +
+                    "4. Homemade Electromagnet strength test (coils vs. paperclips lifted).\n" +
+                    "5. Biodegradable Plastic from cornstarch, water, and vinegar."
+            else -> null
+        }
+    }
+
     private fun buildContextualConversationalReply(
         trimmed: String,
         lower: String,
@@ -401,18 +505,11 @@ object NovaAssistantBrain {
         mode: String
     ): String {
         return when {
-            lower.contains("cricket") || lower.contains("football") || lower.contains("sport") ->
-                "Ooh, sports is such a fun topic, $firstName! Your English flowed nicely there. Who's your favourite player or team right now, and what makes them exciting to watch?"
-            lower.contains("chai") || lower.contains("tea") || lower.contains("coffee") || lower.contains("food") || lower.contains("biryani") ->
-                "Now you're talking my language — food always makes a great conversation! Tell me: are you a chai person or a coffee person, and what's your ultimate comfort snack?"
-            lower.contains("movie") || lower.contains("music") || lower.contains("song") ->
-                "Love that! Talking about movies and music is honestly one of the fastest ways to boost natural English. What's a song or movie you could rewatch anytime?"
-            lower.contains("?") ->
-                "Great question, $firstName! Here's a handy way to think about it in English: try breaking your idea into one short statement + one reason using 'because'. Want to test saying your answer in 1–2 sentences?"
             mode == "Speaking Tutor" ->
                 "Nice sentence, $firstName! That sounded natural and clear. To keep the flow going — what happened next, or why do you enjoy that?"
             else ->
-                "I love that, $firstName! Your sentence is clear and natural. Let's keep the momentum going — tell me one more detail about it, or tap a fun challenge chip below!"
+                "I'm currently running in Offline Local Mode, so I can only answer built-in math, coding, science, writing, and language examples right now.\n\n" +
+                    "To unlock full Gemini answers for EVERY topic (advanced Math, Science, Coding, History, GK, Photo/PDF analysis, and open-ended chat), ask your Teacher or Admin to connect a Gemini API key in the AI Settings panel."
         }
     }
 }

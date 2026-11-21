@@ -2467,8 +2467,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             NovaChatMessage(
                 id = "nova_gemini_welcome_${System.currentTimeMillis()}",
                 isNova = true,
-                text = "Fresh chat started, $studentName! I'm $voiceName — want to jump into a Café roleplay, practice an interview, or chat about your day?",
-                audioPrompt = "Fresh chat started, $studentName! Want to try a fun roleplay or chat about your day?",
+                text = "Fresh chat started, $studentName! I'm $voiceName — ask me about any topic: Math, Science, Coding, History, GK, Writing, Photos/PDFs, Translations, or English practice. What can I help you with?",
+                audioPrompt = "Fresh chat started, $studentName! Ask me about any topic, from science and math to coding, writing, or languages.",
                 isQuestion = false,
                 questionNumber = 1
             )
@@ -2476,8 +2476,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             NovaChatMessage(
                 id = "nova_gemini_welcome_${System.currentTimeMillis()}",
                 isNova = true,
-                text = "Hey $studentName! I'm $voiceName, your Nova speaking buddy.\n\nNo boring textbook drills here — we can do fun Café or Interview roleplays, upgrade your everyday English, try tongue twisters, translate to Assamese or Hindi, or check your grammar!",
-                audioPrompt = "Hey $studentName! I'm $voiceName, your Nova speaking buddy. Let's have a fun conversation, try a roleplay, or upgrade your English today!",
+                text = "Hey $studentName! I'm $voiceName, your Nova AI assistant.\n\nAsk me anything — just like Gemini! Math & Science, Coding & Tech, History & GK, Exam Prep, Creative Writing, Brainstorming, Photo/PDF Analysis, Assamese & Hindi Translations, or English practice.",
+                audioPrompt = "Hey $studentName! I'm $voiceName, your Nova AI assistant. Ask me anything across science, math, coding, general knowledge, writing, or languages!",
                 isQuestion = false,
                 questionNumber = 1
             )
@@ -2716,7 +2716,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val activeMode = _novaGeminiMode.value
 
             val (replyText, usedModel) = if (isGeminiApiKeyConfigured()) {
-                val aiResult = kotlinx.coroutines.withTimeoutOrNull(25000L) {
+                val aiResult = kotlinx.coroutines.withTimeoutOrNull(60000L) {
                     if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
                         GeminiSpeechEvaluator.askNovaGeminiCustomEndpoint(
                             endpointUrl = _customEndpointUrl.value,
@@ -2743,18 +2743,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             model = _activeAiModel.value
                         )
                     }
-                } ?: Result.failure(Exception("Request timed out."))
+                } ?: Result.failure(Exception("Request timed out. Please try again."))
 
                 if (aiResult.isSuccess) {
                     aiResult.getOrThrow()
                 } else {
-                    com.example.service.NovaAssistantBrain.generateSmartReply(
-                        prompt = cleanPrompt,
-                        mode = activeMode,
-                        studentName = studentName,
-                        chatHistory = priorHistory,
-                        persona = ttsManager.voicePersona.value
-                    ) to "${ttsManager.voicePersona.value.displayName} • Smart Tutor"
+                    val errDetail = aiResult.exceptionOrNull()?.message?.take(180) ?: "Connection interrupted"
+                    val isEnglishSpecializedMode = activeMode in setOf("Roleplay", "Grammar Fix", "Speaking Tutor", "Translator")
+                    if (isEnglishSpecializedMode) {
+                        com.example.service.NovaAssistantBrain.generateSmartReply(
+                            prompt = cleanPrompt,
+                            mode = activeMode,
+                            studentName = studentName,
+                            chatHistory = priorHistory,
+                            persona = ttsManager.voicePersona.value
+                        ) to "${ttsManager.voicePersona.value.displayName} • Offline Backup"
+                    } else {
+                        "⚠️ Could not reach the live Gemini AI service right now ($errDetail).\n\nPlease check your internet connection or ask your teacher/admin to verify the Gemini API key & selected model in Admin AI Settings, then send your question again." to "Connection Error"
+                    }
                 }
             } else {
                 com.example.service.NovaAssistantBrain.generateSmartReply(
@@ -2763,7 +2769,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     studentName = studentName,
                     chatHistory = priorHistory,
                     persona = ttsManager.voicePersona.value
-                ) to "${ttsManager.voicePersona.value.displayName} • Smart Tutor"
+                ) to "${ttsManager.voicePersona.value.displayName} • Local Assistant"
             }
 
             _novaGeminiModelUsed.value = usedModel
@@ -2784,8 +2790,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isNovaGeminiThinking.value = false
 
             if (_aiVoiceReplyEnabled.value) {
+                val cleanedForSpeech = replyText
+                    .replace(Regex("```[\\s\\S]*?```"), " Here is the code example. ")
+                    .replace(Regex("[*#`_]"), "")
                 val spokenPreview = HumanConversationEngine.buildSpokenAudioPrompt(
-                    replyText.lineSequence().take(6).joinToString(" "),
+                    cleanedForSpeech.lineSequence().take(6).joinToString(" "),
                     null
                 ).take(420)
                 if (spokenPreview.isNotBlank()) speakAudio(spokenPreview)

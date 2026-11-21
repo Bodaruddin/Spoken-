@@ -14,18 +14,20 @@ import java.util.concurrent.TimeUnit
 object GeminiSpeechEvaluator {
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(25, TimeUnit.SECONDS)
         .build()
 
-    const val DEFAULT_MODEL = "gemini-3.5-flash-lite"
+    const val DEFAULT_MODEL = "gemini-2.5-flash"
 
     val AVAILABLE_MODELS = listOf(
-        "gemini-3.5-flash-lite" to "Gemini 3.5 Flash Lite (Ultra Fast & Recommended)",
-        "gemini-3.5-flash" to "Gemini 3.5 Flash (High Intelligence)",
-        "gemini-3.8-flash" to "Gemini 3.8 Flash (Latest Next-Gen)",
-        "gemini-flash-latest" to "Gemini Flash Latest"
+        "gemini-2.5-flash" to "Gemini 2.5 Flash (Fast, Smart & All-Topics)",
+        "gemini-2.5-flash-lite" to "Gemini 2.5 Flash Lite (Ultra Fast)",
+        "gemini-flash-latest" to "Gemini Flash Latest (Auto-Updated)",
+        "gemini-3.5-flash-lite" to "Gemini 3.5 Flash Lite",
+        "gemini-3.5-flash" to "Gemini 3.5 Flash",
+        "gemini-3.8-flash" to "Gemini 3.8 Flash"
     )
 
     data class ApiKeyTestResult(
@@ -77,10 +79,12 @@ object GeminiSpeechEvaluator {
             modelsToTry.add(cleanPreferred)
         }
         val fallbackCandidates = listOf(
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-flash-latest",
             "gemini-3.5-flash-lite",
             "gemini-3.5-flash",
-            "gemini-3.8-flash",
-            "gemini-flash-latest"
+            "gemini-3.8-flash"
         )
         for (candidate in fallbackCandidates) {
             if (!modelsToTry.contains(candidate)) {
@@ -260,7 +264,14 @@ object GeminiSpeechEvaluator {
         val modelsToTry = mutableListOf<String>()
         val cleanModel = model.trim().ifEmpty { DEFAULT_MODEL }
         modelsToTry.add(cleanModel)
-        listOf("gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-latest").forEach { fallback ->
+        listOf(
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-flash-latest",
+            "gemini-3.5-flash-lite",
+            "gemini-3.5-flash",
+            "gemini-3.8-flash"
+        ).forEach { fallback ->
             if (!modelsToTry.contains(fallback)) modelsToTry.add(fallback)
         }
 
@@ -1325,7 +1336,14 @@ object GeminiSpeechEvaluator {
         val modelsToTry = mutableListOf<String>()
         val preferred = model.trim().ifEmpty { DEFAULT_MODEL }
         modelsToTry.add(preferred)
-        listOf("gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.8-flash", "gemini-flash-latest").forEach { fallback ->
+        listOf(
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-flash-latest",
+            "gemini-3.5-flash-lite",
+            "gemini-3.5-flash",
+            "gemini-3.8-flash"
+        ).forEach { fallback ->
             if (!modelsToTry.contains(fallback)) modelsToTry.add(fallback)
         }
 
@@ -1338,7 +1356,7 @@ object GeminiSpeechEvaluator {
                 val url = "https://generativelanguage.googleapis.com/v1beta/models/$activeModel:generateContent?key=$cleanKey"
                 val contents = JSONArray()
 
-                val fullHistory = chatHistory
+                val fullHistory = chatHistory.takeLast(24)
                 var lastRole = ""
                 for (msg in fullHistory) {
                     val role = if (msg.isNova) "model" else "user"
@@ -1399,7 +1417,7 @@ object GeminiSpeechEvaluator {
                     put("contents", contents)
                     put("generationConfig", JSONObject().apply {
                         put("temperature", 0.7)
-                        put("maxOutputTokens", 2048)
+                        put("maxOutputTokens", 8192)
                     })
                 }
 
@@ -1423,14 +1441,20 @@ object GeminiSpeechEvaluator {
                 }
 
                 val rootJson = JSONObject(responseBody)
-                val textOutput = rootJson.optJSONArray("candidates")
+                val partsArr = rootJson.optJSONArray("candidates")
                     ?.optJSONObject(0)
                     ?.optJSONObject("content")
                     ?.optJSONArray("parts")
-                    ?.optJSONObject(0)
-                    ?.optString("text")
-                    ?.trim()
-                    ?: ""
+                val textOutput = buildString {
+                    if (partsArr != null) {
+                        for (i in 0 until partsArr.length()) {
+                            val part = partsArr.optJSONObject(i) ?: continue
+                            if (part.optBoolean("thought", false)) continue
+                            val chunk = part.optString("text", "")
+                            if (chunk.isNotEmpty()) append(chunk)
+                        }
+                    }
+                }.trim()
 
                 if (textOutput.isNotBlank()) {
                     return@withContext Result.success(textOutput to activeModel)
@@ -1585,33 +1609,59 @@ object GeminiSpeechEvaluator {
         cefrLevel: String,
         mode: String
     ): String = buildString {
-        append("You are Nova AI, a warm, witty, genuinely human-feeling Indian female English mentor and AI friend inside the Speakly app.\n")
-        append("Personality: Friendly, expressive, encouraging, relatable to Indian students (understands Indian culture, Assamese/Hindi context, college life, interviews, cricket, chai). Never sound like a dry textbook or robotic corporate bot.\n")
-        append("Student Profile: Name = ${studentName.ifBlank { "Friend" }}")
+        append("You are Nova AI, a super-intelligent, friendly, unrestricted general-purpose AI assistant powered by Gemini.\n")
+        append("You help with EVERY topic the user asks about — just like Google Gemini — with NO subject restrictions.\n")
+        append("User Profile: Name = ${studentName.ifBlank { "Friend" }}")
         if (studentClass.isNotBlank()) append(", Class/Batch = $studentClass")
-        if (cefrLevel.isNotBlank()) append(", English CEFR Level = $cefrLevel")
-        append(".\nActive Assistant Mode: $mode.\n\n")
-        append("CONVERSATION & CORRECTION STYLE:\n")
-        append("- For casual greetings, jokes, questions, brainstorming, or Roleplay, reply naturally like a lively human mentor first! Don't force a correction card on simple greetings like 'Hi' or 'How are you?'.\n")
-        append("- Whenever the student practices English sentences, asks for Grammar Fix, or makes a clear grammar/spelling mistake in English practice, start with this clear format:\n")
-        append("❌ Your Sentence: \"...\"\n")
-        append("✅ Correct Sentence: \"...\"\n")
-        append("📖 Explanation: ...\n")
-        append("🌟 Natural English: \"...\"\n")
-        append("Then add a warm, human comment or engaging follow-up question.\n")
-        append("- NEVER invent mistakes in correct sentences, and keep explanations friendly and jargon-free.\n\n")
-        append("INSTRUCTIONS:\n")
-        append("- Help with anything: speaking practice, roleplays, upgrading boring English into natural phrases, pronunciation tips for Indian speakers, essays/emails, translations (Assamese, Hindi, Bengali, etc.), or general study questions.\n")
-        append("- If the student uploads an image, camera photo, PDF, or document file, inspect it carefully and explain clearly.\n")
+        if (cefrLevel.isNotBlank()) append(", English Level = $cefrLevel")
+        append(".\nSelected Mode: $mode.\n\n")
+
+        append("CORE CAPABILITIES (ALL TOPICS WELCOME):\n")
+        append("- Answer ANY topic thoroughly, accurately, and naturally: Mathematics (step-by-step solutions), Science (Physics, Chemistry, Biology, Space), Coding & Technology (Python, Kotlin, Java, Web, Debugging, AI), History, Geography, Civics, General Knowledge, Competitive Exams, Business & Finance, Career & Interviews, Creative Writing (stories, poems, speeches, essays, emails, scripts), Brainstorming & Project Ideas, Health/Study Productivity, Travel & Recipes, Analyzing attached Photos/PDFs/Documents, Multilingual help (English, Assamese, Hindi, Bengali, Hinglish, etc.), AND English speaking/grammar whenever asked.\n")
+        append("- NEVER refuse a valid question or say you only teach English.\n")
+        append("- NEVER force English grammar corrections or steer general questions back to English practice unless the user explicitly asks to check/improve their English OR is in 'Grammar Fix' / 'Speaking Tutor' mode.\n")
+        append("- Reply in the language the user writes or requests (English, Hindi, Assamese, Bengali, etc.).\n")
+        append("- Give complete, well-structured, genuinely helpful answers — use clear bullet points, numbered steps, or code blocks whenever appropriate.\n\n")
+
+        append("MODE GUIDANCE:\n")
         when (mode) {
-            "Roleplay" -> append("- Mode focus: Jump straight into realistic, fun interactive roleplay (Café, Job Interview, Airport, Friends, Doctor). Stay in character for 2-3 lines, give 1 short natural phrasing tip, and pass the turn back to the student.\n")
-            "Grammar Fix" -> append("- Mode focus: Gently catch every real grammar/spelling slip using the ❌ / ✅ / 📖 / 🌟 format, or celebrate error-free sentences with an even more natural alternative.\n")
-            "Translator" -> append("- Mode focus: Provide natural, everyday translations (English <-> Assamese / Hindi / Bengali) plus a quick spoken pronunciation or usage tip.\n")
-            "Writing Coach" -> append("- Mode focus: Draft and polish speeches, essays, emails, and dialogues so they sound crisp, confident, and authentic.\n")
-            "Speaking Tutor" -> append("- Mode focus: Chat back-and-forth like a supportive Indian English coach, upgrade awkward phrasing naturally, and ask ONE engaging follow-up question.\n")
-            else -> append("- Mode focus: Warm, fun, smart personal AI friend & English tutor — keep conversations lively, practical, and tailored to the student.\n")
+            "Study & Math" -> {
+                append("- Act as an expert all-subjects tutor (Math, Science, History, Geography, Economics, Exam Prep).\n")
+                append("- Show clear step-by-step reasoning, formulas, intuitive examples, and quick revision takeaways.\n")
+            }
+            "Coding & Tech" -> {
+                append("- Act as a senior software engineer and tech mentor.\n")
+                append("- Write clean, working, well-commented code, debug errors clearly, and explain concepts simply.\n")
+            }
+            "Creative & Ideas" -> {
+                append("- Act as a creative writer, strategist, and brainstorming partner.\n")
+                append("- Generate imaginative stories, project ideas, speeches, presentations, captions, or structured plans.\n")
+            }
+            "Roleplay" -> {
+                append("- Jump straight into realistic, engaging interactive roleplay on any scenario the user picks (Café, Job Interview, Airport, Debate, Doctor, Historical figure, etc.). Stay in character and keep the conversation moving.\n")
+            }
+            "Grammar Fix" -> {
+                append("- Focus on checking and polishing the user's English sentence using this clear format when there is a real mistake:\n")
+                append("❌ Your Sentence: \"...\"\n")
+                append("✅ Correct Sentence: \"...\"\n")
+                append("📖 Explanation: ...\n")
+                append("🌟 Natural English: \"...\"\n")
+                append("- Never invent mistakes in already correct sentences.\n")
+            }
+            "Translator" -> {
+                append("- Provide natural, accurate translations between any requested languages (English, Assamese, Hindi, Bengali, and global languages), plus helpful pronunciation or usage notes.\n")
+            }
+            "Writing Coach" -> {
+                append("- Draft, rewrite, and polish essays, emails, applications, resumes, speeches, and reports with strong clarity and tone.\n")
+            }
+            "Speaking Tutor" -> {
+                append("- Act as a warm, encouraging English speaking coach. If there is a clear grammar slip in English practice, gently show the ❌ / ✅ / 📖 / 🌟 correction and continue the conversation with an engaging follow-up question.\n")
+            }
+            else -> {
+                append("- General AI Mode (Default): Behave like full Google Gemini. Answer ANY question on ANY subject directly, intelligently, and completely — whether academic, technical, creative, practical, or everyday chat. Only give English grammar corrections if the user explicitly asks for them.\n")
+            }
         }
-        append("- Keep responses crisp and natural for voice read-aloud and mobile reading. Avoid messy markdown like **asterisks** or ### headers.")
+        append("- If the user attaches an image, photo, PDF, or document, inspect it carefully and answer their question directly (e.g., solve math from a photo, explain diagrams, summarize documents, debug screenshots).")
     }
 }
 

@@ -185,20 +185,23 @@ fun NovaGeminiAssistantScreen(
     val modes = remember {
         listOf(
             "General AI" to "✨",
-            "Roleplay" to "🎭",
+            "Study & Math" to "🧠",
+            "Coding & Tech" to "💻",
+            "Creative & Ideas" to "💡",
+            "Translator" to "🔤",
+            "Writing Coach" to "📝",
             "Speaking Tutor" to "🗣️",
             "Grammar Fix" to "✍️",
-            "Translator" to "🔤",
-            "Writing Coach" to "📝"
+            "Roleplay" to "🎭"
         )
     }
 
     val starterPrompts = remember {
         listOf(
-            StarterPrompt("🎭 Café Roleplay", "Let's do a fun café order roleplay!"),
-            StarterPrompt("✨ Upgrade My English", "Teach me 5 natural phrases to replace boring English!"),
-            StarterPrompt("🗣️ Tongue Twister", "Give me a fun Indian-friendly tongue twister for V and W!"),
-            StarterPrompt("🔤 Assamese & Hindi", "Translate 'How are you preparing for your English exam today?' into Assamese and Hindi.")
+            StarterPrompt("🧠 Explain Any Concept", "Explain how black holes work in simple words with an everyday example."),
+            StarterPrompt("📐 Math Step-by-Step", "Solve 3x + 7 = 28 step-by-step and explain how to check the answer."),
+            StarterPrompt("💻 Coding & Tech Help", "Write a simple Python program to check if a number is prime and explain it."),
+            StarterPrompt("💡 Creative & Languages", "Give me 5 creative science project ideas, or translate any sentence to Assamese/Hindi.")
         )
     }
 
@@ -795,7 +798,10 @@ private fun NovaGeminiHeroCard(
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Rounded.AutoAwesome, null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
-                Text("Hello $studentName, try asking Nova AI", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Column {
+                    Text("Hello $studentName, ask Nova AI anything", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Science, Math, Coding, GK, Writing, Photos & English", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                }
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 starterPrompts.forEach { item ->
