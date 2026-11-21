@@ -19,11 +19,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Java 17
+      - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
+
+      - name: Accept Android SDK licenses and install SDK 36.1
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+            "$SDKMANAGER" --install "platforms;android-36.1" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+          else
+            echo "sdkmanager not found at $SDKMANAGER; relying on preinstalled SDK."
+          fi
 
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
@@ -36,7 +47,7 @@ jobs:
             echo "Keystore ./debug.keystore already exists."
           else
             echo "Generating temporary debug keystore..."
-            "$JAVA_HOME/bin/keytool" -genkey -v \
+            "$JAVA_HOME/bin/keytool" -genkey -v -noprompt \
               -keystore ./debug.keystore \
               -storepass android \
               -alias androiddebugkey \
@@ -53,8 +64,10 @@ jobs:
           echo "Temporary debug keystore verified."
 
       - name: Build debug APK
+        env:
+          GRADLE_OPTS: "-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
         run: |
-          gradle :app:assembleDebug --stacktrace --no-daemon
+          gradle :app:assembleDebug --no-daemon --no-configuration-cache --max-workers=2 --stacktrace
 
       - name: Verify the APK
         run: |
@@ -108,7 +121,13 @@ jobs:
             --latest || true
 
       - name: Report APK download result
-        if: always()
+        if: success()
         run: |
           echo "### 🚀 Debug APK Build Succeeded" >> "$GITHUB_STEP_SUMMARY"
           echo "The APK has been built and uploaded to Artifacts and GitHub Releases." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report APK build failure
+        if: failure()
+        run: |
+          echo "### ❌ Debug APK Build Failed" >> "$GITHUB_STEP_SUMMARY"
+          echo "Check the 'Build debug APK' step logs above for the root cause." >> "$GITHUB_STEP_SUMMARY"
