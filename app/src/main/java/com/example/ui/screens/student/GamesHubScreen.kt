@@ -1045,6 +1045,37 @@ fun ActiveGameRunner(
 // =========================================================================
 private data class LetterChoice(val id: Int, val char: Char, var isUsed: Boolean = false)
 
+private const val MISSING_LETTERS_ROUND_SIZE = 10
+
+private fun pickNextMissingLettersRound(
+    pool: List<MissingLettersChallenge>,
+    seenIds: Set<String>,
+    lastFirstId: String?,
+    roundSize: Int = MISSING_LETTERS_ROUND_SIZE
+): Pair<List<MissingLettersChallenge>, Set<String>> {
+    if (pool.isEmpty()) return emptyList<MissingLettersChallenge>() to emptySet()
+    val targetCount = minOf(roundSize, pool.size)
+    val unseen = pool.filterNot { it.id in seenIds }.shuffled()
+    val seen = pool.filter { it.id in seenIds }.shuffled()
+
+    return if (unseen.size >= targetCount) {
+        val round = unseen.take(targetCount)
+        round to (seenIds + round.map { it.id })
+    } else {
+        val neededFromSeen = (targetCount - unseen.size).coerceAtLeast(0)
+        val combined = (unseen + seen.take(neededFromSeen)).toMutableList()
+        if (combined.size > 1 && lastFirstId != null && combined.first().id == lastFirstId) {
+            val swapIndex = combined.indexOfFirst { it.id != lastFirstId }
+            if (swapIndex > 0) {
+                val first = combined[0]
+                combined[0] = combined[swapIndex]
+                combined[swapIndex] = first
+            }
+        }
+        combined.toList() to combined.map { it.id }.toSet()
+    }
+}
+
 @Composable
 fun MissingLettersGame(
     viewModel: MainViewModel,
@@ -1053,6 +1084,36 @@ fun MissingLettersGame(
 ) {
     val challenges by viewModel.missingLettersChallenges.collectAsState()
     var selectedCategory by remember { mutableStateOf("All") }
+    var seenIdsByCategory by remember { mutableStateOf<Map<String, Set<String>>>(emptyMap()) }
+    var lastFirstIdByCategory by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var roundNumber by remember { mutableIntStateOf(0) }
+    var sessionWordIds by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    fun filterForCategory(category: String): List<MissingLettersChallenge> {
+        return if (category.equals("All", ignoreCase = true)) {
+            challenges
+        } else {
+            challenges.filter { it.category.equals(category, ignoreCase = true) }
+        }
+    }
+
+    fun startNewRound(category: String) {
+        val catKey = category.lowercase()
+        val pool = filterForCategory(category)
+        val (round, updatedSeen) = pickNextMissingLettersRound(
+            pool = pool,
+            seenIds = seenIdsByCategory[catKey].orEmpty(),
+            lastFirstId = lastFirstIdByCategory[catKey],
+            roundSize = MISSING_LETTERS_ROUND_SIZE
+        )
+        seenIdsByCategory = seenIdsByCategory + (catKey to updatedSeen)
+        round.firstOrNull()?.id?.let { firstId ->
+            lastFirstIdByCategory = lastFirstIdByCategory + (catKey to firstId)
+        }
+        sessionWordIds = round.map { it.id }
+        roundNumber += 1
+        selectedCategory = category
+    }
 
     BackHandler {
         onClose()
@@ -1065,15 +1126,53 @@ fun MissingLettersGame(
     }
 
     val filteredChallenges = remember(challenges, selectedCategory) {
-        if (selectedCategory == "All") {
-            challenges
-        } else {
-            challenges.filter { it.category.equals(selectedCategory, ignoreCase = true) }
+        filterForCategory(selectedCategory)
+    }
+    val challengeById = remember(filteredChallenges) {
+        filteredChallenges.associateBy { it.id }
+    }
+
+    // Keep the active 10-word round stable during gameplay, while initializing on entry
+    // or topping up if new cloud words arrive for a category with fewer than 10 words.
+    LaunchedEffect(selectedCategory, filteredChallenges) {
+        if (filteredChallenges.isEmpty()) {
+            sessionWordIds = emptyList()
+            return@LaunchedEffect
+        }
+        val validCurrentIds = sessionWordIds.filter { it in challengeById }
+        val targetCount = minOf(MISSING_LETTERS_ROUND_SIZE, filteredChallenges.size)
+        if (validCurrentIds.isEmpty()) {
+            startNewRound(selectedCategory)
+        } else if (validCurrentIds.size < targetCount) {
+            val catKey = selectedCategory.lowercase()
+            val existingSet = validCurrentIds.toSet()
+            val seenSet = seenIdsByCategory[catKey].orEmpty()
+            val extras = filteredChallenges
+                .filterNot { it.id in existingSet }
+                .sortedBy { if (it.id in seenSet) 1 else 0 }
+                .take(targetCount - validCurrentIds.size)
+                .map { it.id }
+            if (extras.isNotEmpty()) {
+                sessionWordIds = validCurrentIds + extras
+                seenIdsByCategory = seenIdsByCategory + (catKey to (seenSet + extras))
+            }
         }
     }
 
-    var challengeIndex by remember(selectedCategory) { mutableIntStateOf(0) }
-    val current = filteredChallenges.getOrNull(challengeIndex % maxOf(1, filteredChallenges.size))
+    val sessionChallenges = remember(sessionWordIds, challengeById, filteredChallenges) {
+        val resolved = sessionWordIds.mapNotNull { challengeById[it] }
+        if (resolved.isNotEmpty()) resolved else filteredChallenges.take(MISSING_LETTERS_ROUND_SIZE)
+    }
+
+    var challengeIndex by remember(selectedCategory, roundNumber) { mutableIntStateOf(0) }
+    var completedWordIds by remember(selectedCategory, roundNumber) { mutableStateOf(setOf<String>()) }
+    val safeIndex = if (sessionChallenges.isNotEmpty()) challengeIndex.coerceIn(0, sessionChallenges.lastIndex) else 0
+    val current = sessionChallenges.getOrNull(safeIndex)
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(roundNumber, safeIndex) {
+        scrollState.animateScrollTo(0)
+    }
 
     Box(
         modifier = modifier
@@ -1094,7 +1193,7 @@ fun MissingLettersGame(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -1266,7 +1365,7 @@ fun MissingLettersGame(
                             ),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
-                                .clickable { selectedCategory = cat }
+                                .clickable { startNewRound(cat) }
                                 .testTag("missing_letters_cat_${cat.lowercase().replace(" ", "_")}")
                         ) {
                             Row(
@@ -1354,7 +1453,7 @@ fun MissingLettersGame(
                             textAlign = TextAlign.Center
                         )
                         Button(
-                            onClick = { selectedCategory = "All" },
+                            onClick = { startNewRound("All") },
                             shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
                             modifier = Modifier.heightIn(min = 48.dp)
@@ -1364,13 +1463,13 @@ fun MissingLettersGame(
                     }
                 }
             } else {
-                val targetWord = remember(current.id) { current.fullWord.trim().uppercase() }
-                val missingIndices = remember(current.id) {
+                val targetWord = remember(roundNumber, current.id) { current.fullWord.trim().uppercase() }
+                val missingIndices = remember(roundNumber, current.id) {
                     current.missingIndices.filter { it in targetWord.indices }.toSet()
                 }
 
                 // Letter choices: missing letters + distractors (normalized uppercase)
-                val choices = remember(current.id) {
+                val choices = remember(roundNumber, current.id) {
                     val missingChars = missingIndices.map { targetWord[it] }
                     val alphabetDistractors = listOf('A', 'E', 'I', 'O', 'U', 'R', 'S', 'T', 'L', 'N', 'D', 'C')
                         .filterNot { missingChars.contains(it) }
@@ -1381,12 +1480,12 @@ fun MissingLettersGame(
                 }
 
                 // Slots state: maps slotIndex -> LetterChoice? placed into it
-                var placedSlots by remember(current.id) {
+                var placedSlots by remember(roundNumber, current.id) {
                     mutableStateOf(missingIndices.associateWith { null as LetterChoice? })
                 }
-                var choicePool by remember(current.id) { mutableStateOf(choices) }
-                var isVerified by remember(current.id) { mutableStateOf<Boolean?>(null) }
-                var hasAwarded by remember(current.id) { mutableStateOf(false) }
+                var choicePool by remember(roundNumber, current.id) { mutableStateOf(choices) }
+                var isVerified by remember(roundNumber, current.id) { mutableStateOf<Boolean?>(null) }
+                var hasAwarded by remember(roundNumber, current.id) { mutableStateOf(false) }
 
                 Card(
                     shape = RoundedCornerShape(22.dp),
@@ -1452,7 +1551,7 @@ fun MissingLettersGame(
                                 border = BorderStroke(1.2.dp, Color(0xFFA855F7))
                             ) {
                                 Text(
-                                    text = "Word ${(challengeIndex % filteredChallenges.size) + 1}/${filteredChallenges.size}",
+                                    text = "Word ${safeIndex + 1}/${sessionChallenges.size}",
                                     fontSize = 12.sp,
                                     color = Color.White,
                                     fontWeight = FontWeight.Bold,
@@ -1767,6 +1866,7 @@ fun MissingLettersGame(
 
                                         if (assembled.equals(targetWord, ignoreCase = true)) {
                                             isVerified = true
+                                            completedWordIds = completedWordIds + current.id
                                             if (!hasAwarded) {
                                                 hasAwarded = true
                                                 viewModel.rewardGameWin(40, 15)
@@ -1826,45 +1926,150 @@ fun MissingLettersGame(
                         }
 
                         if (isVerified == true) {
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = Color.Transparent,
-                                border = BorderStroke(1.2.dp, Color(0xFF6EE7B7).copy(alpha = 0.7f)),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .clickable {
-                                        challengeIndex = (challengeIndex + 1) % filteredChallenges.size
-                                        isVerified = null
-                                        hasAwarded = false
-                                    }
-                                    .testTag("missing_letters_next_btn")
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                listOf(Color(0xFF10B981), Color(0xFF059669))
-                                            )
-                                        ),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
+                            val isLastWord = safeIndex >= sessionChallenges.lastIndex
+                            if (isLastWord && completedWordIds.size >= sessionChallenges.size) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color(0xFF131444).copy(alpha = 0.94f),
+                                    border = BorderStroke(1.3.dp, Color(0xFFFACC15).copy(alpha = 0.7f)),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = "Next Word Challenge",
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 14.5.sp,
-                                        color = Color.White
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                    Column(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = "🏆 Round Completed!",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 15.5.sp,
+                                            color = Color(0xFFFDE047)
+                                        )
+                                        Text(
+                                            text = if (filteredChallenges.size > sessionChallenges.size) {
+                                                "Great job completing all ${sessionChallenges.size} words! Tap Play Again for a fresh set."
+                                            } else {
+                                                "Great job completing all ${sessionChallenges.size} words! Tap Play Again for a reshuffled round."
+                                            },
+                                            fontSize = 12.sp,
+                                            color = Color(0xFFCBD5E1),
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(50),
+                                                color = Color.Transparent,
+                                                border = BorderStroke(1.2.dp, Color(0xFF7DD3FC).copy(alpha = 0.8f)),
+                                                modifier = Modifier
+                                                    .weight(1.25f)
+                                                    .height(48.dp)
+                                                    .clip(RoundedCornerShape(50))
+                                                    .clickable { startNewRound(selectedCategory) }
+                                                    .testTag("missing_letters_play_again_btn")
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxSize()
+                                                        .background(
+                                                            Brush.horizontalGradient(
+                                                                listOf(Color(0xFF0077FF), Color(0xFF00C6FF))
+                                                            )
+                                                        ),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Refresh,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text(
+                                                        text = "Play Again",
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        fontSize = 14.sp,
+                                                        color = Color.White
+                                                    )
+                                                }
+                                            }
+
+                                            Surface(
+                                                shape = RoundedCornerShape(50),
+                                                color = Color(0xFF0B102E),
+                                                border = BorderStroke(1.2.dp, Color(0xFF94A3B8).copy(alpha = 0.7f)),
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .height(48.dp)
+                                                    .clip(RoundedCornerShape(50))
+                                                    .clickable {
+                                                        if (selectedCategory != "All") {
+                                                            startNewRound("All")
+                                                        } else {
+                                                            onClose()
+                                                        }
+                                                    }
+                                                    .testTag("missing_letters_secondary_finish_btn")
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(
+                                                        text = if (selectedCategory != "All") "All Words" else "Done",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 13.5.sp,
+                                                        color = Color.White
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = Color.Transparent,
+                                    border = BorderStroke(1.2.dp, Color(0xFF6EE7B7).copy(alpha = 0.7f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .clickable {
+                                            challengeIndex = (safeIndex + 1) % sessionChallenges.size
+                                            isVerified = null
+                                            hasAwarded = false
+                                        }
+                                        .testTag("missing_letters_next_btn")
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    listOf(Color(0xFF10B981), Color(0xFF059669))
+                                                )
+                                            ),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            text = "Next Word Challenge",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 14.5.sp,
+                                            color = Color.White
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1881,6 +2086,37 @@ fun MissingLettersGame(
 // =========================================================================
 private data class SentenceWordChip(val id: Int, val text: String)
 
+private const val SENTENCE_BUILDER_ROUND_SIZE = 10
+
+private fun pickNextSentenceRound(
+    pool: List<SentenceBuilderChallenge>,
+    seenIds: Set<String>,
+    lastFirstId: String?,
+    roundSize: Int = SENTENCE_BUILDER_ROUND_SIZE
+): Pair<List<SentenceBuilderChallenge>, Set<String>> {
+    if (pool.isEmpty()) return emptyList<SentenceBuilderChallenge>() to emptySet()
+    val targetCount = minOf(roundSize, pool.size)
+    val unseen = pool.filterNot { it.id in seenIds }.shuffled()
+    val seen = pool.filter { it.id in seenIds }.shuffled()
+
+    return if (unseen.size >= targetCount) {
+        val round = unseen.take(targetCount)
+        round to (seenIds + round.map { it.id })
+    } else {
+        val neededFromSeen = (targetCount - unseen.size).coerceAtLeast(0)
+        val combined = (unseen + seen.take(neededFromSeen)).toMutableList()
+        if (combined.size > 1 && lastFirstId != null && combined.first().id == lastFirstId) {
+            val swapIndex = combined.indexOfFirst { it.id != lastFirstId }
+            if (swapIndex > 0) {
+                val first = combined[0]
+                combined[0] = combined[swapIndex]
+                combined[swapIndex] = first
+            }
+        }
+        combined.toList() to combined.map { it.id }.toSet()
+    }
+}
+
 
 @Composable
 fun SentenceBuilderGame(
@@ -1893,6 +2129,27 @@ fun SentenceBuilderGame(
     val studentProfile by viewModel.studentProfile.collectAsState()
 
     var activePlayingPackId by remember { mutableStateOf<String?>(null) }
+    var seenIdsByPack by remember { mutableStateOf<Map<String, Set<String>>>(emptyMap()) }
+    var lastFirstIdByPack by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var roundNumber by remember { mutableIntStateOf(0) }
+    var sessionSentenceIds by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    fun startNewRound(packId: String) {
+        val pool = allChallenges.filter { it.packId == packId }
+        val (round, updatedSeen) = pickNextSentenceRound(
+            pool = pool,
+            seenIds = seenIdsByPack[packId].orEmpty(),
+            lastFirstId = lastFirstIdByPack[packId],
+            roundSize = SENTENCE_BUILDER_ROUND_SIZE
+        )
+        seenIdsByPack = seenIdsByPack + (packId to updatedSeen)
+        round.firstOrNull()?.id?.let { firstId ->
+            lastFirstIdByPack = lastFirstIdByPack + (packId to firstId)
+        }
+        sessionSentenceIds = round.map { it.id }
+        roundNumber += 1
+        activePlayingPackId = packId
+    }
 
     LaunchedEffect(packs) {
         if (activePlayingPackId != null && packs.none { it.id == activePlayingPackId }) {
@@ -1935,7 +2192,7 @@ fun SentenceBuilderGame(
                 allChallenges = allChallenges,
                 xpPoints = studentProfile.xpPoints,
                 onBack = onClose,
-                onSelectPack = { pack -> activePlayingPackId = pack.id }
+                onSelectPack = { pack -> startNewRound(pack.id) }
             )
         } else {
             // =========================================================
@@ -1944,15 +2201,53 @@ fun SentenceBuilderGame(
             val packChallenges = remember(allChallenges, activePack.id) {
                 allChallenges.filter { it.packId == activePack.id }
             }
-            var challengeIndex by remember(activePack.id) { mutableIntStateOf(0) }
-            var completedSentenceIds by remember(activePack.id) { mutableStateOf(setOf<String>()) }
-            val safeIndex = if (packChallenges.isNotEmpty()) challengeIndex.coerceIn(0, packChallenges.lastIndex) else 0
-            val current = packChallenges.getOrNull(safeIndex)
+            val challengeById = remember(packChallenges) {
+                packChallenges.associateBy { it.id }
+            }
+
+            // Keep the active 10-sentence round stable during gameplay, while gracefully
+            // populating or topping up if cloud challenges arrive after opening the pack.
+            LaunchedEffect(activePack.id, packChallenges) {
+                if (packChallenges.isEmpty()) return@LaunchedEffect
+                val validCurrentIds = sessionSentenceIds.filter { it in challengeById }
+                val targetCount = minOf(SENTENCE_BUILDER_ROUND_SIZE, packChallenges.size)
+                if (validCurrentIds.isEmpty()) {
+                    startNewRound(activePack.id)
+                } else if (validCurrentIds.size < targetCount) {
+                    val existingSet = validCurrentIds.toSet()
+                    val seenSet = seenIdsByPack[activePack.id].orEmpty()
+                    val extras = packChallenges
+                        .filterNot { it.id in existingSet }
+                        .sortedBy { if (it.id in seenSet) 1 else 0 }
+                        .take(targetCount - validCurrentIds.size)
+                        .map { it.id }
+                    if (extras.isNotEmpty()) {
+                        val mergedIds = validCurrentIds + extras
+                        sessionSentenceIds = mergedIds
+                        seenIdsByPack = seenIdsByPack + (activePack.id to (seenSet + extras))
+                    }
+                }
+            }
+
+            val sessionChallenges = remember(sessionSentenceIds, challengeById, packChallenges) {
+                val resolved = sessionSentenceIds.mapNotNull { challengeById[it] }
+                if (resolved.isNotEmpty()) resolved else packChallenges.take(SENTENCE_BUILDER_ROUND_SIZE)
+            }
+
+            var challengeIndex by remember(activePack.id, roundNumber) { mutableIntStateOf(0) }
+            var completedSentenceIds by remember(activePack.id, roundNumber) { mutableStateOf(setOf<String>()) }
+            val safeIndex = if (sessionChallenges.isNotEmpty()) challengeIndex.coerceIn(0, sessionChallenges.lastIndex) else 0
+            val current = sessionChallenges.getOrNull(safeIndex)
+            val scrollState = rememberScrollState()
+
+            LaunchedEffect(roundNumber, safeIndex) {
+                scrollState.animateScrollTo(0)
+            }
 
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
@@ -2004,7 +2299,7 @@ fun SentenceBuilderGame(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${packChallenges.size} ${if (packChallenges.size == 1) "Sentence" else "Sentences"} • ${activePack.difficulty}",
+                            text = "${sessionChallenges.size} ${if (sessionChallenges.size == 1) "Sentence" else "Sentences"} • ${activePack.difficulty}",
                             fontSize = 11.sp,
                             color = Color(0xFFCBD5E1)
                         )
@@ -2053,16 +2348,23 @@ fun SentenceBuilderGame(
                     }
                 } else {
                     // Tokenize target sentence with unique IDs to handle duplicate words cleanly
-                    val initialTokens = remember(current.id) {
+                    val initialTokens = remember(roundNumber, current.id) {
                         current.targetSentence.trim().split(Regex("\\s+")).mapIndexed { index, word ->
                             SentenceWordChip(index, word)
                         }
                     }
-                    val shuffledChips = remember(current.id) { initialTokens.shuffled() }
+                    val shuffledChips = remember(roundNumber, current.id) {
+                        val shuffled = initialTokens.shuffled()
+                        if (initialTokens.size > 1 && shuffled.map { it.text } == initialTokens.map { it.text }) {
+                            shuffled.reversed()
+                        } else {
+                            shuffled
+                        }
+                    }
 
-                    var selectedChips by remember(current.id) { mutableStateOf(listOf<SentenceWordChip>()) }
-                    var isCorrect by remember(current.id) { mutableStateOf<Boolean?>(null) }
-                    var hasAwarded by remember(current.id) { mutableStateOf(false) }
+                    var selectedChips by remember(roundNumber, current.id) { mutableStateOf(listOf<SentenceWordChip>()) }
+                    var isCorrect by remember(roundNumber, current.id) { mutableStateOf<Boolean?>(null) }
+                    var hasAwarded by remember(roundNumber, current.id) { mutableStateOf(false) }
 
                     val remainingChips = remember(shuffledChips, selectedChips) {
                         val selectedIds = selectedChips.map { it.id }.toSet()
@@ -2086,7 +2388,7 @@ fun SentenceBuilderGame(
                                 Text("Assemble Sentence Syntax:", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text(
-                                        "Sentence ${safeIndex + 1}/${packChallenges.size}",
+                                        "Sentence ${safeIndex + 1}/${sessionChallenges.size}",
                                         fontSize = 12.sp,
                                         color = RoyalBlue,
                                         fontWeight = FontWeight.Bold
@@ -2267,7 +2569,10 @@ fun SentenceBuilderGame(
                                         isCorrect = false
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .defaultMinSize(minHeight = 48.dp)
+                                    .testTag("sb_verify_syntax_btn"),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
                             ) {
@@ -2351,8 +2656,8 @@ fun SentenceBuilderGame(
                                     }
                                 }
 
-                                val isLastSentence = safeIndex >= packChallenges.lastIndex
-                                if (isLastSentence && completedSentenceIds.size >= packChallenges.size) {
+                                val isLastSentence = safeIndex >= sessionChallenges.lastIndex
+                                if (isLastSentence && completedSentenceIds.size >= sessionChallenges.size) {
                                     Surface(
                                         shape = RoundedCornerShape(14.dp),
                                         color = Color(0xFF1E1B4B),
@@ -2370,20 +2675,27 @@ fun SentenceBuilderGame(
                                                 fontSize = 15.sp,
                                                 color = Color(0xFFFDE047)
                                             )
+                                            Text(
+                                                text = if (packChallenges.size > sessionChallenges.size) {
+                                                    "Finished all ${sessionChallenges.size} sentences! Tap Play Again for a fresh set."
+                                                } else {
+                                                    "Finished all ${sessionChallenges.size} sentences! Tap Play Again for a reshuffled round."
+                                                },
+                                                fontSize = 12.sp,
+                                                color = Color(0xFFCBD5E1),
+                                                textAlign = TextAlign.Center
+                                            )
                                             Row(
                                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 OutlinedButton(
-                                                    onClick = {
-                                                        challengeIndex = 0
-                                                        completedSentenceIds = emptySet()
-                                                        selectedChips = emptyList()
-                                                        isCorrect = null
-                                                        hasAwarded = false
-                                                    },
+                                                    onClick = { startNewRound(activePack.id) },
                                                     shape = RoundedCornerShape(12.dp),
-                                                    modifier = Modifier.weight(1f)
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .defaultMinSize(minHeight = 48.dp)
+                                                        .testTag("sb_play_again_btn")
                                                 ) {
                                                     Text("Play Again")
                                                 }
@@ -2391,7 +2703,10 @@ fun SentenceBuilderGame(
                                                     onClick = { activePlayingPackId = null },
                                                     shape = RoundedCornerShape(12.dp),
                                                     colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
-                                                    modifier = Modifier.weight(1f)
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .defaultMinSize(minHeight = 48.dp)
+                                                        .testTag("sb_other_challenges_btn")
                                                 ) {
                                                     Text("Other Challenges")
                                                 }
@@ -2401,14 +2716,17 @@ fun SentenceBuilderGame(
                                 } else {
                                     Button(
                                         onClick = {
-                                            challengeIndex = (safeIndex + 1) % packChallenges.size
+                                            challengeIndex = (safeIndex + 1) % sessionChallenges.size
                                             selectedChips = emptyList()
                                             isCorrect = null
                                             hasAwarded = false
                                         },
                                         shape = RoundedCornerShape(12.dp),
                                         colors = ButtonDefaults.buttonColors(containerColor = EmeraldSuccess),
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .defaultMinSize(minHeight = 48.dp)
+                                            .testTag("sb_next_sentence_btn")
                                     ) {
                                         Text("Next Sentence ➡️", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     }

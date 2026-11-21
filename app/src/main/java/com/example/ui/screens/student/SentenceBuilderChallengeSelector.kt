@@ -604,10 +604,15 @@ private fun SentenceChallengeTierCard(
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Text(
-                                    text = "$sentencesCount ${if (sentencesCount == 1) "Sentence" else "Sentences"}",
+                                    text = if (sentencesCount > 10) {
+                                        "10 / Round"
+                                    } else {
+                                        "$sentencesCount ${if (sentencesCount == 1) "Sentence" else "Sentences"}"
+                                    },
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFFE2E8F0)
+                                    color = Color(0xFFE2E8F0),
+                                    maxLines = 1
                                 )
                             }
                         }

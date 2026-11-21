@@ -2146,31 +2146,93 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     val vocabularyChallengeProgress: StateFlow<VocabularyChallengeProgress> = _vocabularyChallengeProgress.asStateFlow()
 
     private val defaultMissingLettersChallenges = listOf(
-        // Animals Category
+        // Animals Category (20 words -> supports fresh 10-word rounds on Play Again)
         MissingLettersChallenge("ml_a1", "ELEPHANT", "The largest living land animal with large ears and a trunk", listOf(1, 4, 6), "Animals", "System"),
         MissingLettersChallenge("ml_a2", "GIRAFFE", "Tallest living terrestrial animal with an extremely long neck", listOf(2, 4), "Animals", "System"),
         MissingLettersChallenge("ml_a3", "KANGAROO", "Large Australian marsupial that hops on powerful hind legs", listOf(2, 5), "Animals", "Prof. Eleanor Vance"),
         MissingLettersChallenge("ml_a4", "DOLPHIN", "Highly intelligent aquatic marine mammal known for playful acrobatics", listOf(1, 4), "Animals", "Dr. Marcus Reed"),
         MissingLettersChallenge("ml_a5", "LEOPARD", "Graceful solitary big cat with a spotted coat and stealthy hunter", listOf(2, 5), "Animals", "System"),
+        MissingLettersChallenge("ml_a6", "PENGUIN", "Flightless black-and-white seabird that swims gracefully in cold oceans", listOf(1, 4), "Animals", "System"),
+        MissingLettersChallenge("ml_a7", "CHEETAH", "The fastest land animal capable of explosive bursts of speed", listOf(2, 5), "Animals", "System"),
+        MissingLettersChallenge("ml_a8", "OCTOPUS", "Clever sea creature with eight flexible arms and three hearts", listOf(1, 4), "Animals", "System"),
+        MissingLettersChallenge("ml_a9", "PANTHER", "Sleek dark-coated wild cat known for moving silently through forests", listOf(1, 4), "Animals", "System"),
+        MissingLettersChallenge("ml_a10", "GAZELLE", "Swift and graceful antelope found across open African savannas", listOf(2, 5), "Animals", "System"),
+        MissingLettersChallenge("ml_a11", "BUFFALO", "Large heavily built wild ox with curved horns that travels in herds", listOf(1, 4), "Animals", "System"),
+        MissingLettersChallenge("ml_a12", "FLAMINGO", "Tall wading bird famous for its bright pink feathers and curved beak", listOf(2, 5), "Animals", "System"),
+        MissingLettersChallenge("ml_a13", "SQUIRREL", "Agile tree-climbing rodent with a bushy tail that gathers nuts", listOf(1, 4, 6), "Animals", "System"),
+        MissingLettersChallenge("ml_a14", "TORTOISE", "Slow-moving land reptile protected by a hard domed shell", listOf(1, 4, 6), "Animals", "System"),
+        MissingLettersChallenge("ml_a15", "HEDGEHOG", "Small nocturnal mammal covered in protective spines that rolls into a ball", listOf(2, 5), "Animals", "System"),
+        MissingLettersChallenge("ml_a16", "CROCODILE", "Large aquatic reptile with armored scales and powerful jaws", listOf(2, 5, 7), "Animals", "System"),
+        MissingLettersChallenge("ml_a17", "PEACOCK", "Vibrant bird famous for fanning out iridescent blue-green tail feathers", listOf(2, 4), "Animals", "System"),
+        MissingLettersChallenge("ml_a18", "RACCOON", "Curious nocturnal mammal recognized by its dark eye mask and ringed tail", listOf(1, 4), "Animals", "System"),
+        MissingLettersChallenge("ml_a19", "LOBSTER", "Marine crustacean with a hard shell and two large front claws", listOf(2, 5), "Animals", "System"),
+        MissingLettersChallenge("ml_a20", "PELICAN", "Large coastal bird with a deep throat pouch used for scooping fish", listOf(1, 4), "Animals", "System"),
 
-        // Vegetables Category
+        // Vegetables Category (20 words -> supports fresh 10-word rounds on Play Again)
         MissingLettersChallenge("ml_v1", "BROCCOLI", "Edible green plant in the cabbage family with large flowering head", listOf(2, 5), "Vegetables", "System"),
         MissingLettersChallenge("ml_v2", "CUCUMBER", "Widely cultivated creeping vine plant bearing cylindrical green fruit", listOf(1, 4, 6), "Vegetables", "System"),
         MissingLettersChallenge("ml_v3", "SPINACH", "Nutritious leafy green flowering plant rich in iron and vitamins", listOf(2, 5), "Vegetables", "Prof. Eleanor Vance"),
         MissingLettersChallenge("ml_v4", "CABBAGE", "Leafy green or purple biennial plant grown as an annual vegetable", listOf(1, 4), "Vegetables", "Dean Arthur Pendelton"),
         MissingLettersChallenge("ml_v5", "CARROT", "Crisp root vegetable usually orange in color with sweet earthy taste", listOf(1, 3), "Vegetables", "Dr. Marcus Reed"),
+        MissingLettersChallenge("ml_v6", "POTATO", "Starchy underground tuber cooked by baking, boiling, or roasting", listOf(1, 3), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v7", "TOMATO", "Juicy red kitchen staple used in salads, curries, and sauces", listOf(2, 4), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v8", "RADISH", "Crunchy peppery root vegetable often sliced fresh into salads", listOf(1, 4), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v9", "TURNIP", "Round white-and-purple root vegetable commonly added to hearty soups", listOf(1, 3), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v10", "GARLIC", "Aromatic bulb made of pungent cloves used to season savory dishes", listOf(2, 4), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v11", "GINGER", "Fragrant spicy root used in tea, stir-fries, and traditional remedies", listOf(1, 4), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v12", "CELERY", "Crisp pale-green stalk vegetable enjoyed raw or simmered in broth", listOf(1, 4), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v13", "PEPPER", "Colorful crisp garden pod that can taste either sweet or fiery", listOf(1, 4), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v14", "LETTUCE", "Fresh leafy salad green forming crisp layered heads", listOf(1, 4), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v15", "PUMPKIN", "Large ribbed orange squash harvested in autumn for soups and pies", listOf(1, 4), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v16", "BEETROOT", "Deep crimson root vegetable prized for its earthy sweetness and color", listOf(2, 5), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v17", "EGGPLANT", "Glossy purple vegetable also called aubergine or brinjal", listOf(2, 5), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v18", "MUSHROOM", "Savory umbrella-shaped edible fungus cooked in curries and pastas", listOf(1, 4, 6), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v19", "ZUCCHINI", "Tender dark-green summer squash often grilled or sauteed", listOf(1, 4, 6), "Vegetables", "System"),
+        MissingLettersChallenge("ml_v20", "CAULIFLOWER", "Compact white flowering vegetable related to broccoli and cabbage", listOf(2, 5, 8), "Vegetables", "System"),
 
-        // Fruits Category
+        // Fruits Category (20 words -> supports fresh 10-word rounds on Play Again)
         MissingLettersChallenge("ml_f1", "PINEAPPLE", "Tropical plant with edible fruit comprising coalesced berries", listOf(2, 6), "Fruits", "System"),
         MissingLettersChallenge("ml_f2", "STRAWBERRY", "Sweet, soft red fruit with small seeds on its surface", listOf(3, 7), "Fruits", "Prof. Eleanor Vance"),
         MissingLettersChallenge("ml_f3", "WATERMELON", "Large sweet fruit with smooth green rind and juicy red flesh", listOf(2, 5, 8), "Fruits", "System"),
+        MissingLettersChallenge("ml_f4", "BANANA", "Curved yellow tropical fruit packed with natural potassium and energy", listOf(1, 4), "Fruits", "System"),
+        MissingLettersChallenge("ml_f5", "ORANGE", "Bright citrus fruit rich in vitamin C and refreshing sweet juice", listOf(1, 4), "Fruits", "System"),
+        MissingLettersChallenge("ml_f6", "PAPAYA", "Soft golden-orange tropical fruit filled with glossy black seeds", listOf(2, 4), "Fruits", "System"),
+        MissingLettersChallenge("ml_f7", "CHERRY", "Small round ruby-red stone fruit grown on blossoming orchard trees", listOf(1, 4), "Fruits", "System"),
+        MissingLettersChallenge("ml_f8", "LYCHEE", "Fragrant tropical fruit with bumpy red peel and translucent sweet flesh", listOf(1, 3), "Fruits", "System"),
+        MissingLettersChallenge("ml_f9", "GRAPES", "Sweet juicy berries growing in clusters on climbing vines", listOf(2, 4), "Fruits", "System"),
+        MissingLettersChallenge("ml_f10", "AVOCADO", "Creamy green fruit containing a single large pit and healthy fats", listOf(1, 4), "Fruits", "System"),
+        MissingLettersChallenge("ml_f11", "APRICOT", "Velvety golden-orange stone fruit with a mildly tart sweet flavor", listOf(2, 5), "Fruits", "System"),
+        MissingLettersChallenge("ml_f12", "COCONUT", "Hard-shelled palm fruit filled with refreshing water and white meat", listOf(1, 4), "Fruits", "System"),
+        MissingLettersChallenge("ml_f13", "BLUEBERRY", "Tiny deep-indigo berry loaded with antioxidants and sweet flavor", listOf(2, 5, 7), "Fruits", "System"),
+        MissingLettersChallenge("ml_f14", "RASPBERRY", "Delicate ruby-pink berry made of tiny clustered juicy beads", listOf(2, 5, 7), "Fruits", "System"),
+        MissingLettersChallenge("ml_f15", "JACKFRUIT", "Giant spiky tropical fruit holding sweet golden pods inside", listOf(1, 4, 7), "Fruits", "System"),
+        MissingLettersChallenge("ml_f16", "GRAPEFRUIT", "Large tangy citrus fruit with rosy pink or golden juicy segments", listOf(2, 5, 8), "Fruits", "System"),
+        MissingLettersChallenge("ml_f17", "TANGERINE", "Easy-to-peel sweet orange citrus fruit smaller than a regular orange", listOf(2, 5, 7), "Fruits", "System"),
+        MissingLettersChallenge("ml_f18", "NECTARINE", "Smooth-skinned cousin of the peach with sweet fragrant golden flesh", listOf(1, 4, 7), "Fruits", "System"),
+        MissingLettersChallenge("ml_f19", "CRANBERRY", "Tart bright-red berry commonly used in sauces and juices", listOf(2, 5, 7), "Fruits", "System"),
+        MissingLettersChallenge("ml_f20", "POMEGRANATE", "Leathery crimson fruit packed with sparkling jewel-like edible seeds", listOf(2, 5, 8), "Fruits", "System"),
 
-        // General Vocabulary Category
+        // General Vocabulary Category (20 words -> supports fresh 10-word rounds on Play Again)
         MissingLettersChallenge("ml_1", "CONVERSATION", "An informal spoken exchange between people", listOf(2, 5, 8), "General", "System"),
         MissingLettersChallenge("ml_2", "PRONUNCIATION", "The correct way in which a word or language is spoken", listOf(2, 6, 9), "General", "System"),
         MissingLettersChallenge("ml_3", "FLUENCY", "Ability to speak smoothly, easily, and naturally", listOf(1, 4), "General", "Prof. Eleanor Vance"),
         MissingLettersChallenge("ml_4", "VOCABULARY", "The body of words used in a particular language", listOf(1, 5, 8), "General", "System"),
-        MissingLettersChallenge("ml_5", "INTELLIGENT", "Having or showing mental alertness and capacity", listOf(3, 7), "General", "Dr. Marcus Reed")
+        MissingLettersChallenge("ml_5", "INTELLIGENT", "Having or showing mental alertness and capacity", listOf(3, 7), "General", "Dr. Marcus Reed"),
+        MissingLettersChallenge("ml_6", "CONFIDENCE", "Strong self-assurance when speaking or taking on challenges", listOf(2, 5, 8), "General", "System"),
+        MissingLettersChallenge("ml_7", "KNOWLEDGE", "Facts, understanding, and skills gained through study or experience", listOf(1, 4, 7), "General", "System"),
+        MissingLettersChallenge("ml_8", "ADVENTURE", "An exciting and daring journey filled with new experiences", listOf(2, 5, 7), "General", "System"),
+        MissingLettersChallenge("ml_9", "EDUCATION", "The process of learning, teaching, and developing useful skills", listOf(1, 4, 7), "General", "System"),
+        MissingLettersChallenge("ml_10", "CREATIVE", "Using imagination to produce original and inventive ideas", listOf(2, 5), "General", "System"),
+        MissingLettersChallenge("ml_11", "COURAGE", "Bravery and inner strength to face difficulty without giving up", listOf(2, 5), "General", "System"),
+        MissingLettersChallenge("ml_12", "DISCOVERY", "The act of finding or learning something important for the first time", listOf(2, 5, 7), "General", "System"),
+        MissingLettersChallenge("ml_13", "GRATITUDE", "Warm feeling of thankfulness and appreciation for kindness", listOf(2, 5, 7), "General", "System"),
+        MissingLettersChallenge("ml_14", "HARMONY", "Peaceful agreement or pleasing blend of sounds and ideas", listOf(2, 4), "General", "System"),
+        MissingLettersChallenge("ml_15", "INSPIRE", "To motivate and fill someone with enthusiasm to achieve more", listOf(1, 4), "General", "System"),
+        MissingLettersChallenge("ml_16", "JOURNEY", "A meaningful trip or personal path of steady progress", listOf(2, 5), "General", "System"),
+        MissingLettersChallenge("ml_17", "LANGUAGE", "A structured system of spoken and written words used to communicate", listOf(2, 4, 6), "General", "System"),
+        MissingLettersChallenge("ml_18", "PRACTICE", "Repeated daily effort done to master and sharpen a skill", listOf(2, 5), "General", "System"),
+        MissingLettersChallenge("ml_19", "SOLUTION", "A clear and effective answer that resolves a problem", listOf(2, 4, 6), "General", "System"),
+        MissingLettersChallenge("ml_20", "STRATEGY", "A thoughtful plan of action designed to reach an important goal", listOf(2, 5), "General", "System")
     )
 
     private fun loadInitialMissingLetters(): List<MissingLettersChallenge> {
@@ -2178,7 +2240,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (!saved.isNullOrEmpty()) {
             val savedIds = saved.map { it.id }.toSet()
             val missingDefaults = defaultMissingLettersChallenges.filter { it.id !in savedIds }
-            return saved + missingDefaults
+            val merged = saved + missingDefaults
+            if (missingDefaults.isNotEmpty()) {
+                appPreferences?.saveMissingLettersChallenges(merged)
+            }
+            return merged
         }
         appPreferences?.saveMissingLettersChallenges(defaultMissingLettersChallenges)
         return defaultMissingLettersChallenges
@@ -2262,13 +2328,71 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     val sentenceBuilderPacks: StateFlow<List<SentenceBuilderPack>> = _sentenceBuilderPacks.asStateFlow()
 
     private val defaultSentenceBuilderChallenges = listOf(
+        // ==================== EASY CHALLENGE (20 Sentences) ====================
         SentenceBuilderChallenge("sb_1", "She speaks English with natural confidence and clarity", "Daily speaking practice", "তাই স্বাভাৱিক আত্মবিশ্বাস আৰু স্পষ্টতাৰে ইংৰাজী কয়।", "System", "sb_pack_easy"),
         SentenceBuilderChallenge("sb_5", "We drink warm tea every morning", "Present simple routine", "আমি প্ৰতিদিনে ৰাতিপুৱা গৰম চাহ খাওঁ।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_3", "I wake up early every single day", "Morning routine", "মই প্ৰতিদিনে ৰাতিপুৱা সোনকালে সাৰ পাওঁ।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_4", "My friend reads a storybook after school", "After-school habit", "মোৰ বন্ধুৱে স্কুলৰ পিছত গল্পৰ কিতাপ পঢ়ে।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_5", "The bright sun rises in the east", "Simple natural fact", "উজ্জ্বল সূৰ্যটো পূব দিশত উদয় হয়।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_6", "They play football in the green park", "Outdoor hobby", "তেওঁলোকে সেউজীয়া উদ্যানত ফুটবল খেলে।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_7", "Our teacher explains every lesson very clearly", "Classroom learning", "আমাৰ শিক্ষকে প্ৰতিটো পাঠ অতি স্পষ্টকৈ বুজাই দিয়ে।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_8", "He writes neat notes in his notebook", "Study habit", "সি নিজৰ বহীত পৰিষ্কাৰকৈ টোকা লিখে।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_9", "Birds sing sweet songs in the morning", "Nature observation", "চৰাইবোৰে ৰাতিপুৱা মিঠা গান গায়।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_10", "Please close the window before it rains", "Polite request", "অনুগ্ৰহ কৰি বৰষুণ দিয়াৰ আগতে খিৰিকীখন বন্ধ কৰক।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_11", "We listen carefully to the English audio", "Listening practice", "আমি ইংৰাজী অডিঅ'টো মনোযোগেৰে শুনোঁ।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_12", "My mother cooks delicious food at home", "Family daily life", "মোৰ মায়ে ঘৰত সুস্বাদু খাদ্য ৰান্ধে।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_13", "Students greet their teachers with a smile", "Polite manners", "ছাত্ৰ-ছাত্ৰীসকলে হাঁহিৰে শিক্ষকক অভিবাদন জনায়।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_14", "I enjoy learning five new words daily", "Vocabulary building", "মই প্ৰতিদিনে পাঁচটা নতুন শব্দ শিকি ভাল পাওঁ।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_15", "The library is a quiet place to study", "Describing places", "পুথিভঁৰাল অধ্যয়নৰ বাবে এটা শান্ত ঠাই।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_16", "She helps her younger brother with homework", "Helping family", "তাই সৰু ভায়েকক গৃহকৰ্মত সহায় কৰে।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_17", "Clean water is essential for good health", "Health fact", "সুস্থ স্বাস্থ্যৰ বাবে বিশুদ্ধ পানী অতি প্ৰয়োজনীয়।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_18", "We walk to school together every morning", "Daily commute", "আমি প্ৰতিদিনে ৰাতিপুৱা একেলগে খোজকাঢ়ি স্কুললৈ যাওঁ।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_19", "He always arrives at class on time", "Punctuality habit", "সি সদায় সময়মতে শ্ৰেণীত উপস্থিত হয়।", "System", "sb_pack_easy"),
+        SentenceBuilderChallenge("sb_easy_20", "Good habits make every student feel confident", "Positive mindset", "ভাল অভ্যাসে প্ৰতিজন ছাত্ৰক আত্মবিশ্বাসী কৰি তোলে।", "System", "sb_pack_easy"),
+
+        // ==================== MEDIUM CHALLENGE (20 Sentences) ====================
         SentenceBuilderChallenge("sb_2", "Clear pronunciation helps listeners understand your message easily", "Pronunciation guide", "স্পষ্ট উচ্চাৰণে শ্ৰোতাসকলক আপোনাৰ বাৰ্তা সহজে বুজিবলৈ সহায় কৰে।", "Prof. Eleanor Vance", "sb_pack_medium"),
         SentenceBuilderChallenge("sb_3", "We practice speaking English every day to build fluency", "Study habits", "সাবলীলতা গঢ়ি তুলিবলৈ আমি প্ৰতিদিনে ইংৰাজী কোৱা অনুশীলন কৰোঁ।", "System", "sb_pack_medium"),
         SentenceBuilderChallenge("sb_7", "Speaking clearly every day builds strong confidence", "Daily fluency habit", "প্ৰতিদিনে স্পষ্টকৈ ক'লে শক্তিশালী আত্মবিশ্বাস গঢ়ি উঠে।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_4", "Reading aloud for ten minutes improves your spoken rhythm", "Fluency technique", "দহ মিনিট জোৰেৰে পঢ়িলে আপোনাৰ কোৱাৰ ছন্দ উন্নত হয়।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_5", "Could you please repeat that sentence a little more slowly", "Polite classroom question", "অনুগ্ৰহ কৰি সেই বাক্যটো অলপ লাহে লাহে পুনৰ ক'ব পাৰিবনে?", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_6", "She prepared carefully for her first English stage presentation", "Past simple achievement", "তাই প্ৰথম ইংৰাজী মঞ্চ উপস্থাপনৰ বাবে যত্নসহকাৰে প্ৰস্তুতি চলাইছিল।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_7", "Listening to short podcasts helps you learn natural expressions", "Everyday listening", "চুটি পডকাষ্ট শুনিলে আপুনি স্বাভাৱিক অভিব্যক্তি শিকিব পাৰে।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_8", "Regular revision keeps new vocabulary fresh in your memory", "Memory strategy", "নিয়মীয়া পুনৰীক্ষণে নতুন শব্দসমূহ আপোনাৰ স্মৃতিত সজীৱ কৰি ৰাখে।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_9", "Our study group meets every weekend to discuss interesting topics", "Group learning", "আমাৰ অধ্যয়ন গোটটো প্ৰতি সপ্তাহান্তত আকৰ্ষণীয় বিষয় আলোচনা কৰিবলৈ মিলিত হয়।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_10", "Making mistakes is a natural part of learning any language", "Growth mindset", "ভুল কৰাটো যিকোনো ভাষা শিকাৰ এটা স্বাভাৱিক অংশ।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_11", "He thanked his mentor for giving helpful pronunciation feedback", "Expressing gratitude", "তেওঁ সহায়ক উচ্চাৰণ পৰামৰ্শ দিয়াৰ বাবে নিজৰ গুৰুক ধন্যবাদ জনালে।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_12", "Good eye contact makes your conversation feel warm and friendly", "Communication skill", "সঠিক চকুৰ সংযোগে আপোনাৰ কথোপকথনক আন্তৰিক আৰু বন্ধুত্বপূৰ্ণ কৰি তোলে।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_13", "We should check our grammar carefully before submitting the essay", "Writing accuracy", "ৰচনাখন জমা দিয়াৰ আগতে আমি ব্যাকৰণ যত্নসহকাৰে পৰীক্ষা কৰা উচিত।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_14", "Traveling to new places teaches us about different cultures", "Cultural learning", "নতুন ঠাই ভ্ৰমণ কৰিলে আমি বিভিন্ন সংস্কৃতিৰ বিষয়ে শিকোঁ।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_15", "She asked the librarian where to find English grammar books", "Indirect question", "তাই পুথিভঁৰালীক ইংৰাজী ব্যাকৰণৰ কিতাপ ক'ত পাব সুধিলে।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_16", "Practicing dialogues with a partner builds real conversation speed", "Partner practice", "সংগীৰ সৈতে সংলাপ অনুশীলন কৰিলে কথোপকথনৰ গতি বৃদ্ধি পায়।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_17", "They decided to organize a debate competition next Friday", "Future planning", "তেওঁলোকে অহা শুক্ৰবাৰে এখন তৰ্ক প্ৰতিযোগিতা আয়োজন কৰিবলৈ সিদ্ধান্ত ল'লে।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_18", "Using simple words clearly is better than memorizing difficult terms", "Smart communication", "কঠিন শব্দ মুখস্থ কৰাতকৈ সহজ শব্দ স্পষ্টকৈ ব্যৱহাৰ কৰা ভাল।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_19", "The weather became pleasant after the sudden afternoon shower", "Describing weather", "হঠাৎ অহা আবেলিৰ বৰষুণৰ পিছত বতৰটো মনোৰম হৈ পৰিল।", "System", "sb_pack_medium"),
+        SentenceBuilderChallenge("sb_med_20", "Consistent daily effort brings remarkable progress within a few months", "Consistency tip", "নিয়মীয়া দৈনিক প্ৰচেষ্টাই কেইমাহমানৰ ভিতৰতে উল্লেখযোগ্য অগ্ৰগতি আনে।", "System", "sb_pack_medium"),
+
+        // ==================== HARD CHALLENGE (20 Sentences) ====================
         SentenceBuilderChallenge("sb_4", "Collaborative conversations improve confidence in professional workplace settings", "Workplace English", "পাৰস্পৰিক কথোপকথনে পেছাদাৰী কৰ্মক্ষেত্ৰত আত্মবিশ্বাস বৃদ্ধি কৰে।", "Dean Arthur Pendelton", "sb_pack_hard"),
-        SentenceBuilderChallenge("sb_6", "Although the weather was stormy we arrived on time", "Complex clause", "বতৰ ধুমুহাময় আছিল যদিও আমি সময়মতে উপস্থিত হ'লোঁ।", "System", "sb_pack_hard")
+        SentenceBuilderChallenge("sb_6", "Although the weather was stormy we arrived on time", "Complex clause", "বতৰ ধুমুহাময় আছিল যদিও আমি সময়মতে উপস্থিত হ'লোঁ।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_3", "Despite feeling nervous initially she delivered an inspiring keynote speech", "Contrastive clause", "আৰম্ভণিতে ভয় লাগিলেও তাই এটা অনুপ্ৰেৰণাদায়ক মূল ভাষণ প্ৰদান কৰিলে।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_4", "Effective leaders listen attentively before offering thoughtful constructive solutions", "Leadership communication", "দক্ষ নেতাসকলে সুচিন্তিত গঠনমূলক সমাধান আগবঢ়োৱাৰ আগতে মনোযোগেৰে শুনে।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_5", "Had we left earlier we would have avoided the heavy traffic", "Inverted conditional", "আমি আগতেই ওলালোঁহেঁতেন তেন্তে প্ৰচণ্ড যান-জঁট এৰাই চলিব পাৰিলোঁহেঁতেন।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_6", "Mastering intonation patterns allows speakers to express subtle emotions accurately", "Advanced phonetics", "সুৰৰ ধৰণ আয়ত্ত কৰিলে বক্তাই সূক্ষ্ম অনুভূতি সঠিকভাৱে প্ৰকাশ কৰিব পাৰে।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_7", "Whenever students encounter unfamiliar idioms they should examine the surrounding context", "Reading comprehension", "যেতিয়াই ছাত্ৰ-ছাত্ৰীয়ে অপৰিচিত ফকৰা-যোজনা পায়, চাৰিওফালৰ প্ৰসংগ চোৱা উচিত।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_8", "Not only did he win the debate but he also earned praise", "Correlative conjunction", "তেওঁ কেৱল তৰ্ক প্ৰতিযোগিতাত জয়ী হোৱাই নহয়, প্ৰশংসাও অৰ্জন কৰিলে।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_9", "Consistent immersion in authentic English media accelerates natural language acquisition", "Academic vocabulary", "প্ৰকৃত ইংৰাজী মাধ্যমত নিয়মীয়া অনুশীলনে স্বাভাৱিক ভাষা শিক্ষা দ্ৰুততৰ কৰে।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_10", "Because the instructions were ambiguous several participants requested further clarification", "Cause and effect", "নিৰ্দেশনাবোৰ অস্পষ্ট হোৱাৰ বাবে কেইবাজনো অংশগ্ৰহণকাৰীয়ে অধিক স্পষ্টীকৰণ বিচাৰিলে।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_11", "The committee unanimously approved the proposal after reviewing every financial detail", "Formal reporting", "প্ৰতিটো বিত্তীয় বিৱৰণ পৰ্যালোচনা কৰাৰ পিছত সমিতিখনে সৰ্বসন্মতিক্ৰমে প্ৰস্তাৱটো অনুমোদন জনালে।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_12", "Unless you practice speaking aloud regularly passive vocabulary rarely becomes active", "Conditional syntax", "নিয়মীয়াকৈ জোৰেৰে কোৱা অনুশীলন নকৰিলে নিষ্ক্ৰিয় শব্দভাণ্ডাৰ সহজে সক্ৰিয় নহয়।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_13", "Articulating complex ideas concisely is a hallmark of persuasive communication", "Executive speaking", "জটিল ধাৰণাবোৰ সংক্ষেপে স্পষ্টকৈ প্ৰকাশ কৰাটো প্ৰভাৱশালী যোগাযোগৰ লক্ষণ।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_14", "By the time the conference concluded everyone had exchanged valuable insights", "Past perfect sequence", "সম্মিলনখন সমাপ্ত হোৱালৈকে সকলোৱে মূল্যৱান ধাৰণা বিনিময় কৰিছিল।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_15", "Thoughtful pauses during a presentation give listeners space to absorb key points", "Public speaking", "উপস্থাপনৰ মাজত সুচিন্তিত বিৰতিয়ে শ্ৰোতাক মূল কথাবোৰ বুজিবলৈ সময় দিয়ে।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_16", "Even though technology simplifies translation genuine human fluency remains deeply valuable", "Concessive clause", "প্ৰযুক্তিয়ে অনুবাদ সহজ কৰিলেও প্ৰকৃত মানৱীয় ভাষিক দক্ষতা অতি মূল্যৱান হৈয়েই আছে।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_17", "Structuring your argument logically ensures your audience follows every supporting reason", "Debate structure", "যুক্তিটো যুক্তিসংগতভাৱে সজালে শ্ৰোতাই প্ৰতিটো সহায়ক কাৰণ সহজে অনুসৰণ কৰিব পাৰে।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_18", "She demonstrated remarkable resilience while overcoming every obstacle during her preparation", "Formal narrative", "প্ৰস্তুতিৰ সময়ত প্ৰতিটো বাধা অতিক্ৰম কৰোঁতে তাই অসাধাৰণ সহনশীলতা প্ৰদৰ্শন কৰিলে।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_19", "Should any unexpected issues arise please inform the coordinator immediately", "Formal conditional", "যদি কোনো অপ্ৰত্যাশিত সমস্যাৰ উদ্ভৱ হয় তেন্তে অনুগ্ৰহ কৰি সমন্বয়কক লগে লগে জনাওক।", "System", "sb_pack_hard"),
+        SentenceBuilderChallenge("sb_hard_20", "Cultivating curiosity and discipline together transforms ordinary learners into eloquent speakers", "Inspirational rhetoric", "কৌতূহল আৰু শৃংখলা একেলগে গঢ়ি তুলিলে সাধাৰণ শিক্ষাৰ্থীও সুবক্তালৈ ৰূপান্তৰিত হয়।", "System", "sb_pack_hard")
     )
 
     private fun loadInitialSentenceBuilders(): List<SentenceBuilderChallenge> {
@@ -2276,7 +2400,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (!saved.isNullOrEmpty()) {
             val savedIds = saved.map { it.id }.toSet()
             val missingDefaults = defaultSentenceBuilderChallenges.filter { it.id !in savedIds }
-            return saved + missingDefaults
+            val merged = saved + missingDefaults
+            if (missingDefaults.isNotEmpty()) {
+                appPreferences?.saveSentenceBuilderChallenges(merged)
+            }
+            return merged
         }
         appPreferences?.saveSentenceBuilderChallenges(defaultSentenceBuilderChallenges)
         return defaultSentenceBuilderChallenges
