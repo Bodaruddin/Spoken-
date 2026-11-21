@@ -3318,25 +3318,113 @@ fun ListenAndChooseGame(
 // =========================================================================
 // 5. PRONUNCIATION BATTLE GAME - Evaluates & rewards speech with score reset
 // =========================================================================
+private const val PRONUNCIATION_BATTLE_ROUND_SIZE = 10
+
+private object PronunciationBattleRoundHistory {
+    private var seenIds: Set<String> = emptySet()
+    private var lastRoundIds: List<String> = emptyList()
+
+    fun nextRoundIds(
+        pool: List<PronunciationBattleChallenge>,
+        roundSize: Int = PRONUNCIATION_BATTLE_ROUND_SIZE
+    ): List<String> {
+        if (pool.isEmpty()) return emptyList()
+        val targetCount = minOf(roundSize, pool.size)
+        val lastRoundSet = lastRoundIds.toSet()
+        val lastFirstId = lastRoundIds.firstOrNull()
+
+        val unseen = pool.filterNot { it.id in seenIds }.shuffled()
+        val selected = if (unseen.size >= targetCount) {
+            val picked = unseen.take(targetCount)
+            seenIds = seenIds + picked.map { it.id }
+            picked
+        } else {
+            val needed = (targetCount - unseen.size).coerceAtLeast(0)
+            val seenNotLast = pool.filter { it.id in seenIds && it.id !in lastRoundSet }.shuffled()
+            val seenFromLast = pool.filter { it.id in seenIds && it.id in lastRoundSet }.shuffled()
+            val fill = (seenNotLast + seenFromLast).take(needed)
+            val combined = (unseen + fill).shuffled().toMutableList()
+            if (combined.size > 1 && lastFirstId != null && combined.first().id == lastFirstId) {
+                val swapIndex = combined.indexOfFirst { it.id != lastFirstId }
+                if (swapIndex > 0) {
+                    val first = combined[0]
+                    combined[0] = combined[swapIndex]
+                    combined[swapIndex] = first
+                }
+            }
+            seenIds = combined.map { it.id }.toSet()
+            combined.toList()
+        }
+
+        val ids = selected.map { it.id }
+        lastRoundIds = ids
+        return ids
+    }
+}
+
 @Composable
 fun PronunciationBattleGame(
     viewModel: MainViewModel,
     onClose: () -> Unit = {}
 ) {
-    val challenges by viewModel.pronunciationBattleChallenges.collectAsState()
-    var challengeIndex by remember { mutableIntStateOf(0) }
-    val current = challenges.getOrNull(challengeIndex) ?: return
+    val allChallenges by viewModel.pronunciationBattleChallenges.collectAsState()
+    val challengeById = remember(allChallenges) { allChallenges.associateBy { it.id } }
+
+    var roundNumber by remember { mutableIntStateOf(0) }
+    var sessionIds by remember(roundNumber) {
+        mutableStateOf(
+            PronunciationBattleRoundHistory.nextRoundIds(
+                pool = allChallenges,
+                roundSize = PRONUNCIATION_BATTLE_ROUND_SIZE
+            )
+        )
+    }
+
+    LaunchedEffect(roundNumber, allChallenges) {
+        if (allChallenges.isEmpty()) return@LaunchedEffect
+        val validIds = sessionIds.filter { it in challengeById }
+        val targetCount = minOf(PRONUNCIATION_BATTLE_ROUND_SIZE, allChallenges.size)
+        if (validIds.isEmpty()) {
+            sessionIds = PronunciationBattleRoundHistory.nextRoundIds(
+                pool = allChallenges,
+                roundSize = PRONUNCIATION_BATTLE_ROUND_SIZE
+            )
+        } else if (validIds.size < targetCount) {
+            val existingSet = validIds.toSet()
+            val extras = allChallenges
+                .filterNot { it.id in existingSet }
+                .shuffled()
+                .take(targetCount - validIds.size)
+                .map { it.id }
+            if (extras.isNotEmpty()) {
+                sessionIds = validIds + extras
+            }
+        }
+    }
+
+    val sessionChallenges = remember(sessionIds, challengeById, allChallenges) {
+        val resolved = sessionIds.mapNotNull { challengeById[it] }
+        if (resolved.isNotEmpty()) resolved else allChallenges.take(PRONUNCIATION_BATTLE_ROUND_SIZE)
+    }
+
+    var challengeIndex by remember(roundNumber) { mutableIntStateOf(0) }
+    var isRoundCompleted by remember(roundNumber) { mutableStateOf(false) }
+    var wonBattleIds by remember(roundNumber) { mutableStateOf(setOf<String>()) }
+
+    val safeIndex = if (sessionChallenges.isNotEmpty()) challengeIndex.coerceIn(0, sessionChallenges.lastIndex) else 0
+    val current = sessionChallenges.getOrNull(safeIndex) ?: return
 
     val speechState by viewModel.speechManager.speechState.collectAsState()
     val isListening = speechState is com.example.service.SpeechState.Listening
     val evaluation by viewModel.lastEvaluation.collectAsState()
-    var hasAwarded by remember(current.id) { mutableStateOf(false) }
+    var hasAwarded by remember(roundNumber, current.id) { mutableStateOf(false) }
 
     // Award when evaluation meets passing score
-    LaunchedEffect(evaluation) {
+    LaunchedEffect(evaluation, roundNumber, current.id) {
         val eval = evaluation
-        if (eval != null && eval.pronunciationScore >= current.passingScore && !hasAwarded) {
+        if (eval != null && eval.pronunciationScore >= current.passingScore && !hasAwarded && !isRoundCompleted) {
             hasAwarded = true
+            wonBattleIds = wonBattleIds + current.id
             viewModel.rewardGameWin(60, 20)
         }
     }
@@ -3554,7 +3642,11 @@ fun PronunciationBattleGame(
                         border = BorderStroke(1.dp, Color(0xFF4338CA))
                     ) {
                         Text(
-                            text = "${challengeIndex + 1} / ${challenges.size}",
+                            text = if (isRoundCompleted) {
+                                "${sessionChallenges.size} / ${sessionChallenges.size}"
+                            } else {
+                                "${safeIndex + 1} / ${sessionChallenges.size}"
+                            },
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
@@ -3562,6 +3654,121 @@ fun PronunciationBattleGame(
                         )
                     }
                 }
+
+                if (isRoundCompleted) {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFF12183A),
+                        border = BorderStroke(1.4.dp, Color(0xFFFACC15).copy(alpha = 0.75f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("pb_round_completed_card")
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 18.dp, vertical = 22.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text("🏆", fontSize = 48.sp)
+                            Text(
+                                text = "Battle Round Completed!",
+                                color = Color(0xFFFDE047),
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 19.sp,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "${wonBattleIds.size} of ${sessionChallenges.size} Battles Won",
+                                color = Color(0xFF4ADE80),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = if (allChallenges.size > sessionChallenges.size) {
+                                    "You finished all ${sessionChallenges.size} pronunciation battles! Tap Play Again for a brand-new set."
+                                } else {
+                                    "You finished all ${sessionChallenges.size} pronunciation battles! Tap Play Again for a reshuffled round."
+                                },
+                                color = Color(0xFFCBD5E1),
+                                fontSize = 12.5.sp,
+                                textAlign = TextAlign.Center
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(24.dp),
+                                    color = Color(0xFF1A1E46),
+                                    border = BorderStroke(1.2.dp, Color(0xFF64748B)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .clickable {
+                                            viewModel.clearEvaluation()
+                                            onClose()
+                                        }
+                                        .testTag("pb_exit_arena_btn")
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "Exit Arena",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(24.dp),
+                                    color = Color.Transparent,
+                                    border = BorderStroke(1.2.dp, Color(0xFF7DD3FC).copy(alpha = 0.85f)),
+                                    modifier = Modifier
+                                        .weight(1.2f)
+                                        .height(48.dp)
+                                        .clip(RoundedCornerShape(24.dp))
+                                        .clickable {
+                                            viewModel.clearEvaluation()
+                                            roundNumber += 1
+                                        }
+                                        .testTag("pb_play_again_btn")
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    listOf(Color(0xFF8B5CF6), Color(0xFF3B82F6), Color(0xFF06B6D4))
+                                                )
+                                            ),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Refresh,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            text = "Play Again",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
 
                 // Phoneme Focus & Passing Target Bar
                 Surface(
@@ -3968,7 +4175,8 @@ fun PronunciationBattleGame(
                     }
                 }
 
-                // Next Battle Phrase Button
+                // Next Battle Phrase / Finish Round Button
+                val isLastBattle = safeIndex >= sessionChallenges.lastIndex
                 Surface(
                     shape = RoundedCornerShape(26.dp),
                     color = Color.Transparent,
@@ -3977,19 +4185,24 @@ fun PronunciationBattleGame(
                         .height(52.dp)
                         .background(
                             Brush.horizontalGradient(
-                                listOf(
-                                    Color(0xFF8B5CF6),
-                                    Color(0xFF3B82F6),
-                                    Color(0xFF06B6D4)
-                                )
+                                if (isLastBattle) {
+                                    listOf(Color(0xFF10B981), Color(0xFF059669), Color(0xFF06B6D4))
+                                } else {
+                                    listOf(Color(0xFF8B5CF6), Color(0xFF3B82F6), Color(0xFF06B6D4))
+                                }
                             ),
                             RoundedCornerShape(26.dp)
                         )
                         .clickable {
-                            challengeIndex = (challengeIndex + 1) % challenges.size
                             viewModel.clearEvaluation()
                             hasAwarded = false
+                            if (isLastBattle) {
+                                isRoundCompleted = true
+                            } else {
+                                challengeIndex = safeIndex + 1
+                            }
                         }
+                        .testTag("pb_next_battle_btn")
                 ) {
                     Row(
                         modifier = Modifier
@@ -3999,7 +4212,7 @@ fun PronunciationBattleGame(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "Next Battle Phrase",
+                            text = if (isLastBattle) "Complete Battle Round" else "Next Battle Phrase",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
@@ -4012,14 +4225,15 @@ fun PronunciationBattleGame(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    Icons.AutoMirrored.Rounded.ArrowForward,
+                                    imageVector = if (isLastBattle) Icons.Rounded.Check else Icons.AutoMirrored.Rounded.ArrowForward,
                                     contentDescription = null,
-                                    tint = Color(0xFF2563EB),
+                                    tint = if (isLastBattle) Color(0xFF059669) else Color(0xFF2563EB),
                                     modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
                     }
+                }
                 }
             }
         }
@@ -5770,6 +5984,53 @@ private fun GrammarGrowthChartIcon(modifier: Modifier = Modifier) {
     }
 }
 
+private const val GRAMMAR_CHALLENGE_ROUND_SIZE = 10
+
+private object GrammarChallengeRoundHistory {
+    private val seenIdsByPack = mutableMapOf<String, Set<String>>()
+    private val lastRoundIdsByPack = mutableMapOf<String, List<String>>()
+
+    fun nextRoundIds(
+        packId: String,
+        pool: List<GrammarChallengeQuestion>,
+        roundSize: Int = GRAMMAR_CHALLENGE_ROUND_SIZE
+    ): List<String> {
+        if (pool.isEmpty()) return emptyList()
+        val targetCount = minOf(roundSize, pool.size)
+        val seenIds = seenIdsByPack[packId].orEmpty()
+        val lastRoundIds = lastRoundIdsByPack[packId].orEmpty()
+        val lastRoundSet = lastRoundIds.toSet()
+        val lastFirstId = lastRoundIds.firstOrNull()
+
+        val unseen = pool.filterNot { it.id in seenIds }.shuffled()
+        val selected = if (unseen.size >= targetCount) {
+            val picked = unseen.take(targetCount)
+            seenIdsByPack[packId] = seenIds + picked.map { it.id }
+            picked
+        } else {
+            val needed = (targetCount - unseen.size).coerceAtLeast(0)
+            val seenNotLast = pool.filter { it.id in seenIds && it.id !in lastRoundSet }.shuffled()
+            val seenFromLast = pool.filter { it.id in seenIds && it.id in lastRoundSet }.shuffled()
+            val fill = (seenNotLast + seenFromLast).take(needed)
+            val combined = (unseen + fill).shuffled().toMutableList()
+            if (combined.size > 1 && lastFirstId != null && combined.first().id == lastFirstId) {
+                val swapIndex = combined.indexOfFirst { it.id != lastFirstId }
+                if (swapIndex > 0) {
+                    val first = combined[0]
+                    combined[0] = combined[swapIndex]
+                    combined[swapIndex] = first
+                }
+            }
+            seenIdsByPack[packId] = combined.map { it.id }.toSet()
+            combined.toList()
+        }
+
+        val ids = selected.map { it.id }
+        lastRoundIdsByPack[packId] = ids
+        return ids
+    }
+}
+
 @Composable
 fun GrammarChallengeGame(
     viewModel: MainViewModel,
@@ -6045,6 +6306,7 @@ fun GrammarChallengeGame(
                     ) {
                         packs.forEachIndexed { index, pack ->
                             val questionCount = allQuestions.count { it.packId == pack.id }
+                            val roundDisplayCount = minOf(GRAMMAR_CHALLENGE_ROUND_SIZE, questionCount)
                             val style = resolveGrammarCardStyle(pack, index)
 
                             Surface(
@@ -6118,7 +6380,7 @@ fun GrammarChallengeGame(
                                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                                             ) {
                                                 Text(
-                                                    text = "🎯 $questionCount ${if (questionCount == 1) "Question" else "Questions"}",
+                                                    text = "🎯 $roundDisplayCount ${if (roundDisplayCount == 1) "Question" else "Questions"}",
                                                     fontSize = 10.5.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color.White,
@@ -6231,18 +6493,65 @@ fun GrammarChallengeGame(
             val packQuestions = remember(allQuestions, activePack.id) {
                 allQuestions.filter { it.packId == activePack.id }
             }
-            var challengeIndex by remember(activePack.id) { mutableIntStateOf(0) }
-            var correctCount by remember(activePack.id) { mutableIntStateOf(0) }
-            var answeredCount by remember(activePack.id) { mutableIntStateOf(0) }
-            var isChallengeCompleted by remember(activePack.id) { mutableStateOf(false) }
+            val questionById = remember(packQuestions) {
+                packQuestions.associateBy { it.id }
+            }
+            val playScrollState = rememberScrollState()
+            var roundNumber by remember(activePack.id) { mutableIntStateOf(0) }
+            var sessionIds by remember(activePack.id, roundNumber) {
+                mutableStateOf(
+                    GrammarChallengeRoundHistory.nextRoundIds(
+                        packId = activePack.id,
+                        pool = packQuestions,
+                        roundSize = GRAMMAR_CHALLENGE_ROUND_SIZE
+                    )
+                )
+            }
 
-            val safeIndex = if (packQuestions.isNotEmpty()) challengeIndex.coerceIn(0, packQuestions.lastIndex) else 0
-            val current = packQuestions.getOrNull(safeIndex)
+            LaunchedEffect(activePack.id, roundNumber, packQuestions) {
+                if (packQuestions.isEmpty()) return@LaunchedEffect
+                val validIds = sessionIds.filter { it in questionById }
+                val targetCount = minOf(GRAMMAR_CHALLENGE_ROUND_SIZE, packQuestions.size)
+                if (validIds.isEmpty()) {
+                    sessionIds = GrammarChallengeRoundHistory.nextRoundIds(
+                        packId = activePack.id,
+                        pool = packQuestions,
+                        roundSize = GRAMMAR_CHALLENGE_ROUND_SIZE
+                    )
+                } else if (validIds.size < targetCount) {
+                    val existingSet = validIds.toSet()
+                    val extras = packQuestions
+                        .filterNot { it.id in existingSet }
+                        .shuffled()
+                        .take(targetCount - validIds.size)
+                        .map { it.id }
+                    if (extras.isNotEmpty()) {
+                        sessionIds = validIds + extras
+                    }
+                }
+            }
+
+            val sessionQuestions = remember(sessionIds, questionById, packQuestions) {
+                val resolved = sessionIds.mapNotNull { questionById[it] }
+                if (resolved.isNotEmpty()) resolved else packQuestions.take(GRAMMAR_CHALLENGE_ROUND_SIZE)
+            }
+
+            var challengeIndex by remember(activePack.id, roundNumber) { mutableIntStateOf(0) }
+            var correctCount by remember(activePack.id, roundNumber) { mutableIntStateOf(0) }
+            var answeredCount by remember(activePack.id, roundNumber) { mutableIntStateOf(0) }
+            var isChallengeCompleted by remember(activePack.id, roundNumber) { mutableStateOf(false) }
+
+            val safeIndex = if (sessionQuestions.isNotEmpty()) challengeIndex.coerceIn(0, sessionQuestions.lastIndex) else 0
+            val current = sessionQuestions.getOrNull(safeIndex)
+
+            LaunchedEffect(roundNumber, safeIndex, isChallengeCompleted) {
+                playScrollState.animateScrollTo(0)
+            }
 
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(playScrollState)
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
@@ -6296,7 +6605,7 @@ fun GrammarChallengeGame(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${packQuestions.size} ${if (packQuestions.size == 1) "Question" else "Questions"} • ${activePack.themeStyle}",
+                            text = "${sessionQuestions.size} ${if (sessionQuestions.size == 1) "Question" else "Questions"} • ${activePack.themeStyle}",
                             fontSize = 11.sp,
                             color = Color(0xFFCBD5E1)
                         )
@@ -6347,8 +6656,8 @@ fun GrammarChallengeGame(
                         }
                     }
                 } else if (isChallengeCompleted) {
-                    val accuracy = if (packQuestions.isNotEmpty()) {
-                        (correctCount * 100) / packQuestions.size
+                    val accuracy = if (sessionQuestions.isNotEmpty()) {
+                        (correctCount * 100) / sessionQuestions.size
                     } else 0
                     Card(
                         shape = RoundedCornerShape(22.dp),
@@ -6374,9 +6683,19 @@ fun GrammarChallengeGame(
                                 textAlign = TextAlign.Center
                             )
                             Text(
-                                text = "You answered $correctCount out of ${packQuestions.size} correctly ($accuracy% accuracy).",
+                                text = "You answered $correctCount out of ${sessionQuestions.size} correctly ($accuracy% accuracy).",
                                 fontSize = 13.5.sp,
                                 color = Color.White,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = if (packQuestions.size > sessionQuestions.size) {
+                                    "Finished all ${sessionQuestions.size} questions! Tap Play Again for a brand-new set."
+                                } else {
+                                    "Finished all ${sessionQuestions.size} questions! Tap Play Again for a reshuffled round."
+                                },
+                                fontSize = 12.sp,
+                                color = Color(0xFFCBD5E1),
                                 textAlign = TextAlign.Center
                             )
                             Surface(
@@ -6399,18 +6718,21 @@ fun GrammarChallengeGame(
                                     .padding(top = 4.dp)
                             ) {
                                 OutlinedButton(
-                                    onClick = {
-                                        challengeIndex = 0
-                                        correctCount = 0
-                                        answeredCount = 0
-                                        isChallengeCompleted = false
-                                    },
+                                    onClick = { roundNumber += 1 },
                                     shape = RoundedCornerShape(12.dp),
                                     border = BorderStroke(1.2.dp, Color(0xFF8B5CF6)),
                                     modifier = Modifier
                                         .weight(1f)
                                         .defaultMinSize(minHeight = 48.dp)
+                                        .testTag("gc_play_again_btn")
                                 ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Refresh,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
                                     Text("Play Again", color = Color.White, fontWeight = FontWeight.Bold)
                                 }
                                 Button(
@@ -6420,6 +6742,7 @@ fun GrammarChallengeGame(
                                     modifier = Modifier
                                         .weight(1f)
                                         .defaultMinSize(minHeight = 48.dp)
+                                        .testTag("gc_other_challenges_btn")
                                 ) {
                                     Text("Other Challenges", fontWeight = FontWeight.Bold)
                                 }
@@ -6427,10 +6750,13 @@ fun GrammarChallengeGame(
                         }
                     }
                 } else {
-                    var selectedIndex by remember(activePack.id, current.id) { mutableStateOf<Int?>(null) }
-                    var hasAwarded by remember(activePack.id, current.id) { mutableStateOf(false) }
+                    var selectedIndex by remember(activePack.id, roundNumber, current.id) { mutableStateOf<Int?>(null) }
+                    var hasAwarded by remember(activePack.id, roundNumber, current.id) { mutableStateOf(false) }
+                    val shuffledOptions = remember(activePack.id, roundNumber, current.id) {
+                        current.options.mapIndexed { originalIdx, text -> originalIdx to text }.shuffled()
+                    }
 
-                    val progress = (safeIndex + 1).toFloat() / packQuestions.size.coerceAtLeast(1).toFloat()
+                    val progress = (safeIndex + 1).toFloat() / sessionQuestions.size.coerceAtLeast(1).toFloat()
                     LinearProgressIndicator(
                         progress = { progress },
                         color = Color(0xFFFACC15),
@@ -6459,7 +6785,7 @@ fun GrammarChallengeGame(
                             ) {
                                 Column {
                                     Text(
-                                        text = "Question ${safeIndex + 1} of ${packQuestions.size}",
+                                        text = "Question ${safeIndex + 1} of ${sessionQuestions.size}",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp,
                                         color = RoyalBlue
@@ -6502,9 +6828,9 @@ fun GrammarChallengeGame(
                             }
 
                             val optionLetters = listOf("A", "B", "C", "D", "E")
-                            current.options.forEachIndexed { idx, opt ->
+                            shuffledOptions.forEachIndexed { idx, (originalIdx, opt) ->
                                 val isSelected = selectedIndex == idx
-                                val isCorrect = idx == current.correctIndex
+                                val isCorrect = originalIdx == current.correctIndex
                                 val hasGuessed = selectedIndex != null
 
                                 Surface(
@@ -6611,7 +6937,7 @@ fun GrammarChallengeGame(
                                     }
                                 }
 
-                                val isLastQuestion = safeIndex >= packQuestions.lastIndex
+                                val isLastQuestion = safeIndex >= sessionQuestions.lastIndex
                                 Button(
                                     onClick = {
                                         if (isLastQuestion) {

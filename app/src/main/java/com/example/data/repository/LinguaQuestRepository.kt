@@ -3061,7 +3061,22 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         PronunciationBattleChallenge("pb_2", "Peter Piper picked a peck of pickled peppers", "Crisp explosive /p/ consonant rhythm", "Hard", 85, "System"),
         PronunciationBattleChallenge("pb_3", "Thoughtful philosophers thoroughly examine their theories", "Voiced and voiceless 'th' phonemes", "Hard", 85, "Prof. Eleanor Vance"),
         PronunciationBattleChallenge("pb_4", "She sells seashells by the shimmering seashore", "Sibilants /s/ vs /ʃ/ distinction", "Medium", 80, "System"),
-        PronunciationBattleChallenge("pb_5", "World development requires extraordinary perseverance", "Liquid 'r' and 'l' consonant blends", "Hard", 85, "Dean Arthur Pendelton")
+        PronunciationBattleChallenge("pb_5", "World development requires extraordinary perseverance", "Liquid 'r' and 'l' consonant blends", "Hard", 85, "Dean Arthur Pendelton"),
+        PronunciationBattleChallenge("pb_6", "Vivid violet waves washed over the quiet valley", "Crisp /v/ vs /w/ lip articulation", "Medium", 80, "System"),
+        PronunciationBattleChallenge("pb_7", "Bright blue butterflies balanced on blooming branches", "Initial 'br' and 'bl' consonant blends", "Easy", 75, "System"),
+        PronunciationBattleChallenge("pb_8", "Thirty-three athletes ran through the misty forest", "Voiceless /θ/ and /r/ transitions", "Medium", 80, "System"),
+        PronunciationBattleChallenge("pb_9", "Fresh fruit smoothies taste wonderful every morning", "Smooth /f/ and /fr/ airflow control", "Easy", 75, "System"),
+        PronunciationBattleChallenge("pb_10", "Generous judges gently guided the joyful chorus", "Clear /dʒ/ vs /tʃ/ affricate sounds", "Medium", 80, "System"),
+        PronunciationBattleChallenge("pb_11", "Singing students practiced rhythmic evening melodies", "Nasal /ŋ/ endings and clear syllables", "Easy", 75, "System"),
+        PronunciationBattleChallenge("pb_12", "Quick squirrels quietly gathered acorns by the creek", "Sharp /kw/ and /kr/ onset clusters", "Medium", 80, "System"),
+        PronunciationBattleChallenge("pb_13", "The brilliant scientist verified the remarkable discovery", "Multisyllabic word stress and rhythm", "Hard", 85, "System"),
+        PronunciationBattleChallenge("pb_14", "Careful climbers crossed the narrow wooden bridge", "Hard /k/ and /kr/ consonant clarity", "Easy", 75, "System"),
+        PronunciationBattleChallenge("pb_15", "Zebras zigzagged past dazzling golden horizons", "Buzzing /z/ vs sharp /s/ contrast", "Medium", 80, "System"),
+        PronunciationBattleChallenge("pb_16", "Confident speakers deliver clear and persuasive speeches", "Final -s and -ed consonant accuracy", "Medium", 80, "System"),
+        PronunciationBattleChallenge("pb_17", "Red lorries and yellow trolleys rolled along the lane", "Rapid /r/ and /l/ tongue agility", "Hard", 85, "System"),
+        PronunciationBattleChallenge("pb_18", "Green leaves gleamed brightly after the gentle shower", "Long /iː/ vs short /ɪ/ vowel clarity", "Easy", 75, "System"),
+        PronunciationBattleChallenge("pb_19", "Curious travelers photographed ancient mountain temples", "Aspirated /t/, /p/, and /k/ stops", "Medium", 80, "System"),
+        PronunciationBattleChallenge("pb_20", "Consistent daily practice builds natural spoken fluency", "Connected speech linking and intonation", "Easy", 75, "System")
     )
 
     private fun loadInitialPronunciationBattles(): List<PronunciationBattleChallenge> {
@@ -3069,7 +3084,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (!saved.isNullOrEmpty()) {
             val savedIds = saved.map { it.id }.toSet()
             val missingDefaults = defaultPronunciationBattleChallenges.filter { it.id !in savedIds }
-            return saved + missingDefaults
+            val merged = saved + missingDefaults
+            if (missingDefaults.isNotEmpty()) {
+                appPreferences?.savePronunciationBattleChallenges(merged)
+            }
+            return merged
         }
         appPreferences?.savePronunciationBattleChallenges(defaultPronunciationBattleChallenges)
         return defaultPronunciationBattleChallenges
@@ -3282,6 +3301,16 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         GrammarChallengeQuestion("gc_t8", "They ___ their project before the deadline next Friday.", listOf("finish", "will have finished", "finished", "are finishing"), 1, "Future Perfect ('will have finished') shows an action completed before a future deadline.", "Tenses", "System", "gc_pack_tenses"),
         GrammarChallengeQuestion("gc_t9", "My brother usually ___ to work by bicycle.", listOf("go", "goes", "is going", "went"), 1, "Use Present Simple ('goes') for regular habits and routines ('usually').", "Tenses", "System", "gc_pack_tenses"),
         GrammarChallengeQuestion("gc_t10", "We ___ our final grammar exam last Monday.", listOf("completed", "have completed", "complete", "are completing"), 0, "Use Past Simple ('completed') when a specific finished past time ('last Monday') is mentioned.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t11", "She ___ to the library every Saturday morning.", listOf("go", "goes", "is going", "has gone"), 1, "Use Present Simple ('goes') with third-person singular subjects for regular routines.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t12", "Look at those dark clouds! It ___ rain very soon.", listOf("is going to", "rained", "has rained", "was going to"), 0, "Use 'be going to' for predictions backed by clear present evidence ('dark clouds').", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t13", "I ___ never ___ such an inspiring speech before today.", listOf("have / heard", "had / hear", "was / hearing", "am / heard"), 0, "Use Present Perfect ('have heard') for life experiences up to the present moment.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t14", "When the teacher entered the room, the students ___ quietly.", listOf("read", "were reading", "have read", "will read"), 1, "Past Continuous ('were reading') describes an action already in progress when another past event occurred.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t15", "By next year, Ananya ___ her spoken English diploma.", listOf("earns", "earned", "will have earned", "is earning"), 2, "Future Perfect ('will have earned') describes an action finished before a future point ('by next year').", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t16", "He ___ for two hours before his friends finally arrived.", listOf("has waited", "had been waiting", "waits", "is waiting"), 1, "Past Perfect Continuous ('had been waiting') highlights duration leading up to another past event.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t17", "Right now, the debate team ___ their opening arguments.", listOf("rehearses", "rehearsed", "is rehearsing", "has rehearsed"), 2, "Use Present Continuous ('is rehearsing') for actions happening right now.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t18", "If you heat ice to zero degrees, it ___ into water.", listOf("melted", "melts", "will melting", "had melted"), 1, "Zero conditional uses Present Simple ('melts') in both clauses for general scientific facts.", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t19", "They ___ in Guwahati for five years before moving to Shillong.", listOf("live", "have lived", "had lived", "are living"), 2, "Use Past Perfect ('had lived') for a past period completed before another past action ('moving').", "Tenses", "System", "gc_pack_tenses"),
+        GrammarChallengeQuestion("gc_t20", "Don't worry—I ___ you carry those heavy textbooks.", listOf("help", "will help", "helped", "was helping"), 1, "Use 'will' ('will help') for spontaneous offers and instant decisions made at the moment of speaking.", "Tenses", "System", "gc_pack_tenses"),
 
         // --- 2. Narration Challenge (10 Questions) ---
         GrammarChallengeQuestion("gc_n1", "He said, \"I am studying English.\" → Indirect: He said that he ___ English.", listOf("is studying", "was studying", "has studied", "will study"), 1, "In indirect speech, Present Continuous ('am studying') backshifts to Past Continuous ('was studying').", "Narration", "System", "gc_pack_narration"),
@@ -3294,6 +3323,16 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         GrammarChallengeQuestion("gc_n8", "The coach said, \"Bravo! You played well.\" → The coach ___ them that they had played well.", listOf("exclaimed", "applauded", "asked", "warned"), 1, "Exclamatory praise with 'Bravo!' is reported with 'applauded' or 'praised'.", "Narration", "System", "gc_pack_narration"),
         GrammarChallengeQuestion("gc_n9", "She said, \"I can speak three languages.\" → She said that she ___ speak three languages.", listOf("can", "could", "may", "might"), 1, "The modal 'can' changes to 'could' in indirect speech when the reporting verb is in the past.", "Narration", "System", "gc_pack_narration"),
         GrammarChallengeQuestion("gc_n10", "He said to me, \"Please help me.\" → He ___ me to help him.", listOf("ordered", "requested", "told", "shouted"), 1, "Polite requests starting with 'Please' are reported using 'requested' + object + 'to'-infinitive.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n11", "Priya said, \"I bought a new dictionary yesterday.\" → Priya said that she ___ a new dictionary the previous day.", listOf("bought", "had bought", "has bought", "buys"), 1, "Past Simple ('bought') backshifts to Past Perfect ('had bought'), and 'yesterday' changes to 'the previous day'.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n12", "The doctor said to him, \"Do not skip breakfast.\" → The doctor advised him ___ breakfast.", listOf("not to skip", "to not skipped", "don't skip", "not skipping"), 0, "Negative imperatives in indirect speech use 'not to' + base verb ('not to skip').", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n13", "She said, \"I may visit the museum this weekend.\" → She said that she ___ visit the museum that weekend.", listOf("may", "might", "will", "shall"), 1, "In indirect speech, 'may' changes to 'might' and 'this' becomes 'that'.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n14", "He asked her, \"Did you enjoy the workshop?\" → He asked her whether she ___ the workshop.", listOf("enjoyed", "had enjoyed", "has enjoyed", "enjoys"), 1, "Past Simple yes/no questions ('Did you enjoy') backshift to Past Perfect ('had enjoyed') in reported speech.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n15", "The captain said, \"Hurrah! We have won the cup!\" → The captain exclaimed with joy that they ___ the cup.", listOf("won", "have won", "had won", "will win"), 2, "Exclamations of joy use 'exclaimed with joy' and backshift Present Perfect ('have won') to Past Perfect ('had won').", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n16", "Rahul said, \"I must finish this essay tonight.\" → Rahul said that he ___ finish that essay that night.", listOf("has to", "had to", "will have to", "musted"), 1, "'Must' expressing obligation typically changes to 'had to' in indirect speech, and 'tonight' becomes 'that night'.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n17", "Teacher: \"Why are you late, Kabir?\" → The teacher asked Kabir why ___ late.", listOf("was he", "he was", "is he", "he is"), 1, "Indirect wh-questions place the subject before the verb ('why he was late') with no question mark.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n18", "Neha said to me, \"Let us practice together.\" → Neha ___ that we should practice together.", listOf("ordered", "suggested", "asked", "warned"), 1, "Proposals beginning with 'Let us' are reported using 'suggested' or 'proposed' + 'that ... should'.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n19", "Grandfather said, \"May you succeed in life!\" → Grandfather ___ that I might succeed in life.", listOf("commanded", "prayed", "enquired", "denied"), 1, "Optative sentences expressing blessings or wishes use reporting verbs like 'prayed' or 'wished' with 'might'.", "Narration", "System", "gc_pack_narration"),
+        GrammarChallengeQuestion("gc_n20", "She says, \"I love reading poetry.\" → She says that she ___ reading poetry.", listOf("loved", "loves", "had loved", "was loving"), 1, "When the reporting verb is in the present tense ('says'), the tense of the reported clause does not change.", "Narration", "System", "gc_pack_narration"),
 
         // --- 3. Determiners Challenge (10 Questions) ---
         GrammarChallengeQuestion("gc_d1", "She is ___ honest student who always speaks clearly.", listOf("a", "an", "the", "any"), 1, "Use 'an' before words starting with a vowel sound; the 'h' in 'honest' is silent.", "Determiners", "System", "gc_pack_determiners"),
@@ -3306,6 +3345,16 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         GrammarChallengeQuestion("gc_d8", "I bought ___ new books from the book fair yesterday.", listOf("much", "a little", "a few", "every"), 2, "'A few' means a small positive number and is used with plural countable nouns ('books').", "Determiners", "System", "gc_pack_determiners"),
         GrammarChallengeQuestion("gc_d9", "Have you read ___ storybooks on that top shelf?", listOf("much", "any", "little", "a"), 1, "'Any' is commonly used in questions with plural or uncountable nouns.", "Determiners", "System", "gc_pack_determiners"),
         GrammarChallengeQuestion("gc_d10", "She plays ___ piano beautifully at school concerts.", listOf("a", "an", "the", "few"), 2, "Use 'the' before musical instruments when talking about playing them ('play the piano').", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d11", "My uncle waited for ___ hour outside the auditorium.", listOf("a", "an", "the", "many"), 1, "'Hour' starts with a silent 'h' and a vowel sound, so it requires the indefinite article 'an'.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d12", "___ Himalayas form a magnificent mountain barrier in the north.", listOf("A", "An", "The", "Few"), 2, "Use 'The' before the names of plural mountain ranges ('The Himalayas').", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d13", "Only ___ seats remained empty during the annual debate.", listOf("a little", "a few", "much", "every"), 1, "Use 'a few' with plural countable nouns like 'seats'.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d14", "___ of the two answers is acceptable for this question.", listOf("Every", "Either", "All", "Many"), 1, "'Either' refers to one or the other of exactly two choices and takes a singular verb.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d15", "He gave me ___ useful advice before my interview.", listOf("an", "many", "some", "a few"), 2, "'Advice' is an uncountable noun in English, so use 'some' rather than 'an' or 'many'.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d16", "It was ___ one-way street, so we turned around carefully.", listOf("a", "an", "the", "few"), 0, "'One' begins with a consonant /w/ sound ('wun'), so it takes 'a', not 'an'.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d17", "___ knowledge is a dangerous thing, says the famous proverb.", listOf("A few", "A little", "Many", "Several"), 1, "'Knowledge' is uncountable; 'a little' expresses a small amount of an uncountable noun.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d18", "___ players on the winning squad shook hands respectfully.", listOf("Every", "Each", "All", "Much"), 2, "'All' works with plural countable nouns ('players'), whereas 'every' and 'each' take singular nouns.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d19", "How ___ pages do we need to read for tomorrow's lesson?", listOf("much", "many", "little", "any"), 1, "Use 'many' with plural countable nouns ('pages') in questions.", "Determiners", "System", "gc_pack_determiners"),
+        GrammarChallengeQuestion("gc_d20", "She is ___ tallest speaker in our entire English club.", listOf("a", "an", "the", "some"), 2, "Superlative adjectives ('tallest') are always preceded by the definite article 'the'.", "Determiners", "System", "gc_pack_determiners"),
 
         // --- 4. Prepositions Challenge (10 Questions) ---
         GrammarChallengeQuestion("gc_2", "She has been living in London ___ over three years.", listOf("since", "for", "during", "in"), 1, "Use 'for' to express a duration of time ('over three years').", "Prepositions", "System", "gc_pack_prepositions"),
@@ -3317,7 +3366,17 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         GrammarChallengeQuestion("gc_p7", "She is very fond ___ reading classic English novels.", listOf("with", "of", "for", "about"), 1, "The adjective 'fond' is always followed by the preposition 'of' ('fond of').", "Prepositions", "System", "gc_pack_prepositions"),
         GrammarChallengeQuestion("gc_p8", "We usually go on a family picnic ___ December.", listOf("at", "on", "in", "since"), 2, "Use 'in' for months, years, and seasons ('in December').", "Prepositions", "System", "gc_pack_prepositions"),
         GrammarChallengeQuestion("gc_p9", "Please write your answers ___ a blue or black pen.", listOf("by", "with", "from", "on"), 1, "Use 'with' to indicate the instrument or tool used to perform an action ('with a pen').", "Prepositions", "System", "gc_pack_prepositions"),
-        GrammarChallengeQuestion("gc_p10", "The library is situated ___ the science lab and the auditorium.", listOf("among", "between", "through", "into"), 1, "Use 'between' when locating something relative to two distinct places.", "Prepositions", "System", "gc_pack_prepositions")
+        GrammarChallengeQuestion("gc_p10", "The library is situated ___ the science lab and the auditorium.", listOf("among", "between", "through", "into"), 1, "Use 'between' when locating something relative to two distinct places.", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p11", "He has been practicing public speaking ___ last January.", listOf("for", "since", "from", "by"), 1, "Use 'since' with a specific starting point in time ('last January').", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p12", "She is very good ___ explaining complex grammar rules simply.", listOf("in", "at", "on", "for"), 1, "Use 'good at' when describing skill or ability in an activity.", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p13", "The bridge was built ___ the wide river in 2019.", listOf("into", "across", "between", "among"), 1, "'Across' indicates spanning from one side of a river or road to the other.", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p14", "Students must submit their essays ___ Friday evening at the latest.", listOf("by", "since", "into", "among"), 0, "'By' indicates a deadline—at or before a specific time.", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p15", "This English workbook belongs ___ the school library.", listOf("for", "with", "to", "at"), 2, "The verb 'belong' is always paired with the preposition 'to' ('belongs to').", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p16", "We walked quietly ___ the shaded forest path at sunrise.", listOf("through", "between", "at", "on"), 0, "'Through' describes movement inside and out the other side of an area like a forest or tunnel.", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p17", "Are you interested ___ joining the weekend debate club?", listOf("on", "at", "in", "of"), 2, "The adjective 'interested' always takes the preposition 'in' ('interested in').", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p18", "The painting hangs neatly ___ the wooden study desk.", listOf("above", "into", "since", "among"), 0, "'Above' indicates a higher position directly over something without touching it.", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p19", "She apologized ___ arriving five minutes late to the session.", listOf("to", "for", "with", "on"), 1, "Use 'apologize for' before the reason or action ('apologize for arriving late').", "Prepositions", "System", "gc_pack_prepositions"),
+        GrammarChallengeQuestion("gc_p20", "My sister prefers reading books ___ watching television.", listOf("than", "from", "to", "over"), 2, "The verb 'prefer' takes 'to' when comparing two nouns or gerunds ('prefer A to B').", "Prepositions", "System", "gc_pack_prepositions")
     )
 
     private fun inferGrammarPackId(category: String): String {
@@ -3337,7 +3396,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             val normalizedSaved = saved.map { q ->
                 if (q.packId.isBlank()) q.copy(packId = inferGrammarPackId(q.category)) else q
             }
-            return normalizedSaved + missingDefaults
+            val merged = normalizedSaved + missingDefaults
+            if (missingDefaults.isNotEmpty()) {
+                appPreferences?.saveGrammarChallenges(merged)
+            }
+            return merged
         }
         appPreferences?.saveGrammarChallenges(defaultGrammarChallenges)
         return defaultGrammarChallenges
