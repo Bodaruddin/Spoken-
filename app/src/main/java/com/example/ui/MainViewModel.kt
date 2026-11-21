@@ -1389,6 +1389,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _novaGeminiMessages = MutableStateFlow<List<NovaChatMessage>>(emptyList())
     val novaGeminiMessages: StateFlow<List<NovaChatMessage>> = _novaGeminiMessages.asStateFlow()
 
+    private val _novaGeminiHistory = MutableStateFlow<List<NovaGeminiChatSession>>(emptyList())
+    val novaGeminiHistory: StateFlow<List<NovaGeminiChatSession>> = _novaGeminiHistory.asStateFlow()
+
+    private val _activeNovaGeminiSessionId = MutableStateFlow("")
+    val activeNovaGeminiSessionId: StateFlow<String> = _activeNovaGeminiSessionId.asStateFlow()
+
     private val _isNovaGeminiThinking = MutableStateFlow(false)
     val isNovaGeminiThinking: StateFlow<Boolean> = _isNovaGeminiThinking.asStateFlow()
 
@@ -2454,15 +2460,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // NOVA GEMINI-STYLE PERSONAL AI ASSISTANT (STUDENT FOOTER AI TAB)
     // =========================================================================
 
-    fun loadNovaGeminiSession() {
-        val studentId = currentUser.value.id.ifBlank { "default_student" }
-        val saved = appPreferences.getNovaSession(studentId, "nova_gemini_assistant_v1")
-        if (!saved.isNullOrEmpty()) {
-            _novaGeminiMessages.value = saved
+    private fun buildNovaGeminiWelcomeMessage(isFreshChat: Boolean): NovaChatMessage {
+        val studentName = currentUser.value.name.trim().substringBefore(" ").ifBlank { "Friend" }
+        val voiceName = ttsManager.voicePersona.value.displayName
+        return if (isFreshChat) {
+            NovaChatMessage(
+                id = "nova_gemini_welcome_${System.currentTimeMillis()}",
+                isNova = true,
+                text = "Fresh chat started, $studentName! I'm $voiceName — want to jump into a Café roleplay, practice an interview, or chat about your day?",
+                audioPrompt = "Fresh chat started, $studentName! Want to try a fun roleplay or chat about your day?",
+                isQuestion = false,
+                questionNumber = 1
+            )
         } else {
-            val studentName = currentUser.value.name.trim().substringBefore(" ").ifBlank { "Friend" }
-            val voiceName = ttsManager.voicePersona.value.displayName
-            val welcome = NovaChatMessage(
+            NovaChatMessage(
                 id = "nova_gemini_welcome_${System.currentTimeMillis()}",
                 isNova = true,
                 text = "Hey $studentName! I'm $voiceName, your Nova speaking buddy.\n\nNo boring textbook drills here — we can do fun Café or Interview roleplays, upgrade your everyday English, try tongue twisters, translate to Assamese or Hindi, or check your grammar!",
@@ -2470,26 +2481,173 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 isQuestion = false,
                 questionNumber = 1
             )
-            _novaGeminiMessages.value = listOf(welcome)
         }
     }
 
-    fun clearNovaGeminiSession() {
-        val studentId = currentUser.value.id.ifBlank { "default_student" }
-        appPreferences.clearNovaSession(studentId, "nova_gemini_assistant_v1")
-        _novaGeminiModelUsed.value = ""
-        val studentName = currentUser.value.name.trim().substringBefore(" ").ifBlank { "Friend" }
-        val voiceName = ttsManager.voicePersona.value.displayName
-        val welcome = NovaChatMessage(
-            id = "nova_gemini_welcome_${System.currentTimeMillis()}",
-            isNova = true,
-            text = "Fresh chat started, $studentName! I'm $voiceName — want to jump into a Café roleplay, practice an interview, or chat about your day?",
-            audioPrompt = "Fresh chat started, $studentName! Want to try a fun roleplay or chat about your day?",
-            isQuestion = false,
-            questionNumber = 1
+    private fun upsertNovaGeminiHistorySession(
+        studentId: String,
+        sessionId: String,
+        messages: List<NovaChatMessage>,
+        mode: String
+    ) {
+        if (sessionId.isBlank()) return
+        val userMessages = messages.filter { !it.isNova }
+        if (userMessages.isEmpty()) return
+
+        appPreferences.saveNovaSession(studentId, "nova_gemini_chat_$sessionId", messages)
+
+        val firstUserText = userMessages.first().text.trim().replace("\n", " ")
+        val title = firstUserText.ifBlank { "Nova AI Chat" }.let {
+            if (it.length > 48) it.take(45).trimEnd() + "..." else it
+        }
+        val lastMsgText = messages.lastOrNull()?.text?.trim()?.replace("\n", " ") ?: ""
+        val preview = if (lastMsgText.length > 90) lastMsgText.take(87).trimEnd() + "..." else lastMsgText
+
+        val updatedEntry = NovaGeminiChatSession(
+            id = sessionId,
+            title = title,
+            mode = mode.ifBlank { "General AI" },
+            previewText = preview,
+            messageCount = messages.size,
+            updatedAt = messages.lastOrNull()?.timestamp ?: System.currentTimeMillis()
         )
+        val merged = (listOf(updatedEntry) + _novaGeminiHistory.value.filterNot { it.id == sessionId })
+            .sortedByDescending { it.updatedAt }
+            .take(40)
+        _novaGeminiHistory.value = merged
+        appPreferences.saveNovaGeminiHistoryIndex(studentId, merged)
+    }
+
+    fun loadNovaGeminiSession() {
+        val studentId = currentUser.value.id.ifBlank { "default_student" }
+        val loadedHistory = appPreferences.getNovaGeminiHistoryIndex(studentId)
+        _novaGeminiHistory.value = loadedHistory
+
+        val savedActiveId = appPreferences.getActiveNovaGeminiSessionId(studentId)
+        if (!savedActiveId.isNullOrBlank()) {
+            val savedMsgs = appPreferences.getNovaSession(studentId, "nova_gemini_chat_$savedActiveId")
+            if (!savedMsgs.isNullOrEmpty()) {
+                _activeNovaGeminiSessionId.value = savedActiveId
+                _novaGeminiMessages.value = savedMsgs
+                loadedHistory.firstOrNull { it.id == savedActiveId }?.let { meta ->
+                    _novaGeminiMode.value = meta.mode
+                }
+                if (savedMsgs.any { !it.isNova } && loadedHistory.none { it.id == savedActiveId }) {
+                    upsertNovaGeminiHistorySession(studentId, savedActiveId, savedMsgs, _novaGeminiMode.value)
+                }
+                return
+            }
+        }
+
+        // Seamless migration from legacy single-session storage if present
+        val legacySaved = appPreferences.getNovaSession(studentId, "nova_gemini_assistant_v1")
+        if (!legacySaved.isNullOrEmpty()) {
+            val migratedId = "gem_chat_${System.currentTimeMillis()}"
+            _activeNovaGeminiSessionId.value = migratedId
+            _novaGeminiMessages.value = legacySaved
+            appPreferences.setActiveNovaGeminiSessionId(studentId, migratedId)
+            appPreferences.saveNovaSession(studentId, "nova_gemini_chat_$migratedId", legacySaved)
+            if (legacySaved.any { !it.isNova }) {
+                upsertNovaGeminiHistorySession(studentId, migratedId, legacySaved, _novaGeminiMode.value)
+            }
+            appPreferences.clearNovaSession(studentId, "nova_gemini_assistant_v1")
+            return
+        }
+
+        val freshId = "gem_chat_${System.currentTimeMillis()}"
+        val welcome = buildNovaGeminiWelcomeMessage(isFreshChat = false)
+        _activeNovaGeminiSessionId.value = freshId
         _novaGeminiMessages.value = listOf(welcome)
-        appPreferences.saveNovaSession(studentId, "nova_gemini_assistant_v1", listOf(welcome))
+        appPreferences.setActiveNovaGeminiSessionId(studentId, freshId)
+        appPreferences.saveNovaSession(studentId, "nova_gemini_chat_$freshId", listOf(welcome))
+    }
+
+    /**
+     * Archives the current conversation into Chat History (if the student sent any messages)
+     * and opens a clean new Nova AI chat session.
+     * Returns true if the previous chat was archived to History.
+     */
+    fun clearNovaGeminiSession(): Boolean {
+        val studentId = currentUser.value.id.ifBlank { "default_student" }
+        val currentMsgs = _novaGeminiMessages.value
+        val currentId = _activeNovaGeminiSessionId.value.ifBlank { "gem_chat_${System.currentTimeMillis() - 1}" }
+        val hadUserMessages = currentMsgs.any { !it.isNova }
+
+        if (hadUserMessages) {
+            upsertNovaGeminiHistorySession(studentId, currentId, currentMsgs, _novaGeminiMode.value)
+        } else if (currentId.isNotBlank()) {
+            appPreferences.clearNovaSession(studentId, "nova_gemini_chat_$currentId")
+        }
+
+        ttsManager.stop()
+        _pendingNovaAttachments.value = emptyList()
+        _novaGeminiModelUsed.value = ""
+
+        val freshId = "gem_chat_${System.currentTimeMillis()}"
+        val welcome = buildNovaGeminiWelcomeMessage(isFreshChat = true)
+        _activeNovaGeminiSessionId.value = freshId
+        _novaGeminiMessages.value = listOf(welcome)
+        appPreferences.setActiveNovaGeminiSessionId(studentId, freshId)
+        appPreferences.saveNovaSession(studentId, "nova_gemini_chat_$freshId", listOf(welcome))
+        return hadUserMessages
+    }
+
+    fun openNovaGeminiHistorySession(sessionId: String) {
+        if (sessionId.isBlank()) return
+        val studentId = currentUser.value.id.ifBlank { "default_student" }
+        val currentId = _activeNovaGeminiSessionId.value
+        if (currentId == sessionId) return
+
+        // Save current chat first if it has student messages
+        val currentMsgs = _novaGeminiMessages.value
+        if (currentId.isNotBlank() && currentMsgs.any { !it.isNova }) {
+            upsertNovaGeminiHistorySession(studentId, currentId, currentMsgs, _novaGeminiMode.value)
+        }
+
+        val savedMsgs = appPreferences.getNovaSession(studentId, "nova_gemini_chat_$sessionId")
+        if (!savedMsgs.isNullOrEmpty()) {
+            ttsManager.stop()
+            _pendingNovaAttachments.value = emptyList()
+            _activeNovaGeminiSessionId.value = sessionId
+            _novaGeminiMessages.value = savedMsgs
+            appPreferences.setActiveNovaGeminiSessionId(studentId, sessionId)
+            _novaGeminiHistory.value.firstOrNull { it.id == sessionId }?.let { meta ->
+                _novaGeminiMode.value = meta.mode
+            }
+        }
+    }
+
+    fun deleteNovaGeminiHistorySession(sessionId: String) {
+        val studentId = currentUser.value.id.ifBlank { "default_student" }
+        appPreferences.deleteNovaGeminiChatSession(studentId, sessionId)
+        _novaGeminiHistory.value = _novaGeminiHistory.value.filterNot { it.id == sessionId }
+
+        if (_activeNovaGeminiSessionId.value == sessionId) {
+            ttsManager.stop()
+            _pendingNovaAttachments.value = emptyList()
+            _novaGeminiModelUsed.value = ""
+            val freshId = "gem_chat_${System.currentTimeMillis()}"
+            val welcome = buildNovaGeminiWelcomeMessage(isFreshChat = true)
+            _activeNovaGeminiSessionId.value = freshId
+            _novaGeminiMessages.value = listOf(welcome)
+            appPreferences.setActiveNovaGeminiSessionId(studentId, freshId)
+            appPreferences.saveNovaSession(studentId, "nova_gemini_chat_$freshId", listOf(welcome))
+        }
+    }
+
+    fun clearAllNovaGeminiHistory() {
+        val studentId = currentUser.value.id.ifBlank { "default_student" }
+        appPreferences.clearAllNovaGeminiHistory(studentId)
+        _novaGeminiHistory.value = emptyList()
+        ttsManager.stop()
+        _pendingNovaAttachments.value = emptyList()
+        _novaGeminiModelUsed.value = ""
+        val freshId = "gem_chat_${System.currentTimeMillis()}"
+        val welcome = buildNovaGeminiWelcomeMessage(isFreshChat = true)
+        _activeNovaGeminiSessionId.value = freshId
+        _novaGeminiMessages.value = listOf(welcome)
+        appPreferences.setActiveNovaGeminiSessionId(studentId, freshId)
+        appPreferences.saveNovaSession(studentId, "nova_gemini_chat_$freshId", listOf(welcome))
     }
 
     fun setNovaGeminiMode(mode: String) {
@@ -2522,6 +2680,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         _pendingNovaAttachments.value = emptyList()
         val studentId = currentUser.value.id.ifBlank { "default_student" }
+        val activeSessionId = _activeNovaGeminiSessionId.value.ifBlank {
+            "gem_chat_${System.currentTimeMillis()}".also {
+                _activeNovaGeminiSessionId.value = it
+                appPreferences.setActiveNovaGeminiSessionId(studentId, it)
+            }
+        }
         val priorHistory = _novaGeminiMessages.value
         val msgId = "student_gem_${System.currentTimeMillis()}"
         val attachmentLabel = attachmentsToSend.takeIf { it.isNotEmpty() }?.joinToString(" • ") { att ->
@@ -2541,7 +2705,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         val updatedWithUser = priorHistory + userTurn
         _novaGeminiMessages.value = updatedWithUser
-        appPreferences.saveNovaSession(studentId, "nova_gemini_assistant_v1", updatedWithUser)
+        upsertNovaGeminiHistorySession(studentId, activeSessionId, updatedWithUser, _novaGeminiMode.value)
 
         viewModelScope.launch {
             _isNovaGeminiThinking.value = true
@@ -2613,8 +2777,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 hint = usedModel
             )
             val finalHistory = updatedWithUser + novaTurn
-            _novaGeminiMessages.value = finalHistory
-            appPreferences.saveNovaSession(studentId, "nova_gemini_assistant_v1", finalHistory)
+            if (_activeNovaGeminiSessionId.value == activeSessionId) {
+                _novaGeminiMessages.value = finalHistory
+            }
+            upsertNovaGeminiHistorySession(studentId, activeSessionId, finalHistory, activeMode)
             _isNovaGeminiThinking.value = false
 
             if (_aiVoiceReplyEnabled.value) {

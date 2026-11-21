@@ -2069,10 +2069,22 @@ class AppPreferences(context: Context) {
     fun clearNovaSessionsForStudent(studentId: String, studentEmail: String = "") {
         val prefixes = buildSet {
             val cleanId = studentId.trim()
-            if (cleanId.isNotEmpty()) add("nova_session_${cleanId}_")
+            if (cleanId.isNotEmpty()) {
+                add("nova_session_${cleanId}_")
+                add("nova_gemini_history_index_$cleanId")
+                add("nova_gemini_active_id_$cleanId")
+            }
             val cleanEmail = studentEmail.trim().lowercase()
-            if (cleanEmail.isNotEmpty()) add("nova_session_${cleanEmail}_")
-            if (cleanId == "std_001") add("nova_session_default_student_")
+            if (cleanEmail.isNotEmpty()) {
+                add("nova_session_${cleanEmail}_")
+                add("nova_gemini_history_index_$cleanEmail")
+                add("nova_gemini_active_id_$cleanEmail")
+            }
+            if (cleanId == "std_001") {
+                add("nova_session_default_student_")
+                add("nova_gemini_history_index_default_student")
+                add("nova_gemini_active_id_default_student")
+            }
         }
         val matchingKeys = prefs.all.keys.filter { key ->
             prefixes.any { prefix -> key.startsWith(prefix) }
@@ -2082,6 +2094,79 @@ class AppPreferences(context: Context) {
             matchingKeys.forEach { editor.remove(it) }
             editor.apply()
         }
+    }
+
+    fun saveNovaGeminiHistoryIndex(studentId: String, sessions: List<NovaGeminiChatSession>) {
+        try {
+            val key = "nova_gemini_history_index_${studentId.trim()}"
+            val arr = JSONArray()
+            sessions.take(40).forEach { s ->
+                val obj = JSONObject().apply {
+                    put("id", s.id)
+                    put("title", s.title)
+                    put("mode", s.mode)
+                    put("previewText", s.previewText)
+                    put("messageCount", s.messageCount)
+                    put("updatedAt", s.updatedAt)
+                }
+                arr.put(obj)
+            }
+            prefs.edit().putString(key, arr.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    fun getNovaGeminiHistoryIndex(studentId: String): List<NovaGeminiChatSession> {
+        return try {
+            val key = "nova_gemini_history_index_${studentId.trim()}"
+            val raw = prefs.getString(key, null) ?: return emptyList()
+            val arr = JSONArray(raw)
+            val list = mutableListOf<NovaGeminiChatSession>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val id = obj.optString("id", "").trim()
+                if (id.isNotBlank()) {
+                    list.add(
+                        NovaGeminiChatSession(
+                            id = id,
+                            title = obj.optString("title", "Nova AI Chat"),
+                            mode = obj.optString("mode", "General AI"),
+                            previewText = obj.optString("previewText", ""),
+                            messageCount = obj.optInt("messageCount", 0),
+                            updatedAt = obj.optLong("updatedAt", System.currentTimeMillis())
+                        )
+                    )
+                }
+            }
+            list.sortedByDescending { it.updatedAt }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun getActiveNovaGeminiSessionId(studentId: String): String? {
+        return prefs.getString("nova_gemini_active_id_${studentId.trim()}", null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setActiveNovaGeminiSessionId(studentId: String, sessionId: String) {
+        prefs.edit().putString("nova_gemini_active_id_${studentId.trim()}", sessionId).apply()
+    }
+
+    fun deleteNovaGeminiChatSession(studentId: String, sessionId: String) {
+        clearNovaSession(studentId, "nova_gemini_chat_$sessionId")
+        val remaining = getNovaGeminiHistoryIndex(studentId).filterNot { it.id == sessionId }
+        saveNovaGeminiHistoryIndex(studentId, remaining)
+    }
+
+    fun clearAllNovaGeminiHistory(studentId: String) {
+        val existing = getNovaGeminiHistoryIndex(studentId)
+        existing.forEach { session ->
+            clearNovaSession(studentId, "nova_gemini_chat_${session.id}")
+        }
+        clearNovaSession(studentId, "nova_gemini_assistant_v1")
+        prefs.edit()
+            .remove("nova_gemini_history_index_${studentId.trim()}")
+            .remove("nova_gemini_active_id_${studentId.trim()}")
+            .apply()
     }
 
     fun getNovaMilestoneTarget(): Int {

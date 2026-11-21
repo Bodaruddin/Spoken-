@@ -76,6 +76,8 @@ fun NovaGeminiAssistantScreen(
     val coroutineScope = rememberCoroutineScope()
     val currentUser by viewModel.currentUser.collectAsState()
     val messages by viewModel.novaGeminiMessages.collectAsState()
+    val chatHistory by viewModel.novaGeminiHistory.collectAsState()
+    val activeSessionId by viewModel.activeNovaGeminiSessionId.collectAsState()
     val isThinking by viewModel.isNovaGeminiThinking.collectAsState()
     val activeMode by viewModel.novaGeminiMode.collectAsState()
     val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
@@ -95,6 +97,7 @@ fun NovaGeminiAssistantScreen(
     var isProcessingAttachment by remember { mutableStateOf(false) }
     var showAttachmentOptions by remember { mutableStateOf(false) }
     var showVoiceStudio by remember { mutableStateOf(false) }
+    var showHistorySheet by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     BackHandler { viewModel.selectStudentTab(StudentTab.HOME) }
@@ -210,9 +213,16 @@ fun NovaGeminiAssistantScreen(
             voiceAccentLabel = selectedPersona.shortAccentLabel,
             isSpeaking = isTtsSpeaking,
             voiceReplyEnabled = voiceReplyEnabled,
+            historyCount = chatHistory.size,
             onOpenVoiceStudio = { showVoiceStudio = true },
             onToggleVoice = { viewModel.setAiVoiceReplyEnabled(!voiceReplyEnabled) },
-            onNewChat = { viewModel.clearNovaGeminiSession() }
+            onOpenHistory = { showHistorySheet = true },
+            onNewChat = {
+                val savedPrevious = viewModel.clearNovaGeminiSession()
+                if (savedPrevious) {
+                    Toast.makeText(context, "Previous chat saved to History", Toast.LENGTH_SHORT).show()
+                }
+            }
         )
 
         // 2. Mode Chips Strip
@@ -568,6 +578,32 @@ fun NovaGeminiAssistantScreen(
                 onSelectSpeed = { viewModel.setVoiceSpeedPreset(it) }
             )
         }
+
+        // 7. Saved Chat History Bottom Sheet
+        if (showHistorySheet) {
+            NovaGeminiHistorySheet(
+                history = chatHistory,
+                activeSessionId = activeSessionId,
+                onSelectSession = { sessionId ->
+                    viewModel.openNovaGeminiHistorySession(sessionId)
+                },
+                onStartNewChat = {
+                    val savedPrevious = viewModel.clearNovaGeminiSession()
+                    if (savedPrevious) {
+                        Toast.makeText(context, "Previous chat saved to History", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onDeleteSession = { sessionId ->
+                    viewModel.deleteNovaGeminiHistorySession(sessionId)
+                    Toast.makeText(context, "Chat deleted from History", Toast.LENGTH_SHORT).show()
+                },
+                onClearAllHistory = {
+                    viewModel.clearAllNovaGeminiHistory()
+                    Toast.makeText(context, "Chat history cleared", Toast.LENGTH_SHORT).show()
+                },
+                onDismiss = { showHistorySheet = false }
+            )
+        }
     }
 }
 
@@ -579,8 +615,10 @@ private fun NovaAssistantTopBar(
     voiceAccentLabel: String,
     isSpeaking: Boolean,
     voiceReplyEnabled: Boolean,
+    historyCount: Int,
     onOpenVoiceStudio: () -> Unit,
     onToggleVoice: () -> Unit,
+    onOpenHistory: () -> Unit,
     onNewChat: () -> Unit
 ) {
     Surface(
@@ -591,12 +629,12 @@ private fun NovaAssistantTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(start = 12.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(40.dp)
                     .clip(CircleShape)
                     .background(
                         Brush.linearGradient(
@@ -614,9 +652,9 @@ private fun NovaAssistantTopBar(
                     modifier = Modifier.fillMaxSize().clip(CircleShape)
                 )
             }
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(9.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("Nova AI • $voicePersonaName", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Nova AI • $voicePersonaName", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Surface(
                     shape = RoundedCornerShape(10.dp),
                     color = Color(0xFF1E1644),
@@ -627,7 +665,7 @@ private fun NovaAssistantTopBar(
                         .testTag("nova_voice_selector_btn")
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
@@ -639,12 +677,46 @@ private fun NovaAssistantTopBar(
                         )
                         Text(
                             text = if (isSpeaking) "$voicePersonaName speaking..." else "$voiceAccentLabel (Female) ▾",
-                            fontSize = 10.5.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFFFCE7F3),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                    }
+                }
+            }
+            IconButton(
+                onClick = onOpenHistory,
+                modifier = Modifier
+                    .size(48.dp)
+                    .testTag("nova_gemini_history_btn")
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.History,
+                        contentDescription = "Chat History",
+                        tint = if (historyCount > 0) Color(0xFFC4B5FD) else Color(0xFF94A3B8),
+                        modifier = Modifier.size(21.dp)
+                    )
+                    if (historyCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 6.dp, y = (-5).dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF06B6D4))
+                                .padding(horizontal = 4.dp, vertical = 1.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (historyCount > 9) "9+" else "$historyCount",
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF090D26),
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }

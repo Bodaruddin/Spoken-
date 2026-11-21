@@ -154,6 +154,15 @@ data class NovaChatMessage(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+data class NovaGeminiChatSession(
+    val id: String,
+    val title: String,
+    val mode: String = "General AI",
+    val previewText: String = "",
+    val messageCount: Int = 0,
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
 data class DialogueTurn(
     val speaker: String, // "AI" or "USER"
     val text: String,
