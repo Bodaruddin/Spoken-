@@ -1436,6 +1436,7 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
     var editingVocabChallenge by remember { mutableStateOf<WordMatchChallenge?>(null) }
     var showBulkImportMissingLettersDialog by remember { mutableStateOf(false) }
     var showBulkImportSentenceBuilderDialog by remember { mutableStateOf(false) }
+    var bulkImportCategory by remember { mutableStateOf<GameCategoryFilter?>(null) }
     var showManageCategoriesDialog by remember { mutableStateOf(false) }
     var activeEditingChallenge by remember { mutableStateOf<ActiveEditingChallenge?>(null) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
@@ -2030,6 +2031,14 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
 
         if (selectedCategory == GameCategoryFilter.WORD_MATCH) {
             item {
+                BulkExcelImportBannerCard(
+                    title = "Bulk Vocabulary Excel Import",
+                    subtitle = "Upload .xlsx / .csv for Picture, Meaning, Synonyms, Opposites or Scramble",
+                    testTag = "word_match_bulk_import_banner",
+                    onClick = { bulkImportCategory = GameCategoryFilter.WORD_MATCH }
+                )
+            }
+            item {
                 TeacherVocabularyChallengeManagementHeader(
                     modeConfigs = vocabularyModeConfigs,
                     allChallenges = wordMatches,
@@ -2218,6 +2227,17 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                         }
                     }
                 }
+            }
+        }
+
+        if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack == null) {
+            item {
+                BulkExcelImportBannerCard(
+                    title = "Bulk Sentence Excel Import",
+                    subtitle = "Upload .xlsx / .csv into any Sentence Builder challenge pack",
+                    testTag = "sentence_builder_top_bulk_import_banner",
+                    onClick = { showBulkImportSentenceBuilderDialog = true }
+                )
             }
         }
 
@@ -2577,6 +2597,36 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
                         }
                     }
                 }
+            }
+        }
+
+        // Universal Bulk Excel Sheet Import banner for all remaining games
+        if (selectedCategory in setOf(
+                GameCategoryFilter.LISTEN_CHOOSE,
+                GameCategoryFilter.PRONUNCIATION_BATTLE,
+                GameCategoryFilter.FAST_VOCABULARY,
+                GameCategoryFilter.PICTURE_VOCAB,
+                GameCategoryFilter.GRAMMAR_CHALLENGE,
+                GameCategoryFilter.ENGLISH_ADVENTURE
+            )
+        ) {
+            val bulkSubtitle = when (selectedCategory) {
+                GameCategoryFilter.GRAMMAR_CHALLENGE -> activeGrammarPack?.let {
+                    "Upload .xlsx / .csv into '${it.title}'"
+                } ?: "Upload .xlsx / .csv into any Grammar Challenge pack"
+                GameCategoryFilter.FAST_VOCABULARY -> activeFastVocabPack?.let {
+                    "Upload .xlsx / .csv into '${it.title}'"
+                } ?: "Upload .xlsx / .csv into any Fast Vocabulary pack"
+                GameCategoryFilter.ENGLISH_ADVENTURE -> "Upload .xlsx / .csv quest levels into any Adventure World"
+                else -> "Upload .xlsx / .csv or paste rows for ${selectedCategory.title}"
+            }
+            item {
+                BulkExcelImportBannerCard(
+                    title = "Bulk ${selectedCategory.title} Excel Import",
+                    subtitle = bulkSubtitle,
+                    testTag = "${selectedCategory.name.lowercase()}_bulk_import_banner",
+                    onClick = { bulkImportCategory = selectedCategory }
+                )
             }
         }
 
@@ -3583,10 +3633,10 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             targetSentencePack = activeSentencePack,
             onOpenBulkImport = {
                 showCreateDialog = false
-                if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER) {
-                    showBulkImportSentenceBuilderDialog = true
-                } else {
-                    showBulkImportMissingLettersDialog = true
+                when (selectedCategory) {
+                    GameCategoryFilter.SENTENCE_BUILDER -> showBulkImportSentenceBuilderDialog = true
+                    GameCategoryFilter.MISSING_LETTERS -> showBulkImportMissingLettersDialog = true
+                    else -> bulkImportCategory = selectedCategory
                 }
             }
         )
@@ -3607,13 +3657,29 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         BulkImportSentenceBuilderDialog(
             onDismiss = { showBulkImportSentenceBuilderDialog = false },
             onImported = { count ->
-                val packTitle = activeSentencePack?.title ?: "Easy Challenge"
+                val packTitle = activeSentencePack?.title ?: "Sentence Builder"
                 statusMsg = "Successfully imported $count sentences into '$packTitle' & synced to Student Panel!"
                 showBulkImportSentenceBuilderDialog = false
             },
             viewModel = viewModel,
-            targetPackId = activeSentencePack?.id ?: "sb_pack_easy",
-            targetPackTitle = activeSentencePack?.title ?: "Easy Challenge"
+            targetPackId = activeSentencePack?.id ?: sentenceBuilderPacks.firstOrNull()?.id ?: "sb_pack_easy",
+            targetPackTitle = activeSentencePack?.title ?: sentenceBuilderPacks.firstOrNull()?.title ?: "Easy Challenge"
+        )
+    }
+
+    bulkImportCategory?.let { cat ->
+        BulkGameExcelImportDialog(
+            category = cat,
+            viewModel = viewModel,
+            authorName = currentUser.name.ifBlank { "Faculty Instructor" },
+            initialVocabMode = selectedVocabActivityFilter,
+            initialGrammarPackId = activeGrammarPack?.id,
+            initialFastVocabPackId = activeFastVocabPack?.id,
+            onDismiss = { bulkImportCategory = null },
+            onImported = { count, destLabel ->
+                statusMsg = "Successfully imported $count items into '$destLabel' & synced to Student Panel! 🚀"
+                bulkImportCategory = null
+            }
         )
     }
 
@@ -3648,6 +3714,10 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         VocabularyChallengeEditorDialog(
             initialItem = null,
             defaultActivityType = selectedVocabActivityFilter ?: VocabularyActivityType.PICTURE_MATCHING,
+            onOpenBulkImport = {
+                showCreateVocabChallengeDialog = false
+                bulkImportCategory = GameCategoryFilter.WORD_MATCH
+            },
             onDismiss = { showCreateVocabChallengeDialog = false },
             onSave = { word, definition, category, activityType, emoji, synonym, antonym, distractors, scrambleHint, keepOpen ->
                 viewModel.addWordMatchChallenge(
@@ -3773,6 +3843,10 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             pack = activeGrammarPack,
             initialQuestion = null,
             authorName = currentUser.name.ifBlank { "Faculty Instructor" },
+            onOpenBulkImport = {
+                showCreateGrammarQuestionDialog = false
+                bulkImportCategory = GameCategoryFilter.GRAMMAR_CHALLENGE
+            },
             onDismiss = { showCreateGrammarQuestionDialog = false },
             onAddQuestion = { question, options, correctIdx, explanation ->
                 viewModel.addGrammarChallenge(
@@ -3894,6 +3968,10 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         FastVocabQuestionEditorDialog(
             pack = activeFastVocabPack,
             initialQuestion = null,
+            onOpenBulkImport = {
+                showCreateFastVocabQuestionDialog = false
+                bulkImportCategory = GameCategoryFilter.FAST_VOCABULARY
+            },
             onDismiss = { showCreateFastVocabQuestionDialog = false },
             onAddQuestion = { word, prompt, options, correctIdx ->
                 viewModel.addFastVocabularyChallenge(
@@ -7420,6 +7498,17 @@ fun BulkImportSentenceBuilderDialog(
 ) {
     val context = LocalContext.current
     val currentUser by viewModel.currentUser.collectAsState()
+    val allPacks by viewModel.sentenceBuilderPacks.collectAsState()
+    var selectedPackId by remember(targetPackId, allPacks) {
+        mutableStateOf(
+            allPacks.firstOrNull { it.id == targetPackId }?.id
+                ?: allPacks.firstOrNull()?.id
+                ?: targetPackId
+        )
+    }
+    val selectedPackTitle = remember(selectedPackId, allPacks, targetPackTitle) {
+        allPacks.firstOrNull { it.id == selectedPackId }?.title ?: targetPackTitle
+    }
 
     val hintPresets = listOf("Assemble syntax", "Daily Speaking", "Present Simple", "Past Simple", "Question Form")
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = File Upload (.xlsx/.csv), 1 = Paste / Template
@@ -7504,7 +7593,7 @@ fun BulkImportSentenceBuilderDialog(
                             fontSize = 16.sp
                         )
                         Text(
-                            text = "Into: $targetPackTitle",
+                            text = "Into: $selectedPackTitle",
                             fontSize = 11.sp,
                             color = EmeraldSuccess,
                             fontWeight = FontWeight.SemiBold
@@ -7538,6 +7627,35 @@ fun BulkImportSentenceBuilderDialog(
                         onClick = { selectedTab = 1 },
                         text = { Text("📋 Paste / Template", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                     )
+                }
+
+                if (allPacks.size > 1) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Import into Sentence Challenge Pack:", fontSize = 11.sp, color = MutedGray)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            allPacks.forEach { pack ->
+                                val isSel = selectedPackId == pack.id
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSel) RoyalBlue else MaterialTheme.colorScheme.surfaceVariant,
+                                    modifier = Modifier.clickable { selectedPackId = pack.id }
+                                ) {
+                                    Text(
+                                        text = pack.title,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Default Hint selector for rows missing a Hint column
@@ -7785,7 +7903,7 @@ fun BulkImportSentenceBuilderDialog(
                         val rowsToImport = parsedRows.map {
                             Triple(it.targetSentence, it.hint, it.assameseTranslation)
                         }
-                        val count = viewModel.bulkImportSentenceBuilders(rowsToImport, author, targetPackId)
+                        val count = viewModel.bulkImportSentenceBuilders(rowsToImport, author, selectedPackId)
                         successMessage = "Successfully imported $count sentences!"
                         onImported(count)
                     }
@@ -8038,6 +8156,7 @@ fun GrammarQuestionEditorDialog(
     pack: GrammarChallengePack?,
     initialQuestion: GrammarChallengeQuestion?,
     authorName: String,
+    onOpenBulkImport: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onAddQuestion: (question: String, options: List<String>, correctIndex: Int, explanation: String) -> Unit,
     onSaveEdit: (question: String, options: List<String>, correctIndex: Int, explanation: String) -> Unit
@@ -8092,6 +8211,14 @@ fun GrammarQuestionEditorDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
+                if (!isEditing && onOpenBulkImport != null) {
+                    BulkExcelInlineCallout(
+                        title = "Bulk Grammar Excel Import",
+                        subtitle = "Upload .xlsx / .csv questions into ${pack?.title ?: "this pack"}",
+                        testTag = "grammar_dialog_open_bulk_import_btn",
+                        onClick = onOpenBulkImport
+                    )
+                }
                 OutlinedTextField(
                     value = questionText,
                     onValueChange = { questionText = it },
@@ -8342,6 +8469,7 @@ fun FastVocabPackEditorDialog(
 fun FastVocabQuestionEditorDialog(
     pack: FastVocabularyPack?,
     initialQuestion: FastVocabularyChallenge?,
+    onOpenBulkImport: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onAddQuestion: (word: String, prompt: String, options: List<String>, correctIndex: Int) -> Unit,
     onSaveEdit: (word: String, prompt: String, options: List<String>, correctIndex: Int) -> Unit
@@ -8395,6 +8523,14 @@ fun FastVocabQuestionEditorDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
+                if (!isEditing && onOpenBulkImport != null) {
+                    BulkExcelInlineCallout(
+                        title = "Bulk Fast Vocabulary Excel Import",
+                        subtitle = "Upload .xlsx / .csv words into ${pack?.title ?: "this pack"}",
+                        testTag = "fast_vocab_dialog_open_bulk_import_btn",
+                        onClick = onOpenBulkImport
+                    )
+                }
                 OutlinedTextField(
                     value = wordText,
                     onValueChange = { wordText = it },
@@ -8557,9 +8693,22 @@ fun CreateGameChallengeDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                if (onOpenBulkImport != null &&
+                    category != GameCategoryFilter.MISSING_LETTERS &&
+                    category != GameCategoryFilter.SENTENCE_BUILDER
+                ) {
+                    BulkExcelInlineCallout(
+                        title = "Bulk ${category.title} Excel Import",
+                        subtitle = "Upload .xlsx / .csv or paste spreadsheet rows",
+                        testTag = "dialog_open_${category.name.lowercase()}_bulk_import_btn",
+                        onClick = onOpenBulkImport
+                    )
+                }
                 when (category) {
                     GameCategoryFilter.WORD_MATCH -> {
                         OutlinedTextField(value = field1, onValueChange = { field1 = it }, label = { Text("Word (e.g. Eloquence)") }, modifier = Modifier.fillMaxWidth())

@@ -444,6 +444,7 @@ fun VocabularyChallengeModeConfigDialog(
 fun VocabularyChallengeEditorDialog(
     initialItem: WordMatchChallenge? = null,
     defaultActivityType: VocabularyActivityType = VocabularyActivityType.PICTURE_MATCHING,
+    onOpenBulkImport: (() -> Unit)? = null,
     onDismiss: () -> Unit,
     onSave: (
         word: String,
@@ -561,6 +562,15 @@ fun VocabularyChallengeEditorDialog(
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 18.sp
                 )
+
+                if (initialItem == null && onOpenBulkImport != null) {
+                    BulkExcelInlineCallout(
+                        title = "Bulk Vocabulary Excel Import",
+                        subtitle = "Upload .xlsx / .csv or paste rows for all 5 modes",
+                        testTag = "vocab_dialog_open_bulk_import_btn",
+                        onClick = onOpenBulkImport
+                    )
+                }
 
                 Text(
                     text = "Select Activity Mode",
