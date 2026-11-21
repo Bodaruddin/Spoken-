@@ -2890,7 +2890,21 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         PictureVocabChallenge("pv_3", "📚", "Library", "/ˈlaɪ.brər.i/", "A quiet room or building containing books for reading or study", listOf("Library", "Bakery", "Auditorium", "Laboratory"), "System"),
         PictureVocabChallenge("pv_4", "🍳", "Cooking", "/ˈkʊk.ɪŋ/", "The practice or skill of preparing food by combining ingredients", listOf("Cooking", "Gardening", "Sewing", "Painting"), "System"),
         PictureVocabChallenge("pv_5", "🎸", "Guitar", "/ɡɪˈtɑːr/", "A musical instrument having six strings played with fingers or pick", listOf("Guitar", "Violin", "Drum", "Saxophone"), "System"),
-        PictureVocabChallenge("pv_6", "🏃", "Sprinting", "/ˈsprɪn.tɪŋ/", "Running at full speed over a short distance", listOf("Sprinting", "Swimming", "Jumping", "Climbing"), "System")
+        PictureVocabChallenge("pv_6", "🏃", "Sprinting", "/ˈsprɪn.tɪŋ/", "Running at full speed over a short distance", listOf("Sprinting", "Swimming", "Jumping", "Climbing"), "System"),
+        PictureVocabChallenge("pv_7", "🔬", "Microscope", "/ˈmaɪ.krə.skəʊp/", "A laboratory instrument used to view tiny organisms and cells up close", listOf("Microscope", "Telescope", "Binoculars", "Magnifier"), "System"),
+        PictureVocabChallenge("pv_8", "🧭", "Compass", "/ˈkʌm.pəs/", "A navigation tool with a magnetic needle that points toward north", listOf("Compass", "Stopwatch", "Thermometer", "Barometer"), "System"),
+        PictureVocabChallenge("pv_9", "🔭", "Telescope", "/ˈtel.ɪ.skəʊp/", "An optical instrument designed to observe distant stars and planets", listOf("Telescope", "Microscope", "Periscope", "Projector"), "System"),
+        PictureVocabChallenge("pv_10", "🌋", "Volcano", "/vɒlˈkeɪ.nəʊ/", "A mountain with an opening through which molten lava and ash erupt", listOf("Volcano", "Glacier", "Waterfall", "Canyon"), "System"),
+        PictureVocabChallenge("pv_11", "🎒", "Backpack", "/ˈbæk.pæk/", "A durable bag worn on the shoulders to carry books and travel gear", listOf("Backpack", "Suitcase", "Briefcase", "Handbag"), "System"),
+        PictureVocabChallenge("pv_12", "🎻", "Violin", "/ˌvaɪ.əˈlɪn/", "A wooden stringed instrument played with a bow held against the chin", listOf("Violin", "Guitar", "Trumpet", "Flute"), "System"),
+        PictureVocabChallenge("pv_13", "⚓", "Anchor", "/ˈæŋ.kər/", "A heavy metal hook dropped into the sea to hold a ship in place", listOf("Anchor", "Paddle", "Rudder", "Lantern"), "System"),
+        PictureVocabChallenge("pv_14", "🦋", "Butterfly", "/ˈbʌt.ə.flaɪ/", "A colorful insect with broad patterned wings that feeds on flower nectar", listOf("Butterfly", "Dragonfly", "Grasshopper", "Ladybug"), "System"),
+        PictureVocabChallenge("pv_15", "🏛️", "Museum", "/mjuːˈziː.əm/", "A public building where historical artifacts and artworks are displayed", listOf("Museum", "Stadium", "Pharmacy", "Factory"), "System"),
+        PictureVocabChallenge("pv_16", "☂️", "Umbrella", "/ʌmˈbrel.ə/", "A folding canopy supported on ribs to protect you from rain or sun", listOf("Umbrella", "Raincoat", "Parachute", "Curtain"), "System"),
+        PictureVocabChallenge("pv_17", "🚂", "Locomotive", "/ˌləʊ.kəˈməʊ.tɪv/", "A powered railway engine built to pull passenger or freight train cars", listOf("Locomotive", "Submarine", "Tractor", "Scooter"), "System"),
+        PictureVocabChallenge("pv_18", "🕰️", "Clock", "/klɒk/", "A mechanical or digital device used to measure and display the time", listOf("Clock", "Calendar", "Calculator", "Thermometer"), "System"),
+        PictureVocabChallenge("pv_19", "🎨", "Palette", "/ˈpæl.ət/", "A flat wooden board on which an artist mixes paint colors before brushing", listOf("Palette", "Easel", "Sculpture", "Sketchbook"), "System"),
+        PictureVocabChallenge("pv_20", "🌵", "Cactus", "/ˈkæk.təs/", "A hardy desert plant with thick water-storing stems and sharp spines", listOf("Cactus", "Bamboo", "Fern", "Orchid"), "System")
     )
 
     private fun loadInitialPictureVocabChallenges(): List<PictureVocabChallenge> {
@@ -2898,7 +2912,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (!saved.isNullOrEmpty()) {
             val savedIds = saved.map { it.id }.toSet()
             val missingDefaults = defaultPictureVocabChallenges.filter { it.id !in savedIds }
-            return saved + missingDefaults
+            val merged = saved + missingDefaults
+            if (missingDefaults.isNotEmpty()) {
+                appPreferences?.savePictureVocabChallenges(merged)
+            }
+            return merged
         }
         appPreferences?.savePictureVocabChallenges(defaultPictureVocabChallenges)
         return defaultPictureVocabChallenges

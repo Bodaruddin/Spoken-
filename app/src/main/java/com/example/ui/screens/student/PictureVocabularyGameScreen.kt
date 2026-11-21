@@ -101,6 +101,47 @@ private data class PictureVocabUiItem(
     val options: List<String>
 )
 
+private const val PICTURE_VOCAB_ROUND_SIZE = 10
+
+private object PictureVocabRoundHistory {
+    var seenIds: Set<String> = emptySet()
+    var lastRoundIds: Set<String> = emptySet()
+    var lastFirstId: String? = null
+}
+
+private fun pickNextPictureVocabRound(
+    pool: List<PictureVocabUiItem>,
+    seenIds: Set<String>,
+    lastRoundIds: Set<String>,
+    lastFirstId: String?,
+    roundSize: Int = PICTURE_VOCAB_ROUND_SIZE
+): Pair<List<PictureVocabUiItem>, Set<String>> {
+    if (pool.isEmpty()) return emptyList<PictureVocabUiItem>() to emptySet()
+    val targetCount = minOf(roundSize, pool.size)
+    val unseen = pool.filterNot { it.id in seenIds }.shuffled()
+
+    return if (unseen.size >= targetCount) {
+        val round = unseen.take(targetCount)
+        round to (seenIds + round.map { it.id })
+    } else {
+        val neededFromSeen = (targetCount - unseen.size).coerceAtLeast(0)
+        // Prefer seen items that were NOT in the immediately preceding round so Play Again maximizes fresh pictures
+        val seenNotInLastRound = pool.filter { it.id in seenIds && it.id !in lastRoundIds }.shuffled()
+        val seenInLastRound = pool.filter { it.id in seenIds && it.id in lastRoundIds }.shuffled()
+        val recycled = (seenNotInLastRound + seenInLastRound).take(neededFromSeen)
+        val combined = (unseen + recycled).toMutableList()
+        if (combined.size > 1 && lastFirstId != null && combined.first().id == lastFirstId) {
+            val swapIndex = combined.indexOfFirst { it.id != lastFirstId }
+            if (swapIndex > 0) {
+                val first = combined[0]
+                combined[0] = combined[swapIndex]
+                combined[swapIndex] = first
+            }
+        }
+        combined.toList() to combined.map { it.id }.toSet()
+    }
+}
+
 @DrawableRes
 private fun resolvePictureVocabDrawable(word: String): Int? {
     val key = word.trim().lowercase()
@@ -263,7 +304,67 @@ fun PictureVocabGame(
         onClose()
     }
 
-    var itemIndex by remember { mutableIntStateOf(0) }
+    var roundNumber by remember { mutableIntStateOf(0) }
+    var sessionItemIds by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    fun startNewRound() {
+        val (round, updatedSeen) = pickNextPictureVocabRound(
+            pool = items,
+            seenIds = PictureVocabRoundHistory.seenIds,
+            lastRoundIds = PictureVocabRoundHistory.lastRoundIds,
+            lastFirstId = PictureVocabRoundHistory.lastFirstId,
+            roundSize = PICTURE_VOCAB_ROUND_SIZE
+        )
+        val newRoundIds = round.map { it.id }
+        PictureVocabRoundHistory.seenIds = updatedSeen
+        PictureVocabRoundHistory.lastRoundIds = newRoundIds.toSet()
+        round.firstOrNull()?.id?.let { PictureVocabRoundHistory.lastFirstId = it }
+        sessionItemIds = newRoundIds
+        roundNumber += 1
+    }
+
+    val itemById = remember(items) { items.associateBy { it.id } }
+
+    // Keep the active 10-picture round stable during gameplay, while initializing on entry
+    // or topping up if additional cloud pictures arrive after opening.
+    LaunchedEffect(items) {
+        if (items.isEmpty()) {
+            sessionItemIds = emptyList()
+            return@LaunchedEffect
+        }
+        val validCurrentIds = sessionItemIds.filter { it in itemById }
+        val targetCount = minOf(PICTURE_VOCAB_ROUND_SIZE, items.size)
+        if (validCurrentIds.isEmpty()) {
+            startNewRound()
+        } else if (validCurrentIds.size < targetCount) {
+            val existingSet = validCurrentIds.toSet()
+            val extras = items
+                .filterNot { it.id in existingSet }
+                .sortedBy { if (it.id in PictureVocabRoundHistory.seenIds) 1 else 0 }
+                .take(targetCount - validCurrentIds.size)
+                .map { it.id }
+            if (extras.isNotEmpty()) {
+                val mergedIds = validCurrentIds + extras
+                sessionItemIds = mergedIds
+                PictureVocabRoundHistory.seenIds = PictureVocabRoundHistory.seenIds + extras
+                PictureVocabRoundHistory.lastRoundIds = mergedIds.toSet()
+            }
+        }
+    }
+
+    val sessionItems = remember(sessionItemIds, itemById, items) {
+        val resolved = sessionItemIds.mapNotNull { itemById[it] }
+        if (resolved.isNotEmpty()) resolved else items.take(PICTURE_VOCAB_ROUND_SIZE)
+    }
+
+    var itemIndex by remember(roundNumber) { mutableIntStateOf(0) }
+    var completedItemIds by remember(roundNumber) { mutableStateOf(setOf<String>()) }
+    val safeIndex = if (sessionItems.isNotEmpty()) itemIndex.coerceIn(0, sessionItems.lastIndex) else 0
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(roundNumber, safeIndex) {
+        scrollState.animateScrollTo(0)
+    }
 
     Box(
         modifier = modifier
@@ -313,28 +414,30 @@ fun PictureVocabGame(
                 .fillMaxSize()
                 .widthIn(max = 600.dp)
                 .align(Alignment.TopCenter)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Top Picture Vocabulary Header Row
             PictureVocabTopHeader(onClose = onClose)
 
-            if (items.isEmpty()) {
+            if (sessionItems.isEmpty()) {
                 PictureVocabEmptyStateCard()
             } else {
-                val safeIndex = itemIndex % items.size
-                val current = items[safeIndex]
+                val current = sessionItems[safeIndex]
                 val drawableRes = remember(current.correctWord) {
                     resolvePictureVocabDrawable(current.correctWord)
                 }
+                val shuffledOptions = remember(roundNumber, current.id) {
+                    current.options.shuffled()
+                }
 
-                var selectedOption by remember(current.id) { mutableStateOf<String?>(null) }
-                var isVerified by remember(current.id) { mutableStateOf<Boolean?>(null) }
-                var showSelectPrompt by remember(current.id) { mutableStateOf(false) }
-                var hasAwarded by remember(current.id) { mutableStateOf(false) }
-                var isWaveformPlaying by remember(current.id) { mutableStateOf(false) }
-                var showExpandedImage by remember(current.id) { mutableStateOf(false) }
+                var selectedOption by remember(roundNumber, current.id) { mutableStateOf<String?>(null) }
+                var isVerified by remember(roundNumber, current.id) { mutableStateOf<Boolean?>(null) }
+                var showSelectPrompt by remember(roundNumber, current.id) { mutableStateOf(false) }
+                var hasAwarded by remember(roundNumber, current.id) { mutableStateOf(false) }
+                var isWaveformPlaying by remember(roundNumber, current.id) { mutableStateOf(false) }
+                var showExpandedImage by remember(roundNumber, current.id) { mutableStateOf(false) }
 
                 LaunchedEffect(isWaveformPlaying) {
                     if (isWaveformPlaying) {
@@ -463,7 +566,7 @@ fun PictureVocabGame(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = "${safeIndex + 1} / ${items.size}",
+                                        text = "${safeIndex + 1} / ${sessionItems.size}",
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White,
@@ -517,12 +620,12 @@ fun PictureVocabGame(
                             clue = current.clue
                         )
 
-                        // 4 Radio Option Pills
+                        // 4 Radio Option Pills (options shuffled per round)
                         Column(
                             verticalArrangement = Arrangement.spacedBy(9.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            current.options.forEachIndexed { idx, opt ->
+                            shuffledOptions.forEachIndexed { idx, opt ->
                                 val isSelected = selectedOption == opt
                                 val isCorrectAnswer = opt.equals(current.correctWord, ignoreCase = true)
                                 PictureVocabOptionRow(
@@ -588,147 +691,259 @@ fun PictureVocabGame(
                             }
                         }
 
-                        // Action Buttons Row: Clear All + Verify Answer / Next Item
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 2.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Left Button: Clear All
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = Color.Transparent,
-                                border = BorderStroke(
-                                    1.3.dp,
-                                    Brush.horizontalGradient(
-                                        listOf(
-                                            Color(0xFF60A5FA).copy(alpha = 0.7f),
-                                            Color(0xFF475569).copy(alpha = 0.8f),
-                                            Color(0xFF6366F1).copy(alpha = 0.7f)
-                                        )
-                                    )
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(48.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .clickable {
-                                        selectedOption = null
-                                        isVerified = null
-                                        showSelectPrompt = false
-                                    }
-                                    .testTag("picture_vocab_clear_all_btn")
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                listOf(Color(0xFF0A1238), Color(0xFF101948))
-                                            )
-                                        ),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Refresh,
-                                        contentDescription = "Clear Selection",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(19.dp)
-                                    )
-                                    Spacer(Modifier.width(7.dp))
-                                    Text(
-                                        text = "Clear All",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
+                        val isRoundCompleted = isVerified == true &&
+                            safeIndex >= sessionItems.lastIndex &&
+                            completedItemIds.size >= sessionItems.size
 
-                            // Right Button: Verify Answer (transitions to Next Item once verified correct)
-                            val isReadyForNext = isVerified == true
+                        if (isRoundCompleted) {
                             Surface(
-                                shape = RoundedCornerShape(50),
-                                color = Color.Transparent,
-                                border = BorderStroke(
-                                    1.4.dp,
-                                    Brush.horizontalGradient(
-                                        listOf(Color(0xFFF0ABFC), Color(0xFF67E8F9))
-                                    )
-                                ),
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color(0xFF131444).copy(alpha = 0.94f),
+                                border = BorderStroke(1.3.dp, Color(0xFFFACC15).copy(alpha = 0.7f)),
                                 modifier = Modifier
-                                    .weight(1.28f)
-                                    .height(48.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .clickable {
-                                        if (isReadyForNext) {
-                                            itemIndex = (safeIndex + 1) % items.size
-                                            selectedOption = null
-                                            isVerified = null
-                                            showSelectPrompt = false
-                                            hasAwarded = false
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp)
+                                    .testTag("picture_vocab_round_completed_card")
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "🏆 Round Completed!",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 15.5.sp,
+                                        color = Color(0xFFFDE047)
+                                    )
+                                    Text(
+                                        text = if (items.size > sessionItems.size) {
+                                            "Awesome job completing all ${sessionItems.size} pictures! Tap Play Again for ${minOf(PICTURE_VOCAB_ROUND_SIZE, items.size)} different pictures."
                                         } else {
-                                            val chosen = selectedOption
-                                            if (chosen == null) {
-                                                showSelectPrompt = true
-                                            } else {
-                                                val correct = chosen.equals(current.correctWord, ignoreCase = true)
-                                                isVerified = correct
-                                                showSelectPrompt = false
-                                                if (correct) {
-                                                    if (!hasAwarded) {
-                                                        hasAwarded = true
-                                                        viewModel.rewardGameWin(40, 15)
-                                                    }
-                                                    viewModel.speakAudio(current.correctWord)
-                                                }
+                                            "Awesome job completing all ${sessionItems.size} pictures! Tap Play Again for a reshuffled round."
+                                        },
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFCBD5E1),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(50),
+                                            color = Color.Transparent,
+                                            border = BorderStroke(1.2.dp, Color(0xFF7DD3FC).copy(alpha = 0.85f)),
+                                            modifier = Modifier
+                                                .weight(1.28f)
+                                                .height(48.dp)
+                                                .clip(RoundedCornerShape(50))
+                                                .clickable { startNewRound() }
+                                                .testTag("picture_vocab_play_again_btn")
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(
+                                                        Brush.horizontalGradient(
+                                                            listOf(
+                                                                Color(0xFF9333EA),
+                                                                Color(0xFF3B82F6),
+                                                                Color(0xFF06B6D4)
+                                                            )
+                                                        )
+                                                    ),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Refresh,
+                                                    contentDescription = "Play Again",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(19.dp)
+                                                )
+                                                Spacer(Modifier.width(7.dp))
+                                                Text(
+                                                    text = "Play Again",
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 14.5.sp,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(50),
+                                            color = Color(0xFF0A1238),
+                                            border = BorderStroke(1.2.dp, Color(0xFF94A3B8).copy(alpha = 0.75f)),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(48.dp)
+                                                .clip(RoundedCornerShape(50))
+                                                .clickable { onClose() }
+                                                .testTag("picture_vocab_done_btn")
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = "Done",
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 14.sp,
+                                                    maxLines = 1
+                                                )
                                             }
                                         }
                                     }
-                                    .testTag("picture_vocab_verify_btn")
+                                }
+                            }
+                        } else {
+                            // Action Buttons Row: Clear All + Verify Answer / Next Picture
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(
-                                            Brush.horizontalGradient(
-                                                if (isReadyForNext) {
-                                                    listOf(
-                                                        Color(0xFF10B981),
-                                                        Color(0xFF06B6D4),
-                                                        Color(0xFF3B82F6)
-                                                    )
-                                                } else {
-                                                    listOf(
-                                                        Color(0xFFC026D3),
-                                                        Color(0xFF8B5CF6),
-                                                        Color(0xFF3B82F6),
-                                                        Color(0xFF06B6D4)
-                                                    )
-                                                }
+                                // Left Button: Clear All
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = Color.Transparent,
+                                    border = BorderStroke(
+                                        1.3.dp,
+                                        Brush.horizontalGradient(
+                                            listOf(
+                                                Color(0xFF60A5FA).copy(alpha = 0.7f),
+                                                Color(0xFF475569).copy(alpha = 0.8f),
+                                                Color(0xFF6366F1).copy(alpha = 0.7f)
                                             )
-                                        ),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
+                                        )
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .clickable {
+                                            selectedOption = null
+                                            isVerified = null
+                                            showSelectPrompt = false
+                                        }
+                                        .testTag("picture_vocab_clear_all_btn")
                                 ) {
-                                    Icon(
-                                        imageVector = if (isReadyForNext) Icons.AutoMirrored.Rounded.ArrowForward else Icons.Rounded.Check,
-                                        contentDescription = if (isReadyForNext) "Next Item" else "Verify Answer",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(Modifier.width(7.dp))
-                                    Text(
-                                        text = if (isReadyForNext) "Next Picture" else "Verify Answer",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 14.5.sp,
-                                        maxLines = 1
-                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    listOf(Color(0xFF0A1238), Color(0xFF101948))
+                                                )
+                                            ),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Refresh,
+                                            contentDescription = "Clear Selection",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(19.dp)
+                                        )
+                                        Spacer(Modifier.width(7.dp))
+                                        Text(
+                                            text = "Clear All",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+
+                                // Right Button: Verify Answer (transitions to Next Picture once verified correct)
+                                val isReadyForNext = isVerified == true
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = Color.Transparent,
+                                    border = BorderStroke(
+                                        1.4.dp,
+                                        Brush.horizontalGradient(
+                                            listOf(Color(0xFFF0ABFC), Color(0xFF67E8F9))
+                                        )
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1.28f)
+                                        .height(48.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .clickable {
+                                            if (isReadyForNext) {
+                                                itemIndex = (safeIndex + 1) % sessionItems.size
+                                                selectedOption = null
+                                                isVerified = null
+                                                showSelectPrompt = false
+                                                hasAwarded = false
+                                            } else {
+                                                val chosen = selectedOption
+                                                if (chosen == null) {
+                                                    showSelectPrompt = true
+                                                } else {
+                                                    val correct = chosen.equals(current.correctWord, ignoreCase = true)
+                                                    isVerified = correct
+                                                    showSelectPrompt = false
+                                                    if (correct) {
+                                                        completedItemIds = completedItemIds + current.id
+                                                        if (!hasAwarded) {
+                                                            hasAwarded = true
+                                                            viewModel.rewardGameWin(40, 15)
+                                                        }
+                                                        viewModel.speakAudio(current.correctWord)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        .testTag("picture_vocab_verify_btn")
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                Brush.horizontalGradient(
+                                                    if (isReadyForNext) {
+                                                        listOf(
+                                                            Color(0xFF10B981),
+                                                            Color(0xFF06B6D4),
+                                                            Color(0xFF3B82F6)
+                                                        )
+                                                    } else {
+                                                        listOf(
+                                                            Color(0xFFC026D3),
+                                                            Color(0xFF8B5CF6),
+                                                            Color(0xFF3B82F6),
+                                                            Color(0xFF06B6D4)
+                                                        )
+                                                    }
+                                                )
+                                            ),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isReadyForNext) Icons.AutoMirrored.Rounded.ArrowForward else Icons.Rounded.Check,
+                                            contentDescription = if (isReadyForNext) "Next Picture" else "Verify Answer",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(Modifier.width(7.dp))
+                                        Text(
+                                            text = if (isReadyForNext) "Next Picture" else "Verify Answer",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 14.5.sp,
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                             }
                         }
