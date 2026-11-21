@@ -692,33 +692,12 @@ private fun NovaAssistantTopBar(
                     .size(48.dp)
                     .testTag("nova_gemini_history_btn")
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Rounded.History,
-                        contentDescription = "Chat History",
-                        tint = if (historyCount > 0) Color(0xFFC4B5FD) else Color(0xFF94A3B8),
-                        modifier = Modifier.size(21.dp)
-                    )
-                    if (historyCount > 0) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 6.dp, y = (-5).dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF06B6D4))
-                                .padding(horizontal = 4.dp, vertical = 1.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (historyCount > 9) "9+" else "$historyCount",
-                                fontSize = 8.5.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF090D26),
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
+                Icon(
+                    imageVector = Icons.Rounded.History,
+                    contentDescription = "Chat History",
+                    tint = if (historyCount > 0) Color(0xFFE0E7FF) else Color(0xFF94A3B8),
+                    modifier = Modifier.size(21.dp)
+                )
             }
             IconButton(onClick = onToggleVoice, modifier = Modifier.size(48.dp).testTag("nova_gemini_voice_toggle_btn")) {
                 Icon(if (voiceReplyEnabled) Icons.Rounded.VolumeUp else Icons.Rounded.VolumeOff, if (voiceReplyEnabled) "Disable Voice Reply" else "Enable Voice Reply", tint = if (voiceReplyEnabled) Color(0xFF67E8F9) else Color(0xFF94A3B8), modifier = Modifier.size(20.dp))
