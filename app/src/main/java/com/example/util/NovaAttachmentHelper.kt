@@ -3,12 +3,15 @@ package com.example.util
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.util.Base64
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
@@ -29,7 +32,7 @@ data class NovaAttachment(
 
 object NovaAttachmentHelper {
 
-    private const val MAX_IMAGE_DIMENSION = 1280
+    private const val MAX_IMAGE_DIMENSION = 1800
     private const val MAX_THUMBNAIL_DIMENSION = 360
     private const val MAX_PDF_BYTES = 6 * 1024 * 1024
     private const val MAX_TEXT_CHARS = 24000
@@ -70,12 +73,16 @@ object NovaAttachmentHelper {
             if (isImage) {
                 val rawBytes = resolver.openInputStream(uri)?.use { it.readBytes() }
                     ?: return@withContext Result.failure(IllegalStateException("Could not read selected image."))
-                val decoded = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size)
+                val rawDecoded = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size)
                     ?: return@withContext Result.failure(IllegalStateException("Unsupported image format."))
+                val decoded = applyExifOrientation(rawDecoded, rawBytes)
+                if (decoded !== rawDecoded) {
+                    rawDecoded.recycle()
+                }
 
                 val scaled = scaleBitmapIfNeeded(decoded, MAX_IMAGE_DIMENSION)
                 val out = ByteArrayOutputStream()
-                scaled.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                scaled.compress(Bitmap.CompressFormat.JPEG, 92, out)
                 val jpegBytes = out.toByteArray()
                 val base64 = Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
                 val thumb = scaleBitmapIfNeeded(scaled, MAX_THUMBNAIL_DIMENSION)
@@ -182,6 +189,28 @@ object NovaAttachmentHelper {
             }
         } catch (_: Exception) {
             null
+        }
+    }
+
+    private fun applyExifOrientation(bitmap: Bitmap, rawBytes: ByteArray): Bitmap {
+        return try {
+            val exif = ExifInterface(ByteArrayInputStream(rawBytes))
+            val orientation = exif.getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )
+            val matrix = Matrix()
+            when (orientation) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+                ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+                ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+                ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.preScale(-1f, 1f)
+                ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.preScale(1f, -1f)
+                else -> return bitmap
+            }
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        } catch (_: Exception) {
+            bitmap
         }
     }
 

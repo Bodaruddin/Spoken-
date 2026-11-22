@@ -1401,6 +1401,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _novaGeminiMode = MutableStateFlow("General AI")
     val novaGeminiMode: StateFlow<String> = _novaGeminiMode.asStateFlow()
 
+    private val _novaGeminiLanguage = MutableStateFlow(appPreferences.getNovaGeminiLanguage())
+    val novaGeminiLanguage: StateFlow<String> = _novaGeminiLanguage.asStateFlow()
+
     private val _novaGeminiModelUsed = MutableStateFlow("")
     val novaGeminiModelUsed: StateFlow<String> = _novaGeminiModelUsed.asStateFlow()
 
@@ -2654,6 +2657,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _novaGeminiMode.value = mode
     }
 
+    fun setNovaGeminiLanguage(language: String) {
+        val clean = language.trim().ifBlank { "Auto" }
+        _novaGeminiLanguage.value = clean
+        appPreferences.setNovaGeminiLanguage(clean)
+    }
+
     fun addNovaAttachment(attachment: com.example.util.NovaAttachment) {
         val current = _pendingNovaAttachments.value
         if (current.size >= 4) {
@@ -2714,9 +2723,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val studentClass = currentUser.value.studentClass
             val cefrLevel = studentProfile.value.currentLevel.cefr.ifBlank { "B1" }
             val activeMode = _novaGeminiMode.value
+            val activeLanguage = _novaGeminiLanguage.value
 
             val (replyText, usedModel) = if (isGeminiApiKeyConfigured()) {
-                val aiResult = kotlinx.coroutines.withTimeoutOrNull(60000L) {
+                val aiResult = kotlinx.coroutines.withTimeoutOrNull(65000L) {
                     if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
                         GeminiSpeechEvaluator.askNovaGeminiCustomEndpoint(
                             endpointUrl = _customEndpointUrl.value,
@@ -2728,7 +2738,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             studentName = studentName,
                             studentClass = studentClass,
                             cefrLevel = cefrLevel,
-                            mode = activeMode
+                            mode = activeMode,
+                            responseLanguage = activeLanguage
                         )
                     } else {
                         GeminiSpeechEvaluator.askNovaGemini(
@@ -2740,7 +2751,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             studentClass = studentClass,
                             cefrLevel = cefrLevel,
                             mode = activeMode,
-                            model = _activeAiModel.value
+                            model = _activeAiModel.value,
+                            responseLanguage = activeLanguage
                         )
                     }
                 } ?: Result.failure(Exception("Request timed out. Please try again."))
@@ -2790,9 +2802,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isNovaGeminiThinking.value = false
 
             if (_aiVoiceReplyEnabled.value) {
-                val cleanedForSpeech = replyText
-                    .replace(Regex("```[\\s\\S]*?```"), " Here is the code example. ")
-                    .replace(Regex("[*#`_]"), "")
+                val cleanedForSpeech = com.example.ui.components.NovaRichTextFormatter.formatForSpeech(replyText)
                 val spokenPreview = HumanConversationEngine.buildSpokenAudioPrompt(
                     cleanedForSpeech.lineSequence().take(6).joinToString(" "),
                     null

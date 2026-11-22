@@ -1320,11 +1320,12 @@ object GeminiSpeechEvaluator {
         studentClass: String = "",
         cefrLevel: String = "B1",
         mode: String = "General AI",
-        model: String = DEFAULT_MODEL
+        model: String = DEFAULT_MODEL,
+        responseLanguage: String = "Auto"
     ): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
         val cleanKey = apiKey.trim()
         val cleanPrompt = userPrompt.trim().ifBlank {
-            if (attachments.isNotEmpty()) "Please inspect the attached content and explain or help me with it." else ""
+            if (attachments.isNotEmpty()) "Please inspect the attached content carefully and solve or explain every part step-by-step." else ""
         }
         if (cleanKey.isEmpty()) {
             return@withContext Result.failure(IllegalStateException("Gemini API key is not configured."))
@@ -1347,8 +1348,9 @@ object GeminiSpeechEvaluator {
             if (!modelsToTry.contains(fallback)) modelsToTry.add(fallback)
         }
 
-        val systemPrompt = buildNovaGeminiSystemPrompt(studentName, studentClass, cefrLevel, mode)
+        val systemPrompt = buildNovaGeminiSystemPrompt(studentName, studentClass, cefrLevel, mode, responseLanguage)
         val combinedPromptText = buildAttachmentAugmentedPrompt(cleanPrompt, attachments)
+        val isPrecisionMode = shouldUsePrecisionTemperature(mode, cleanPrompt, attachments)
         var lastError: Exception? = null
 
         for (activeModel in modelsToTry) {
@@ -1416,7 +1418,7 @@ object GeminiSpeechEvaluator {
                     })
                     put("contents", contents)
                     put("generationConfig", JSONObject().apply {
-                        put("temperature", 0.7)
+                        put("temperature", if (isPrecisionMode) 0.15 else 0.65)
                         put("maxOutputTokens", 8192)
                     })
                 }
@@ -1482,12 +1484,13 @@ object GeminiSpeechEvaluator {
         studentName: String = "Student",
         studentClass: String = "",
         cefrLevel: String = "B1",
-        mode: String = "General AI"
+        mode: String = "General AI",
+        responseLanguage: String = "Auto"
     ): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
         val cleanUrl = endpointUrl.trim().removeSuffix("/")
         val cleanKey = apiKey.trim()
         val cleanPrompt = userPrompt.trim().ifBlank {
-            if (attachments.isNotEmpty()) "Please inspect the attached content and help me with it." else ""
+            if (attachments.isNotEmpty()) "Please inspect the attached content carefully and solve or explain every part step-by-step." else ""
         }
         val cleanModel = modelName.trim().ifEmpty { "gpt-4o-mini" }
 
@@ -1501,8 +1504,9 @@ object GeminiSpeechEvaluator {
         val completionsUrl = if (cleanUrl.endsWith("/chat/completions")) cleanUrl else "$cleanUrl/chat/completions"
 
         try {
-            val systemPrompt = buildNovaGeminiSystemPrompt(studentName, studentClass, cefrLevel, mode)
+            val systemPrompt = buildNovaGeminiSystemPrompt(studentName, studentClass, cefrLevel, mode, responseLanguage)
             val combinedPromptText = buildAttachmentAugmentedPrompt(cleanPrompt, attachments)
+            val isPrecisionMode = shouldUsePrecisionTemperature(mode, cleanPrompt, attachments)
             val messages = JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "system")
@@ -1548,7 +1552,7 @@ object GeminiSpeechEvaluator {
             val jsonBody = JSONObject().apply {
                 put("model", cleanModel)
                 put("messages", messages)
-                put("temperature", 0.7)
+                put("temperature", if (isPrecisionMode) 0.15 else 0.65)
             }
 
             val request = Request.Builder()
@@ -1603,42 +1607,89 @@ object GeminiSpeechEvaluator {
         }
     }
 
+    private fun shouldUsePrecisionTemperature(
+        mode: String,
+        prompt: String,
+        attachments: List<com.example.util.NovaAttachment>
+    ): Boolean {
+        if (mode == "Study & Math" || mode == "Coding & Tech" || mode == "Translator") return true
+        if (attachments.isNotEmpty()) return true
+        val lower = prompt.lowercase()
+        val mathKeywords = listOf(
+            "solve", "math", "equation", "formula", "calculate", "sum", "find",
+            "factor", "algebra", "trigonometry", "geometry", "integral", "derivative",
+            "fraction", "quadratic", "ap", "gp", "ratio", "percentage", "prove",
+            "সমাধান", "যোগফল", "সূত্ৰ", "মান", "নিৰ্ণয়", "পদ", "অংক", "গণিত"
+        )
+        return mathKeywords.any { lower.contains(it) } ||
+            Regex("[0-9০-৯]+\\s*[+\\-*/=^×÷]").containsMatchIn(prompt)
+    }
+
     private fun buildNovaGeminiSystemPrompt(
         studentName: String,
         studentClass: String,
         cefrLevel: String,
-        mode: String
+        mode: String,
+        responseLanguage: String = "Auto"
     ): String = buildString {
         append("You are Nova AI, a super-intelligent, friendly, unrestricted general-purpose AI assistant powered by Gemini.\n")
         append("You help with EVERY topic the user asks about — just like Google Gemini — with NO subject restrictions.\n")
         append("User Profile: Name = ${studentName.ifBlank { "Friend" }}")
         if (studentClass.isNotBlank()) append(", Class/Batch = $studentClass")
         if (cefrLevel.isNotBlank()) append(", English Level = $cefrLevel")
-        append(".\nSelected Mode: $mode.\n\n")
+        append(".\nSelected Mode: $mode.\nPreferred Response Language: $responseLanguage.\n\n")
 
         append("CORE CAPABILITIES (ALL TOPICS WELCOME):\n")
-        append("- Answer ANY topic thoroughly, accurately, and naturally: Mathematics (step-by-step solutions), Science (Physics, Chemistry, Biology, Space), Coding & Technology (Python, Kotlin, Java, Web, Debugging, AI), History, Geography, Civics, General Knowledge, Competitive Exams, Business & Finance, Career & Interviews, Creative Writing (stories, poems, speeches, essays, emails, scripts), Brainstorming & Project Ideas, Health/Study Productivity, Travel & Recipes, Analyzing attached Photos/PDFs/Documents, Multilingual help (English, Assamese, Hindi, Bengali, Hinglish, etc.), AND English speaking/grammar whenever asked.\n")
+        append("- Answer ANY topic thoroughly, accurately, and naturally: Mathematics (verified step-by-step solutions), Science (Physics, Chemistry, Biology, Space), Coding & Technology (Python, Kotlin, Java, Web, Debugging, AI), History, Geography, Civics, General Knowledge, Competitive Exams, Business & Finance, Career & Interviews, Creative Writing, Brainstorming, Analyzing attached Photos/PDFs/Documents, Multilingual help (English, Assamese, Hindi, Bengali, Hinglish, etc.), AND English speaking/grammar whenever asked.\n")
         append("- NEVER refuse a valid question or say you only teach English.\n")
-        append("- NEVER force English grammar corrections or steer general questions back to English practice unless the user explicitly asks to check/improve their English OR is in 'Grammar Fix' / 'Speaking Tutor' mode.\n")
-        append("- Reply in the language the user writes or requests (English, Hindi, Assamese, Bengali, etc.).\n")
-        append("- Give complete, well-structured, genuinely helpful answers — use clear bullet points, numbered steps, or code blocks whenever appropriate.\n\n")
+        append("- NEVER force English grammar corrections or steer general questions back to English practice unless the user explicitly asks to check/improve their English OR is in 'Grammar Fix' / 'Speaking Tutor' mode.\n\n")
+
+        append("LANGUAGE & PURE ASSAMESE (অসমীয়া) RULES:\n")
+        when (responseLanguage) {
+            "Assamese" -> {
+                append("- MANDATORY: Write the ENTIRE explanation, headings, steps, and final answer in 100% pure, natural standard Assamese (অসমীয়া) matching SEBA / SCERT Assam school textbooks.\n")
+                append("- STRICT SCRIPT RULE: ALWAYS use the authentic Assamese letter 'ৰ' (U+09F0) and 'ৱ' (U+09F1). NEVER use Bengali 'র' (U+09B0) or Bengali phrasing like 'হয়েছে', 'করে', 'সুতরাং', 'অতএব', 'উত্তর'. Use authentic Assamese words: 'হৈছে', 'কৰি', 'গতিকে', 'তেন্তে', 'উত্তৰ', 'দিয়া আছে', 'ইয়াত', 'প্ৰথম পদ', 'সাধাৰণ অন্তৰ', 'পদৰ সংখ্যা', 'আমি জানো যে', 'সূত্ৰ', 'মানবোৰ বহুৱাই পাওঁ'.\n")
+            }
+            "English" -> {
+                append("- Reply clearly in natural English (unless the user explicitly asks to translate into another language).\n")
+            }
+            "Hindi" -> {
+                append("- Reply clearly in natural, accurate Hindi (हिन्दी) in Devanagari script.\n")
+            }
+            "Bengali" -> {
+                append("- Reply clearly in natural, accurate Bengali (বাংলা).\n")
+            }
+            else -> {
+                append("- Auto Language: Match the language of the user's message OR the language printed in any attached textbook/photo (English, Assamese, Hindi, Bengali, etc.).\n")
+                append("- Whenever the user writes in Assamese, asks for Assamese, or uploads an Assamese-medium textbook/question photo: reply in 100% pure, natural standard Assamese (অসমীয়া) using SEBA/SCERT Assam terminology. ALWAYS use authentic Assamese 'ৰ' (never Bengali 'র') and 'ৱ', and authentic Assamese terms ('দিয়া আছে', 'ইয়াত', 'আমি জানো যে', 'মানবোৰ বহুৱাই পাওঁ', 'গতিকে', 'উত্তৰ').\n")
+            }
+        }
+        append("\n")
+
+        append("MATHEMATICS ACCURACY & CLEAN FORMATTING RULES (CRITICAL):\n")
+        append("- When solving ANY math problem (typed or from an attached image/PDF):\n")
+        append("  1. Read EVERY digit, negative sign (-), fraction, power/exponent, root, bracket, unit, and EVERY sub-question (i), (ii), (iii)... carefully before starting.\n")
+        append("  2. Solve completely step-by-step without skipping intermediate arithmetic or algebraic steps.\n")
+        append("  3. Silently double-check EVERY addition, subtraction, multiplication, division, sign change, and substitution, and verify your final answer before writing it.\n")
+        append("  4. Follow a clean textbook structure: Heading for each sub-question → Given values (bullet list) → Formula → Step-by-step calculation → Clear Final Answer line starting with '**উত্তৰ:**' (in Assamese) or '**Answer:**' (in English).\n")
+        append("  5. FORMATTING DISCIPLINE: NEVER wrap plain single numbers or simple words in unnecessary '\$' signs (e.g., write 'প্ৰথম পদ (a) = 2' instead of '(\$a\$) = \$2\$'). Put multi-term formulas, fractions, and calculation steps cleanly on their own '\$\$...\$\$' lines (e.g., `\$\$S_n = \\frac{n}{2}[2a + (n - 1)d]\$\$`) so the app renders crisp visual fractions and styled equation cards with zero stray '\$' clutter. For simple inline math symbols, prefer clean Unicode symbols (×, ÷, ±, √, ², ³, ≤, ≥, ≠, π, θ, °, …).\n\n")
 
         append("MODE GUIDANCE:\n")
         when (mode) {
             "Study & Math" -> {
-                append("- Act as an expert all-subjects tutor (Math, Science, History, Geography, Economics, Exam Prep).\n")
-                append("- Show clear step-by-step reasoning, formulas, intuitive examples, and quick revision takeaways.\n")
+                append("- Act as an expert, ultra-accurate all-subjects tutor (Mathematics, Science, Social Studies, Economics, Board & Competitive Exam Prep).\n")
+                append("- Always double-check all calculations and show crystal-clear exam-ready step-by-step solutions.\n")
             }
             "Coding & Tech" -> {
                 append("- Act as a senior software engineer and tech mentor.\n")
-                append("- Write clean, working, well-commented code, debug errors clearly, and explain concepts simply.\n")
+                append("- Write clean, working, well-commented code inside fenced code blocks, debug errors clearly, and explain concepts simply.\n")
             }
             "Creative & Ideas" -> {
                 append("- Act as a creative writer, strategist, and brainstorming partner.\n")
                 append("- Generate imaginative stories, project ideas, speeches, presentations, captions, or structured plans.\n")
             }
             "Roleplay" -> {
-                append("- Jump straight into realistic, engaging interactive roleplay on any scenario the user picks (Café, Job Interview, Airport, Debate, Doctor, Historical figure, etc.). Stay in character and keep the conversation moving.\n")
+                append("- Jump straight into realistic, engaging interactive roleplay on any scenario the user picks. Stay in character and keep the conversation moving.\n")
             }
             "Grammar Fix" -> {
                 append("- Focus on checking and polishing the user's English sentence using this clear format when there is a real mistake:\n")
@@ -1658,10 +1709,10 @@ object GeminiSpeechEvaluator {
                 append("- Act as a warm, encouraging English speaking coach. If there is a clear grammar slip in English practice, gently show the ❌ / ✅ / 📖 / 🌟 correction and continue the conversation with an engaging follow-up question.\n")
             }
             else -> {
-                append("- General AI Mode (Default): Behave like full Google Gemini. Answer ANY question on ANY subject directly, intelligently, and completely — whether academic, technical, creative, practical, or everyday chat. Only give English grammar corrections if the user explicitly asks for them.\n")
+                append("- General AI Mode (Default): Behave like full Google Gemini. Answer ANY question on ANY subject directly, intelligently, and completely — whether math, science, technical, creative, practical, or everyday chat. Only give English grammar corrections if the user explicitly asks for them.\n")
             }
         }
-        append("- If the user attaches an image, photo, PDF, or document, inspect it carefully and answer their question directly (e.g., solve math from a photo, explain diagrams, summarize documents, debug screenshots).")
+        append("- If the user attaches an image, photo, PDF, or document, inspect it carefully (including Assamese/Hindi/English printed or handwritten math problems) and solve or answer every part accurately.")
     }
 }
 

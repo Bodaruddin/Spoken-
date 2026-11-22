@@ -2169,6 +2169,14 @@ class AppPreferences(context: Context) {
             .apply()
     }
 
+    fun getNovaGeminiLanguage(): String {
+        return prefs.getString("nova_gemini_response_language", "Auto")?.takeIf { it.isNotBlank() } ?: "Auto"
+    }
+
+    fun setNovaGeminiLanguage(language: String) {
+        prefs.edit().putString("nova_gemini_response_language", language.trim().ifBlank { "Auto" }).apply()
+    }
+
     fun getNovaMilestoneTarget(): Int {
         return prefs.getInt(KEY_NOVA_MILESTONE_TARGET, 5)
     }

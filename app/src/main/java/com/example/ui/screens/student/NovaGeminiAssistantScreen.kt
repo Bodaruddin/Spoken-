@@ -63,6 +63,8 @@ import com.example.data.model.NovaChatMessage
 import com.example.service.SpeechState
 import com.example.ui.MainViewModel
 import com.example.ui.StudentTab
+import com.example.ui.components.NovaRichMessageContent
+import com.example.ui.components.NovaRichTextFormatter
 import com.example.util.NovaAttachment
 import com.example.util.NovaAttachmentHelper
 import kotlinx.coroutines.launch
@@ -80,6 +82,7 @@ fun NovaGeminiAssistantScreen(
     val activeSessionId by viewModel.activeNovaGeminiSessionId.collectAsState()
     val isThinking by viewModel.isNovaGeminiThinking.collectAsState()
     val activeMode by viewModel.novaGeminiMode.collectAsState()
+    val responseLanguage by viewModel.novaGeminiLanguage.collectAsState()
     val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
     val voiceReplyEnabled by viewModel.aiVoiceReplyEnabled.collectAsState()
     val selectedPersona by viewModel.novaVoicePersona.collectAsState()
@@ -98,6 +101,7 @@ fun NovaGeminiAssistantScreen(
     var showAttachmentOptions by remember { mutableStateOf(false) }
     var showVoiceStudio by remember { mutableStateOf(false) }
     var showHistorySheet by remember { mutableStateOf(false) }
+    var showLanguageMenu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     BackHandler { viewModel.selectStudentTab(StudentTab.HOME) }
@@ -231,14 +235,101 @@ fun NovaGeminiAssistantScreen(
             }
         )
 
-        // 2. Mode Chips Strip
+        // 2. Mode Chips + Response Language Selector Strip
+        val languageOptions = remember {
+            listOf(
+                "Auto" to "🌐 Auto",
+                "Assamese" to "অসমীয়া",
+                "English" to "English",
+                "Hindi" to "हिन्दी",
+                "Bengali" to "বাংলা"
+            )
+        }
+        val activeLanguageLabel = languageOptions.firstOrNull { it.first == responseLanguage }?.second ?: "🌐 Auto"
+
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp, bottom = 4.dp),
             contentPadding = PaddingValues(horizontal = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            item {
+                Box {
+                    val isCustomLang = responseLanguage != "Auto"
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = if (isCustomLang) Color(0xFF0F4C5C) else Color(0xFF1A1242),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isCustomLang) Color(0xFF2DD4BF) else Color(0xFF6366F1).copy(alpha = 0.7f)
+                        ),
+                        modifier = Modifier
+                            .clickable { showLanguageMenu = true }
+                            .testTag("nova_language_selector_btn")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Translate,
+                                contentDescription = "Response Language",
+                                tint = if (isCustomLang) Color(0xFF5EEAD4) else Color(0xFF67E8F9),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = "$activeLanguageLabel ▾",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = showLanguageMenu,
+                        onDismissRequest = { showLanguageMenu = false },
+                        modifier = Modifier.background(Color(0xFF18113A))
+                    ) {
+                        languageOptions.forEach { (key, label) ->
+                            val isSelected = responseLanguage == key
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            text = if (key == "Assamese") "অসমীয়া (Assamese)" else label,
+                                            fontSize = 13.5.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) Color(0xFF5EEAD4) else Color.White
+                                        )
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Check,
+                                                contentDescription = "Selected",
+                                                tint = Color(0xFF5EEAD4),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    viewModel.setNovaGeminiLanguage(key)
+                                    showLanguageMenu = false
+                                    val confirmLabel = if (key == "Assamese") "অসমীয়া (Assamese)" else key
+                                    Toast.makeText(context, "Nova AI language: $confirmLabel", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
             items(modes) { (modeName, emoji) ->
                 val selected = activeMode == modeName
                 Surface(
@@ -300,13 +391,14 @@ fun NovaGeminiAssistantScreen(
                                 activeSpeakingMessageId = null
                             } else {
                                 activeSpeakingMessageId = msg.id
-                                viewModel.speakAudio(msg.text)
+                                viewModel.speakAudio(NovaRichTextFormatter.formatForSpeech(msg.text))
                             }
                         },
                         onCopy = {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("Nova AI Response", msg.text))
-                            Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                            val cleanCopy = NovaRichTextFormatter.formatForPlainCopy(msg.text)
+                            clipboard.setPrimaryClip(ClipData.newPlainText("Nova AI Response", cleanCopy))
+                            Toast.makeText(context, "Copied clean solution to clipboard", Toast.LENGTH_SHORT).show()
                         }
                     )
                 } else {
@@ -889,7 +981,7 @@ private fun NovaGeminiResponseCard(
                 }
             }
             SelectionContainer {
-                Text(text = message.text, fontSize = 14.sp, color = Color(0xFFF1F5F9), lineHeight = 21.sp)
+                NovaRichMessageContent(rawText = message.text)
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(
