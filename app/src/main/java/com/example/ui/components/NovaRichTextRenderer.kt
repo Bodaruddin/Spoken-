@@ -254,7 +254,9 @@ private fun MathExpressionRow(rawLatex: String) {
                 is MathVisualToken.Fraction -> {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        modifier = Modifier
+                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                            .width(IntrinsicSize.Max)
                     ) {
                         Text(
                             text = buildMathAnnotatedString(token.numerator),
@@ -263,18 +265,13 @@ private fun MathExpressionRow(rawLatex: String) {
                             color = Color(0xFF7DD3FC),
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                            modifier = Modifier.padding(horizontal = 5.dp)
                         )
                         Box(
                             modifier = Modifier
                                 .padding(vertical = 2.dp)
+                                .fillMaxWidth()
                                 .widthIn(min = 24.dp)
-                                .width(
-                                    (maxOf(
-                                        token.numerator.length,
-                                        token.denominator.length
-                                    ).coerceIn(2, 22) * 8 + 10).dp
-                                )
                                 .height(1.5.dp)
                                 .background(Color(0xFF38BDF8))
                         )
@@ -285,7 +282,7 @@ private fun MathExpressionRow(rawLatex: String) {
                             color = Color(0xFF7DD3FC),
                             fontWeight = FontWeight.SemiBold,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                            modifier = Modifier.padding(horizontal = 5.dp)
                         )
                     }
                 }
@@ -672,13 +669,31 @@ private fun buildInlineAnnotatedString(
     val prepped = text
         .replace(Regex("""\\\((.+?)\\\)""")) { m -> "$${m.groupValues[1].trim()}$" }
 
+    val baseSpan = SpanStyle(
+        color = baseColor,
+        fontWeight = if (baseBold) FontWeight.Bold else FontWeight.Normal
+    )
+
     return buildAnnotatedString {
+        // CRITICAL for Assamese/Bengali/Hindi (Indic) HarfBuzz shaping:
+        // Buffer contiguous plain characters and flush them as ONE single span run
+        // instead of wrapping each individual Char in its own SpanStyle (which breaks conjuncts & matras).
+        val plainBuf = StringBuilder()
+        fun flushPlain() {
+            if (plainBuf.isNotEmpty()) {
+                withStyle(baseSpan) {
+                    append(plainBuf.toString())
+                }
+                plainBuf.clear()
+            }
+        }
+
         val len = prepped.length
         var i = 0
         while (i < len) {
             // 1. Escaped dollar \$ -> literal $
             if (prepped[i] == '\\' && i + 1 < len && prepped[i + 1] == '$') {
-                append('$')
+                plainBuf.append('$')
                 i += 2
                 continue
             }
@@ -687,6 +702,7 @@ private fun buildInlineAnnotatedString(
             if (prepped[i] == '$' && (i + 1 < len && prepped[i + 1] != '$')) {
                 val close = findClosingInlineDollar(prepped, i + 1)
                 if (close > i + 1) {
+                    flushPlain()
                     val mathInner = prepped.substring(i + 1, close)
                     val renderedMath = NovaLatexConverter.toReadableInlineMath(mathInner)
                     appendMathStyled(
@@ -703,6 +719,7 @@ private fun buildInlineAnnotatedString(
             if (prepped[i] == '`') {
                 val close = prepped.indexOf('`', i + 1)
                 if (close > i + 1) {
+                    flushPlain()
                     withStyle(
                         SpanStyle(
                             fontFamily = FontFamily.Monospace,
@@ -723,6 +740,7 @@ private fun buildInlineAnnotatedString(
                 val delim = prepped.substring(i, i + 2)
                 val close = prepped.indexOf(delim, i + 2)
                 if (close > i + 2) {
+                    flushPlain()
                     val inner = prepped.substring(i + 2, close)
                     val nested = buildInlineAnnotatedString(
                         text = inner,
@@ -743,6 +761,7 @@ private fun buildInlineAnnotatedString(
             if (i + 1 < len && prepped[i] == '~' && prepped[i + 1] == '~') {
                 val close = prepped.indexOf("~~", i + 2)
                 if (close > i + 2) {
+                    flushPlain()
                     withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough, color = baseColor.copy(alpha = 0.7f))) {
                         append(prepped.substring(i + 2, close))
                     }
@@ -755,6 +774,7 @@ private fun buildInlineAnnotatedString(
             if (prepped[i] == '*' && i + 1 < len && !prepped[i + 1].isWhitespace() && prepped[i + 1] != '*') {
                 val close = prepped.indexOf('*', i + 1)
                 if (close > i + 1 && !prepped[close - 1].isWhitespace()) {
+                    flushPlain()
                     val inner = prepped.substring(i + 1, close)
                     withStyle(SpanStyle(fontStyle = FontStyle.Italic, color = baseColor)) {
                         append(NovaLatexConverter.cleanStrayLatexInText(inner))
@@ -768,6 +788,7 @@ private fun buildInlineAnnotatedString(
             if (prepped[i] == '\\' && i + 1 < len && prepped[i + 1].isLetter()) {
                 val (converted, consumedLen) = NovaLatexConverter.consumeInlineLatexCommand(prepped, i)
                 if (consumedLen > 0) {
+                    flushPlain()
                     withStyle(SpanStyle(color = mathColor, fontWeight = FontWeight.Medium)) {
                         append(converted)
                     }
@@ -776,17 +797,11 @@ private fun buildInlineAnnotatedString(
                 }
             }
 
-            // Regular character
-            withStyle(
-                SpanStyle(
-                    color = baseColor,
-                    fontWeight = if (baseBold) FontWeight.Bold else FontWeight.Normal
-                )
-            ) {
-                append(prepped[i])
-            }
+            // Buffer regular characters together so Indic/Assamese shaping stays unbroken
+            plainBuf.append(prepped[i])
             i++
         }
+        flushPlain()
     }
 }
 
@@ -838,6 +853,17 @@ private fun AnnotatedString.Builder.appendMathStyled(
     fontWeight: FontWeight,
     scriptSize: TextUnit = 11.sp
 ) {
+    val baseSpan = SpanStyle(color = color, fontWeight = fontWeight)
+    val mathBuf = StringBuilder()
+    fun flushMath() {
+        if (mathBuf.isNotEmpty()) {
+            withStyle(baseSpan) {
+                append(mathBuf.toString())
+            }
+            mathBuf.clear()
+        }
+    }
+
     var i = 0
     while (i < text.length) {
         if ((text[i] == '^' || text[i] == '_') && i + 1 < text.length) {
@@ -848,6 +874,7 @@ private fun AnnotatedString.Builder.appendMathStyled(
                 text[i + 1].toString() to (i + 2)
             }
             if (group.isNotEmpty()) {
+                flushMath()
                 withStyle(
                     SpanStyle(
                         color = color,
@@ -862,11 +889,10 @@ private fun AnnotatedString.Builder.appendMathStyled(
                 continue
             }
         }
-        withStyle(SpanStyle(color = color, fontWeight = fontWeight)) {
-            append(text[i])
-        }
+        mathBuf.append(text[i])
         i++
     }
+    flushMath()
 }
 
 // ============================================================================================
@@ -1343,9 +1369,14 @@ object NovaRichTextFormatter {
      * Pure Bengali responses (without Assamese markers) are left untouched.
      */
     fun normalizeAssameseScript(text: String): String {
-        if (!text.contains('\u09B0')) return text
-        val isAssamese = assameseMarkers.any { text.contains(it) }
-        return if (isAssamese) text.replace('\u09B0', '\u09F0') else text
+        val nfc = try {
+            java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFC)
+        } catch (_: Exception) {
+            text
+        }
+        if (!nfc.contains('\u09B0')) return nfc
+        val isAssamese = assameseMarkers.any { nfc.contains(it) }
+        return if (isAssamese) nfc.replace('\u09B0', '\u09F0') else nfc
     }
 
     /**
