@@ -63,19 +63,64 @@ data class StudentProfile(
     val speakingPracticeMinutes: Int = 165,
     val lastPracticeDate: String = ""
 ) {
-    // Dynamic level (Level 1, 2, 3...) calculated from student activity (XP, stages cleared, practice time)
+    // Unlimited dynamic level (Level 1, 2, 3, ..., N with no upper cap) based on XP & stages cleared
     val activityLevel: Int
-        get() = when {
-            xpPoints >= 4000 || completedStagesCount >= 30 -> 6
-            xpPoints >= 2500 || completedStagesCount >= 20 -> 5
-            xpPoints >= 1500 || completedStagesCount >= 12 -> 4
-            xpPoints >= 800 || completedStagesCount >= 7 -> 3
-            xpPoints >= 250 || completedStagesCount >= 2 -> 2
-            else -> 1
+        get() {
+            val levelFromXp = when {
+                xpPoints < 250 -> 1
+                xpPoints < 800 -> 2
+                xpPoints < 1500 -> 3
+                xpPoints < 2500 -> 4
+                xpPoints < 4000 -> 5
+                else -> 6 + ((xpPoints - 4000) / 1500)
+            }
+            val levelFromStages = when {
+                completedStagesCount < 2 -> 1
+                completedStagesCount < 7 -> 2
+                completedStagesCount < 12 -> 3
+                completedStagesCount < 20 -> 4
+                completedStagesCount < 30 -> 5
+                else -> 6 + ((completedStagesCount - 30) / 10)
+            }
+            return maxOf(levelFromXp, levelFromStages)
         }
 
     val activityLevelName: String
         get() = "Level $activityLevel"
+
+    val currentLevelMinXp: Int
+        get() = xpThresholdForLevel(activityLevel)
+
+    val nextLevelMinXp: Int
+        get() = xpThresholdForLevel(activityLevel + 1)
+
+    val xpNeededForNextLevel: Int
+        get() = (nextLevelMinXp - xpPoints).coerceAtLeast(0)
+
+    val levelProgressFraction: Float
+        get() {
+            val span = (nextLevelMinXp - currentLevelMinXp).coerceAtLeast(1)
+            return ((xpPoints - currentLevelMinXp).toFloat() / span.toFloat()).coerceIn(0f, 1f)
+        }
+
+    companion object {
+        fun xpThresholdForLevel(level: Int): Int = when {
+            level <= 1 -> 0
+            level == 2 -> 250
+            level == 3 -> 800
+            level == 4 -> 1500
+            level == 5 -> 2500
+            level == 6 -> 4000
+            else -> 4000 + (level - 6) * 1500
+        }
+
+        fun formatXpThreshold(xp: Int): String = when {
+            xp == 0 -> "0 XP"
+            xp < 1000 -> "${xp} XP"
+            xp % 1000 == 0 -> "${xp / 1000}k XP"
+            else -> "${String.format("%.1f", xp / 1000.0)}k XP"
+        }
+    }
 }
 
 data class World(

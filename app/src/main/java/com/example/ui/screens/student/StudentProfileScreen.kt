@@ -5,6 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -585,7 +588,7 @@ fun StudentProfileScreen(
                                 .padding(end = 8.dp)
                         ) {
                             Text(
-                                text = "Activity & Proficiency Level",
+                                text = "Activity & Proficiency",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 16.sp,
                                 color = Color.White,
@@ -593,7 +596,7 @@ fun StudentProfileScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "Dynamic learning progress (Level ${profile.activityLevel} • ${profile.xpPoints} XP)",
+                                text = "Unlimited Levels • Level ${profile.activityLevel} • ${profile.xpPoints} XP",
                                 fontSize = 11.sp,
                                 color = Color(0xFF94A3B8),
                                 maxLines = 1,
@@ -607,7 +610,7 @@ fun StudentProfileScreen(
                             border = BorderStroke(1.dp, Color(0xFF38BDF8))
                         ) {
                             Text(
-                                text = "${profile.overallScore}% Overall • Level ${profile.activityLevel}",
+                                text = "${profile.overallScore}% • Level ${profile.activityLevel}",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 12.sp,
                                 color = Color(0xFF38BDF8),
@@ -618,54 +621,155 @@ fun StudentProfileScreen(
                         }
                     }
 
-                    // Level Framework Roadmap (Level 1, 2, 3 according to student activity)
-                    Row(
+                    // Unlimited Scrollable Level Roadmap (dynamically extends ahead of current level with no cap)
+                    val levelListState = rememberLazyListState()
+                    val visibleMaxLevel = remember(profile.activityLevel) {
+                        maxOf(profile.activityLevel + 8, 15)
+                    }
+                    val levelNumbers = remember(visibleMaxLevel) {
+                        (1..visibleMaxLevel).toList()
+                    }
+                    LaunchedEffect(profile.activityLevel) {
+                        val targetIndex = (profile.activityLevel - 2).coerceAtLeast(0)
+                        levelListState.animateScrollToItem(targetIndex)
+                    }
+
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(14.dp))
                             .background(Color(0xFF0F172A))
-                            .padding(horizontal = 6.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        val levelItems = listOf(
-                            1 to "Lvl 1",
-                            2 to "Lvl 2",
-                            3 to "Lvl 3",
-                            4 to "Lvl 4",
-                            5 to "Lvl 5",
-                            6 to "Lvl 6"
-                        )
-                        levelItems.forEach { (lvl, label) ->
-                            val isActive = profile.activityLevel == lvl
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (isActive) Color(0xFF2563EB) else Color.Transparent,
-                                border = if (isActive) BorderStroke(1.dp, Color(0xFF60A5FA)) else null
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                        LazyRow(
+                            state = levelListState,
+                            contentPadding = PaddingValues(horizontal = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("unlimited_levels_roadmap_row")
+                        ) {
+                            items(levelNumbers, key = { it }) { lvl ->
+                                val isActive = profile.activityLevel == lvl
+                                val isCompleted = lvl < profile.activityLevel
+                                val thresholdLabel = com.example.data.model.StudentProfile.formatXpThreshold(
+                                    com.example.data.model.StudentProfile.xpThresholdForLevel(lvl)
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = when {
+                                        isActive -> Color(0xFF2563EB)
+                                        isCompleted -> Color(0xFF064E3B).copy(alpha = 0.5f)
+                                        else -> Color(0xFF1E293B).copy(alpha = 0.75f)
+                                    },
+                                    border = when {
+                                        isActive -> BorderStroke(1.2.dp, Color(0xFF60A5FA))
+                                        isCompleted -> BorderStroke(1.dp, EmeraldSuccess.copy(alpha = 0.55f))
+                                        else -> BorderStroke(1.dp, Color(0xFF334155))
+                                    },
+                                    modifier = Modifier.widthIn(min = 64.dp)
                                 ) {
-                                    Text(
-                                        label,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium,
-                                        color = if (isActive) Color.White else Color(0xFF64748B)
-                                    )
-                                    Text(
-                                        when (lvl) {
-                                            1 -> "0-250 XP"
-                                            2 -> "250+ XP"
-                                            3 -> "800+ XP"
-                                            4 -> "1.5k XP"
-                                            5 -> "2.5k XP"
-                                            else -> "4k+ XP"
-                                        },
-                                        fontSize = 8.sp,
-                                        color = if (isActive) Color(0xFFBFDBFE) else Color(0xFF475569)
-                                    )
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = if (isCompleted) "✓ Lvl $lvl" else "Lvl $lvl",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                            color = when {
+                                                isActive -> Color.White
+                                                isCompleted -> Color(0xFF6EE7B7)
+                                                else -> Color(0xFFCBD5E1)
+                                            },
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        Text(
+                                            text = thresholdLabel,
+                                            fontSize = 9.sp,
+                                            color = when {
+                                                isActive -> Color(0xFFBFDBFE)
+                                                isCompleted -> Color(0xFFA7F3D0).copy(alpha = 0.85f)
+                                                else -> Color(0xFF94A3B8)
+                                            },
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
                                 }
                             }
+
+                            item(key = "unlimited_infinity_tail") {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = Color(0xFF312E81).copy(alpha = 0.55f),
+                                    border = BorderStroke(1.dp, Color(0xFF818CF8).copy(alpha = 0.7f)),
+                                    modifier = Modifier.widthIn(min = 76.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = "Lvl ${visibleMaxLevel + 1}+ ∞",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFC4B5FD),
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        Text(
+                                            text = "Unlimited",
+                                            fontSize = 9.sp,
+                                            color = Color(0xFFA5B4FC),
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Next Level XP Progress Bar
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Level ${profile.activityLevel} → Level ${profile.activityLevel + 1}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFE2E8F0)
+                                )
+                                Text(
+                                    text = if (profile.xpNeededForNextLevel > 0) {
+                                        "${profile.xpNeededForNextLevel} XP to Level ${profile.activityLevel + 1}"
+                                    } else {
+                                        "Ready for Level ${profile.activityLevel + 1}!"
+                                    },
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF38BDF8)
+                                )
+                            }
+                            LinearProgressIndicator(
+                                progress = { profile.levelProgressFraction },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(7.dp)
+                                    .clip(CircleShape),
+                                color = Color(0xFF38BDF8),
+                                trackColor = Color(0xFF1E293B)
+                            )
                         }
                     }
 
