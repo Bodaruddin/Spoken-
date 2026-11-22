@@ -2254,7 +2254,8 @@ fun SentenceBuilderGame(
                         challengeIndex = (safeIndex + 1) % sessionChallenges.size
                     }
                 },
-                onPlayAgain = { startNewRound(activePack.id) }
+                onPlayAgain = { startNewRound(activePack.id) },
+                onTranslateSentence = { sentence -> viewModel.translateToAssamese(sentence) }
             )
         }
     }

@@ -41,6 +41,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -92,6 +93,7 @@ fun SentenceBuilderPlayScreen(
     onRewardWin: (xp: Int, coins: Int) -> Unit,
     onNextSentence: () -> Unit,
     onPlayAgain: () -> Unit,
+    onTranslateSentence: (suspend (String) -> AssameseTranslator.TranslationResult)? = null,
     modifier: Modifier = Modifier
 ) {
     val current = sessionChallenges.getOrNull(safeIndex)
@@ -719,8 +721,27 @@ fun SentenceBuilderPlayScreen(
 
                         // Assamese Translation & Round Progression
                         if (isCorrect == true) {
-                            val translation = remember(current.id) {
-                                AssameseTranslator.translate(current.targetSentence, current.assameseTranslation)
+                            var translation by remember(current.id) {
+                                mutableStateOf(
+                                    AssameseTranslator.translate(current.targetSentence, current.assameseTranslation)
+                                )
+                            }
+                            var isTranslatingWithAi by remember(current.id) {
+                                mutableStateOf(onTranslateSentence != null)
+                            }
+                            LaunchedEffect(current.id, onTranslateSentence) {
+                                if (onTranslateSentence != null) {
+                                    isTranslatingWithAi = true
+                                    try {
+                                        val aiTrans = onTranslateSentence(current.targetSentence)
+                                        if (aiTrans.assameseText.isNotBlank()) {
+                                            translation = aiTrans
+                                        }
+                                    } catch (_: Throwable) {
+                                    } finally {
+                                        isTranslatingWithAi = false
+                                    }
+                                }
                             }
 
                             Card(
@@ -733,12 +754,32 @@ fun SentenceBuilderPlayScreen(
                                     modifier = Modifier.padding(14.dp),
                                     verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    Text(
-                                        text = "অসমীয়া অনুবাদ (Assamese Translation):",
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF86EFAC)
-                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "অসমীয়া অনুবাদ (Assamese Translation):",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF86EFAC)
+                                        )
+                                        if (isTranslatingWithAi) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(14.dp),
+                                                color = Color(0xFF38BDF8),
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else if (translation.isFromAi) {
+                                            Text(
+                                                text = "✨ Gemini AI",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF7DD3FC)
+                                            )
+                                        }
+                                    }
                                     Text(
                                         text = translation.assameseText,
                                         fontSize = 14.5.sp,

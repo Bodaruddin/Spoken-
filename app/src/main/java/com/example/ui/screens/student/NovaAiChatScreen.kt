@@ -1229,6 +1229,7 @@ fun NovaAiChatScreen(
                 }
             }
 
+            val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
             var translationResult by remember(cleanQuestion, bespokeAssamese) {
                 mutableStateOf(
                     com.example.util.AssameseTranslator.translate(
@@ -1237,14 +1238,15 @@ fun NovaAiChatScreen(
                     )
                 )
             }
-            var isAiLoading by remember { mutableStateOf(false) }
-            val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
+            var isAiLoading by remember(cleanQuestion, isGeminiConfigured) {
+                mutableStateOf(isGeminiConfigured)
+            }
             val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
             var copiedNotification by remember { mutableStateOf(false) }
 
-            // If Gemini AI is active and not already a bespoke pre-curated lesson question, fetch live AI translation
-            LaunchedEffect(cleanQuestion, isGeminiConfigured, bespokeAssamese) {
-                if (isGeminiConfigured && bespokeAssamese == null) {
+            // Always use Gemini API to translate any sentence accurately when configured
+            LaunchedEffect(cleanQuestion, isGeminiConfigured) {
+                if (isGeminiConfigured) {
                     isAiLoading = true
                     try {
                         val aiResult = viewModel.translateToAssamese(cleanQuestion)
@@ -1255,6 +1257,8 @@ fun NovaAiChatScreen(
                     } finally {
                         isAiLoading = false
                     }
+                } else {
+                    isAiLoading = false
                 }
             }
 
@@ -1307,14 +1311,14 @@ fun NovaAiChatScreen(
                                 color = Color(0xFF38BDF8),
                                 strokeWidth = 2.dp
                             )
-                        } else if (isGeminiConfigured) {
+                        } else if (isGeminiConfigured || translationResult.isFromAi) {
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
                                 color = Color(0xFF0284C7).copy(alpha = 0.3f),
                                 border = BorderStroke(1.dp, Color(0xFF38BDF8))
                             ) {
                                 Text(
-                                    "✨ AI Active",
+                                    "✨ Gemini AI",
                                     fontSize = 10.sp,
                                     color = Color(0xFF7DD3FC),
                                     fontWeight = FontWeight.Bold,
@@ -1410,31 +1414,51 @@ fun NovaAiChatScreen(
                                     }
                                 }
                                 Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = translationResult.assameseText,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    lineHeight = 22.sp
-                                )
-                                if (translationResult.transliteration.isNotBlank()) {
-                                    Spacer(Modifier.height(6.dp))
+                                if (isAiLoading) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            color = Color(0xFF38BDF8),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Text(
+                                            text = "Translating with Gemini AI...",
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFFBAE6FD)
+                                        )
+                                    }
+                                } else {
                                     Text(
-                                        text = "উচ্চাৰণ: ${translationResult.transliteration}",
-                                        fontSize = 12.5.sp,
-                                        color = Color(0xFFA7F3D0),
-                                        fontWeight = FontWeight.Medium
+                                        text = translationResult.assameseText,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        lineHeight = 22.sp
                                     )
-                                }
-                                if (copiedNotification) {
-                                    Spacer(Modifier.height(4.dp))
-                                    Text("অনুবাদ কপি কৰা হ'ল (Copied!)", fontSize = 10.5.sp, color = Color(0xFF34D399))
+                                    if (translationResult.transliteration.isNotBlank()) {
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(
+                                            text = "উচ্চাৰণ: ${translationResult.transliteration}",
+                                            fontSize = 12.5.sp,
+                                            color = Color(0xFFA7F3D0),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    if (copiedNotification) {
+                                        Spacer(Modifier.height(4.dp))
+                                        Text("অনুবাদ কপি কৰা হ'ল (Copied!)", fontSize = 10.5.sp, color = Color(0xFF34D399))
+                                    }
                                 }
                             }
                         }
 
                         // Word breakdown if available
-                        if (translationResult.wordBreakdown.isNotEmpty()) {
+                        if (!isAiLoading && translationResult.wordBreakdown.isNotEmpty()) {
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = Color(0xFF281A54),
@@ -1467,21 +1491,25 @@ fun NovaAiChatScreen(
                         }
 
                         // Bengali / Hindi Guidance
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF281A54),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text("বাংলা / हिन्दी (Guidance):", fontSize = 10.5.sp, color = Color(0xFFF472B6), fontWeight = FontWeight.SemiBold)
-                                Spacer(Modifier.height(2.dp))
-                                val guideText = matchingLessonQ?.bengaliHindiTranslation
-                                    ?.takeIf {
-                                        matchingLessonQ.questionNumber != 1 ||
-                                            (isTimeWordsTopic && cleanQuestion.contains("school", ignoreCase = true))
-                                    }
-                                    ?: com.example.util.AssameseTranslator.getBengaliHindiGuidance(cleanQuestion)
-                                Text(guideText, fontSize = 12.sp, color = Color(0xFFF1F5F9))
+                        if (!isAiLoading) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF281A54),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Text("বাংলা / हिन्दी (Guidance):", fontSize = 10.5.sp, color = Color(0xFFF472B6), fontWeight = FontWeight.SemiBold)
+                                    Spacer(Modifier.height(2.dp))
+                                    val guideText = translationResult.bengaliHindiGuidance
+                                        .takeIf { it.isNotBlank() }
+                                        ?: matchingLessonQ?.bengaliHindiTranslation
+                                            ?.takeIf {
+                                                matchingLessonQ.questionNumber != 1 ||
+                                                    (isTimeWordsTopic && cleanQuestion.contains("school", ignoreCase = true))
+                                            }
+                                        ?: com.example.util.AssameseTranslator.getBengaliHindiGuidance(cleanQuestion)
+                                    Text(guideText, fontSize = 12.sp, color = Color(0xFFF1F5F9))
+                                }
                             }
                         }
                     }

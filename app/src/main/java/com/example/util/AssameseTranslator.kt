@@ -21,7 +21,9 @@ object AssameseTranslator {
     data class TranslationResult(
         val assameseText: String,
         val transliteration: String,
-        val wordBreakdown: List<Pair<String, String>> = emptyList()
+        val wordBreakdown: List<Pair<String, String>> = emptyList(),
+        val bengaliHindiGuidance: String = "",
+        val isFromAi: Boolean = false
     )
 
     // Curated high-accuracy natural translations for academy curriculum
@@ -871,7 +873,27 @@ object AssameseTranslator {
         "together" to Pair("একত্ৰিতভাৱে / একেলগে", "Ekeloge"),
         "alone" to Pair("অকলশৰীয়া", "Okolxoriya"),
         "everyone" to Pair("সকলোৱে / প্ৰতিজন ব্যক্তি", "Xokolowe"),
-        "everything" to Pair("সকলোবোৰ / সৰ্বস্ব", "Xokolobor")
+        "everything" to Pair("সকলোবোৰ / সৰ্বস্ব", "Xokolobor"),
+        "day" to Pair("দিন", "Din"),
+        "days" to Pair("দিনবোৰ", "Dinbur"),
+        "little" to Pair("অলপ / সৰু", "Olop / Xoru"),
+        "bit" to Pair("অলপ", "Olop"),
+        "hows" to Pair("কেনে / কেনেকৈ", "Kene / Kenekoi"),
+        "going" to Pair("গৈ আছে / যোৱা", "Goi aase / Jowa"),
+        "tell" to Pair("কোৱা / জনাওক", "Kowa / Jonaok"),
+        "yourself" to Pair("আপোনাৰ নিজৰ / তোমাৰ নিজৰ", "Aaponar nijor"),
+        "myself" to Pair("মোৰ নিজৰ", "Mur nijor"),
+        "today" to Pair("আজি", "Aaji"),
+        "morning" to Pair("ৰাতিপুৱা", "Ratipuwa"),
+        "afternoon" to Pair("আবেলি", "Abeli"),
+        "evening" to Pair("সন্ধিয়া", "Xondhiya"),
+        "night" to Pair("ৰাতি", "Rati"),
+        "week" to Pair("সপ্তাহ", "Xoptah"),
+        "weekend" to Pair("সপ্তাহান্ত", "Xoptahanto"),
+        "favorite" to Pair("প্ৰিয়", "Priyo"),
+        "favourite" to Pair("প্ৰিয়", "Priyo"),
+        "hobby" to Pair("হবি / চখ", "Chokh"),
+        "hobbies" to Pair("চখবোৰ", "Chokhbur")
     )
 
     // Dynamic Teacher-managed custom words storage
@@ -1072,6 +1094,40 @@ object AssameseTranslator {
                 transliteration = "Nomoxkar! Aapuni kene aase?",
                 wordBreakdown = breakdown
             )
+            (lower.contains("how's your day going") || lower.contains("how is your day going")) &&
+                (lower.contains("tell me a little about yourself") || lower.contains("tell me about yourself")) -> TranslationResult(
+                assameseText = "এতিয়ালৈকে আপোনাৰ দিনটো কেনেকৈ গৈ আছে? আপোনাৰ বিষয়ে অলপ কওকচোন!",
+                transliteration = "Etiyaloike aaponar dintu kenekoi goi aase? Aaponar bikhoye olop koukson!",
+                wordBreakdown = listOf(
+                    "How's ... going" to "কেনেকৈ গৈ আছে (Kenekoi goi aase)",
+                    "your day" to "আপোনাৰ দিনটো (Aaponar dintu)",
+                    "so far" to "এতিয়ালৈকে (Etiyaloike)",
+                    "Tell me" to "মোক কওক (Mok kouk)",
+                    "a little" to "অলপ (Olop)",
+                    "about yourself" to "আপোনাৰ বিষয়ে (Aaponar bikhoye)"
+                ),
+                bengaliHindiGuidance = "বাংলা: এখন পর্যন্ত আপনার দিনটা কেমন কাটছে? নিজের সম্পর্কে একটু বলুন! | हिन्दी: अब तक आपका दिन कैसा जा रहा है? अपने बारे में थोड़ा बताइए!"
+            )
+            lower.contains("how's your day going") || lower.contains("how is your day going") -> TranslationResult(
+                assameseText = "এতিয়ালৈকে আপোনাৰ দিনটো কেনেকৈ গৈ আছে?",
+                transliteration = "Etiyaloike aaponar dintu kenekoi goi aase?",
+                wordBreakdown = listOf(
+                    "How's ... going" to "কেনেকৈ গৈ আছে (Kenekoi goi aase)",
+                    "your day" to "আপোনাৰ দিনটো (Aaponar dintu)",
+                    "so far" to "এতিয়ালৈকে (Etiyaloike)"
+                ),
+                bengaliHindiGuidance = "বাংলা: এখন পর্যন্ত আপনার দিনটা কেমন কাটছে? | हिन्दी: अब तक आपका दिन कैसा जा रहा है?"
+            )
+            lower.contains("tell me a little about yourself") || check.contains("tell me a little about yourself") -> TranslationResult(
+                assameseText = "আপোনাৰ বিষয়ে অলপ কওকচোন।",
+                transliteration = "Aaponar bikhoye olop koukson.",
+                wordBreakdown = listOf(
+                    "Tell me" to "মোক কওক (Mok kouk)",
+                    "a little" to "অলপ (Olop)",
+                    "about yourself" to "আপোনাৰ বিষয়ে (Aaponar bikhoye)"
+                ),
+                bengaliHindiGuidance = "বাংলা: আপনার সম্পর্কে একটু বলুন। | हिन्दी: अपने बारे में थोड़ा बताइए।"
+            )
             lower.contains("tell me about yourself") || check.contains("tell me about yourself") -> TranslationResult(
                 assameseText = "আপোনাৰ বিষয়ে কওক।",
                 transliteration = "Aaponar bikhoye kouk.",
@@ -1192,62 +1248,143 @@ object AssameseTranslator {
     }
 
     /**
-     * Translates in real-time using Google Gemini if API key is provided,
-     * falling back to the rich curated Assamese translation engine.
+     * Translates any English sentence in real-time using Google Gemini API
+     * (with automatic model fallbacks), returning natural Assamese, Latin transliteration,
+     * contextual word breakdown, and Bengali/Hindi guidance.
+     * Falls back to the local translation engine only if API key is missing or network fails.
      */
     suspend fun translateWithAi(
         englishSentence: String,
         apiKey: String,
-        model: String = "gemini-3.5-flash-lite"
+        model: String = "gemini-2.5-flash"
     ): TranslationResult = withContext(Dispatchers.IO) {
         val clean = extractCleanQuestion(englishSentence)
         val normalized = clean.lowercase().replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
 
         aiTranslationCache[normalized]?.let { return@withContext it }
-        curatedSentences[normalized]?.let { return@withContext it }
 
         val trimmedKey = apiKey.trim()
         if (trimmedKey.isBlank() || trimmedKey == "MY_GEMINI_API_KEY" || trimmedKey == "your_api_key_here") {
             return@withContext translate(clean)
         }
 
-        try {
-            val cleanModel = model.trim().ifEmpty { "gemini-3.5-flash-lite" }
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/$cleanModel:generateContent?key=$trimmedKey"
-            val prompt = """
-                Translate this English sentence/question into natural, polite, colloquial Assamese (অসমীয়া).
-                Also provide natural Latin transliteration (pronunciation guide in English alphabet) and a brief word-by-word breakdown.
-                
-                English: "$clean"
-                
-                Respond ONLY with valid JSON using this format:
-                {
-                  "assameseText": "...",
-                  "transliteration": "...",
-                  "wordBreakdown": [
-                    {"english": "Word", "meaning": "অৰ্থ (Pronunciation)"}
-                  ]
-                }
-            """.trimIndent()
+        val modelsToTry = mutableListOf<String>()
+        val preferred = model.trim().ifEmpty { "gemini-2.5-flash" }
+        modelsToTry.add(preferred)
+        listOf(
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-flash-latest",
+            "gemini-3.5-flash-lite",
+            "gemini-3.5-flash",
+            "gemini-3.8-flash"
+        ).forEach { candidate ->
+            if (!modelsToTry.contains(candidate)) modelsToTry.add(candidate)
+        }
 
-            val jsonBody = JSONObject().apply {
-                val contents = JSONArray().apply {
-                    val partObj = JSONObject().apply {
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().apply { put("text", prompt) })
-                        })
+        val prompt = buildTranslationPrompt(clean)
+
+        for (activeModel in modelsToTry) {
+            try {
+                val url = "https://generativelanguage.googleapis.com/v1beta/models/$activeModel:generateContent?key=$trimmedKey"
+                val jsonBody = JSONObject().apply {
+                    val contents = JSONArray().apply {
+                        val partObj = JSONObject().apply {
+                            put("parts", JSONArray().apply {
+                                put(JSONObject().apply { put("text", prompt) })
+                            })
+                        }
+                        put(partObj)
                     }
-                    put(partObj)
+                    put("contents", contents)
+                    put("generationConfig", JSONObject().apply {
+                        put("temperature", 0.1)
+                        put("responseMimeType", "application/json")
+                    })
                 }
-                put("contents", contents)
-                put("generationConfig", JSONObject().apply {
-                    put("temperature", 0.1)
-                    put("responseMimeType", "application/json")
+
+                val request = Request.Builder()
+                    .url(url)
+                    .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+
+                val response = httpClient.newCall(request).execute()
+                if (!response.isSuccessful) {
+                    response.close()
+                    continue
+                }
+
+                val respBody = response.body?.string() ?: ""
+                val root = JSONObject(respBody)
+                val partsArr = root.optJSONArray("candidates")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("content")
+                    ?.optJSONArray("parts")
+                val rawTextCandidate = buildString {
+                    if (partsArr != null) {
+                        for (i in 0 until partsArr.length()) {
+                            val part = partsArr.optJSONObject(i) ?: continue
+                            if (part.optBoolean("thought", false)) continue
+                            val chunk = part.optString("text", "")
+                            if (chunk.isNotEmpty()) append(chunk)
+                        }
+                    }
+                }.trim()
+
+                parseAiTranslationJson(rawTextCandidate, clean)?.let { result ->
+                    aiTranslationCache[normalized] = result
+                    return@withContext result
+                }
+            } catch (_: Throwable) {
+                // Try next fallback model
+            }
+        }
+
+        // Do NOT cache offline fallback in aiTranslationCache so future attempts retry Gemini
+        return@withContext translate(clean)
+    }
+
+    /**
+     * OpenAI-compatible custom endpoint version of AI sentence translation.
+     */
+    suspend fun translateWithCustomEndpoint(
+        englishSentence: String,
+        endpointUrl: String,
+        apiKey: String,
+        modelName: String
+    ): TranslationResult = withContext(Dispatchers.IO) {
+        val clean = extractCleanQuestion(englishSentence)
+        val normalized = clean.lowercase().replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
+
+        aiTranslationCache[normalized]?.let { return@withContext it }
+
+        val cleanUrl = endpointUrl.trim().removeSuffix("/")
+        val cleanKey = apiKey.trim()
+        val cleanModel = modelName.trim().ifEmpty { "gpt-4o-mini" }
+        if (cleanUrl.isBlank() || cleanKey.isBlank()) {
+            return@withContext translate(clean)
+        }
+
+        val completionsUrl = if (cleanUrl.endsWith("/chat/completions")) cleanUrl else "$cleanUrl/chat/completions"
+        try {
+            val jsonBody = JSONObject().apply {
+                put("model", cleanModel)
+                put("temperature", 0.1)
+                put("messages", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "system")
+                        put("content", "You are an expert English-to-Assamese, Bengali, and Hindi translator. Always reply with valid JSON only.")
+                    })
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("content", buildTranslationPrompt(clean))
+                    })
                 })
             }
 
             val request = Request.Builder()
-                .url(url)
+                .url(completionsUrl)
+                .addHeader("Authorization", "Bearer $cleanKey")
                 .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
@@ -1255,50 +1392,79 @@ object AssameseTranslator {
             if (response.isSuccessful) {
                 val respBody = response.body?.string() ?: ""
                 val root = JSONObject(respBody)
-                val rawTextCandidate = root.getJSONArray("candidates")
-                    .getJSONObject(0)
-                    .getJSONObject("content")
-                    .getJSONArray("parts")
-                    .getJSONObject(0)
-                    .getString("text")
-                    .trim()
-                val cleanedJson = rawTextCandidate
-                    .removePrefix("```json")
-                    .removePrefix("```")
-                    .removeSuffix("```")
-                    .trim()
-
-                val parsed = JSONObject(cleanedJson)
-                val asmText = parsed.optString("assameseText").ifBlank { null }
-                val trans = parsed.optString("transliteration", "")
-                val breakdownArr = parsed.optJSONArray("wordBreakdown")
-                val breakdownList = mutableListOf<Pair<String, String>>()
-                if (breakdownArr != null) {
-                    for (i in 0 until breakdownArr.length()) {
-                        val item = breakdownArr.optJSONObject(i)
-                        if (item != null) {
-                            val eng = item.optString("english")
-                            val m = item.optString("meaning")
-                            if (eng.isNotBlank()) breakdownList.add(eng to m)
-                        }
-                    }
-                }
-
-                if (!asmText.isNullOrBlank()) {
-                    val result = TranslationResult(
-                        assameseText = asmText,
-                        transliteration = trans,
-                        wordBreakdown = if (breakdownList.isNotEmpty()) breakdownList else generateBreakdown(clean)
-                    )
+                val rawText = root.optJSONArray("choices")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("message")
+                    ?.optString("content", "")
+                    ?.trim()
+                    ?: ""
+                parseAiTranslationJson(rawText, clean)?.let { result ->
                     aiTranslationCache[normalized] = result
                     return@withContext result
                 }
             }
         } catch (_: Throwable) {}
 
-        val fallback = translate(clean)
-        aiTranslationCache[normalized] = fallback
-        return@withContext fallback
+        return@withContext translate(clean)
+    }
+
+    private fun buildTranslationPrompt(cleanEnglish: String): String = """
+        Translate the following English sentence/question into completely natural, accurate, idiomatic Assamese (অসমীয়া) as spoken by native Assamese speakers.
+        NEVER do literal word-for-word translation or gibberish transliteration of English words like "day" or "little".
+        Also provide:
+        1. Natural Latin pronunciation guide (transliteration) for the Assamese sentence.
+        2. Contextual key words/phrases breakdown with accurate Assamese meaning and pronunciation.
+        3. Natural Bengali and Hindi guidance in the exact format: "বাংলা: <Bengali> | हिन्दी: <Hindi>".
+
+        English: "$cleanEnglish"
+
+        Respond ONLY with valid JSON using this exact schema:
+        {
+          "assameseText": "...",
+          "transliteration": "...",
+          "bengaliHindiGuidance": "বাংলা: ... | हिन्दी: ...",
+          "wordBreakdown": [
+            {"english": "Word or Phrase", "meaning": "অসমীয়া অৰ্থ (Pronunciation)"}
+          ]
+        }
+    """.trimIndent()
+
+    private fun parseAiTranslationJson(rawText: String, cleanEnglish: String): TranslationResult? {
+        if (rawText.isBlank()) return null
+        val stripped = rawText
+            .removePrefix("```json")
+            .removePrefix("```")
+            .removeSuffix("```")
+            .trim()
+        val firstBrace = stripped.indexOf('{')
+        val lastBrace = stripped.lastIndexOf('}')
+        if (firstBrace < 0 || lastBrace <= firstBrace) return null
+        val jsonSlice = stripped.substring(firstBrace, lastBrace + 1)
+
+        val parsed = JSONObject(jsonSlice)
+        val asmText = parsed.optString("assameseText").trim()
+        if (asmText.isBlank()) return null
+        val trans = parsed.optString("transliteration", "").trim()
+        val bengaliHindi = parsed.optString("bengaliHindiGuidance", "").trim()
+        val breakdownArr = parsed.optJSONArray("wordBreakdown")
+        val breakdownList = mutableListOf<Pair<String, String>>()
+        if (breakdownArr != null) {
+            for (i in 0 until breakdownArr.length()) {
+                val item = breakdownArr.optJSONObject(i) ?: continue
+                val eng = item.optString("english").trim()
+                val meaning = item.optString("meaning").trim()
+                if (eng.isNotBlank() && meaning.isNotBlank()) {
+                    breakdownList.add(eng to meaning)
+                }
+            }
+        }
+        return TranslationResult(
+            assameseText = asmText,
+            transliteration = trans,
+            wordBreakdown = if (breakdownList.isNotEmpty()) breakdownList else generateBreakdown(cleanEnglish),
+            bengaliHindiGuidance = bengaliHindi,
+            isFromAi = true
+        )
     }
 
     private fun generateBreakdown(englishSentence: String): List<Pair<String, String>> {

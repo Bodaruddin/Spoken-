@@ -2903,12 +2903,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun translateToAssamese(englishSentence: String): com.example.util.AssameseTranslator.TranslationResult {
         val apiKey = getEffectiveGeminiApiKey()
-        return if (apiKey.isNotBlank()) {
-            com.example.util.AssameseTranslator.translateWithAi(
-                englishSentence = englishSentence,
-                apiKey = apiKey,
-                model = appPreferences.getSelectedAiModel()
-            )
+        return if (isGeminiApiKeyConfigured()) {
+            if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
+                com.example.util.AssameseTranslator.translateWithCustomEndpoint(
+                    englishSentence = englishSentence,
+                    endpointUrl = _customEndpointUrl.value,
+                    apiKey = apiKey,
+                    modelName = _customModelName.value
+                )
+            } else {
+                com.example.util.AssameseTranslator.translateWithAi(
+                    englishSentence = englishSentence,
+                    apiKey = apiKey,
+                    model = _activeAiModel.value.ifBlank { appPreferences.getSelectedAiModel() }
+                )
+            }
         } else {
             com.example.util.AssameseTranslator.translate(englishSentence)
         }
