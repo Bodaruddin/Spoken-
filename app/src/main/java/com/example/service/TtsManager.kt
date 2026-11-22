@@ -54,8 +54,52 @@ enum class NovaVoicePersona(
     val stylePrompt: String,
     val localeBadge: String = "en-IN",
     val preferredCountryCode: String = "IN",
-    val shortAccentLabel: String = "Indian Voice"
+    val shortAccentLabel: String = "Indian Voice",
+    val preferredLanguageCode: String = "en",
+    val nativeName: String = ""
 ) {
+    BARNALI(
+        id = "BARNALI",
+        displayName = "Barnali",
+        subtitle = "Warm & Natural Assamese Female Voice",
+        basePitch = 1.00f,
+        baseRate = 0.86f,
+        geminiVoiceName = "Aoede",
+        stylePrompt = "Warm, natural, crystal-clear native Assamese female voice",
+        localeBadge = "as-IN",
+        preferredCountryCode = "IN",
+        shortAccentLabel = "Assamese Voice",
+        preferredLanguageCode = "as",
+        nativeName = "বৰ্ণালী"
+    ),
+    JONALI(
+        id = "JONALI",
+        displayName = "Jonali",
+        subtitle = "Sweet & Expressive Assamese Female Voice",
+        basePitch = 1.03f,
+        baseRate = 0.88f,
+        geminiVoiceName = "Leda",
+        stylePrompt = "Sweet, lively, expressive native Assamese female friend voice",
+        localeBadge = "as-IN",
+        preferredCountryCode = "IN",
+        shortAccentLabel = "Assamese Voice",
+        preferredLanguageCode = "as",
+        nativeName = "জোনালী"
+    ),
+    NAMRATA(
+        id = "NAMRATA",
+        displayName = "Namrata",
+        subtitle = "Calm & Clear Assamese Teacher Voice",
+        basePitch = 0.98f,
+        baseRate = 0.84f,
+        geminiVoiceName = "Kore",
+        stylePrompt = "Calm, gentle, articulate native Assamese female teacher voice",
+        localeBadge = "as-IN",
+        preferredCountryCode = "IN",
+        shortAccentLabel = "Assamese Voice",
+        preferredLanguageCode = "as",
+        nativeName = "নম্ৰতা"
+    ),
     ANANYA(
         id = "ANANYA",
         displayName = "Ananya",
@@ -141,8 +185,11 @@ enum class NovaVoicePersona(
         shortAccentLabel = "Australian English"
     );
 
+    val isAssameseVoice: Boolean
+        get() = preferredLanguageCode.equals("as", ignoreCase = true)
+
     val isIndianVoice: Boolean
-        get() = preferredCountryCode == "IN"
+        get() = preferredCountryCode == "IN" && preferredLanguageCode.equals("en", ignoreCase = true)
 
     companion object {
         fun fromId(id: String?): NovaVoicePersona {
@@ -229,10 +276,10 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
 
     private val cloudTtsClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(2500, TimeUnit.MILLISECONDS)
-            .readTimeout(4500, TimeUnit.MILLISECONDS)
-            .writeTimeout(2500, TimeUnit.MILLISECONDS)
-            .callTimeout(5500, TimeUnit.MILLISECONDS)
+            .connectTimeout(3500, TimeUnit.MILLISECONDS)
+            .readTimeout(8000, TimeUnit.MILLISECONDS)
+            .writeTimeout(3500, TimeUnit.MILLISECONDS)
+            .callTimeout(10000, TimeUnit.MILLISECONDS)
             .build()
     }
 
@@ -298,11 +345,14 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             false
         }
         val modeSuffix = when {
+            isCloudTtsReady() && hasKey && p.isAssameseVoice -> "HD Assamese Female (as-IN)"
             isCloudTtsReady() && hasKey -> "HD Female (${p.localeBadge})"
+            p.isAssameseVoice -> "Assamese Female (as-IN)"
             p.isIndianVoice && primaryIndianVoice?.locale?.country.equals("IN", ignoreCase = true) -> "Indian Female (en-IN)"
             else -> "${p.shortAccentLabel} (${p.localeBadge})"
         }
-        _activeVoiceLabel.value = "${p.displayName} • $modeSuffix"
+        val titlePrefix = if (p.nativeName.isNotBlank()) "${p.displayName} (${p.nativeName})" else p.displayName
+        _activeVoiceLabel.value = "$titlePrefix • $modeSuffix"
     }
 
     override fun onInit(status: Int) {
@@ -436,64 +486,122 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         )
     }
 
-    private fun applyBestVoiceForPersona() {
+    private fun applyBestVoiceForPersona(forceAssameseScript: Boolean = false) {
         val engine = tts ?: return
         val persona = _voicePersona.value
         try {
             val voices = engine.voices?.toList().orEmpty()
-            val targetCountry = if (persona.preferredCountryCode == "UK") "GB" else persona.preferredCountryCode
-            val preferredFemales = voices.filter { v ->
-                val vCountry = v.locale?.country.orEmpty().uppercase(Locale.ROOT).let { if (it == "UK") "GB" else it }
-                v.locale?.language.equals("en", ignoreCase = true) &&
-                    vCountry == targetCountry &&
-                    !matchesMaleSignature(voiceDescriptor(v)) &&
-                    scoreVoiceForCountry(v, targetCountry) > 1000
-            }.sortedByDescending { scoreVoiceForCountry(it, targetCountry) }
+            val wantAssamese = persona.isAssameseVoice || forceAssameseScript
 
-            val anyEnglishFemales = if (preferredFemales.isEmpty()) {
-                voices.filter { v ->
-                    v.locale?.language.equals("en", ignoreCase = true) &&
+            if (wantAssamese) {
+                val assameseFemales = voices.filter { v ->
+                    v.locale?.language.equals("as", ignoreCase = true) &&
                         !matchesMaleSignature(voiceDescriptor(v))
-                }.sortedByDescending { scoreVoiceForCountry(it, targetCountry) }
-            } else {
-                emptyList()
-            }
+                }.sortedByDescending { scoreVoiceForCountry(it, "IN") }
 
-            val chosen = when {
-                preferredFemales.isNotEmpty() -> when (persona) {
-                    NovaVoicePersona.ANANYA -> preferredFemales[0]
-                    NovaVoicePersona.PRIYA -> preferredFemales.getOrElse(1) { preferredFemales[0] }
-                    NovaVoicePersona.MEERA -> preferredFemales.getOrElse(2) { preferredFemales[0] }
-                    NovaVoicePersona.SOPHIA -> preferredFemales.getOrElse(1) { preferredFemales[0] }
-                    NovaVoicePersona.CLARA,
-                    NovaVoicePersona.EMMA,
-                    NovaVoicePersona.GRACE -> preferredFemales[0]
+                val bengaliInFemales = if (assameseFemales.isEmpty()) {
+                    voices.filter { v ->
+                        v.locale?.language.equals("bn", ignoreCase = true) &&
+                            !matchesMaleSignature(voiceDescriptor(v))
+                    }.sortedByDescending { scoreVoiceForCountry(it, "IN") }
+                } else {
+                    emptyList()
                 }
-                anyEnglishFemales.isNotEmpty() -> anyEnglishFemales.first()
-                else -> primaryIndianVoice
-            }
 
-            if (chosen != null) {
-                activeAndroidVoice = chosen
-                activeAndroidVoiceConfirmedFemale = isConfirmedFemaleVoice(chosen)
-                chosen.locale?.let { loc ->
+                val pool = assameseFemales.ifEmpty { bengaliInFemales }
+                val chosenIndic = when {
+                    pool.isNotEmpty() -> when (persona) {
+                        NovaVoicePersona.BARNALI -> pool[0]
+                        NovaVoicePersona.JONALI -> pool.getOrElse(1) { pool[0] }
+                        NovaVoicePersona.NAMRATA -> pool.getOrElse(2) { pool[0] }
+                        else -> pool[0]
+                    }
+                    else -> primaryIndianVoice
+                }
+
+                if (chosenIndic != null) {
+                    activeAndroidVoice = chosenIndic
+                    activeAndroidVoiceConfirmedFemale = isConfirmedFemaleVoice(chosenIndic)
+                    chosenIndic.locale?.let { loc ->
+                        try {
+                            if (engine.isLanguageAvailable(loc) >= TextToSpeech.LANG_AVAILABLE) {
+                                engine.setLanguage(loc)
+                            }
+                        } catch (_: Throwable) { }
+                    }
+                    if (lastAppliedVoiceName != chosenIndic.name) {
+                        engine.voice = chosenIndic
+                        lastAppliedVoiceName = chosenIndic.name
+                    }
+                } else {
+                    val asLocale = Locale("as", "IN")
+                    val bnLocale = Locale("bn", "IN")
                     try {
-                        if (engine.isLanguageAvailable(loc) >= TextToSpeech.LANG_AVAILABLE) {
-                            engine.setLanguage(loc)
+                        when {
+                            engine.isLanguageAvailable(asLocale) >= TextToSpeech.LANG_AVAILABLE -> engine.setLanguage(asLocale)
+                            engine.isLanguageAvailable(bnLocale) >= TextToSpeech.LANG_AVAILABLE -> engine.setLanguage(bnLocale)
+                            else -> engine.setLanguage(Locale("en", "IN"))
                         }
                     } catch (_: Throwable) { }
                 }
-                if (lastAppliedVoiceName != chosen.name) {
-                    engine.voice = chosen
-                    lastAppliedVoiceName = chosen.name
-                }
             } else {
-                val targetLocale = Locale("en", targetCountry)
-                try {
-                    if (engine.isLanguageAvailable(targetLocale) >= TextToSpeech.LANG_AVAILABLE) {
-                        engine.setLanguage(targetLocale)
+                val targetCountry = if (persona.preferredCountryCode == "UK") "GB" else persona.preferredCountryCode
+                val preferredFemales = voices.filter { v ->
+                    val vCountry = v.locale?.country.orEmpty().uppercase(Locale.ROOT).let { if (it == "UK") "GB" else it }
+                    v.locale?.language.equals("en", ignoreCase = true) &&
+                        vCountry == targetCountry &&
+                        !matchesMaleSignature(voiceDescriptor(v)) &&
+                        scoreVoiceForCountry(v, targetCountry) > 1000
+                }.sortedByDescending { scoreVoiceForCountry(it, targetCountry) }
+
+                val anyEnglishFemales = if (preferredFemales.isEmpty()) {
+                    voices.filter { v ->
+                        v.locale?.language.equals("en", ignoreCase = true) &&
+                            !matchesMaleSignature(voiceDescriptor(v))
+                    }.sortedByDescending { scoreVoiceForCountry(it, targetCountry) }
+                } else {
+                    emptyList()
+                }
+
+                val chosen = when {
+                    preferredFemales.isNotEmpty() -> when (persona) {
+                        NovaVoicePersona.ANANYA -> preferredFemales[0]
+                        NovaVoicePersona.PRIYA -> preferredFemales.getOrElse(1) { preferredFemales[0] }
+                        NovaVoicePersona.MEERA -> preferredFemales.getOrElse(2) { preferredFemales[0] }
+                        NovaVoicePersona.SOPHIA -> preferredFemales.getOrElse(1) { preferredFemales[0] }
+                        NovaVoicePersona.CLARA,
+                        NovaVoicePersona.EMMA,
+                        NovaVoicePersona.GRACE,
+                        NovaVoicePersona.BARNALI,
+                        NovaVoicePersona.JONALI,
+                        NovaVoicePersona.NAMRATA -> preferredFemales[0]
                     }
-                } catch (_: Throwable) { }
+                    anyEnglishFemales.isNotEmpty() -> anyEnglishFemales.first()
+                    else -> primaryIndianVoice
+                }
+
+                if (chosen != null) {
+                    activeAndroidVoice = chosen
+                    activeAndroidVoiceConfirmedFemale = isConfirmedFemaleVoice(chosen)
+                    chosen.locale?.let { loc ->
+                        try {
+                            if (engine.isLanguageAvailable(loc) >= TextToSpeech.LANG_AVAILABLE) {
+                                engine.setLanguage(loc)
+                            }
+                        } catch (_: Throwable) { }
+                    }
+                    if (lastAppliedVoiceName != chosen.name) {
+                        engine.voice = chosen
+                        lastAppliedVoiceName = chosen.name
+                    }
+                } else {
+                    val targetLocale = Locale("en", targetCountry)
+                    try {
+                        if (engine.isLanguageAvailable(targetLocale) >= TextToSpeech.LANG_AVAILABLE) {
+                            engine.setLanguage(targetLocale)
+                        }
+                    } catch (_: Throwable) { }
+                }
             }
 
             val effectivePitch = if (activeAndroidVoiceConfirmedFemale) {
@@ -552,7 +660,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
      */
     internal fun splitIntoProsodyChunks(clean: String): List<String> {
         val rawSentences = clean
-            .split(Regex("(?<=[.!?])\\s+"))
+            .split(Regex("(?<=[.!?।])\\s+"))
             .map { it.trim() }
             .filter { it.isNotBlank() }
         if (rawSentences.isEmpty()) return listOf(clean)
@@ -668,6 +776,12 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     fun previewVoice() {
         val p = _voicePersona.value
         val sample = when (p) {
+            NovaVoicePersona.BARNALI ->
+                "নমস্কাৰ! মই বৰ্ণালী, আপোনাৰ নভা এআই বন্ধু। গণিত, বিজ্ঞান বা যিকোনো বিষয়ত মই আপোনাক সহজকৈ অসমীয়াত সহায় কৰিম!"
+            NovaVoicePersona.JONALI ->
+                "হেল্লো! মই জোনালী। আজি আমি একেলগে নতুন কথা শিকোঁ আহক, যিকোনো প্ৰশ্ন সোধক মই সাজু আছোঁ!"
+            NovaVoicePersona.NAMRATA ->
+                "নমস্কাৰ! মই নম্ৰতা। লাহে লাহে আৰু স্পষ্টকৈ আমি প্ৰতিটো পাঠ বুজি ল'ম, আপোনাৰ লগত থাকি ভাল লাগিছে।"
             NovaVoicePersona.ANANYA ->
                 "Hi there! I'm Ananya, your Nova speaking buddy. Let's have a fun, natural conversation in English today!"
             NovaVoicePersona.PRIYA ->
@@ -686,11 +800,19 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         speak(sample, slowSpeed = false)
     }
 
+    private fun containsAssameseScript(text: String): Boolean {
+        return text.any { ch -> ch in '\u0980'..'\u09FF' }
+    }
+
     private fun speakWithAndroidProsody(clean: String, slowSpeed: Boolean) {
         val engine = tts ?: return
         if (!isInitialized) return
 
         val persona = _voicePersona.value
+        val textIsAssamese = containsAssameseScript(clean)
+        if (textIsAssamese || persona.isAssameseVoice) {
+            applyBestVoiceForPersona(forceAssameseScript = textIsAssamese)
+        }
         val baseRate = effectiveAndroidSpeechRate(persona, slowSpeed)
         val effectivePitch = if (activeAndroidVoiceConfirmedFemale) {
             persona.basePitch
@@ -768,8 +890,13 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                     }
                 }
 
-                // Cap wait on Chunk 0 so user never waits several seconds of silence before AI starts speaking
-                val firstPayload = withTimeoutOrNull(CLOUD_FIRST_CHUNK_DEADLINE_MS) {
+                // Allow extra headroom for Assamese studio neural TTS so real human Assamese female audio plays reliably
+                val firstChunkDeadlineMs = if (persona.isAssameseVoice || containsAssameseScript(cleanText)) {
+                    CLOUD_ASSAMESE_FIRST_CHUNK_DEADLINE_MS
+                } else {
+                    CLOUD_FIRST_CHUNK_DEADLINE_MS
+                }
+                val firstPayload = withTimeoutOrNull(firstChunkDeadlineMs) {
                     deferredChunks.firstOrNull()?.await()
                 }
 
@@ -1091,13 +1218,14 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     }
 
     companion object {
-        internal const val CLOUD_FIRST_CHUNK_DEADLINE_MS = 1400L
+        internal const val CLOUD_FIRST_CHUNK_DEADLINE_MS = 1800L
+        internal const val CLOUD_ASSAMESE_FIRST_CHUNK_DEADLINE_MS = 4500L
 
         private val femaleTokenRegex = Regex(
-            "(^|[^a-z0-9])(female|woman|enc|ene|ena|ef|sangeeta|veena|lekha|neelam|aditi|kajal|raveena|priya|gba|gbc|gbg|fis|iog|sfg|tpf|tessa|samantha|karen|moira|serena|victoria|f00|f01|f02|f)([^a-z0-9]|$)"
+            "(^|[^a-z0-9])(female|woman|enc|ene|ena|ef|asf|bnf|bna|bnb|bnc|bne|sangeeta|veena|lekha|neelam|aditi|kajal|raveena|priya|gba|gbc|gbg|fis|iog|sfg|tpf|tessa|samantha|karen|moira|serena|victoria|f00|f01|f02|f)([^a-z0-9]|$)"
         )
         private val maleTokenRegex = Regex(
-            "(^|[^a-z0-9])(male|man|rishi|prabhat|end|ahp|daniel|arthur|oliver|george|alex|fred|m00|m01|iol|iom|rjs|tpd)([^a-z0-9]|$)"
+            "(^|[^a-z0-9])(male|man|rishi|prabhat|end|ahp|asm|bnm|bnd|daniel|arthur|oliver|george|alex|fred|m00|m01|iol|iom|rjs|tpd)([^a-z0-9]|$)"
         )
         private val sampleRateRegex = Regex("rate=(\\d+)", RegexOption.IGNORE_CASE)
 

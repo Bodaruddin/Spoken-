@@ -1,7 +1,10 @@
 package com.example.service
 
 import com.example.data.model.SpeakingEvaluation
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -14,10 +17,19 @@ import java.util.concurrent.TimeUnit
 object GeminiSpeechEvaluator {
 
     private val httpClient = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
-        .writeTimeout(25, TimeUnit.SECONDS)
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS)
+        .writeTimeout(20, TimeUnit.SECONDS)
         .build()
+
+    private val streamingHttpClient = OkHttpClient.Builder()
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(20, TimeUnit.SECONDS)
+        .build()
+
+    @Volatile
+    private var lastWorkingNovaModel: String? = null
 
     const val DEFAULT_MODEL = "gemini-2.5-flash"
 
@@ -1308,6 +1320,132 @@ object GeminiSpeechEvaluator {
     }
 
     /**
+     * Real-time streaming version of Nova AI (SSE `:streamGenerateContent?alt=sse`) with smart
+     * low-latency `thinkingConfig` budgeting so the first words appear in ~1 second instead of
+     * waiting 15-30 seconds for full generation + hidden thinking tokens.
+     */
+    suspend fun askNovaGeminiStream(
+        apiKey: String,
+        userPrompt: String,
+        chatHistory: List<com.example.data.model.NovaChatMessage> = emptyList(),
+        attachments: List<com.example.util.NovaAttachment> = emptyList(),
+        studentName: String = "Student",
+        studentClass: String = "",
+        cefrLevel: String = "B1",
+        mode: String = "General AI",
+        model: String = DEFAULT_MODEL,
+        responseLanguage: String = "Auto",
+        onDelta: (String) -> Unit = {}
+    ): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
+        val cleanKey = apiKey.trim()
+        val cleanPrompt = userPrompt.trim().ifBlank {
+            if (attachments.isNotEmpty()) "Please inspect the attached content carefully and solve or explain every part step-by-step." else ""
+        }
+        if (cleanKey.isEmpty()) {
+            return@withContext Result.failure(IllegalStateException("Gemini API key is not configured."))
+        }
+        if (cleanPrompt.isEmpty() && attachments.isEmpty()) {
+            return@withContext Result.failure(IllegalArgumentException("Prompt cannot be empty."))
+        }
+
+        val modelsToTry = buildFastNovaModelOrder(model)
+        val systemPrompt = buildNovaGeminiSystemPrompt(studentName, studentClass, cefrLevel, mode, responseLanguage)
+        val combinedPromptText = buildAttachmentAugmentedPrompt(cleanPrompt, attachments)
+        val isPrecisionMode = shouldUsePrecisionTemperature(mode, cleanPrompt, attachments)
+        val contents = buildLeanGeminiContents(chatHistory, attachments, combinedPromptText)
+        var lastError: Exception? = null
+
+        for (activeModel in modelsToTry) {
+            currentCoroutineContext().ensureActive()
+            val supportsThinking = activeModel.contains("2.5") || activeModel.contains("flash-latest")
+            val attemptWithThinking = if (supportsThinking) listOf(true, false) else listOf(false)
+
+            for (useThinkingConfig in attemptWithThinking) {
+                currentCoroutineContext().ensureActive()
+                try {
+                    val streamUrl = "https://generativelanguage.googleapis.com/v1beta/models/$activeModel:streamGenerateContent?alt=sse&key=$cleanKey"
+                    val jsonBody = buildNovaGeminiRequestBody(
+                        systemPrompt = systemPrompt,
+                        contents = contents,
+                        isPrecisionMode = isPrecisionMode,
+                        includeThinkingConfig = useThinkingConfig
+                    )
+                    val request = Request.Builder()
+                        .url(streamUrl)
+                        .addHeader("Accept", "text/event-stream")
+                        .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                        .build()
+
+                    val accumulated = StringBuilder()
+                    var httpCode = 0
+                    var errorBody = ""
+
+                    streamingHttpClient.newCall(request).execute().use { response ->
+                        httpCode = response.code
+                        if (!response.isSuccessful) {
+                            errorBody = response.body?.string() ?: ""
+                        } else {
+                            val source = response.body?.source()
+                            if (source != null) {
+                                while (!source.exhausted()) {
+                                    currentCoroutineContext().ensureActive()
+                                    val line = source.readUtf8Line() ?: break
+                                    if (!line.startsWith("data:")) continue
+                                    val payload = line.removePrefix("data:").trim()
+                                    if (payload.isEmpty() || payload == "[DONE]") continue
+                                    val chunkText = extractGeminiTextFromJson(payload)
+                                    if (chunkText.isNotEmpty()) {
+                                        accumulated.append(chunkText)
+                                        onDelta(accumulated.toString())
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (httpCode in 200..299) {
+                        val finalOut = accumulated.toString().trim()
+                        if (finalOut.isNotBlank()) {
+                            lastWorkingNovaModel = activeModel
+                            return@withContext Result.success(finalOut to activeModel)
+                        }
+                        // Fallback to single non-streaming request if SSE returned empty
+                        val nonStream = executeSingleGeminiNovaRequest(activeModel, cleanKey, jsonBody)
+                        if (nonStream.isSuccess) {
+                            val txt = nonStream.getOrThrow()
+                            lastWorkingNovaModel = activeModel
+                            onDelta(txt)
+                            return@withContext Result.success(txt to activeModel)
+                        }
+                        lastError = nonStream.exceptionOrNull() as? Exception
+                            ?: Exception("Gemini returned an empty response.")
+                        break
+                    } else {
+                        val errMsg = parseApiErrorMessage(errorBody, "Gemini API HTTP $httpCode")
+                        lastError = Exception(errMsg)
+                        // Stop immediately on invalid API key / forbidden errors
+                        if (httpCode == 401 || httpCode == 403) {
+                            return@withContext Result.failure(lastError)
+                        }
+                        // If model rejected thinkingConfig with 400, retry same model once without it
+                        if (useThinkingConfig && httpCode == 400 && errMsg.contains("thinking", ignoreCase = true)) {
+                            continue
+                        }
+                        break
+                    }
+                } catch (ce: CancellationException) {
+                    throw ce
+                } catch (e: Exception) {
+                    lastError = e
+                    break
+                }
+            }
+        }
+
+        Result.failure(lastError ?: Exception("Unable to reach Gemini right now."))
+    }
+
+    /**
      * General-purpose Gemini-style conversational AI assistant for students ("Nova AI").
      * Supports multi-turn context, multimodal image/PDF inline_data, and extracted document text.
      */
@@ -1322,159 +1460,25 @@ object GeminiSpeechEvaluator {
         mode: String = "General AI",
         model: String = DEFAULT_MODEL,
         responseLanguage: String = "Auto"
-    ): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
-        val cleanKey = apiKey.trim()
-        val cleanPrompt = userPrompt.trim().ifBlank {
-            if (attachments.isNotEmpty()) "Please inspect the attached content carefully and solve or explain every part step-by-step." else ""
-        }
-        if (cleanKey.isEmpty()) {
-            return@withContext Result.failure(IllegalStateException("Gemini API key is not configured."))
-        }
-        if (cleanPrompt.isEmpty() && attachments.isEmpty()) {
-            return@withContext Result.failure(IllegalArgumentException("Prompt cannot be empty."))
-        }
-
-        val modelsToTry = mutableListOf<String>()
-        val preferred = model.trim().ifEmpty { DEFAULT_MODEL }
-        modelsToTry.add(preferred)
-        listOf(
-            "gemini-2.5-flash",
-            "gemini-2.5-flash-lite",
-            "gemini-flash-latest",
-            "gemini-3.5-flash-lite",
-            "gemini-3.5-flash",
-            "gemini-3.8-flash"
-        ).forEach { fallback ->
-            if (!modelsToTry.contains(fallback)) modelsToTry.add(fallback)
-        }
-
-        val systemPrompt = buildNovaGeminiSystemPrompt(studentName, studentClass, cefrLevel, mode, responseLanguage)
-        val combinedPromptText = buildAttachmentAugmentedPrompt(cleanPrompt, attachments)
-        val isPrecisionMode = shouldUsePrecisionTemperature(mode, cleanPrompt, attachments)
-        var lastError: Exception? = null
-
-        for (activeModel in modelsToTry) {
-            try {
-                val url = "https://generativelanguage.googleapis.com/v1beta/models/$activeModel:generateContent?key=$cleanKey"
-                val contents = JSONArray()
-
-                val fullHistory = chatHistory.takeLast(24)
-                var lastRole = ""
-                for (msg in fullHistory) {
-                    val role = if (msg.isNova) "model" else "user"
-                    val text = msg.text.trim()
-                    if (text.isBlank()) continue
-                    if (contents.length() == 0 && role == "model") {
-                        continue
-                    }
-                    if (role == lastRole && contents.length() > 0) {
-                        val lastObj = contents.getJSONObject(contents.length() - 1)
-                        val partsArr = lastObj.getJSONArray("parts")
-                        val existingPart = partsArr.getJSONObject(0)
-                        existingPart.put("text", "${existingPart.getString("text")}\n\n$text")
-                    } else {
-                        contents.put(JSONObject().apply {
-                            put("role", role)
-                            put("parts", JSONArray().apply {
-                                put(JSONObject().apply { put("text", text) })
-                            })
-                        })
-                        lastRole = role
-                    }
-                }
-
-                val currentParts = JSONArray().apply {
-                    attachments.forEach { att ->
-                        if (!att.base64Data.isNullOrBlank()) {
-                            put(JSONObject().apply {
-                                put("inline_data", JSONObject().apply {
-                                    put("mime_type", att.mimeType)
-                                    put("data", att.base64Data)
-                                })
-                            })
-                        }
-                    }
-                    put(JSONObject().apply { put("text", combinedPromptText) })
-                }
-
-                if (lastRole == "user" && contents.length() > 0) {
-                    val lastObj = contents.getJSONObject(contents.length() - 1)
-                    val existingParts = lastObj.getJSONArray("parts")
-                    for (i in 0 until currentParts.length()) {
-                        existingParts.put(currentParts.get(i))
-                    }
-                } else {
-                    contents.put(JSONObject().apply {
-                        put("role", "user")
-                        put("parts", currentParts)
-                    })
-                }
-
-                val jsonBody = JSONObject().apply {
-                    put("system_instruction", JSONObject().apply {
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().apply { put("text", systemPrompt) })
-                        })
-                    })
-                    put("contents", contents)
-                    put("generationConfig", JSONObject().apply {
-                        put("temperature", if (isPrecisionMode) 0.15 else 0.65)
-                        put("maxOutputTokens", 8192)
-                    })
-                }
-
-                val request = Request.Builder()
-                    .url(url)
-                    .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
-                    .build()
-
-                val response = httpClient.newCall(request).execute()
-                val responseBody = response.body?.string() ?: ""
-                if (!response.isSuccessful) {
-                    val errorMsg = try {
-                        val errJson = JSONObject(responseBody)
-                        errJson.optJSONObject("error")?.optString("message")
-                            ?: "Gemini API HTTP ${response.code}"
-                    } catch (_: Exception) {
-                        "Gemini API HTTP ${response.code}"
-                    }
-                    lastError = Exception(errorMsg)
-                    continue
-                }
-
-                val rootJson = JSONObject(responseBody)
-                val partsArr = rootJson.optJSONArray("candidates")
-                    ?.optJSONObject(0)
-                    ?.optJSONObject("content")
-                    ?.optJSONArray("parts")
-                val textOutput = buildString {
-                    if (partsArr != null) {
-                        for (i in 0 until partsArr.length()) {
-                            val part = partsArr.optJSONObject(i) ?: continue
-                            if (part.optBoolean("thought", false)) continue
-                            val chunk = part.optString("text", "")
-                            if (chunk.isNotEmpty()) append(chunk)
-                        }
-                    }
-                }.trim()
-
-                if (textOutput.isNotBlank()) {
-                    return@withContext Result.success(textOutput to activeModel)
-                } else {
-                    lastError = Exception("Gemini returned an empty response.")
-                }
-            } catch (e: Exception) {
-                lastError = e
-            }
-        }
-
-        Result.failure(lastError ?: Exception("Unable to reach Gemini right now."))
-    }
+    ): Result<Pair<String, String>> = askNovaGeminiStream(
+        apiKey = apiKey,
+        userPrompt = userPrompt,
+        chatHistory = chatHistory,
+        attachments = attachments,
+        studentName = studentName,
+        studentClass = studentClass,
+        cefrLevel = cefrLevel,
+        mode = mode,
+        model = model,
+        responseLanguage = responseLanguage,
+        onDelta = {}
+    )
 
     /**
-     * OpenAI-compatible custom endpoint version of Nova Gemini Assistant with image & text attachments.
+     * Real-time streaming OpenAI-compatible custom endpoint version of Nova AI,
+     * with automatic fallback to non-streaming if the endpoint does not emit SSE chunks.
      */
-    suspend fun askNovaGeminiCustomEndpoint(
+    suspend fun askNovaGeminiCustomEndpointStream(
         endpointUrl: String,
         apiKey: String,
         modelName: String,
@@ -1485,7 +1489,8 @@ object GeminiSpeechEvaluator {
         studentClass: String = "",
         cefrLevel: String = "B1",
         mode: String = "General AI",
-        responseLanguage: String = "Auto"
+        responseLanguage: String = "Auto",
+        onDelta: (String) -> Unit = {}
     ): Result<Pair<String, String>> = withContext(Dispatchers.IO) {
         val cleanUrl = endpointUrl.trim().removeSuffix("/")
         val cleanKey = apiKey.trim()
@@ -1507,13 +1512,15 @@ object GeminiSpeechEvaluator {
             val systemPrompt = buildNovaGeminiSystemPrompt(studentName, studentClass, cefrLevel, mode, responseLanguage)
             val combinedPromptText = buildAttachmentAugmentedPrompt(cleanPrompt, attachments)
             val isPrecisionMode = shouldUsePrecisionTemperature(mode, cleanPrompt, attachments)
+            val recentHistory = chatHistory.takeLast(10)
             val messages = JSONArray().apply {
                 put(JSONObject().apply {
                     put("role", "system")
                     put("content", systemPrompt)
                 })
-                chatHistory.forEach { msg ->
-                    val text = msg.text.trim()
+                recentHistory.forEachIndexed { idx, msg ->
+                    val raw = msg.text.trim()
+                    val text = if (idx < recentHistory.size - 2 && raw.length > 1200) raw.take(1200) + "…" else raw
                     if (text.isNotBlank()) {
                         put(JSONObject().apply {
                             put("role", if (msg.isNova) "assistant" else "user")
@@ -1549,46 +1556,307 @@ object GeminiSpeechEvaluator {
                 }
             }
 
-            val jsonBody = JSONObject().apply {
+            // Try streaming first for instant response display
+            val streamBody = JSONObject().apply {
                 put("model", cleanModel)
                 put("messages", messages)
                 put("temperature", if (isPrecisionMode) 0.15 else 0.65)
+                put("max_tokens", if (isPrecisionMode) 4096 else 3072)
+                put("stream", true)
             }
-
-            val request = Request.Builder()
+            val streamReq = Request.Builder()
                 .url(completionsUrl)
                 .addHeader("Authorization", "Bearer $cleanKey")
-                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                .addHeader("Accept", "text/event-stream")
+                .post(streamBody.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 
-            val response = httpClient.newCall(request).execute()
-            val responseBody = response.body?.string() ?: ""
-
-            if (!response.isSuccessful) {
-                val errorMsg = try {
-                    val errJson = JSONObject(responseBody)
-                    errJson.optJSONObject("error")?.optString("message")
-                        ?: "Custom endpoint HTTP ${response.code}"
-                } catch (_: Exception) {
-                    "Custom endpoint HTTP ${response.code}"
+            val streamed = StringBuilder()
+            var streamSuccess = false
+            streamingHttpClient.newCall(streamReq).execute().use { response ->
+                if (response.isSuccessful) {
+                    val contentType = response.header("Content-Type")?.lowercase() ?: ""
+                    if (contentType.contains("event-stream") || contentType.contains("text/plain")) {
+                        val source = response.body?.source()
+                        if (source != null) {
+                            while (!source.exhausted()) {
+                                currentCoroutineContext().ensureActive()
+                                val line = source.readUtf8Line() ?: break
+                                if (!line.startsWith("data:")) continue
+                                val payload = line.removePrefix("data:").trim()
+                                if (payload == "[DONE]") break
+                                if (payload.isEmpty()) continue
+                                try {
+                                    val obj = JSONObject(payload)
+                                    val delta = obj.optJSONArray("choices")
+                                        ?.optJSONObject(0)
+                                        ?.optJSONObject("delta")
+                                        ?.optString("content", "")
+                                        ?: ""
+                                    if (delta.isNotEmpty()) {
+                                        streamed.append(delta)
+                                        onDelta(streamed.toString())
+                                    }
+                                } catch (_: Exception) {}
+                            }
+                            if (streamed.isNotBlank()) streamSuccess = true
+                        }
+                    } else {
+                        // Some proxies ignore stream=true and return normal JSON directly
+                        val rawBody = response.body?.string() ?: ""
+                        val directText = try {
+                            JSONObject(rawBody).optJSONArray("choices")
+                                ?.optJSONObject(0)
+                                ?.optJSONObject("message")
+                                ?.optString("content")
+                                ?.trim() ?: ""
+                        } catch (_: Exception) { "" }
+                        if (directText.isNotBlank()) {
+                            streamed.append(directText)
+                            onDelta(directText)
+                            streamSuccess = true
+                        }
+                    }
                 }
-                return@withContext Result.failure(Exception(errorMsg))
             }
 
-            val rootJson = JSONObject(responseBody)
-            val textOutput = rootJson.optJSONArray("choices")
-                ?.optJSONObject(0)
-                ?.optJSONObject("message")
-                ?.optString("content")
-                ?.trim()
-                ?: ""
-
-            if (textOutput.isBlank()) {
-                return@withContext Result.failure(Exception("Endpoint returned an empty response."))
+            if (streamSuccess) {
+                return@withContext Result.success(streamed.toString().trim() to cleanModel)
             }
-            Result.success(textOutput to cleanModel)
+
+            // Fallback to non-streaming if proxy rejected stream=true
+            val fallbackBody = JSONObject().apply {
+                put("model", cleanModel)
+                put("messages", messages)
+                put("temperature", if (isPrecisionMode) 0.15 else 0.65)
+                put("max_tokens", if (isPrecisionMode) 4096 else 3072)
+            }
+            val fallbackReq = Request.Builder()
+                .url(completionsUrl)
+                .addHeader("Authorization", "Bearer $cleanKey")
+                .post(fallbackBody.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            httpClient.newCall(fallbackReq).execute().use { response ->
+                val responseBody = response.body?.string() ?: ""
+                if (!response.isSuccessful) {
+                    val errorMsg = parseApiErrorMessage(responseBody, "Custom endpoint HTTP ${response.code}")
+                    return@withContext Result.failure(Exception(errorMsg))
+                }
+                val rootJson = JSONObject(responseBody)
+                val textOutput = rootJson.optJSONArray("choices")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("message")
+                    ?.optString("content")
+                    ?.trim()
+                    ?: ""
+                if (textOutput.isBlank()) {
+                    return@withContext Result.failure(Exception("Endpoint returned an empty response."))
+                }
+                onDelta(textOutput)
+                Result.success(textOutput to cleanModel)
+            }
+        } catch (ce: CancellationException) {
+            throw ce
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    /**
+     * OpenAI-compatible custom endpoint version of Nova Gemini Assistant with image & text attachments.
+     */
+    suspend fun askNovaGeminiCustomEndpoint(
+        endpointUrl: String,
+        apiKey: String,
+        modelName: String,
+        userPrompt: String,
+        chatHistory: List<com.example.data.model.NovaChatMessage> = emptyList(),
+        attachments: List<com.example.util.NovaAttachment> = emptyList(),
+        studentName: String = "Student",
+        studentClass: String = "",
+        cefrLevel: String = "B1",
+        mode: String = "General AI",
+        responseLanguage: String = "Auto"
+    ): Result<Pair<String, String>> = askNovaGeminiCustomEndpointStream(
+        endpointUrl = endpointUrl,
+        apiKey = apiKey,
+        modelName = modelName,
+        userPrompt = userPrompt,
+        chatHistory = chatHistory,
+        attachments = attachments,
+        studentName = studentName,
+        studentClass = studentClass,
+        cefrLevel = cefrLevel,
+        mode = mode,
+        responseLanguage = responseLanguage,
+        onDelta = {}
+    )
+
+    private fun buildFastNovaModelOrder(preferredModel: String): List<String> {
+        val list = mutableListOf<String>()
+        val cleanPreferred = preferredModel.trim().ifEmpty { DEFAULT_MODEL }
+        val cached = lastWorkingNovaModel
+        // Prioritize the preferred model if it's a known valid/fast Gemini model; otherwise lead with last working model
+        val knownValid = setOf("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest")
+        if (cleanPreferred in knownValid) {
+            list.add(cleanPreferred)
+        } else if (!cached.isNullOrBlank()) {
+            list.add(cached)
+            list.add(cleanPreferred)
+        } else {
+            list.add(cleanPreferred)
+        }
+        listOf(
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-flash-latest"
+        ).forEach { candidate ->
+            if (!list.contains(candidate)) list.add(candidate)
+        }
+        return list
+    }
+
+    private fun buildLeanGeminiContents(
+        chatHistory: List<com.example.data.model.NovaChatMessage>,
+        attachments: List<com.example.util.NovaAttachment>,
+        combinedPromptText: String
+    ): JSONArray {
+        val contents = JSONArray()
+        // Keep last 10 turns for fast upload/prefill while preserving recent context
+        val recentHistory = chatHistory.takeLast(10)
+        var lastRole = ""
+        recentHistory.forEachIndexed { idx, msg ->
+            val role = if (msg.isNova) "model" else "user"
+            val raw = msg.text.trim()
+            val text = if (idx < recentHistory.size - 2 && raw.length > 1200) raw.take(1200) + "…" else raw
+            if (text.isBlank()) return@forEachIndexed
+            if (contents.length() == 0 && role == "model") return@forEachIndexed
+            if (role == lastRole && contents.length() > 0) {
+                val lastObj = contents.getJSONObject(contents.length() - 1)
+                val partsArr = lastObj.getJSONArray("parts")
+                val existingPart = partsArr.getJSONObject(0)
+                existingPart.put("text", "${existingPart.getString("text")}\n\n$text")
+            } else {
+                contents.put(JSONObject().apply {
+                    put("role", role)
+                    put("parts", JSONArray().apply {
+                        put(JSONObject().apply { put("text", text) })
+                    })
+                })
+                lastRole = role
+            }
+        }
+
+        val currentParts = JSONArray().apply {
+            attachments.forEach { att ->
+                if (!att.base64Data.isNullOrBlank()) {
+                    put(JSONObject().apply {
+                        put("inline_data", JSONObject().apply {
+                            put("mime_type", att.mimeType)
+                            put("data", att.base64Data)
+                        })
+                    })
+                }
+            }
+            put(JSONObject().apply { put("text", combinedPromptText) })
+        }
+
+        if (lastRole == "user" && contents.length() > 0) {
+            val lastObj = contents.getJSONObject(contents.length() - 1)
+            val existingParts = lastObj.getJSONArray("parts")
+            for (i in 0 until currentParts.length()) {
+                existingParts.put(currentParts.get(i))
+            }
+        } else {
+            contents.put(JSONObject().apply {
+                put("role", "user")
+                put("parts", currentParts)
+            })
+        }
+        return contents
+    }
+
+    private fun buildNovaGeminiRequestBody(
+        systemPrompt: String,
+        contents: JSONArray,
+        isPrecisionMode: Boolean,
+        includeThinkingConfig: Boolean
+    ): JSONObject = JSONObject().apply {
+        put("system_instruction", JSONObject().apply {
+            put("parts", JSONArray().apply {
+                put(JSONObject().apply { put("text", systemPrompt) })
+            })
+        })
+        put("contents", contents)
+        put("generationConfig", JSONObject().apply {
+            put("temperature", if (isPrecisionMode) 0.15 else 0.65)
+            put("maxOutputTokens", if (isPrecisionMode) 4096 else 3072)
+            if (includeThinkingConfig) {
+                // Prevent gemini-2.5-flash from spending 15-25s on unlimited hidden thinking tokens:
+                // 0 for fast search/general chat (~1s TTFT), 384 for crisp verified math/coding.
+                put("thinkingConfig", JSONObject().apply {
+                    put("thinkingBudget", if (isPrecisionMode) 384 else 0)
+                })
+            }
+        })
+    }
+
+    private fun executeSingleGeminiNovaRequest(
+        activeModel: String,
+        cleanKey: String,
+        jsonBody: JSONObject
+    ): Result<String> {
+        return try {
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/$activeModel:generateContent?key=$cleanKey"
+            val request = Request.Builder()
+                .url(url)
+                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+            httpClient.newCall(request).execute().use { response ->
+                val body = response.body?.string() ?: ""
+                if (!response.isSuccessful) {
+                    return Result.failure(Exception(parseApiErrorMessage(body, "Gemini API HTTP ${response.code}")))
+                }
+                val text = extractGeminiTextFromJson(body).trim()
+                if (text.isNotBlank()) Result.success(text)
+                else Result.failure(Exception("Gemini returned an empty response."))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private fun extractGeminiTextFromJson(rawJson: String): String {
+        return try {
+            val rootJson = JSONObject(rawJson)
+            val partsArr = rootJson.optJSONArray("candidates")
+                ?.optJSONObject(0)
+                ?.optJSONObject("content")
+                ?.optJSONArray("parts")
+                ?: return ""
+            buildString {
+                for (i in 0 until partsArr.length()) {
+                    val part = partsArr.optJSONObject(i) ?: continue
+                    if (part.optBoolean("thought", false)) continue
+                    val chunk = part.optString("text", "")
+                    if (chunk.isNotEmpty()) append(chunk)
+                }
+            }
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
+    private fun parseApiErrorMessage(responseBody: String, fallback: String): String {
+        return try {
+            JSONObject(responseBody)
+                .optJSONObject("error")
+                ?.optString("message")
+                ?.takeIf { it.isNotBlank() }
+                ?: fallback
+        } catch (_: Exception) {
+            fallback
         }
     }
 

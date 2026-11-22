@@ -81,6 +81,7 @@ fun NovaGeminiAssistantScreen(
     val chatHistory by viewModel.novaGeminiHistory.collectAsState()
     val activeSessionId by viewModel.activeNovaGeminiSessionId.collectAsState()
     val isThinking by viewModel.isNovaGeminiThinking.collectAsState()
+    val isStreaming by viewModel.isNovaGeminiStreaming.collectAsState()
     val activeMode by viewModel.novaGeminiMode.collectAsState()
     val responseLanguage by viewModel.novaGeminiLanguage.collectAsState()
     val isGeminiConfigured by viewModel.isGeminiConfigured.collectAsState()
@@ -108,8 +109,8 @@ fun NovaGeminiAssistantScreen(
 
     LaunchedEffect(Unit) { viewModel.loadNovaGeminiSession() }
 
-    LaunchedEffect(messages.size, isThinking) {
-        val total = messages.size + if (isThinking) 1 else 0
+    LaunchedEffect(messages.size, isThinking, isStreaming) {
+        val total = messages.size + if (isThinking && !isStreaming) 1 else 0
         if (total > 0) listState.animateScrollToItem(total - 1)
     }
 
@@ -409,7 +410,7 @@ fun NovaGeminiAssistantScreen(
                 }
             }
 
-            if (isThinking) {
+            if (isThinking && !isStreaming) {
                 item { NovaThinkingIndicator() }
             }
         }
@@ -638,21 +639,28 @@ fun NovaGeminiAssistantScreen(
                         .size(34.dp)
                         .clip(CircleShape)
                         .background(
-                            if (canSend) Brush.linearGradient(listOf(Color(0xFF06B6D4), Color(0xFF7C3AED)))
-                            else SolidColor(Color(0xFF1E293B))
+                            when {
+                                isThinking -> SolidColor(Color(0xFFDC2626))
+                                canSend -> Brush.linearGradient(listOf(Color(0xFF06B6D4), Color(0xFF7C3AED)))
+                                else -> SolidColor(Color(0xFF1E293B))
+                            }
                         )
-                        .clickable(enabled = canSend) {
-                            val prompt = inputText.trim()
-                            inputText = ""
-                            showAttachmentOptions = false
-                            viewModel.sendNovaGeminiMessage(prompt)
+                        .clickable(enabled = isThinking || canSend) {
+                            if (isThinking) {
+                                viewModel.stopNovaGeminiGeneration()
+                            } else {
+                                val prompt = inputText.trim()
+                                inputText = ""
+                                showAttachmentOptions = false
+                                viewModel.sendNovaGeminiMessage(prompt)
+                            }
                         }
                         .testTag("nova_gemini_send_btn")
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.ArrowUpward,
-                        contentDescription = "Send Prompt",
-                        tint = if (canSend) Color.White else Color(0xFF64748B),
+                        imageVector = if (isThinking) Icons.Rounded.Stop else Icons.Rounded.ArrowUpward,
+                        contentDescription = if (isThinking) "Stop generating" else "Send Prompt",
+                        tint = if (isThinking || canSend) Color.White else Color(0xFF64748B),
                         modifier = Modifier.size(18.dp)
                     )
                 }

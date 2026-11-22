@@ -86,7 +86,7 @@ fun NovaVoiceStudioDialog(
                     }
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Nova Female Voice Studio",
+                            text = "Nova Voice Studio",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color.White,
@@ -120,14 +120,31 @@ fun NovaVoiceStudioDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    val assamesePersonas = NovaVoicePersona.entries.filter { it.isAssameseVoice }
                     val indianPersonas = NovaVoicePersona.entries.filter { it.isIndianVoice }
-                    val globalEnglishPersonas = NovaVoicePersona.entries.filter { !it.isIndianVoice }
+                    val globalEnglishPersonas = NovaVoicePersona.entries.filter { !it.isIndianVoice && !it.isAssameseVoice }
+
+                    Text(
+                        text = "Assamese Female Voices (অসমীয়া)",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF5EEAD4)
+                    )
+
+                    assamesePersonas.forEach { persona ->
+                        VoicePersonaOptionCard(
+                            persona = persona,
+                            isSelected = persona == selectedPersona,
+                            onSelect = { onSelectPersona(persona) }
+                        )
+                    }
 
                     Text(
                         text = "Indian English Female Voices",
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFC4B5FD)
+                        color = Color(0xFFC4B5FD),
+                        modifier = Modifier.padding(top = 4.dp)
                     )
 
                     indianPersonas.forEach { persona ->
@@ -337,7 +354,9 @@ private fun VoicePersonaOptionCard(
                     .clip(CircleShape)
                     .background(
                         when {
+                            isSelected && persona.isAssameseVoice -> Brush.linearGradient(listOf(Color(0xFF10B981), Color(0xFF06B6D4)))
                             isSelected -> Brush.linearGradient(listOf(Color(0xFF38BDF8), Color(0xFFA855F7)))
+                            persona.isAssameseVoice -> Brush.linearGradient(listOf(Color(0xFF065F46), Color(0xFF0E7490)))
                             persona.isIndianVoice -> Brush.linearGradient(listOf(Color(0xFF312E81), Color(0xFF4C1D95)))
                             else -> Brush.linearGradient(listOf(Color(0xFF0E7490), Color(0xFF4338CA)))
                         }
@@ -356,20 +375,28 @@ private fun VoicePersonaOptionCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = persona.displayName,
+                        text = if (persona.nativeName.isNotBlank()) "${persona.displayName} • ${persona.nativeName}" else persona.displayName,
                         fontSize = 14.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = if (persona.isIndianVoice) Color(0xFF1E3A5F) else Color(0xFF134E4A)
+                        color = when {
+                            persona.isAssameseVoice -> Color(0xFF064E3B)
+                            persona.isIndianVoice -> Color(0xFF1E3A5F)
+                            else -> Color(0xFF134E4A)
+                        }
                     ) {
                         Text(
                             text = persona.localeBadge,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (persona.isIndianVoice) Color(0xFF67E8F9) else Color(0xFF5EEAD4),
+                            color = when {
+                                persona.isAssameseVoice -> Color(0xFF6EE7B7)
+                                persona.isIndianVoice -> Color(0xFF67E8F9)
+                                else -> Color(0xFF5EEAD4)
+                            },
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }

@@ -32,7 +32,7 @@ data class NovaAttachment(
 
 object NovaAttachmentHelper {
 
-    private const val MAX_IMAGE_DIMENSION = 1800
+    private const val MAX_IMAGE_DIMENSION = 1400
     private const val MAX_THUMBNAIL_DIMENSION = 360
     private const val MAX_PDF_BYTES = 6 * 1024 * 1024
     private const val MAX_TEXT_CHARS = 24000
@@ -82,7 +82,7 @@ object NovaAttachmentHelper {
 
                 val scaled = scaleBitmapIfNeeded(decoded, MAX_IMAGE_DIMENSION)
                 val out = ByteArrayOutputStream()
-                scaled.compress(Bitmap.CompressFormat.JPEG, 92, out)
+                scaled.compress(Bitmap.CompressFormat.JPEG, 86, out)
                 val jpegBytes = out.toByteArray()
                 val base64 = Base64.encodeToString(jpegBytes, Base64.NO_WRAP)
                 val thumb = scaleBitmapIfNeeded(scaled, MAX_THUMBNAIL_DIMENSION)

@@ -1398,6 +1398,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isNovaGeminiThinking = MutableStateFlow(false)
     val isNovaGeminiThinking: StateFlow<Boolean> = _isNovaGeminiThinking.asStateFlow()
 
+    private val _isNovaGeminiStreaming = MutableStateFlow(false)
+    val isNovaGeminiStreaming: StateFlow<Boolean> = _isNovaGeminiStreaming.asStateFlow()
+
+    private var novaGeminiJob: kotlinx.coroutines.Job? = null
+
     private val _novaGeminiMode = MutableStateFlow("General AI")
     val novaGeminiMode: StateFlow<String> = _novaGeminiMode.asStateFlow()
 
@@ -2680,6 +2685,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _pendingNovaAttachments.value = emptyList()
     }
 
+    fun stopNovaGeminiGeneration() {
+        novaGeminiJob?.cancel()
+        novaGeminiJob = null
+        _isNovaGeminiThinking.value = false
+        _isNovaGeminiStreaming.value = false
+        val studentId = currentUser.value.id.ifBlank { "default_student" }
+        val activeSessionId = _activeNovaGeminiSessionId.value
+        val currentMsgs = _novaGeminiMessages.value
+        if (activeSessionId.isNotBlank() && currentMsgs.any { !it.isNova }) {
+            upsertNovaGeminiHistorySession(studentId, activeSessionId, currentMsgs, _novaGeminiMode.value)
+        }
+    }
+
     fun sendNovaGeminiMessage(promptText: String) {
         val attachmentsToSend = _pendingNovaAttachments.value
         val cleanPrompt = promptText.trim().ifBlank {
@@ -2716,98 +2734,128 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _novaGeminiMessages.value = updatedWithUser
         upsertNovaGeminiHistorySession(studentId, activeSessionId, updatedWithUser, _novaGeminiMode.value)
 
-        viewModelScope.launch {
+        novaGeminiJob?.cancel()
+        novaGeminiJob = viewModelScope.launch {
             _isNovaGeminiThinking.value = true
+            _isNovaGeminiStreaming.value = false
             val effectiveKey = getEffectiveGeminiApiKey()
             val studentName = currentUser.value.name.ifBlank { "Student" }
             val studentClass = currentUser.value.studentClass
             val cefrLevel = studentProfile.value.currentLevel.cefr.ifBlank { "B1" }
             val activeMode = _novaGeminiMode.value
             val activeLanguage = _novaGeminiLanguage.value
+            val streamingMsgId = "nova_gem_${System.currentTimeMillis()}"
+            var lastUiPushMs = 0L
 
-            val (replyText, usedModel) = if (isGeminiApiKeyConfigured()) {
-                val aiResult = kotlinx.coroutines.withTimeoutOrNull(65000L) {
-                    if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
-                        GeminiSpeechEvaluator.askNovaGeminiCustomEndpoint(
-                            endpointUrl = _customEndpointUrl.value,
-                            apiKey = effectiveKey,
-                            modelName = _customModelName.value,
-                            userPrompt = cleanPrompt,
-                            chatHistory = priorHistory,
-                            attachments = attachmentsToSend,
-                            studentName = studentName,
-                            studentClass = studentClass,
-                            cefrLevel = cefrLevel,
-                            mode = activeMode,
-                            responseLanguage = activeLanguage
+            val onStreamDelta: (String) -> Unit = { partialText ->
+                val now = System.currentTimeMillis()
+                if (partialText.isNotEmpty() && (now - lastUiPushMs >= 55L || !_isNovaGeminiStreaming.value)) {
+                    lastUiPushMs = now
+                    _isNovaGeminiStreaming.value = true
+                    if (_activeNovaGeminiSessionId.value == activeSessionId) {
+                        val liveTurn = NovaChatMessage(
+                            id = streamingMsgId,
+                            isNova = true,
+                            text = partialText,
+                            audioPrompt = partialText,
+                            isQuestion = false,
+                            questionNumber = updatedWithUser.size + 1,
+                            hint = "Live • Nova AI"
                         )
-                    } else {
-                        GeminiSpeechEvaluator.askNovaGemini(
-                            apiKey = effectiveKey,
-                            userPrompt = cleanPrompt,
-                            chatHistory = priorHistory,
-                            attachments = attachmentsToSend,
-                            studentName = studentName,
-                            studentClass = studentClass,
-                            cefrLevel = cefrLevel,
-                            mode = activeMode,
-                            model = _activeAiModel.value,
-                            responseLanguage = activeLanguage
-                        )
-                    }
-                } ?: Result.failure(Exception("Request timed out. Please try again."))
-
-                if (aiResult.isSuccess) {
-                    aiResult.getOrThrow()
-                } else {
-                    val errDetail = aiResult.exceptionOrNull()?.message?.take(180) ?: "Connection interrupted"
-                    val isEnglishSpecializedMode = activeMode in setOf("Roleplay", "Grammar Fix", "Speaking Tutor", "Translator")
-                    if (isEnglishSpecializedMode) {
-                        com.example.service.NovaAssistantBrain.generateSmartReply(
-                            prompt = cleanPrompt,
-                            mode = activeMode,
-                            studentName = studentName,
-                            chatHistory = priorHistory,
-                            persona = ttsManager.voicePersona.value
-                        ) to "${ttsManager.voicePersona.value.displayName} • Offline Backup"
-                    } else {
-                        "⚠️ Could not reach the live Gemini AI service right now ($errDetail).\n\nPlease check your internet connection or ask your teacher/admin to verify the Gemini API key & selected model in Admin AI Settings, then send your question again." to "Connection Error"
+                        _novaGeminiMessages.value = updatedWithUser + liveTurn
                     }
                 }
-            } else {
-                com.example.service.NovaAssistantBrain.generateSmartReply(
-                    prompt = cleanPrompt,
-                    mode = activeMode,
-                    studentName = studentName,
-                    chatHistory = priorHistory,
-                    persona = ttsManager.voicePersona.value
-                ) to "${ttsManager.voicePersona.value.displayName} • Local Assistant"
             }
 
-            _novaGeminiModelUsed.value = usedModel
-            val novaTurn = NovaChatMessage(
-                id = "nova_gem_${System.currentTimeMillis()}",
-                isNova = true,
-                text = replyText,
-                audioPrompt = replyText,
-                isQuestion = false,
-                questionNumber = updatedWithUser.size + 1,
-                hint = usedModel
-            )
-            val finalHistory = updatedWithUser + novaTurn
-            if (_activeNovaGeminiSessionId.value == activeSessionId) {
-                _novaGeminiMessages.value = finalHistory
-            }
-            upsertNovaGeminiHistorySession(studentId, activeSessionId, finalHistory, activeMode)
-            _isNovaGeminiThinking.value = false
+            try {
+                val (replyText, usedModel) = if (isGeminiApiKeyConfigured()) {
+                    val aiResult = kotlinx.coroutines.withTimeoutOrNull(65000L) {
+                        if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
+                            GeminiSpeechEvaluator.askNovaGeminiCustomEndpointStream(
+                                endpointUrl = _customEndpointUrl.value,
+                                apiKey = effectiveKey,
+                                modelName = _customModelName.value,
+                                userPrompt = cleanPrompt,
+                                chatHistory = priorHistory,
+                                attachments = attachmentsToSend,
+                                studentName = studentName,
+                                studentClass = studentClass,
+                                cefrLevel = cefrLevel,
+                                mode = activeMode,
+                                responseLanguage = activeLanguage,
+                                onDelta = onStreamDelta
+                            )
+                        } else {
+                            GeminiSpeechEvaluator.askNovaGeminiStream(
+                                apiKey = effectiveKey,
+                                userPrompt = cleanPrompt,
+                                chatHistory = priorHistory,
+                                attachments = attachmentsToSend,
+                                studentName = studentName,
+                                studentClass = studentClass,
+                                cefrLevel = cefrLevel,
+                                mode = activeMode,
+                                model = _activeAiModel.value,
+                                responseLanguage = activeLanguage,
+                                onDelta = onStreamDelta
+                            )
+                        }
+                    } ?: Result.failure(Exception("Request timed out. Please try again."))
 
-            if (_aiVoiceReplyEnabled.value) {
-                val cleanedForSpeech = com.example.ui.components.NovaRichTextFormatter.formatForSpeech(replyText)
-                val spokenPreview = HumanConversationEngine.buildSpokenAudioPrompt(
-                    cleanedForSpeech.lineSequence().take(6).joinToString(" "),
-                    null
-                ).take(420)
-                if (spokenPreview.isNotBlank()) speakAudio(spokenPreview)
+                    if (aiResult.isSuccess) {
+                        aiResult.getOrThrow()
+                    } else {
+                        val errDetail = aiResult.exceptionOrNull()?.message?.take(180) ?: "Connection interrupted"
+                        val isEnglishSpecializedMode = activeMode in setOf("Roleplay", "Grammar Fix", "Speaking Tutor", "Translator")
+                        if (isEnglishSpecializedMode) {
+                            com.example.service.NovaAssistantBrain.generateSmartReply(
+                                prompt = cleanPrompt,
+                                mode = activeMode,
+                                studentName = studentName,
+                                chatHistory = priorHistory,
+                                persona = ttsManager.voicePersona.value
+                            ) to "${ttsManager.voicePersona.value.displayName} • Offline Backup"
+                        } else {
+                            "⚠️ Could not reach the live Gemini AI service right now ($errDetail).\n\nPlease check your internet connection or ask your teacher/admin to verify the Gemini API key & selected model in Admin AI Settings, then send your question again." to "Connection Error"
+                        }
+                    }
+                } else {
+                    com.example.service.NovaAssistantBrain.generateSmartReply(
+                        prompt = cleanPrompt,
+                        mode = activeMode,
+                        studentName = studentName,
+                        chatHistory = priorHistory,
+                        persona = ttsManager.voicePersona.value
+                    ) to "${ttsManager.voicePersona.value.displayName} • Local Assistant"
+                }
+
+                _novaGeminiModelUsed.value = usedModel
+                val novaTurn = NovaChatMessage(
+                    id = streamingMsgId,
+                    isNova = true,
+                    text = replyText,
+                    audioPrompt = replyText,
+                    isQuestion = false,
+                    questionNumber = updatedWithUser.size + 1,
+                    hint = usedModel
+                )
+                val finalHistory = updatedWithUser + novaTurn
+                if (_activeNovaGeminiSessionId.value == activeSessionId) {
+                    _novaGeminiMessages.value = finalHistory
+                }
+                upsertNovaGeminiHistorySession(studentId, activeSessionId, finalHistory, activeMode)
+
+                if (_aiVoiceReplyEnabled.value) {
+                    val cleanedForSpeech = com.example.ui.components.NovaRichTextFormatter.formatForSpeech(replyText)
+                    val spokenPreview = HumanConversationEngine.buildSpokenAudioPrompt(
+                        cleanedForSpeech.lineSequence().take(6).joinToString(" "),
+                        null
+                    ).take(420)
+                    if (spokenPreview.isNotBlank()) speakAudio(spokenPreview)
+                }
+            } finally {
+                _isNovaGeminiThinking.value = false
+                _isNovaGeminiStreaming.value = false
             }
         }
     }
