@@ -555,7 +555,7 @@ private fun ExamCard(
                                 Text(
                                     text = when {
                                         isPendingReview -> "Submitted • Pending Teacher Grading"
-                                        submission.isPassed -> "Passed • Grade ${submission.grade}"
+                                        submission.isPassed -> "Passed • Grade ${submission.displayGrade}"
                                         else -> "Needs Improvement"
                                     },
                                     fontWeight = FontWeight.Bold,
@@ -1604,7 +1604,7 @@ internal fun ExamReviewDialog(
                                     if (isPendingReview) {
                                         "Written answers submitted • Current score: ${submission.scoreObtained}/${submission.totalMarks}"
                                     } else {
-                                        "Score: ${submission.scoreObtained}/${submission.totalMarks} (${submission.percentage}%) • Grade ${submission.grade}"
+                                        "Score: ${submission.scoreObtained}/${submission.totalMarks} (${submission.percentage}%) • Grade ${submission.displayGrade}"
                                     },
                                     fontSize = 12.sp,
                                     color = Color(0xFF38BDF8)

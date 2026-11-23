@@ -10,14 +10,15 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import android.util.Base64
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,48 +59,6 @@ enum class NovaVoicePersona(
     val preferredLanguageCode: String = "en",
     val nativeName: String = ""
 ) {
-    BARNALI(
-        id = "BARNALI",
-        displayName = "Barnali",
-        subtitle = "Warm & Natural Assamese Female Voice",
-        basePitch = 1.00f,
-        baseRate = 0.86f,
-        geminiVoiceName = "Aoede",
-        stylePrompt = "Warm, natural, crystal-clear native Assamese female voice",
-        localeBadge = "as-IN",
-        preferredCountryCode = "IN",
-        shortAccentLabel = "Assamese Voice",
-        preferredLanguageCode = "as",
-        nativeName = "বৰ্ণালী"
-    ),
-    JONALI(
-        id = "JONALI",
-        displayName = "Jonali",
-        subtitle = "Sweet & Expressive Assamese Female Voice",
-        basePitch = 1.03f,
-        baseRate = 0.88f,
-        geminiVoiceName = "Leda",
-        stylePrompt = "Sweet, lively, expressive native Assamese female friend voice",
-        localeBadge = "as-IN",
-        preferredCountryCode = "IN",
-        shortAccentLabel = "Assamese Voice",
-        preferredLanguageCode = "as",
-        nativeName = "জোনালী"
-    ),
-    NAMRATA(
-        id = "NAMRATA",
-        displayName = "Namrata",
-        subtitle = "Calm & Clear Assamese Teacher Voice",
-        basePitch = 0.98f,
-        baseRate = 0.84f,
-        geminiVoiceName = "Kore",
-        stylePrompt = "Calm, gentle, articulate native Assamese female teacher voice",
-        localeBadge = "as-IN",
-        preferredCountryCode = "IN",
-        shortAccentLabel = "Assamese Voice",
-        preferredLanguageCode = "as",
-        nativeName = "নম্ৰতা"
-    ),
     ANANYA(
         id = "ANANYA",
         displayName = "Ananya",
@@ -183,6 +142,48 @@ enum class NovaVoicePersona(
         localeBadge = "en-AU",
         preferredCountryCode = "AU",
         shortAccentLabel = "Australian English"
+    ),
+    BARNALI(
+        id = "BARNALI",
+        displayName = "Barnali",
+        subtitle = "Warm & Natural Assamese Female Voice",
+        basePitch = 1.03f,
+        baseRate = 0.88f,
+        geminiVoiceName = "Aoede",
+        stylePrompt = "warm, natural, authentic Assamese female voice from Assam",
+        localeBadge = "as-IN",
+        preferredCountryCode = "IN",
+        shortAccentLabel = "Assamese Voice",
+        preferredLanguageCode = "as",
+        nativeName = "বৰ্ণালী"
+    ),
+    JONALI(
+        id = "JONALI",
+        displayName = "Jonali",
+        subtitle = "Sweet & Expressive Assamese Female Voice",
+        basePitch = 1.05f,
+        baseRate = 0.90f,
+        geminiVoiceName = "Leda",
+        stylePrompt = "sweet, lively, authentic Assamese female voice from Assam",
+        localeBadge = "as-IN",
+        preferredCountryCode = "IN",
+        shortAccentLabel = "Assamese Voice",
+        preferredLanguageCode = "as",
+        nativeName = "জোনালী"
+    ),
+    NAMRATA(
+        id = "NAMRATA",
+        displayName = "Namrata",
+        subtitle = "Calm & Clear Assamese Teacher Voice",
+        basePitch = 1.00f,
+        baseRate = 0.85f,
+        geminiVoiceName = "Zephyr",
+        stylePrompt = "calm, gentle, authentic Assamese female teacher voice from Assam",
+        localeBadge = "as-IN",
+        preferredCountryCode = "IN",
+        shortAccentLabel = "Assamese Voice",
+        preferredLanguageCode = "as",
+        nativeName = "নম্ৰতা"
     );
 
     val isAssameseVoice: Boolean
@@ -192,8 +193,10 @@ enum class NovaVoicePersona(
         get() = preferredCountryCode == "IN" && preferredLanguageCode.equals("en", ignoreCase = true)
 
     companion object {
+        val DEFAULT: NovaVoicePersona = ANANYA
+
         fun fromId(id: String?): NovaVoicePersona {
-            return entries.firstOrNull { it.id.equals(id, ignoreCase = true) } ?: ANANYA
+            return entries.firstOrNull { it.id.equals(id, ignoreCase = true) } ?: DEFAULT
         }
     }
 }
@@ -264,6 +267,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     private var apiKeyProvider: (() -> String)? = null
     private var activeAudioTrack: AudioTrack? = null
     private var cloudTtsJob: Job? = null
+    private var prewarmJob: Job? = null
     private var cloudTtsAuthBlocked = false
     private var cloudTtsCooldownUntilMs = 0L
 
@@ -276,10 +280,10 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
 
     private val cloudTtsClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(3500, TimeUnit.MILLISECONDS)
-            .readTimeout(8000, TimeUnit.MILLISECONDS)
-            .writeTimeout(3500, TimeUnit.MILLISECONDS)
-            .callTimeout(10000, TimeUnit.MILLISECONDS)
+            .connectTimeout(3000, TimeUnit.MILLISECONDS)
+            .readTimeout(6500, TimeUnit.MILLISECONDS)
+            .writeTimeout(3000, TimeUnit.MILLISECONDS)
+            .callTimeout(8000, TimeUnit.MILLISECONDS)
             .build()
     }
 
@@ -292,6 +296,9 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         cloudTtsAuthBlocked = false
         cloudTtsCooldownUntilMs = 0L
         updateActiveVoiceLabel()
+        if (_voicePersona.value.isAssameseVoice) {
+            prewarmPersonaPreview(_voicePersona.value)
+        }
     }
 
     fun setVoicePersona(persona: NovaVoicePersona) {
@@ -299,6 +306,32 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         updateActiveVoiceLabel()
         if (isInitialized) {
             applyBestVoiceForPersona()
+        }
+        if (persona.isAssameseVoice) {
+            prewarmPersonaPreview(persona)
+        }
+    }
+
+    private fun prewarmPersonaPreview(persona: NovaVoicePersona) {
+        if (!isCloudTtsReady() || _isSpeaking.value) return
+        val key = try {
+            apiKeyProvider?.invoke()?.trim().orEmpty()
+        } catch (_: Throwable) {
+            ""
+        }
+        if (key.isBlank() || key.startsWith("cc_")) return
+
+        val sample = cleanTextForSpeech(getPreviewSampleForPersona(persona))
+        val firstChunk = splitIntoCloudChunks(sample).firstOrNull()?.takeIf { it.isNotBlank() } ?: return
+        val cacheKey = buildCloudCacheKey(persona, firstChunk)
+        val alreadyCached = synchronized(cloudAudioCacheLock) { cloudAudioCache.containsKey(cacheKey) }
+        if (alreadyCached) return
+
+        prewarmJob?.cancel()
+        prewarmJob = scope.launch(Dispatchers.IO) {
+            try {
+                fetchOrCachedCloudChunk(firstChunk, key, persona)
+            } catch (_: Throwable) { }
         }
     }
 
@@ -494,29 +527,49 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             val wantAssamese = persona.isAssameseVoice || forceAssameseScript
 
             if (wantAssamese) {
-                val assameseFemales = voices.filter { v ->
+                // 1. Prefer strictly confirmed female Assamese (as-IN) voices first
+                val confirmedAssameseFemales = voices.filter { v ->
                     v.locale?.language.equals("as", ignoreCase = true) &&
-                        !matchesMaleSignature(voiceDescriptor(v))
+                        isConfirmedFemaleVoice(v)
                 }.sortedByDescending { scoreVoiceForCountry(it, "IN") }
 
-                val bengaliInFemales = if (assameseFemales.isEmpty()) {
+                // 2. Next prefer strictly confirmed female Indian Bengali (bn-IN, never bn-BD male/neutral) voices
+                val confirmedBengaliInFemales = if (confirmedAssameseFemales.isEmpty()) {
                     voices.filter { v ->
                         v.locale?.language.equals("bn", ignoreCase = true) &&
+                            v.locale?.country.equals("IN", ignoreCase = true) &&
+                            isConfirmedFemaleVoice(v)
+                    }.sortedByDescending { scoreVoiceForCountry(it, "IN") }
+                } else {
+                    emptyList()
+                }
+
+                val confirmedPool = confirmedAssameseFemales.ifEmpty { confirmedBengaliInFemales }
+                val fastConfirmedPool = confirmedPool.filter { !it.isNetworkConnectionRequired }.ifEmpty { confirmedPool }
+
+                // 3. Last-resort Indic fallback: strictly non-male as-IN or bn-IN voices (never bn-BD or known male IDs)
+                val nonMaleIndicFallback = if (fastConfirmedPool.isEmpty()) {
+                    voices.filter { v ->
+                        val lang = v.locale?.language.orEmpty()
+                        val country = v.locale?.country.orEmpty()
+                        (lang.equals("as", ignoreCase = true) ||
+                            (lang.equals("bn", ignoreCase = true) && !country.equals("BD", ignoreCase = true))) &&
                             !matchesMaleSignature(voiceDescriptor(v))
                     }.sortedByDescending { scoreVoiceForCountry(it, "IN") }
                 } else {
                     emptyList()
                 }
 
-                val pool = assameseFemales.ifEmpty { bengaliInFemales }
+                // Only pick alternate voice indices from CONFIRMED female local voices so we never land on a male or laggy voice
                 val chosenIndic = when {
-                    pool.isNotEmpty() -> when (persona) {
-                        NovaVoicePersona.BARNALI -> pool[0]
-                        NovaVoicePersona.JONALI -> pool.getOrElse(1) { pool[0] }
-                        NovaVoicePersona.NAMRATA -> pool.getOrElse(2) { pool[0] }
-                        else -> pool[0]
+                    fastConfirmedPool.isNotEmpty() -> when (persona) {
+                        NovaVoicePersona.BARNALI -> fastConfirmedPool[0]
+                        NovaVoicePersona.JONALI -> fastConfirmedPool.getOrElse(1) { fastConfirmedPool[0] }
+                        NovaVoicePersona.NAMRATA -> fastConfirmedPool.getOrElse(2) { fastConfirmedPool[0] }
+                        else -> fastConfirmedPool[0]
                     }
-                    else -> primaryIndianVoice
+                    nonMaleIndicFallback.isNotEmpty() -> nonMaleIndicFallback[0]
+                    else -> null
                 }
 
                 if (chosenIndic != null) {
@@ -534,13 +587,30 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                         lastAppliedVoiceName = chosenIndic.name
                     }
                 } else {
+                    activeAndroidVoice = null
+                    activeAndroidVoiceConfirmedFemale = false
                     val asLocale = Locale("as", "IN")
                     val bnLocale = Locale("bn", "IN")
                     try {
                         when {
                             engine.isLanguageAvailable(asLocale) >= TextToSpeech.LANG_AVAILABLE -> engine.setLanguage(asLocale)
                             engine.isLanguageAvailable(bnLocale) >= TextToSpeech.LANG_AVAILABLE -> engine.setLanguage(bnLocale)
-                            else -> engine.setLanguage(Locale("en", "IN"))
+                            else -> {
+                                engine.setLanguage(Locale("en", "IN"))
+                                primaryIndianVoice?.let {
+                                    engine.voice = it
+                                    activeAndroidVoice = it
+                                    activeAndroidVoiceConfirmedFemale = isConfirmedFemaleVoice(it)
+                                    lastAppliedVoiceName = it.name
+                                }
+                            }
+                        }
+                        // Guard: if setLanguage() auto-selected a known male system voice, try to keep female metadata accurate
+                        val postVoice = try { engine.voice } catch (_: Throwable) { null }
+                        if (postVoice != null) {
+                            activeAndroidVoice = postVoice
+                            activeAndroidVoiceConfirmedFemale = isConfirmedFemaleVoice(postVoice)
+                            lastAppliedVoiceName = postVoice.name
                         }
                     } catch (_: Throwable) { }
                 }
@@ -604,10 +674,10 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                 }
             }
 
-            val effectivePitch = if (activeAndroidVoiceConfirmedFemale) {
-                persona.basePitch
-            } else {
-                (persona.basePitch + 0.08f).coerceAtMost(1.12f)
+            val effectivePitch = when {
+                activeAndroidVoiceConfirmedFemale -> persona.basePitch
+                wantAssamese -> (persona.basePitch + 0.14f).coerceIn(1.12f, 1.22f)
+                else -> (persona.basePitch + 0.08f).coerceAtMost(1.12f)
             }
             val effectiveRate = effectiveAndroidSpeechRate(persona, slowSpeed = false)
             if (lastAppliedPitch != effectivePitch) {
@@ -648,6 +718,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             .replace(Regex("^[\\s*•-]+", RegexOption.MULTILINE), "")
             // Convert newlines into subtle sentence breaks if needed
             .replace(Regex("\\n+"), ". ")
+            .replace(Regex("([।!?])\\s*\\."), "$1")
             .replace(Regex("\\.{2,}"), ".")
             // Normalize spaces
             .replace(Regex("\\s+"), " ")
@@ -688,18 +759,32 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     }
 
     /**
-     * Splits cleaned text into a compact first cloud-TTS bite (<= 85 chars) plus grouped
-     * follow-up chunks (<= 180 chars) so playback begins immediately on chunk 0 while later chunks prefetch in parallel.
+     * Splits cleaned text into a compact first cloud-TTS bite (<= 48 chars for Assamese, <= 85 chars for English)
+     * plus grouped follow-up chunks (<= 180 chars) so playback starts quickly on Chunk 0 while Chunk 1+ pipelines behind it.
      */
     internal fun splitIntoCloudChunks(clean: String): List<String> {
         val sentences = splitIntoProsodyChunks(clean)
         if (sentences.isEmpty()) return listOf(clean)
 
-        val expandedFirst = if (sentences.first().length > 85) {
+        val isAssamese = containsAssameseScript(clean)
+        val firstChunkMax = if (isAssamese) 48 else 85
+
+        val expandedFirst = if (sentences.first().length > firstChunkMax) {
             val firstSentence = sentences.first()
-            val commaSplit = Regex("^(.{20,85}?[,;:])\\s+(.+)$").find(firstSentence)
+            val commaSplit = Regex("^(.{14,$firstChunkMax}?[,;:])\\s+(.+)$").find(firstSentence)
             if (commaSplit != null) {
                 listOf(commaSplit.groupValues[1].trim(), commaSplit.groupValues[2].trim()) + sentences.drop(1)
+            } else if (isAssamese) {
+                // Split long Assamese opening sentence cleanly on a word boundary so Chunk 0 synthesizes fast
+                val splitIdx = firstSentence.lastIndexOf(' ', firstChunkMax).takeIf { it >= 16 }
+                if (splitIdx != null) {
+                    listOf(
+                        firstSentence.substring(0, splitIdx).trim(),
+                        firstSentence.substring(splitIdx + 1).trim()
+                    ) + sentences.drop(1)
+                } else {
+                    sentences
+                }
             } else {
                 sentences
             }
@@ -713,8 +798,9 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         result.add(expandedFirst.first())
 
         var buffer = StringBuilder()
+        val followUpMax = if (isAssamese) 130 else 180
         for (part in expandedFirst.drop(1)) {
-            if (buffer.isNotEmpty() && buffer.length + part.length + 1 > 180 && result.size < 4) {
+            if (buffer.isNotEmpty() && buffer.length + part.length + 1 > followUpMax && result.size < 5) {
                 result.add(buffer.toString().trim())
                 buffer = StringBuilder(part)
             } else {
@@ -773,35 +859,39 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         speakWithAndroidProsody(clean, slowSpeed)
     }
 
+    private fun getPreviewSampleForPersona(p: NovaVoicePersona): String = when (p) {
+        NovaVoicePersona.BARNALI ->
+            "নমস্কাৰ! মই বৰ্ণালী। মই আপোনাৰ নভা এআই বন্ধু, গণিত, বিজ্ঞান বা যিকোনো বিষয়ত মই আপোনাক সহজকৈ অসমীয়াত সহায় কৰিম!"
+        NovaVoicePersona.JONALI ->
+            "হেল্লো! মই জোনালী। আজি আমি একেলগে নতুন কথা শিকোঁ আহক, যিকোনো প্ৰশ্ন সোধক মই সাজু আছোঁ!"
+        NovaVoicePersona.NAMRATA ->
+            "নমস্কাৰ! মই নম্ৰতা। লাহে লাহে আৰু স্পষ্টকৈ আমি প্ৰতিটো পাঠ বুজি ল'ম, আপোনাৰ লগত থাকি ভাল লাগিছে।"
+        NovaVoicePersona.ANANYA ->
+            "Hi there! I'm Ananya, your Nova speaking buddy. Let's have a fun, natural conversation in English today!"
+        NovaVoicePersona.PRIYA ->
+            "Hey! I'm Priya! Ready to level up your spoken English? Tell me about your day, and let's practice together!"
+        NovaVoicePersona.MEERA ->
+            "Hello! I'm Meera. Take a deep breath and speak comfortably with me. I'll help you sound clear and confident."
+        NovaVoicePersona.CLARA ->
+            "Hello! I'm Clara. Let's practice crisp British English pronunciation and natural everyday expressions together."
+        NovaVoicePersona.EMMA ->
+            "Hi! I'm Emma. We'll practice smooth, fluent American English conversations so you sound confident everywhere."
+        NovaVoicePersona.SOPHIA ->
+            "Hey there, I'm Sophia! Speak naturally with me, and I'll guide you step by step with warm feedback."
+        NovaVoicePersona.GRACE ->
+            "Hello! I'm Grace. Relax and chat with me in easy everyday English, one clear sentence at a time."
+    }
+
     fun previewVoice() {
-        val p = _voicePersona.value
-        val sample = when (p) {
-            NovaVoicePersona.BARNALI ->
-                "নমস্কাৰ! মই বৰ্ণালী, আপোনাৰ নভা এআই বন্ধু। গণিত, বিজ্ঞান বা যিকোনো বিষয়ত মই আপোনাক সহজকৈ অসমীয়াত সহায় কৰিম!"
-            NovaVoicePersona.JONALI ->
-                "হেল্লো! মই জোনালী। আজি আমি একেলগে নতুন কথা শিকোঁ আহক, যিকোনো প্ৰশ্ন সোধক মই সাজু আছোঁ!"
-            NovaVoicePersona.NAMRATA ->
-                "নমস্কাৰ! মই নম্ৰতা। লাহে লাহে আৰু স্পষ্টকৈ আমি প্ৰতিটো পাঠ বুজি ল'ম, আপোনাৰ লগত থাকি ভাল লাগিছে।"
-            NovaVoicePersona.ANANYA ->
-                "Hi there! I'm Ananya, your Nova speaking buddy. Let's have a fun, natural conversation in English today!"
-            NovaVoicePersona.PRIYA ->
-                "Hey! I'm Priya! Ready to level up your spoken English? Tell me about your day, and let's practice together!"
-            NovaVoicePersona.MEERA ->
-                "Hello! I'm Meera. Take a deep breath and speak comfortably with me. I'll help you sound clear and confident."
-            NovaVoicePersona.CLARA ->
-                "Hello! I'm Clara. Let's practice crisp British English pronunciation and natural everyday expressions together."
-            NovaVoicePersona.EMMA ->
-                "Hi! I'm Emma. We'll practice smooth, fluent American English conversations so you sound confident everywhere."
-            NovaVoicePersona.SOPHIA ->
-                "Hey there, I'm Sophia! Speak naturally with me, and I'll guide you step by step with warm feedback."
-            NovaVoicePersona.GRACE ->
-                "Hello! I'm Grace. Relax and chat with me in easy everyday English, one clear sentence at a time."
-        }
-        speak(sample, slowSpeed = false)
+        speak(getPreviewSampleForPersona(_voicePersona.value), slowSpeed = false)
     }
 
     private fun containsAssameseScript(text: String): Boolean {
         return text.any { ch -> ch in '\u0980'..'\u09FF' }
+    }
+
+    private fun buildCloudCacheKey(persona: NovaVoicePersona, chunk: String): String {
+        return "v2|${persona.id}|${persona.geminiVoiceName}|$chunk"
     }
 
     private fun speakWithAndroidProsody(clean: String, slowSpeed: Boolean) {
@@ -810,16 +900,28 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
 
         val persona = _voicePersona.value
         val textIsAssamese = containsAssameseScript(clean)
-        if (textIsAssamese || persona.isAssameseVoice) {
+        val wantAssamese = textIsAssamese || persona.isAssameseVoice
+        val currentVoiceLang = activeAndroidVoice?.locale?.language.orEmpty()
+        val needsEnglishRestore = !wantAssamese && currentVoiceLang.isNotBlank() && !currentVoiceLang.equals("en", ignoreCase = true)
+        if (wantAssamese || needsEnglishRestore) {
             applyBestVoiceForPersona(forceAssameseScript = textIsAssamese)
         }
         val baseRate = effectiveAndroidSpeechRate(persona, slowSpeed)
-        val effectivePitch = if (activeAndroidVoiceConfirmedFemale) {
-            persona.basePitch
-        } else {
-            (persona.basePitch + 0.08f).coerceAtMost(1.12f)
+        val effectivePitch = when {
+            activeAndroidVoiceConfirmedFemale -> persona.basePitch
+            wantAssamese -> (persona.basePitch + 0.14f).coerceIn(1.12f, 1.22f)
+            else -> (persona.basePitch + 0.08f).coerceAtMost(1.12f)
         }
-        val chunks = splitIntoProsodyChunks(clean)
+
+        // If on-device Android TTS is using a bn-IN female voice for Assamese text, normalize Assamese-only glyphs
+        // (ৰ, ৱ, and mid-word apostrophes like ল'ম) so the offline engine pronounces every syllable cleanly instead of skipping them.
+        val activeLang = activeAndroidVoice?.locale?.language.orEmpty()
+        val engineReadyText = if (textIsAssamese && !activeLang.equals("as", ignoreCase = true)) {
+            prepareAssameseForBengaliFallback(clean)
+        } else {
+            clean
+        }
+        val chunks = splitIntoProsodyChunks(engineReadyText)
         val groupId = utteranceCounter.incrementAndGet()
         lastUtteranceGroupId = groupId
 
@@ -863,50 +965,50 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         }
     }
 
+    private suspend fun fetchOrCachedCloudChunk(
+        chunk: String,
+        apiKey: String,
+        persona: NovaVoicePersona
+    ): PcmAudioPayload? {
+        val chunkCacheKey = buildCloudCacheKey(persona, chunk)
+        val cached = synchronized(cloudAudioCacheLock) { cloudAudioCache[chunkCacheKey] }
+        if (cached != null) return cached
+        return fetchGeminiAudioBytes(chunk, apiKey, persona)?.also { fetched ->
+            if (fetched.pcmBytes.isNotEmpty() && fetched.pcmBytes.size <= 900_000) {
+                synchronized(cloudAudioCacheLock) {
+                    cloudAudioCache[chunkCacheKey] = fetched
+                }
+            }
+        }
+    }
+
     private fun speakWithCloudHumanVoice(cleanText: String, apiKey: String, slowSpeed: Boolean) {
         val requestGroupId = utteranceCounter.incrementAndGet()
         lastUtteranceGroupId = requestGroupId
+        prewarmJob?.cancel()
+        prewarmJob = null
         cloudTtsJob = scope.launch {
             _isSpeaking.value = true
             val persona = _voicePersona.value
             val chunks = splitIntoCloudChunks(cleanText)
             try {
-                // Launch concurrent IO fetches (or immediate 0ms cache hits) across all chunks so Chunk 1+ are ready while Chunk 0 plays
-                val deferredChunks = chunks.map { chunk ->
-                    val chunkCacheKey = "${persona.id}|$chunk"
-                    val cached = synchronized(cloudAudioCacheLock) { cloudAudioCache[chunkCacheKey] }
-                    if (cached != null) {
-                        CompletableDeferred(cached)
-                    } else {
-                        async(Dispatchers.IO) {
-                            fetchGeminiAudioBytes(chunk, apiKey, persona)?.also { fetched ->
-                                if (fetched.pcmBytes.isNotEmpty() && fetched.pcmBytes.size <= 900_000) {
-                                    synchronized(cloudAudioCacheLock) {
-                                        cloudAudioCache[chunkCacheKey] = fetched
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Allow extra headroom for Assamese studio neural TTS so real human Assamese female audio plays reliably
+                // Fetch ONLY Chunk 0 first (no concurrent burst that triggers Gemini TTS rate-limits/queueing)
                 val firstChunkDeadlineMs = if (persona.isAssameseVoice || containsAssameseScript(cleanText)) {
                     CLOUD_ASSAMESE_FIRST_CHUNK_DEADLINE_MS
                 } else {
                     CLOUD_FIRST_CHUNK_DEADLINE_MS
                 }
                 val firstPayload = withTimeoutOrNull(firstChunkDeadlineMs) {
-                    deferredChunks.firstOrNull()?.await()
+                    withContext(Dispatchers.IO) {
+                        chunks.firstOrNull()?.let { fetchOrCachedCloudChunk(it, apiKey, persona) }
+                    }
                 }
 
                 if (!isActive || utteranceCounter.get() != requestGroupId) {
-                    deferredChunks.forEach { it.cancel() }
                     return@launch
                 }
 
                 if (firstPayload == null || firstPayload.pcmBytes.isEmpty()) {
-                    deferredChunks.forEach { it.cancel() }
                     _isSpeaking.value = false
                     fallbackToAndroidSpeech(cleanText, slowSpeed)
                     return@launch
@@ -916,7 +1018,8 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                     streamCloudChunksToAudioTrack(
                         firstPayload = firstPayload,
                         chunks = chunks,
-                        deferredChunks = deferredChunks,
+                        apiKey = apiKey,
+                        persona = persona,
                         slowSpeed = slowSpeed,
                         requestGroupId = requestGroupId
                     )
@@ -944,12 +1047,20 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
         persona: NovaVoicePersona
     ): PcmAudioPayload? {
         val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=$apiKey"
-        // Pass clean spoken text directly so Gemini TTS never speaks stage directions aloud
+        // Guide Gemini 2.5 Flash TTS with its official concise style director for Assamese so it uses genuine
+        // Assamese female phonetics (Assam, India) rather than drifting into a Bengali accent.
+        val ttsPrompt = when {
+            containsAssameseScript(cleanText) ->
+                "Say in a ${persona.stylePrompt}: $cleanText"
+            persona.isAssameseVoice ->
+                "Say in a warm, natural Indian Assamese female voice: $cleanText"
+            else -> cleanText
+        }
         val body = JSONObject().apply {
             put("contents", JSONArray().apply {
                 put(JSONObject().apply {
                     put("parts", JSONArray().apply {
-                        put(JSONObject().apply { put("text", cleanText) })
+                        put(JSONObject().apply { put("text", ttsPrompt) })
                     })
                 })
             })
@@ -1004,7 +1115,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                     return null
                 }
                 if (httpCode >= 400) {
-                    cloudTtsCooldownUntilMs = System.currentTimeMillis() + 30_000L
+                    cloudTtsCooldownUntilMs = System.currentTimeMillis() + 10_000L
                     updateActiveVoiceLabel()
                 }
             }
@@ -1013,7 +1124,7 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             throw ce
         } catch (_: Throwable) {
             if (currentCoroutineContext().isActive && !cloudTtsAuthBlocked) {
-                cloudTtsCooldownUntilMs = System.currentTimeMillis() + 30_000L
+                cloudTtsCooldownUntilMs = System.currentTimeMillis() + 10_000L
                 updateActiveVoiceLabel()
             }
             null
@@ -1089,38 +1200,58 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     private suspend fun streamCloudChunksToAudioTrack(
         firstPayload: PcmAudioPayload,
         chunks: List<String>,
-        deferredChunks: List<kotlinx.coroutines.Deferred<PcmAudioPayload?>>,
+        apiKey: String,
+        persona: NovaVoicePersona,
         slowSpeed: Boolean,
         requestGroupId: Long
-    ): String? {
+    ): String? = coroutineScope {
         var currentRate = firstPayload.sampleRate.coerceIn(16000, 48000)
         var cleanupTrack: AudioTrack? = null
-        return try {
+        var nextDeferred: Deferred<PcmAudioPayload?>? = null
+        try {
             var currentTrack = buildStreamAudioTrack(currentRate, slowSpeed)
             cleanupTrack = currentTrack
             activeAudioTrack = currentTrack
             currentTrack.play()
 
-            if (!writePcmBytes(currentTrack, firstPayload.pcmBytes, requestGroupId)) {
-                releaseAudioTrackSafely(currentTrack)
-                return null
+            // Pipeline ONLY 1 chunk ahead while Chunk 0 plays to keep speech gapless without rate-limit bursts
+            if (chunks.size > 1) {
+                nextDeferred = async(Dispatchers.IO) {
+                    fetchOrCachedCloudChunk(chunks[1], apiKey, persona)
+                }
             }
 
-            for (i in 1 until deferredChunks.size) {
+            if (!writePcmBytes(currentTrack, firstPayload.pcmBytes, requestGroupId)) {
+                nextDeferred?.cancel()
+                releaseAudioTrackSafely(currentTrack)
+                return@coroutineScope null
+            }
+
+            for (i in 1 until chunks.size) {
                 currentCoroutineContext().ensureActive()
                 if (activeAudioTrack !== currentTrack || utteranceCounter.get() != requestGroupId) {
+                    nextDeferred?.cancel()
                     releaseAudioTrackSafely(currentTrack)
-                    return null
+                    return@coroutineScope null
                 }
 
                 val nextPayload = withTimeoutOrNull(3500L) {
-                    deferredChunks[i].await()
+                    nextDeferred?.await()
                 }
+                nextDeferred = null
+
                 if (nextPayload == null || nextPayload.pcmBytes.isEmpty()) {
-                    // Drain whatever played so far and hand off remainder cleanly to Android TTS
-                    deferredChunks.drop(i).forEach { it.cancel() }
+                    // Drain whatever played so far and hand off remainder cleanly to Android female TTS
                     drainAndReleaseTrack(currentTrack, currentRate, 80L, requestGroupId)
-                    return chunks.drop(i).joinToString(" ")
+                    return@coroutineScope chunks.drop(i).joinToString(" ")
+                }
+
+                // Start fetching Chunk i+1 ONLY as Chunk i begins playing
+                if (i + 1 < chunks.size) {
+                    val upcomingChunk = chunks[i + 1]
+                    nextDeferred = async(Dispatchers.IO) {
+                        fetchOrCachedCloudChunk(upcomingChunk, apiKey, persona)
+                    }
                 }
 
                 val nextRate = nextPayload.sampleRate.coerceIn(16000, 48000)
@@ -1132,12 +1263,13 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
                     activeAudioTrack = currentTrack
                     currentTrack.play()
                 } else {
-                    writeSilencePadding(currentTrack, currentRate, 90L, requestGroupId)
+                    writeSilencePadding(currentTrack, currentRate, 85L, requestGroupId)
                 }
 
                 if (!writePcmBytes(currentTrack, nextPayload.pcmBytes, requestGroupId)) {
+                    nextDeferred?.cancel()
                     releaseAudioTrackSafely(currentTrack)
-                    return null
+                    return@coroutineScope null
                 }
             }
 
@@ -1145,9 +1277,11 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
             drainAndReleaseTrack(currentTrack, currentRate, 150L, requestGroupId)
             null
         } catch (ce: CancellationException) {
+            nextDeferred?.cancel()
             releaseAudioTrackSafely(cleanupTrack)
             throw ce
         } catch (_: Throwable) {
+            nextDeferred?.cancel()
             releaseAudioTrackSafely(cleanupTrack)
             chunks.joinToString(" ")
         }
@@ -1190,6 +1324,8 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     }
 
     private fun stopCloudPlaybackOnly() {
+        prewarmJob?.cancel()
+        prewarmJob = null
         cloudTtsJob?.cancel()
         cloudTtsJob = null
         val track = activeAudioTrack
@@ -1218,16 +1354,31 @@ class TtsManager(context: Context) : TextToSpeech.OnInitListener {
     }
 
     companion object {
-        internal const val CLOUD_FIRST_CHUNK_DEADLINE_MS = 1800L
-        internal const val CLOUD_ASSAMESE_FIRST_CHUNK_DEADLINE_MS = 4500L
+        internal const val CLOUD_FIRST_CHUNK_DEADLINE_MS = 1500L
+        internal const val CLOUD_ASSAMESE_FIRST_CHUNK_DEADLINE_MS = 2600L
 
         private val femaleTokenRegex = Regex(
-            "(^|[^a-z0-9])(female|woman|enc|ene|ena|ef|asf|bnf|bna|bnb|bnc|bne|sangeeta|veena|lekha|neelam|aditi|kajal|raveena|priya|gba|gbc|gbg|fis|iog|sfg|tpf|tessa|samantha|karen|moira|serena|victoria|f00|f01|f02|f)([^a-z0-9]|$)"
+            "(^|[^a-z0-9])(female|woman|enc|ene|ena|ef|asf|asx|bnf|bnx|sangeeta|veena|lekha|neelam|aditi|kajal|raveena|priya|piya|tanishaa|gba|gbc|gbg|fis|iog|sfg|tpf|tessa|samantha|karen|moira|serena|victoria|f00|f01|f02|f)([^a-z0-9]|$)"
         )
         private val maleTokenRegex = Regex(
-            "(^|[^a-z0-9])(male|man|rishi|prabhat|end|ahp|asm|bnm|bnd|daniel|arthur|oliver|george|alex|fred|m00|m01|iol|iom|rjs|tpd)([^a-z0-9]|$)"
+            "(^|[^a-z0-9])(male|man|rishi|prabhat|end|ahp|asm|asb|asd|bnm|bnd|bin|ban|bna|bnb|bnc|bnj|bnk|bng|daniel|arthur|oliver|george|alex|fred|m00|m01|iol|iom|rjs|tpd)([^a-z0-9]|$)"
         )
         private val sampleRateRegex = Regex("rate=(\\d+)", RegexOption.IGNORE_CASE)
+        private val assameseMidWordApostropheRegex = Regex("([\\u0980-\\u09FF])['’]([\\u0980-\\u09FF])")
+
+        /**
+         * Normalizes Assamese-only Unicode glyphs (ৰ, ৱ, and mid-word apostrophes) ONLY when offline Android
+         * fallback uses a bn-IN female voice, preventing skipped letters and garbled words.
+         */
+        internal fun prepareAssameseForBengaliFallback(text: String): String {
+            return text
+                .replace(assameseMidWordApostropheRegex, "$1$2")
+                .replace('\u09F0', '\u09B0') // Assamese ৰ -> র
+                .replace("োৱা", "োয়া")
+                .replace("াৱা", "াওয়া")
+                .replace("েৱা", "েওয়া")
+                .replace('\u09F1', '\u09AC') // Remaining Assamese ৱ -> ব
+        }
 
         internal fun scoreVoiceSignature(
             descriptor: String,

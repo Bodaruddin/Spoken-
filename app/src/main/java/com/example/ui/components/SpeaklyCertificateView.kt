@@ -218,7 +218,7 @@ fun OfficialSpeaklyCertificateCard(
                         textAlign = android.graphics.Paint.Align.CENTER
                         isAntiAlias = true
                     }
-                    native.drawText(submission.grade, 1284f, 718f, gradePaint)
+                    native.drawText(submission.displayGrade, 1284f, 718f, gradePaint)
 
                     // (d) Certificate ID in the bottom pill (Right after "Certificate ID: ")
                     val idPaint = android.graphics.Paint().apply {
@@ -433,7 +433,7 @@ fun SpeaklyCertificatePreviewDialog(
                                     color = Color(0xFF14532D)
                                 ) {
                                     Text(
-                                        text = "GRADE ${currentSub.grade}",
+                                        text = "GRADE ${currentSub.displayGrade}",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF86EFAC),
@@ -546,7 +546,7 @@ fun SpeaklyCertificatePreviewDialog(
                         color = Color(0xFF1E293B)
                     )
                     Text(
-                        "Issued to: ${currentSub.studentName}\nExam: ${currentSub.examTitle}\nGrade: ${currentSub.grade} (${currentSub.percentage}%)\nAuthorized by Speakly Academic Board",
+                        "Issued to: ${currentSub.studentName}\nExam: ${currentSub.examTitle}\nGrade: ${currentSub.displayGrade} (${currentSub.percentage}%)\nAuthorized by Speakly Academic Board",
                         fontSize = 11.5.sp,
                         color = Color(0xFF64748B),
                         textAlign = TextAlign.Center

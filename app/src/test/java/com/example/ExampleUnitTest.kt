@@ -1152,10 +1152,13 @@ class ExampleUnitTest {
         assertEquals("Sophia", com.example.service.NovaVoicePersona.SOPHIA.displayName)
         assertEquals("Grace", com.example.service.NovaVoicePersona.GRACE.displayName)
 
+        assertEquals(com.example.service.NovaVoicePersona.ANANYA, com.example.service.NovaVoicePersona.DEFAULT)
+        assertEquals(com.example.service.NovaVoicePersona.ANANYA, com.example.service.NovaVoicePersona.entries.first())
+
         assertTrue(com.example.service.NovaVoicePersona.entries.filter { it.isIndianVoice }.all {
             it.stylePrompt.contains("Indian", ignoreCase = true) && it.localeBadge == "en-IN"
         })
-        assertTrue(com.example.service.NovaVoicePersona.entries.filter { !it.isIndianVoice }.all {
+        assertTrue(com.example.service.NovaVoicePersona.entries.filter { !it.isIndianVoice && !it.isAssameseVoice }.all {
             it.stylePrompt.contains("English", ignoreCase = true) && it.localeBadge in listOf("en-GB", "en-US", "en-AU")
         })
         // Keep Android neural pitch within natural studio range (<= 1.05f) to avoid robotic vocoder artifacts
@@ -1419,7 +1422,8 @@ class ExampleUnitTest {
         assertEquals(20, graded.totalMarks)
         assertEquals(90, graded.percentage)
         assertTrue(graded.isPassed)
-        assertEquals("O", graded.grade)
+        assertEquals("A+", graded.grade)
+        assertEquals("A+", com.example.data.model.ExamSubmission.normalizeGrade("O", 90))
         assertEquals(13, graded.longAnswerScores["q_long_1"])
         assertEquals("Well-structured answer with clear examples!", graded.teacherFeedback)
     }
@@ -1445,6 +1449,57 @@ class ExampleUnitTest {
 
         // 2. Cloud TTS first-chunk onset deadline stays tight so slow networks fall back immediately without dead silence
         assertTrue(com.example.service.TtsManager.CLOUD_FIRST_CHUNK_DEADLINE_MS in 800L..1500L)
+        assertTrue(com.example.service.TtsManager.CLOUD_ASSAMESE_FIRST_CHUNK_DEADLINE_MS in 1500L..2800L)
+    }
+
+    @Test
+    fun testAssameseFemaleVoiceFilteringAndPronunciationNormalization() {
+        // 1. Confirmed female Indic Google TTS voices pass strictly
+        assertTrue(com.example.service.TtsManager.isConfirmedFemaleSignature("bn-in-x-bnf-local"))
+        assertTrue(com.example.service.TtsManager.isConfirmedFemaleSignature("bn-in-x-bnx-local"))
+        assertTrue(com.example.service.TtsManager.isConfirmedFemaleSignature("as-in-x-asf-local"))
+
+        // 2. Known male Bengali/Assamese Google TTS voices are strictly blocked
+        assertFalse(com.example.service.TtsManager.isConfirmedFemaleSignature("bn-in-x-bin-local"))
+        assertTrue(com.example.service.TtsManager.matchesMaleSignature("bn-in-x-bin-local"))
+        assertFalse(com.example.service.TtsManager.isConfirmedFemaleSignature("bn-in-x-bnm-local"))
+        assertTrue(com.example.service.TtsManager.matchesMaleSignature("bn-in-x-bnm-local"))
+        assertFalse(com.example.service.TtsManager.isConfirmedFemaleSignature("bn-in-x-bnd-local"))
+        assertTrue(com.example.service.TtsManager.matchesMaleSignature("bn-in-x-bnd-local"))
+        assertFalse(com.example.service.TtsManager.isConfirmedFemaleSignature("bn-bd-x-ban-local"))
+        assertTrue(com.example.service.TtsManager.matchesMaleSignature("bn-bd-x-ban-local"))
+
+        // 3. Offline bn-IN fallback normalization converts Assamese-only glyphs cleanly so no letters are skipped
+        val normalized = com.example.service.TtsManager.prepareAssameseForBengaliFallback(
+            "নমস্কাৰ! হোৱা, জীৱন আৰু বুজি ল'ম।"
+        )
+        assertEquals("নমস্কার! হোয়া, জীবন আরু বুজি লম।", normalized)
+
+        // 4. All three Assamese personas use unmistakably feminine Gemini neural voices
+        val assameseVoices = listOf(
+            com.example.service.NovaVoicePersona.BARNALI,
+            com.example.service.NovaVoicePersona.JONALI,
+            com.example.service.NovaVoicePersona.NAMRATA
+        )
+        assertTrue(assameseVoices.all { it.geminiVoiceName in setOf("Aoede", "Leda", "Zephyr") })
+    }
+
+    @Test
+    fun testPureAssameseSanitizerRemovesBengaliMixing() {
+        val mixed = "আপোনাৰ দিনটো এতিয়ালৈকে কেমন গৈছে? মোৰ লগত আপোনাৰ বিষয়ে একটু বলুন এবং ভালো থাকুন!"
+        val cleaned = com.example.util.AssameseTranslator.enforcePureAssamese(mixed)
+        assertFalse(cleaned.contains("কেমন"))
+        assertFalse(cleaned.contains("একটু"))
+        assertFalse(cleaned.contains("বলুন"))
+        assertFalse(cleaned.contains("ভালো"))
+        assertFalse(cleaned.contains('\u09B0')) // Never Bengali Ra
+        assertTrue(cleaned.contains("কেনেকুৱা"))
+        assertTrue(cleaned.contains("অলপ"))
+        assertTrue(cleaned.contains("কওক"))
+        assertTrue(cleaned.contains("মোক আপোনাৰ বিষয়ে"))
+
+        // Valid Assamese classifier "এখন" (e.g. "a book") must remain untouched
+        assertEquals("এখন কিতাপ", com.example.util.AssameseTranslator.enforcePureAssamese("এখন কিতাপ"))
     }
 }
 

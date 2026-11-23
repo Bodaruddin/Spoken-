@@ -1489,29 +1489,6 @@ fun NovaAiChatScreen(
                                 }
                             }
                         }
-
-                        // Bengali / Hindi Guidance
-                        if (!isAiLoading) {
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFF281A54),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(10.dp)) {
-                                    Text("বাংলা / हिन्दी (Guidance):", fontSize = 10.5.sp, color = Color(0xFFF472B6), fontWeight = FontWeight.SemiBold)
-                                    Spacer(Modifier.height(2.dp))
-                                    val guideText = translationResult.bengaliHindiGuidance
-                                        .takeIf { it.isNotBlank() }
-                                        ?: matchingLessonQ?.bengaliHindiTranslation
-                                            ?.takeIf {
-                                                matchingLessonQ.questionNumber != 1 ||
-                                                    (isTimeWordsTopic && cleanQuestion.contains("school", ignoreCase = true))
-                                            }
-                                        ?: com.example.util.AssameseTranslator.getBengaliHindiGuidance(cleanQuestion)
-                                    Text(guideText, fontSize = 12.sp, color = Color(0xFFF1F5F9))
-                                }
-                            }
-                        }
                     }
 
                     Button(

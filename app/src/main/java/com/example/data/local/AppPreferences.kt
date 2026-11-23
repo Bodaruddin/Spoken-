@@ -74,6 +74,7 @@ class AppPreferences(context: Context) {
         private const val KEY_SUPPRESSED_DEFAULT_SUBMISSIONS = "key_suppressed_default_submissions"
         private const val KEY_PENDING_RESET_STUDENTS = "key_pending_reset_students"
         private const val KEY_NOVA_VOICE_PERSONA = "key_nova_voice_persona"
+        private const val KEY_STUDENT_VOICE_PERSONA_PREFIX = "key_student_voice_persona_"
         private const val KEY_CLOUD_HUMAN_VOICE = "key_cloud_human_voice"
         private const val KEY_NOVA_VOICE_SPEED = "key_nova_voice_speed"
     }
@@ -1339,7 +1340,7 @@ class AppPreferences(context: Context) {
             totalMarks = obj.optInt("totalMarks", 100),
             percentage = obj.optInt("percentage", 0),
             isPassed = obj.optBoolean("isPassed", false),
-            grade = obj.optString("grade", "C"),
+            grade = ExamSubmission.normalizeGrade(obj.optString("grade", "C"), obj.optInt("percentage", 0)),
             performanceTitle = obj.optString("performanceTitle", "Satisfactory"),
             timeTakenSeconds = obj.optInt("timeTakenSeconds", 0),
             completedAt = obj.optString("completedAt", "Today"),
@@ -2297,6 +2298,19 @@ class AppPreferences(context: Context) {
 
     fun setNovaVoicePersona(personaId: String) {
         prefs.edit().putString(KEY_NOVA_VOICE_PERSONA, personaId).apply()
+    }
+
+    fun getStudentVoicePersona(studentId: String): String {
+        val cleanId = studentId.trim()
+        if (cleanId.isBlank()) return "ANANYA"
+        return prefs.getString("$KEY_STUDENT_VOICE_PERSONA_PREFIX$cleanId", "ANANYA") ?: "ANANYA"
+    }
+
+    fun setStudentVoicePersona(studentId: String, personaId: String) {
+        val cleanId = studentId.trim()
+        if (cleanId.isNotBlank()) {
+            prefs.edit().putString("$KEY_STUDENT_VOICE_PERSONA_PREFIX$cleanId", personaId).apply()
+        }
     }
 
     fun isCloudHumanVoiceEnabled(): Boolean {

@@ -120,37 +120,22 @@ fun NovaVoiceStudioDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    val assamesePersonas = NovaVoicePersona.entries.filter { it.isAssameseVoice }
                     val indianPersonas = NovaVoicePersona.entries.filter { it.isIndianVoice }
                     val globalEnglishPersonas = NovaVoicePersona.entries.filter { !it.isIndianVoice && !it.isAssameseVoice }
+                    val assamesePersonas = NovaVoicePersona.entries.filter { it.isAssameseVoice }
 
                     Text(
-                        text = "Assamese Female Voices (অসমীয়া)",
+                        text = "Indian English Female Voices (Default)",
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF5EEAD4)
-                    )
-
-                    assamesePersonas.forEach { persona ->
-                        VoicePersonaOptionCard(
-                            persona = persona,
-                            isSelected = persona == selectedPersona,
-                            onSelect = { onSelectPersona(persona) }
-                        )
-                    }
-
-                    Text(
-                        text = "Indian English Female Voices",
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFC4B5FD),
-                        modifier = Modifier.padding(top = 4.dp)
+                        color = Color(0xFFC4B5FD)
                     )
 
                     indianPersonas.forEach { persona ->
                         VoicePersonaOptionCard(
                             persona = persona,
                             isSelected = persona == selectedPersona,
+                            isDefault = persona == NovaVoicePersona.DEFAULT,
                             onSelect = { onSelectPersona(persona) }
                         )
                     }
@@ -167,6 +152,24 @@ fun NovaVoiceStudioDialog(
                         VoicePersonaOptionCard(
                             persona = persona,
                             isSelected = persona == selectedPersona,
+                            isDefault = false,
+                            onSelect = { onSelectPersona(persona) }
+                        )
+                    }
+
+                    Text(
+                        text = "Assamese Female Voices (অসমীয়া)",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF5EEAD4),
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+
+                    assamesePersonas.forEach { persona ->
+                        VoicePersonaOptionCard(
+                            persona = persona,
+                            isSelected = persona == selectedPersona,
+                            isDefault = false,
                             onSelect = { onSelectPersona(persona) }
                         )
                     }
@@ -327,6 +330,7 @@ fun NovaVoiceStudioDialog(
 private fun VoicePersonaOptionCard(
     persona: NovaVoicePersona,
     isSelected: Boolean,
+    isDefault: Boolean = false,
     onSelect: () -> Unit
 ) {
     Surface(
@@ -399,6 +403,20 @@ private fun VoicePersonaOptionCard(
                             },
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
+                    }
+                    if (isDefault) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFF3B1E6D)
+                        ) {
+                            Text(
+                                text = "Default",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFE9D5FF),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
                 Text(

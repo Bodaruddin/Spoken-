@@ -2489,7 +2489,7 @@ class SupabaseService {
                 totalMarks = if (obj.has("totalMarks")) obj.optInt("totalMarks", 50) else obj.optInt("total_marks", 50),
                 percentage = obj.optInt("percentage", 0),
                 isPassed = if (obj.has("isPassed")) obj.optBoolean("isPassed", false) else obj.optBoolean("is_passed", false),
-                grade = obj.optString("grade", "B"),
+                grade = ExamSubmission.normalizeGrade(obj.optString("grade", "B"), obj.optInt("percentage", 0)),
                 performanceTitle = obj.optString("performanceTitle", obj.optString("performance_title", "Academic Distinction")),
                 timeTakenSeconds = if (obj.has("timeTakenSeconds")) obj.optInt("timeTakenSeconds", 0) else obj.optInt("time_taken_seconds", 0),
                 completedAt = obj.optString("completedAt", obj.optString("completed_at", "Today")),

@@ -207,7 +207,7 @@ object CertificatePdfGenerator {
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
         }
-        canvas.drawText(submission.grade, 1284f, 718f, gradePaint)
+        canvas.drawText(submission.displayGrade, 1284f, 718f, gradePaint)
 
         // 5. Certificate ID in the bottom pill
         val idPaint = Paint().apply {

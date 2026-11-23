@@ -1275,7 +1275,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 totalMarks = 50,
                 percentage = 90,
                 isPassed = true,
-                grade = "O",
+                grade = "A+",
                 performanceTitle = "Outstanding Distinction",
                 timeTakenSeconds = 540,
                 completedAt = "Today, 10:15 AM",
@@ -1297,7 +1297,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                 totalMarks = 50,
                 percentage = 80,
                 isPassed = true,
-                grade = "A+",
+                grade = "A",
                 performanceTitle = "Distinction with Honors",
                 timeTakenSeconds = 612,
                 completedAt = "Yesterday, 3:30 PM",
@@ -1559,12 +1559,12 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     }
 
     private fun computeExamGrade(percentage: Int): String = when {
-        percentage >= 90 -> "O"
-        percentage >= 80 -> "A+"
-        percentage >= 70 -> "A"
-        percentage >= 60 -> "B+"
-        percentage >= 50 -> "B"
-        percentage >= 40 -> "C"
+        percentage >= 90 -> "A+"
+        percentage >= 80 -> "A"
+        percentage >= 70 -> "B+"
+        percentage >= 60 -> "B"
+        percentage >= 50 -> "C"
+        percentage >= 40 -> "D"
         else -> "F"
     }
 

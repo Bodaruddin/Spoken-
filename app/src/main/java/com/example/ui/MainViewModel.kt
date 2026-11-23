@@ -109,8 +109,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ttsManager.setGeminiApiKeyProvider {
             if (_aiProviderType.value == "CUSTOM_ENDPOINT") "" else getEffectiveGeminiApiKey()
         }
+        val initialUser = repository.currentUser.value
+        val initialVoiceId = if (initialUser.id.isNotBlank()) {
+            appPreferences.getStudentVoicePersona(initialUser.id)
+        } else {
+            com.example.service.NovaVoicePersona.DEFAULT.id
+        }
         ttsManager.setVoicePersona(
-            com.example.service.NovaVoicePersona.fromId(appPreferences.getNovaVoicePersona())
+            com.example.service.NovaVoicePersona.fromId(initialVoiceId)
         )
         ttsManager.setVoiceSpeedPreset(
             com.example.service.VoiceSpeedPreset.fromId(appPreferences.getNovaVoiceSpeedPreset())
@@ -1735,6 +1741,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     repository.setStudentProfileUserId(matchedStudent.id, matchedStudent.name)
                     appPreferences.saveSession(studentUser)
                     appPreferences.saveStudentProfile(repository.studentProfile.value)
+                    applyVoicePersonaForStudent(studentUser.id)
                     if (pendingReset) {
                         resetStudentPanelViewModelState()
                     } else {
@@ -1772,6 +1779,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 repository.setStudentProfileUserId(studentUser.id, studentUser.name)
                 appPreferences.saveSession(studentUser)
                 appPreferences.saveStudentProfile(repository.studentProfile.value)
+                applyVoicePersonaForStudent(studentUser.id)
                 if (pendingReset) {
                     resetStudentPanelViewModelState()
                 }
@@ -1868,6 +1876,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.setStudentProfileUserId(matchedStudent.id, matchedStudent.name)
             appPreferences.saveSession(studentUser)
             appPreferences.saveStudentProfile(repository.studentProfile.value)
+            applyVoicePersonaForStudent(studentUser.id)
             if (pendingReset) {
                 resetStudentPanelViewModelState()
             } else {
@@ -1902,6 +1911,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.setStudentProfileUserId(studentUser.id, studentUser.name)
             appPreferences.saveSession(studentUser)
             appPreferences.saveStudentProfile(repository.studentProfile.value)
+            applyVoicePersonaForStudent(studentUser.id)
             if (pendingReset) {
                 resetStudentPanelViewModelState()
             }
@@ -2119,6 +2129,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _activeExamReview.value = null
         _activeExamCertificate.value = null
         if (role == Role.STUDENT) {
+            applyVoicePersonaForStudent(repository.currentUser.value.id)
             _selectedAdventureWorld.value = null
             _activeAdventureLevel.value = null
             _activeAdventureMission.value = null
@@ -2346,8 +2357,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _aiVoiceReplyEnabled.value = enabled
     }
 
+    private fun applyVoicePersonaForStudent(studentId: String) {
+        val savedId = appPreferences.getStudentVoicePersona(studentId)
+        ttsManager.setVoicePersona(com.example.service.NovaVoicePersona.fromId(savedId))
+    }
+
     fun setNovaVoicePersona(persona: com.example.service.NovaVoicePersona) {
         appPreferences.setNovaVoicePersona(persona.id)
+        val studentId = repository.currentUser.value.id
+        if (studentId.isNotBlank()) {
+            appPreferences.setStudentVoicePersona(studentId, persona.id)
+        }
         ttsManager.setVoicePersona(persona)
     }
 

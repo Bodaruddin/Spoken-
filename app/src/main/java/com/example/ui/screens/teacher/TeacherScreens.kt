@@ -5249,7 +5249,7 @@ fun TeacherExamsManagementScreen(viewModel: MainViewModel, modifier: Modifier = 
                                                     if (isPending) {
                                                         "Class ${sub.studentClass} • ⏳ Needs Written Grading"
                                                     } else {
-                                                        "Class ${sub.studentClass} • Score: ${sub.scoreObtained}/${sub.totalMarks} (${sub.percentage}%) • Grade ${sub.grade}"
+                                                        "Class ${sub.studentClass} • Score: ${sub.scoreObtained}/${sub.totalMarks} (${sub.percentage}%) • Grade ${sub.displayGrade}"
                                                     },
                                                     fontSize = 10.5.sp,
                                                     color = if (isPending) Color(0xFF7DD3FC) else Color(0xFF94A3B8)

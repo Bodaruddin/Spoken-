@@ -215,9 +215,9 @@ object AssameseTranslator {
             wordBreakdown = listOf("Favorite meal" to "প্ৰিয় খাদ্য (Priyo khadyo)", "Traditionally" to "পৰম্পৰাগতভাৱে (Poromporagotbhabe)")
         ),
         "how do you think artificial intelligence and modern smartphones will change our daily lives in the next five years" to TranslationResult(
-            assameseText = "অহা পাঁচ বছৰত কৃত্রিম বুদ্ধিমত্তা আৰু আধুনিক স্মাৰ্টফোনে আমাৰ দৈনন্দিন জীৱন কেনেকৈ সলনি কৰিব বুলি আপুনি ভাবে?",
-            transliteration = "Oha paas bosonot kritrim buddhimotta aaru smart-phone-e aamar doinondin jibon kenekoi xoloni koribo buli aapuni bhabe?",
-            wordBreakdown = listOf("AI" to "কৃত্রিম বুদ্ধিমত্তা (Kritrim buddhimotta)", "Smartphones" to "স্মাৰ্টফোন (Smart-phone)", "Change" to "সলনি কৰা (Xoloni kora)")
+            assameseText = "অহা পাঁচ বছৰত কৃত্ৰিম বুদ্ধিমত্তা আৰু আধুনিক স্মাৰ্টফোনে আমাৰ দৈনন্দিন জীৱন কেনেকৈ সলনি কৰিব বুলি আপুনি ভাবে?",
+            transliteration = "Oha paas bosorot kritrim buddhimotta aaru smart-phone-e aamar doinondin jibon kenekoi xoloni koribo buli aapuni bhabe?",
+            wordBreakdown = listOf("AI" to "কৃত্ৰিম বুদ্ধিমত্তা (Kritrim buddhimotta)", "Smartphones" to "স্মাৰ্টফোন (Smart-phone)", "Change" to "সলনি কৰা (Xoloni kora)")
         ),
         "tell me about a memorable movie or book that left a strong impression on you what was the core message" to TranslationResult(
             assameseText = "আপোনাৰ মনত গভীৰ সাঁচ বহুওৱা এখন স্মৰণীয় চিনেমা বা কিতাপৰ বিষয়ে কওক। ইয়াৰ মূল বাৰ্তা কি আছিল?",
@@ -844,7 +844,7 @@ object AssameseTranslator {
 
         // Descriptors & Adverbs
         "wonderful" to Pair("আশ্চৰ্য্যজনক / সুন্দৰ", "Aasorjojonok"),
-        "awesome" to Pair("অসাধাৰণ / অতি চমৎকার", "Oxadharon"),
+        "awesome" to Pair("অসাধাৰণ / অতি চমৎকাৰ", "Oxadharon"),
         "perfect" to Pair("নিখুঁত / সম্পূৰ্ণ শুদ্ধ", "Nikhut"),
         "amazing" to Pair("চমৎকাৰ / বিস্ময়কৰ", "Somotkar"),
         "bright" to Pair("উজ্জ্বল / দীপ্তিমান", "Ujjwol"),
@@ -1288,6 +1288,11 @@ object AssameseTranslator {
             try {
                 val url = "https://generativelanguage.googleapis.com/v1beta/models/$activeModel:generateContent?key=$trimmedKey"
                 val jsonBody = JSONObject().apply {
+                    put("systemInstruction", JSONObject().apply {
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().apply { put("text", ASSAMESE_ONLY_SYSTEM_PROMPT) })
+                        })
+                    })
                     val contents = JSONArray().apply {
                         val partObj = JSONObject().apply {
                             put("parts", JSONArray().apply {
@@ -1373,7 +1378,7 @@ object AssameseTranslator {
                 put("messages", JSONArray().apply {
                     put(JSONObject().apply {
                         put("role", "system")
-                        put("content", "You are an expert English-to-Assamese, Bengali, and Hindi translator. Always reply with valid JSON only.")
+                        put("content", ASSAMESE_ONLY_SYSTEM_PROMPT)
                     })
                     put(JSONObject().apply {
                         put("role", "user")
@@ -1408,26 +1413,103 @@ object AssameseTranslator {
         return@withContext translate(clean)
     }
 
-    private fun buildTranslationPrompt(cleanEnglish: String): String = """
-        Translate the following English sentence/question into completely natural, accurate, idiomatic Assamese (অসমীয়া) as spoken by native Assamese speakers.
-        NEVER do literal word-for-word translation or gibberish transliteration of English words like "day" or "little".
-        Also provide:
-        1. Natural Latin pronunciation guide (transliteration) for the Assamese sentence.
-        2. Contextual key words/phrases breakdown with accurate Assamese meaning and pronunciation.
-        3. Natural Bengali and Hindi guidance in the exact format: "বাংলা: <Bengali> | हिन्दी: <Hindi>".
+    private const val ASSAMESE_ONLY_SYSTEM_PROMPT =
+        "You are a native Assamese (অসমীয়া) language expert from Assam, India. " +
+            "Translate English strictly into 100% pure, idiomatic Assamese ONLY. " +
+            "NEVER mix Bengali (Bangla) words, Bengali grammar, or the Bengali letter 'র' (U+09B0). " +
+            "Always use Assamese 'ৰ' (U+09F0) and 'ৱ' (U+09F1). Always reply with valid JSON only."
 
+    private fun buildTranslationPrompt(cleanEnglish: String): String = """
+        Translate the following English sentence/question into 100% PURE, natural, idiomatic Assamese (অসমীয়া) ONLY — as spoken natively in Assam, India.
+
+        STRICT ASSAMESE-ONLY RULES:
+        - Output ONLY pure Assamese. ZERO Bengali (Bangla) words and ZERO Hindi words.
+        - ALWAYS use Assamese Ra 'ৰ' (U+09F0) and Assamese Wa 'ৱ' (U+09F1). NEVER use Bengali 'র' (U+09B0).
+        - NEVER use Bengali words like কেমন, কিভাবে, বলুন, বলো, করুন, করতে, ভালো, একটু, এখন, জন্য, থেকে, সাথে, কোথায়, কবে, কেন, হবে, ছিল, আছেন, আপনার, তোমার, হ্যালো.
+        - Use authentic Assamese equivalents instead: কেনেকুৱা / কেনে (not কেমন), কেনেকৈ (not কিভাবে), কওক / কোৱা (not বলুন/বলো), কৰক / কৰিবলৈ (not করুন/করতে), ভাল (not ভালো), অলপ (not একটু), এতিয়া (not এখন), বাবে (not জন্য), পৰা (not থেকে), লগত (not সাথে), ক'ত (not কোথায়), কেতিয়া (not কবে), কিয় (not কেন), হ'ব (not হবে), আছিল (not ছিল), আছে (not আছেন), আপোনাৰ (not আপনার), তোমাৰ (not তোমার), মোক ... কওক (not মোৰ লগত ... কওক).
+        - NEVER do literal word-for-word translation or gibberish transliteration.
+
+        Example:
+        English: "How's your day going so far? Tell me a little about yourself!"
+        assameseText: "এতিয়ালৈকে আপোনাৰ দিনটো কেনেকুৱা গৈ আছে? মোক আপোনাৰ বিষয়ে অলপ কওকচোন!"
+        transliteration: "Etiyaloike aponar dinto kenekuwa goi ase? Mok aponar bikhoye olop koukson!"
+
+        Now translate:
         English: "$cleanEnglish"
 
         Respond ONLY with valid JSON using this exact schema:
         {
           "assameseText": "...",
           "transliteration": "...",
-          "bengaliHindiGuidance": "বাংলা: ... | हिन्दी: ...",
           "wordBreakdown": [
-            {"english": "Word or Phrase", "meaning": "অসমীয়া অৰ্থ (Pronunciation)"}
+            {"english": "Word or Phrase", "meaning": "অসমীয়া অৰ্থ (Assamese Pronunciation)"}
           ]
         }
     """.trimIndent()
+
+    private val bengaliWordReplacements: List<Pair<Regex, String>> = listOf(
+        Regex("এখন\\s+পর্যন্ত") to "এতিয়ালৈকে",
+        Regex("এখন\\s+পৰ্যন্ত") to "এতিয়ালৈকে",
+        Regex("নিজের\\s+সম্পর্কে") to "আপোনাৰ বিষয়ে",
+        Regex("নিজৰ\\s+সম্পৰ্কে") to "আপোনাৰ বিষয়ে",
+        Regex("মোৰ\\s+লগত\\s+আপোনাৰ\\s+বিষয়ে") to "মোক আপোনাৰ বিষয়ে",
+        Regex("কেমন") to "কেনেকুৱা",
+        Regex("কিভাবে|কীভাবে") to "কেনেকৈ",
+        Regex("বলুন") to "কওক",
+        Regex("বলো") to "কোৱা",
+        Regex("করুন|কৰুন") to "কৰক",
+        Regex("করতে|কৰতে") to "কৰিবলৈ",
+        Regex("করছেন|কৰছেন") to "কৰি আছে",
+        Regex("করছি|কৰছি") to "কৰি আছোঁ",
+        Regex("ভালো") to "ভাল",
+        Regex("একটু") to "অলপ",
+        Regex("আপনার") to "আপোনাৰ",
+        Regex("তোমার") to "তোমাৰ",
+        Regex("কোথায়|কোথায়") to "ক'ত",
+        Regex("জন্য") to "বাবে",
+        Regex("থেকে") to "পৰা",
+        Regex("সাথে") to "লগত",
+        Regex("হ্যালো") to "নমস্কাৰ",
+        Regex("(?<![\\u0980-\\u09FF])কেন(?![\\u0980-\\u09FF])") to "কিয়",
+        Regex("(?<![\\u0980-\\u09FF])কবে(?![\\u0980-\\u09FF])") to "কেতিয়া",
+        Regex("(?<![\\u0980-\\u09FF])হবে(?![\\u0980-\\u09FF])") to "হ'ব",
+        Regex("(?<![\\u0980-\\u09FF])ছিল(?![\\u0980-\\u09FF])") to "আছিল",
+        Regex("(?<![\\u0980-\\u09FF])আছেন(?![\\u0980-\\u09FF])") to "আছে",
+        Regex("(?<![\\u0980-\\u09FF])আছি(?![\\u0980-\\u09FF])") to "আছোঁ"
+    )
+
+    private val bengaliTransliterationReplacements: List<Pair<Regex, String>> = listOf(
+        Regex("\\bkemon\\b", RegexOption.IGNORE_CASE) to "kenekuwa",
+        Regex("\\bkibhabe\\b", RegexOption.IGNORE_CASE) to "kenekoi",
+        Regex("\\bbolun\\b", RegexOption.IGNORE_CASE) to "kouk",
+        Regex("\\bbhalo\\b", RegexOption.IGNORE_CASE) to "bhal",
+        Regex("\\bektu\\b", RegexOption.IGNORE_CASE) to "olop",
+        Regex("\\bsathe\\b", RegexOption.IGNORE_CASE) to "logot",
+        Regex("\\btheke\\b", RegexOption.IGNORE_CASE) to "pora",
+        Regex("\\bjonno\\b", RegexOption.IGNORE_CASE) to "babe",
+        Regex("\\bmur logot aponare\\b", RegexOption.IGNORE_CASE) to "Mok aponar"
+    )
+
+    /**
+     * Enforces 100% pure Assamese script and vocabulary by replacing any stray Bengali Ra ('র' -> 'ৰ')
+     * and common Bengali lexical leaks (e.g., 'কেমন' -> 'কেনেকুৱা', 'বলুন' -> 'কওক').
+     */
+    internal fun enforcePureAssamese(text: String): String {
+        var result = text
+        for ((pattern, replacement) in bengaliWordReplacements) {
+            result = result.replace(pattern, replacement)
+        }
+        // In pure Assamese script, Bengali Ra (U+09B0) never appears; always use Assamese Ra (U+09F0)
+        return result.replace('\u09B0', '\u09F0')
+    }
+
+    internal fun enforcePureAssameseTransliteration(text: String): String {
+        var result = text
+        for ((pattern, replacement) in bengaliTransliterationReplacements) {
+            result = result.replace(pattern, replacement)
+        }
+        return result
+    }
 
     private fun parseAiTranslationJson(rawText: String, cleanEnglish: String): TranslationResult? {
         if (rawText.isBlank()) return null
@@ -1442,17 +1524,19 @@ object AssameseTranslator {
         val jsonSlice = stripped.substring(firstBrace, lastBrace + 1)
 
         val parsed = JSONObject(jsonSlice)
-        val asmText = parsed.optString("assameseText").trim()
-        if (asmText.isBlank()) return null
-        val trans = parsed.optString("transliteration", "").trim()
-        val bengaliHindi = parsed.optString("bengaliHindiGuidance", "").trim()
+        val rawAsmText = parsed.optString("assameseText").trim()
+        if (rawAsmText.isBlank()) return null
+        val asmText = enforcePureAssamese(rawAsmText)
+        val trans = enforcePureAssameseTransliteration(parsed.optString("transliteration", "").trim())
         val breakdownArr = parsed.optJSONArray("wordBreakdown")
         val breakdownList = mutableListOf<Pair<String, String>>()
         if (breakdownArr != null) {
             for (i in 0 until breakdownArr.length()) {
                 val item = breakdownArr.optJSONObject(i) ?: continue
                 val eng = item.optString("english").trim()
-                val meaning = item.optString("meaning").trim()
+                val meaning = enforcePureAssameseTransliteration(
+                    enforcePureAssamese(item.optString("meaning").trim())
+                )
                 if (eng.isNotBlank() && meaning.isNotBlank()) {
                     breakdownList.add(eng to meaning)
                 }
@@ -1462,7 +1546,7 @@ object AssameseTranslator {
             assameseText = asmText,
             transliteration = trans,
             wordBreakdown = if (breakdownList.isNotEmpty()) breakdownList else generateBreakdown(cleanEnglish),
-            bengaliHindiGuidance = bengaliHindi,
+            bengaliHindiGuidance = "",
             isFromAi = true
         )
     }

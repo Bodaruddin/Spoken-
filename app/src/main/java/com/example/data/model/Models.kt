@@ -397,12 +397,34 @@ data class ExamSubmission(
     val totalMarks: Int,
     val percentage: Int,
     val isPassed: Boolean,
-    val grade: String, // "O", "A+", "A", "B+", "B", "C", "F"
+    val grade: String, // "A+", "A", "B+", "B", "C", "D", "F"
     val performanceTitle: String = "Academic Distinction", // "Outstanding Distinction", "Distinction", "Merit", "Satisfactory"
     val timeTakenSeconds: Int = 0,
     val completedAt: String = "Today",
     val certificateId: String = "SPK-EXM-2026-0000"
-)
+) {
+    val displayGrade: String
+        get() = normalizeGrade(grade, percentage)
+
+    companion object {
+        fun normalizeGrade(rawGrade: String, percentage: Int = -1): String {
+            val trimmed = rawGrade.trim()
+            if (trimmed.equals("O", ignoreCase = true) || trimmed == "0") {
+                return "A+"
+            }
+            if (trimmed.isNotBlank()) return trimmed
+            return when {
+                percentage >= 90 -> "A+"
+                percentage >= 80 -> "A"
+                percentage >= 70 -> "B+"
+                percentage >= 60 -> "B"
+                percentage >= 50 -> "C"
+                percentage >= 40 -> "D"
+                else -> "F"
+            }
+        }
+    }
+}
 
 
 data class LiveClassSession(
