@@ -1501,6 +1501,182 @@ class ExampleUnitTest {
         // Valid Assamese classifier "এখন" (e.g. "a book") must remain untouched
         assertEquals("এখন কিতাপ", com.example.util.AssameseTranslator.enforcePureAssamese("এখন কিতাপ"))
     }
+
+    @Test
+    fun testTargetPhrasePronunciationScoringForBattleAndDrills() {
+        val battleTarget = "Careful climbers crossed the narrow wooden bridge"
+
+        // 1. Voice STT returns lowercase without punctuation — should still earn high pronunciation & overall score
+        val passingEval = com.example.service.EvaluationEngine.evaluateSpeech(
+            spokenText = "careful climbers crossed the narrow wooden bridge",
+            targetPhrase = battleTarget
+        )
+        assertTrue(passingEval.pronunciationScore >= 95)
+        assertTrue(passingEval.overallScore >= 85)
+        assertTrue(passingEval.phonemeAccuracy.all { it.second })
+        assertTrue(passingEval.detectedWeakWords.isEmpty())
+
+        // 2. Unrelated speech against a target phrase scores low and lists missed words
+        val missEval = com.example.service.EvaluationEngine.evaluateSpeech(
+            spokenText = "hello world today",
+            targetPhrase = battleTarget
+        )
+        assertTrue(missEval.pronunciationScore <= 35)
+        assertEquals(7, missEval.detectedWeakWords.size)
+
+        // 3. Single-word Speaking Practice drill ("Specifically") from lowercase STT
+        val singleWordEval = com.example.service.EvaluationEngine.evaluateSpeech(
+            spokenText = "specifically",
+            targetPhrase = "Specifically"
+        )
+        assertTrue(singleWordEval.pronunciationScore >= 95)
+        assertTrue(singleWordEval.overallScore >= 85)
+    }
+
+    @Test
+    fun testExamScreenshotGuardEmulatorDetection() {
+        // Cloud streaming & local Android emulators must skip FLAG_SECURE so preview is never black
+        assertTrue(
+            com.example.util.ExamScreenshotGuard.isEmulatorBuild(
+                fingerprint = "google/sdk_gphone64_x86_64/emu64x:15/AP31/123:userdebug/dev-keys",
+                model = "sdk_gphone64_x86_64",
+                manufacturer = "Google",
+                brand = "google",
+                device = "emu64x",
+                product = "sdk_gphone64_x86_64",
+                hardware = "ranchu"
+            )
+        )
+        assertTrue(
+            com.example.util.ExamScreenshotGuard.isEmulatorBuild(
+                fingerprint = "aosp_cf_x86_64_phone:14/UP1A/123:userdebug/test-keys",
+                model = "Cuttlefish x86_64 phone",
+                manufacturer = "Google",
+                brand = "Android",
+                device = "vsoc_x86_64",
+                product = "aosp_cf_x86_64_phone",
+                hardware = "cutf_cvm"
+            )
+        )
+
+        // Real physical student phones must enforce FLAG_SECURE
+        assertFalse(
+            com.example.util.ExamScreenshotGuard.isEmulatorBuild(
+                fingerprint = "google/panther/panther:14/AP2A/123:user/release-keys",
+                model = "Pixel 7",
+                manufacturer = "Google",
+                brand = "google",
+                device = "panther",
+                product = "panther",
+                hardware = "panther",
+                board = "panther"
+            )
+        )
+        assertFalse(
+            com.example.util.ExamScreenshotGuard.isEmulatorBuild(
+                fingerprint = "samsung/dm1qxxx/dm1q:14/UP1A/123:user/release-keys",
+                model = "SM-S911B",
+                manufacturer = "samsung",
+                brand = "samsung",
+                device = "dm1q",
+                product = "dm1qxxx",
+                hardware = "qcom",
+                board = "kalama"
+            )
+        )
+    }
+
+    @Test
+    fun testNovaGeminiContinuationAndMerge() {
+        // 1. MAX_TOKENS / length finishReason triggers continuation
+        assertTrue(
+            com.example.service.GeminiSpeechEvaluator.needsGeminiContinuation(
+                partialText = "প্ৰথম পদ a = 3 আৰু সাধাৰণ অন্তৰ d = 4",
+                finishReason = "MAX_TOKENS"
+            )
+        )
+        assertTrue(
+            com.example.service.GeminiSpeechEvaluator.needsGeminiContinuation(
+                partialText = "Step 1: Substitute values into the equation",
+                finishReason = "length"
+            )
+        )
+
+        // 2. Cut-off Assamese bullet without terminal punctuation & no STOP finishReason triggers continuation
+        assertTrue(
+            com.example.service.GeminiSpeechEvaluator.needsGeminiContinuation(
+                partialText = "প্ৰশ্নটোৰ সমাধান:\n• চতুৰ্থ পদ, a₄ = 15\n• প্ৰথম n টা পদৰ সমষ্টি",
+                finishReason = ""
+            )
+        )
+
+        // 3. Unclosed display math $$ triggers continuation
+        assertTrue(
+            com.example.service.GeminiSpeechEvaluator.needsGeminiContinuation(
+                partialText = "এতিয়া সূত্ৰ ব্যৱহাৰ কৰি পাওঁ:\n${'$'}${'$'}S_n = \\frac{n}{2}[2a + (n-1)d]",
+                finishReason = ""
+            )
+        )
+
+        // 4. Explicit STOP finishReason never triggers redundant continuation
+        assertFalse(
+            com.example.service.GeminiSpeechEvaluator.needsGeminiContinuation(
+                partialText = "**উত্তৰ:** d = -5/2 আৰু a = 15/2।",
+                finishReason = "STOP"
+            )
+        )
+
+        // 5. Overlap-safe merging removes duplicate seam words cleanly
+        val merged = com.example.service.GeminiSpeechEvaluator.mergeContinuationText(
+            prefix = "• প্ৰথম n টা পদৰ সমষ্টি",
+            continuation = "পদৰ সমষ্টি, S_n = 125।"
+        )
+        assertEquals("• প্ৰথম n টা পদৰ সমষ্টি, S_n = 125।", merged)
+    }
+
+    @Test
+    fun testNovaMathFractionTokenizationAndNoStrayDollars() {
+        // 1. LaTeX \frac, \dfrac, and slash fractions produce MathVisualToken.Fraction
+        val displayTokens = com.example.ui.components.NovaLatexConverter.tokenizeForVisualRow(
+            "${'$'}${'$'} S_n = \\frac{n}{2}[2a + (n-1)d] = \\dfrac{15}{2} - (n-1)/2 ${'$'}${'$'}"
+        )
+        val fracTokens = displayTokens.filterIsInstance<com.example.ui.components.MathVisualToken.Fraction>()
+        assertEquals(3, fracTokens.size)
+        assertEquals("n" to "2", fracTokens[0].numerator to fracTokens[0].denominator)
+        assertEquals("15" to "2", fracTokens[1].numerator to fracTokens[1].denominator)
+        assertEquals("n-1" to "2", fracTokens[2].numerator to fracTokens[2].denominator)
+
+        // 2. Inline $$a_4 = 15$$ inside bullet has zero stray '$' and builds inline fraction placeholder for \frac / slash
+        val bulletResult = com.example.ui.components.buildInlineRichMath(
+            "চতুৰ্থ পদ, ${'$'}${'$'}a_4 = 15${'$'}${'$'} আৰু ${'$'}d = \\frac{15}{2}${'$'} অথবা x = -5/2."
+        )
+        assertFalse(
+            "Expected zero stray '$' characters, got: ${bulletResult.annotatedString.text}",
+            bulletResult.annotatedString.text.contains("$")
+        )
+        assertTrue(bulletResult.annotatedString.text.contains("a₄ = 15"))
+        assertEquals(2, bulletResult.inlineContent.size)
+
+        // 3. Plain prose dates, academic years, and word pairs must NOT become fractions
+        assertNull(com.example.ui.components.NovaLatexConverter.tryMatchPlainProseFractionAt("24/11/2026", 0))
+        assertNull(com.example.ui.components.NovaLatexConverter.tryMatchPlainProseFractionAt("2025/26", 0))
+        assertNull(com.example.ui.components.NovaLatexConverter.tryMatchPlainProseFractionAt("and/or", 0))
+
+        // Valid sentence-ending prose fraction IS matched
+        val endSentenceFrac = com.example.ui.components.NovaLatexConverter.tryMatchPlainProseFractionAt("d = 15/2.", 4)
+        assertNotNull(endSentenceFrac)
+        assertEquals("15", endSentenceFrac?.first)
+        assertEquals("2", endSentenceFrac?.second)
+
+        // 4. Plain copy formatter strips \[...\], $$...$$, and \frac
+        val plainCopy = com.example.ui.components.NovaRichTextFormatter.formatForPlainCopy(
+            "মান \\[d = \\frac{15}{2}\\] আৰু ${'$'}${'$'}a_4 = 15${'$'}${'$'}"
+        )
+        assertFalse(plainCopy.contains("\\["))
+        assertFalse(plainCopy.contains("${'$'}${'$'}"))
+        assertFalse(plainCopy.contains("\\frac"))
+        assertTrue(plainCopy.contains("15/2"))
+    }
 }
 
 

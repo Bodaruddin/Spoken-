@@ -1616,5 +1616,196 @@ class ExampleRobolectricTest {
 
     composeTestRule.onNodeWithTag("listen_choose_next_btn").performScrollTo().assertIsDisplayed()
   }
-}
 
+  @Test
+  fun `pronunciation battle displays evaluation result and awards XP and coins even when AI key is configured`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    app.getSharedPreferences("linguaquest_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+    val prefs = AppPreferences(app)
+    prefs.saveGeminiApiKey("test_dummy_key_for_online_badge")
+
+    val vm = MainViewModel(app)
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    val initialXp = vm.studentProfile.value.xpPoints
+    val initialCoins = vm.studentProfile.value.coins
+
+    vm.selectStudentTab(com.example.ui.StudentTab.GAMES)
+    vm.launchGame(com.example.ui.ActiveGameType.PRONUNCIATION_BATTLE)
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.GamesHubScreen(viewModel = vm)
+    }
+    composeTestRule.waitForIdle()
+
+    val targetSentence = vm.activePronunciationBattleTarget.value
+    assertNotNull(targetSentence)
+    org.junit.Assert.assertNotEquals("Specifically", targetSentence)
+
+    // Simulate student speaking the active battle sentence
+    vm.evaluateInputSpeech(targetSentence!!.lowercase(), isVoiceInput = true)
+    composeTestRule.mainClock.advanceTimeBy(250)
+    composeTestRule.waitForIdle()
+
+    // Evaluation card and reward banner must be shown with +60 XP & +20 Coins awarded
+    composeTestRule.onNodeWithTag("pb_evaluation_card").performScrollTo().assertIsDisplayed()
+    composeTestRule.onNodeWithText("Battle Won!", substring = true).assertIsDisplayed()
+    composeTestRule.onNodeWithText("+60 XP • +20 Coins Earned!", substring = true).assertIsDisplayed()
+    composeTestRule.onNodeWithTag("pb_reward_counter").performScrollTo().assertIsDisplayed()
+    assertEquals(initialXp + 60, vm.studentProfile.value.xpPoints)
+    assertEquals(initialCoins + 20, vm.studentProfile.value.coins)
+    assertEquals(60 to 20, vm.celebrationReward.value)
+  }
+
+  @Test
+  fun `speaking practice pronunciation drill displays score card and rewards immediately`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    app.getSharedPreferences("linguaquest_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+    val prefs = AppPreferences(app)
+    prefs.saveGeminiApiKey("test_dummy_key_for_online_badge")
+
+    val vm = MainViewModel(app)
+    vm.unifiedLogin("alex.morgan@linguaquest.edu", "1234")
+    val initialXp = vm.studentProfile.value.xpPoints
+    val initialCoins = vm.studentProfile.value.coins
+
+    vm.selectSpeakingSubTab(SpeakingSubTab.PRONUNCIATION_COACH)
+
+    composeTestRule.setContent {
+      com.example.ui.screens.student.SpeakingHubScreen(viewModel = vm)
+    }
+    composeTestRule.waitForIdle()
+
+    vm.evaluateInputSpeech("specifically", isVoiceInput = true)
+    composeTestRule.mainClock.advanceTimeBy(250)
+    composeTestRule.waitForIdle()
+
+    composeTestRule.onNodeWithTag("active_drill_evaluation_card").performScrollTo().assertIsDisplayed()
+    assertTrue((vm.lastEvaluation.value?.overallScore ?: 0) >= 85)
+    assertTrue(vm.studentProfile.value.xpPoints > initialXp)
+    assertEquals(initialCoins + 10, vm.studentProfile.value.coins)
+  }
+
+  @Test
+  fun `live exam and exam review enforce FLAG_SECURE screenshot blocking and clear it on exit`() {
+    val sampleExam = com.example.data.model.Exam(
+      id = "exm_secure_test",
+      title = "English Grammar Test",
+      description = "Grammar assessment",
+      teacherName = "Prof. Vance",
+      targetClass = "Class 10",
+      durationMinutes = 20,
+      totalMarks = 10,
+      passingPercentage = 60,
+      questions = listOf(
+        com.example.data.model.ExamQuestion(
+          id = "q_secure_1",
+          question = "Choose the correct sentence in Present Perfect Continuous Tense:",
+          options = listOf(
+            "She is reading a novel since morning.",
+            "She has been reading a novel for three hours.",
+            "She had been reading the novel yesterday.",
+            "She will be reading a novel."
+          ),
+          correctOptionIndex = 1,
+          marks = 10
+        )
+      )
+    )
+
+    val showExam = androidx.compose.runtime.mutableStateOf(true)
+    val showReview = androidx.compose.runtime.mutableStateOf(false)
+    var hostWindow: android.view.Window? = null
+    val dummySub = com.example.data.model.ExamSubmission(
+      id = "sub_sec_1",
+      examId = sampleExam.id,
+      examTitle = sampleExam.title,
+      studentId = "stu_1",
+      studentName = "Alex Morgan",
+      studentClass = "Class 10",
+      scoreObtained = 10,
+      totalMarks = 10,
+      percentage = 100,
+      grade = "A+",
+      isPassed = true,
+      selectedAnswers = mapOf("q_secure_1" to 1),
+      timeTakenSeconds = 45,
+      certificateId = "CERT-SEC-1"
+    )
+
+    composeTestRule.setContent {
+      val ctx = androidx.compose.ui.platform.LocalContext.current
+      if (hostWindow == null) {
+        hostWindow = (ctx as? android.app.Activity)?.window
+      }
+      if (showExam.value) {
+        com.example.ui.screens.student.LiveExamModal(
+          exam = sampleExam,
+          onDismiss = { showExam.value = false },
+          onSubmit = { _, _, _ -> showExam.value = false }
+        )
+      }
+      if (showReview.value) {
+        com.example.ui.screens.student.ExamReviewDialog(
+          exam = sampleExam,
+          submission = dummySub,
+          onDismiss = { showReview.value = false },
+          onViewCertificate = {}
+        )
+      }
+    }
+    composeTestRule.waitForIdle()
+
+    val window = hostWindow!!
+    // 1. Pre-exam briefing already enforces FLAG_SECURE
+    assertTrue((window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE) != 0)
+
+    // 2. Begin exam and verify active exam screen shows No Capture badge and maintains FLAG_SECURE
+    composeTestRule.onNodeWithTag("exam_briefing_begin_button").performClick()
+    composeTestRule.waitForIdle()
+    composeTestRule.onNodeWithTag("exam_screenshot_protected_badge").assertIsDisplayed()
+    assertTrue((window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE) != 0)
+
+    // 3. Dismiss exam -> FLAG_SECURE must be cleared
+    showExam.value = false
+    composeTestRule.waitForIdle()
+    assertEquals(0, window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE)
+
+    // 4. Open exam review -> FLAG_SECURE enforced again, then cleared on dismiss
+    showReview.value = true
+    composeTestRule.waitForIdle()
+    assertTrue((window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE) != 0)
+
+    showReview.value = false
+    composeTestRule.waitForIdle()
+    assertEquals(0, window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE)
+  }
+
+  @Test
+  fun `nova rich math renderer displays assamese bullets and stacked fractions without stray dollar signs`() {
+    val sampleReply = """
+      **প্ৰশ্নটোৰ সমাধান:**
+
+      **দিয়া আছে:**
+      • চতুৰ্থ পদ, ${'$'}${'$'}a_4 = 15${'$'}${'$'}
+      • প্ৰথম ${'$'}n${'$'} টা পদৰ সমষ্টি, ${'$'}S_n = \frac{n}{2}[2a + (n-1)d]${'$'}
+
+      ${'$'}${'$'}d = \frac{15}{2} - \frac{5}{2} = 5${'$'}${'$'}
+
+      **উত্তৰ:** ${'$'}d = 15/2${'$'} আৰু ${'$'}a = \frac{3}{2}${'$'}।
+    """.trimIndent()
+
+    composeTestRule.setContent {
+      com.example.ui.components.NovaRichMessageContent(rawText = sampleReply)
+    }
+    composeTestRule.waitForIdle()
+
+    // Ensure raw dollar signs are stripped inside bullets and stacked math nodes render properly
+    composeTestRule.onNodeWithText("$", substring = true).assertDoesNotExist()
+    composeTestRule.onNodeWithText("a₄ = 15", substring = true).assertIsDisplayed()
+    val fifteenNodes = composeTestRule.onAllNodes(androidx.compose.ui.test.hasText("15", substring = true)).fetchSemanticsNodes()
+    assertTrue("Expected stacked/inline 15 nodes to render, found ${fifteenNodes.size}", fifteenNodes.size >= 3)
+    val denomNodes = composeTestRule.onAllNodes(androidx.compose.ui.test.hasText("2")).fetchSemanticsNodes()
+    assertTrue("Expected stacked denominator '2' nodes to render, found ${denomNodes.size}", denomNodes.size >= 2)
+    composeTestRule.onNodeWithText("উত্তৰ:", substring = true).assertIsDisplayed()
+  }
+}

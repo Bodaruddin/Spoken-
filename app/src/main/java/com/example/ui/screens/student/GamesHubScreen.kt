@@ -1,10 +1,19 @@
-@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@file:OptIn(
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
+    androidx.compose.foundation.ExperimentalFoundationApi::class
+)
 
 package com.example.ui.screens.student
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,7 +22,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -987,10 +1000,11 @@ fun ActiveGameRunner(
             )
         }
         else -> {
+            val gamesScrollState = rememberScrollState()
             Column(
                 modifier = modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(gamesScrollState)
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -1026,7 +1040,7 @@ fun ActiveGameRunner(
                     ActiveGameType.MISSING_LETTERS -> MissingLettersGame(viewModel, onClose)
                     ActiveGameType.SENTENCE_BUILDER -> SentenceBuilderGame(viewModel, onClose)
                     ActiveGameType.LISTEN_CHOOSE -> ListenAndChooseGame(viewModel, onClose)
-                    ActiveGameType.PRONUNCIATION_BATTLE -> PronunciationBattleGame(viewModel, onClose)
+                    ActiveGameType.PRONUNCIATION_BATTLE -> PronunciationBattleGame(viewModel, onClose, gamesScrollState)
                     ActiveGameType.FAST_VOCABULARY -> FastVocabularyGame(viewModel)
                     ActiveGameType.GRAMMAR_CHALLENGE -> GrammarChallengeGame(viewModel, onClose)
                     ActiveGameType.PICTURE_VOCAB -> PictureVocabGame(viewModel, onClose)
@@ -3366,7 +3380,8 @@ private object PronunciationBattleRoundHistory {
 @Composable
 fun PronunciationBattleGame(
     viewModel: MainViewModel,
-    onClose: () -> Unit = {}
+    onClose: () -> Unit = {},
+    parentScrollState: ScrollState? = null
 ) {
     val allChallenges by viewModel.pronunciationBattleChallenges.collectAsState()
     val challengeById = remember(allChallenges) { allChallenges.associateBy { it.id } }
@@ -3411,35 +3426,99 @@ fun PronunciationBattleGame(
     var challengeIndex by remember(roundNumber) { mutableIntStateOf(0) }
     var isRoundCompleted by remember(roundNumber) { mutableStateOf(false) }
     var wonBattleIds by remember(roundNumber) { mutableStateOf(setOf<String>()) }
+    var earnedXpTotal by remember(roundNumber) { mutableIntStateOf(0) }
+    var earnedCoinsTotal by remember(roundNumber) { mutableIntStateOf(0) }
+    var roundBonusAwarded by remember(roundNumber) { mutableStateOf(false) }
 
     val safeIndex = if (sessionChallenges.isNotEmpty()) challengeIndex.coerceIn(0, sessionChallenges.lastIndex) else 0
     val current = sessionChallenges.getOrNull(safeIndex) ?: return
 
+    val context = LocalContext.current
     val speechState by viewModel.speechManager.speechState.collectAsState()
+    val partialText by viewModel.speechManager.partialText.collectAsState()
     val isListening = speechState is com.example.service.SpeechState.Listening
+    val isAiEvaluating by viewModel.isAiEvaluating.collectAsState()
+    val isProcessing = speechState is com.example.service.SpeechState.Processing || isAiEvaluating
     val evaluation by viewModel.lastEvaluation.collectAsState()
     var hasAwarded by remember(roundNumber, current.id) { mutableStateOf(false) }
+    val resultBringIntoViewRequester = remember { BringIntoViewRequester() }
 
-    // Award when evaluation meets passing score
-    LaunchedEffect(evaluation, roundNumber, current.id) {
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.startSpeakingPractice()
+        } else {
+            Toast.makeText(context, "Microphone permission is required to speak", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Keep ViewModel aligned with the active battle challenge sentence
+    LaunchedEffect(current.id, isRoundCompleted) {
+        if (!isRoundCompleted) {
+            viewModel.setActivePronunciationBattleTarget(current.challengeSentence)
+        } else {
+            viewModel.setActivePronunciationBattleTarget(null)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.setActivePronunciationBattleTarget(null)
+            viewModel.speechManager.cancel()
+        }
+    }
+
+    // Award per-battle reward when evaluation meets passing score
+    LaunchedEffect(evaluation, roundNumber, current.id, isRoundCompleted) {
         val eval = evaluation
-        if (eval != null && eval.pronunciationScore >= current.passingScore && !hasAwarded && !isRoundCompleted) {
+        if (eval != null &&
+            eval.expectedText == current.challengeSentence &&
+            eval.pronunciationScore >= current.passingScore &&
+            !hasAwarded &&
+            !isRoundCompleted
+        ) {
             hasAwarded = true
             wonBattleIds = wonBattleIds + current.id
+            earnedXpTotal += 60
+            earnedCoinsTotal += 20
             viewModel.rewardGameWin(60, 20)
+        }
+    }
+
+    // Award round completion bonus when finishing the round with at least 1 win
+    LaunchedEffect(isRoundCompleted) {
+        if (isRoundCompleted && wonBattleIds.isNotEmpty() && !roundBonusAwarded) {
+            roundBonusAwarded = true
+            earnedXpTotal += 50
+            earnedCoinsTotal += 15
+            viewModel.rewardGameWin(50, 15)
+        }
+    }
+
+    // Auto-scroll evaluation / error card into view so student never misses the result below the fold
+    LaunchedEffect(evaluation, speechState, isAiEvaluating) {
+        if (evaluation != null || speechState is com.example.service.SpeechState.Error || isProcessing) {
+            kotlinx.coroutines.delay(90)
+            resultBringIntoViewRequester.bringIntoView()
+            parentScrollState?.let { sc ->
+                if (sc.maxValue > 0 && evaluation != null) {
+                    sc.animateScrollTo(sc.maxValue)
+                }
+            }
         }
     }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // -------------------------------------------------------------
         // TOP HERO BANNER CARD (Deep Purple Gradient with Speakly Mascot & Close)
         // -------------------------------------------------------------
         Surface(
-            shape = RoundedCornerShape(26.dp),
+            shape = RoundedCornerShape(24.dp),
             color = Color(0xFF1E0E45),
             border = BorderStroke(1.dp, Color(0xFF7C3AED).copy(alpha = 0.5f)),
             modifier = Modifier.fillMaxWidth()
@@ -3456,7 +3535,7 @@ fun PronunciationBattleGame(
                             )
                         )
                     )
-                    .padding(16.dp)
+                    .padding(12.dp)
             ) {
                 // Top Right Circular Close Button
                 Surface(
@@ -3465,7 +3544,7 @@ fun PronunciationBattleGame(
                     border = BorderStroke(1.dp, Color(0x44FFFFFF)),
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .size(32.dp)
+                        .size(30.dp)
                         .clickable { onClose() }
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -3485,21 +3564,21 @@ fun PronunciationBattleGame(
                     // Left Column: Crest, Title, Pill
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         // Shield Crest & Soundwave Pill
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
                                 color = Color(0xFF3B1578),
                                 border = BorderStroke(1.5.dp, Color(0xFFA855F7)),
-                                modifier = Modifier.size(36.dp)
+                                modifier = Modifier.size(32.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Text("⚔️", fontSize = 16.sp)
+                                    Text("⚔️", fontSize = 15.sp)
                                 }
                             }
 
@@ -3531,20 +3610,20 @@ fun PronunciationBattleGame(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text("🌿", fontSize = 16.sp)
+                            Text("🌿", fontSize = 15.sp)
                             Text(
                                 "Pronunciation",
-                                fontSize = 19.sp,
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White
                             )
-                            Text("🌿", fontSize = 16.sp)
+                            Text("🌿", fontSize = 15.sp)
                         }
 
                         // Big Golden "Battle"
                         Text(
                             text = "Battle",
-                            fontSize = 26.sp,
+                            fontSize = 24.sp,
                             fontWeight = FontWeight.Black,
                             color = Color(0xFFFACC15)
                         )
@@ -3567,7 +3646,7 @@ fun PronunciationBattleGame(
                     // Right Mascot (Speakly Owl)
                     Box(
                         modifier = Modifier
-                            .size(92.dp)
+                            .size(76.dp)
                             .padding(top = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -3575,8 +3654,8 @@ fun PronunciationBattleGame(
                             painter = painterResource(R.drawable.app_logo),
                             contentDescription = "Speakly Mascot",
                             modifier = Modifier
-                                .size(88.dp)
-                                .clip(RoundedCornerShape(22.dp)),
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(18.dp)),
                             contentScale = ContentScale.Crop
                         )
                     }
@@ -3588,7 +3667,7 @@ fun PronunciationBattleGame(
         // MAIN ARENA CARD (Glowing Neon Gradient Border + Concentric Orb)
         // -------------------------------------------------------------
         Surface(
-            shape = RoundedCornerShape(26.dp),
+            shape = RoundedCornerShape(24.dp),
             color = Color(0xFF090C28),
             border = BorderStroke(
                 1.5.dp,
@@ -3605,9 +3684,9 @@ fun PronunciationBattleGame(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Arena Header Row: Shield + Title + Step Counter Pill
                 Row(
@@ -3617,23 +3696,26 @@ fun PronunciationBattleGame(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
                         Surface(
                             shape = RoundedCornerShape(10.dp),
                             color = Color(0xFF1E1045),
                             border = BorderStroke(1.5.dp, Color(0xFFA855F7)),
-                            modifier = Modifier.size(38.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text("⚔️", fontSize = 18.sp)
+                                Text("⚔️", fontSize = 16.sp)
                             }
                         }
                         Text(
                             "Pronunciation Battle Arena",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = Color.White
+                            fontSize = 15.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -3650,8 +3732,44 @@ fun PronunciationBattleGame(
                             },
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp)
+                            fontSize = 12.5.sp,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                // Live Battle Score & Reward Strip
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF131B45),
+                        border = BorderStroke(1.dp, Color(0xFF4ADE80).copy(alpha = 0.6f))
+                    ) {
+                        Text(
+                            text = "🏆 ${wonBattleIds.size} Won",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF4ADE80),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF281906),
+                        border = BorderStroke(1.dp, Color(0xFFFACC15).copy(alpha = 0.65f)),
+                        modifier = Modifier.testTag("pb_reward_counter")
+                    ) {
+                        Text(
+                            text = "✨ +$earnedXpTotal XP • 🪙 +$earnedCoinsTotal Coins",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFFFDE047),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -3686,6 +3804,24 @@ fun PronunciationBattleGame(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             )
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF064E3B),
+                                border = BorderStroke(1.dp, Color(0xFFFACC15))
+                            ) {
+                                Text(
+                                    text = if (wonBattleIds.isNotEmpty()) {
+                                        "🎁 Total Earned: +$earnedXpTotal XP • +$earnedCoinsTotal Coins (incl. +50 XP Bonus!)"
+                                    } else {
+                                        "Speak at least 75%+ on battles to earn +60 XP & +20 Coins per win!"
+                                    },
+                                    color = Color(0xFFFDE047),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                                )
+                            }
                             Text(
                                 text = if (allChallenges.size > sessionChallenges.size) {
                                     "You finished all ${sessionChallenges.size} pronunciation battles! Tap Play Again for a brand-new set."
@@ -4029,7 +4165,7 @@ fun PronunciationBattleGame(
                                     )
                                 )
                             ),
-                            modifier = Modifier.size(126.dp)
+                            modifier = Modifier.size(108.dp)
                         ) {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
@@ -4040,7 +4176,7 @@ fun PronunciationBattleGame(
                                     shape = CircleShape,
                                     color = Color(0xFF151940),
                                     border = BorderStroke(1.dp, Color(0xFF3B487A)),
-                                    modifier = Modifier.size(96.dp)
+                                    modifier = Modifier.size(84.dp)
                                 ) {
                                     Box(
                                         modifier = Modifier.fillMaxSize(),
@@ -4051,14 +4187,22 @@ fun PronunciationBattleGame(
                                             shape = CircleShape,
                                             color = Color.Transparent,
                                             modifier = Modifier
-                                                .size(74.dp)
+                                                .size(64.dp)
                                                 .background(
                                                     Brush.verticalGradient(
-                                                        listOf(
-                                                            Color(0xFF00E5FF),
-                                                            Color(0xFF2563EB),
-                                                            Color(0xFF7C3AED)
-                                                        )
+                                                        if (isListening) {
+                                                            listOf(
+                                                                Color(0xFFFF416C),
+                                                                Color(0xFFFF4B2B),
+                                                                Color(0xFF991B1B)
+                                                            )
+                                                        } else {
+                                                            listOf(
+                                                                Color(0xFF00E5FF),
+                                                                Color(0xFF2563EB),
+                                                                Color(0xFF7C3AED)
+                                                            )
+                                                        }
                                                     ),
                                                     CircleShape
                                                 )
@@ -4066,9 +4210,18 @@ fun PronunciationBattleGame(
                                                     if (isListening) {
                                                         viewModel.stopSpeakingPractice()
                                                     } else {
-                                                        viewModel.startSpeakingPractice()
+                                                        val hasPerm = ContextCompat.checkSelfPermission(
+                                                            context,
+                                                            Manifest.permission.RECORD_AUDIO
+                                                        ) == PackageManager.PERMISSION_GRANTED
+                                                        if (hasPerm) {
+                                                            viewModel.startSpeakingPractice()
+                                                        } else {
+                                                            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                                        }
                                                     }
                                                 }
+                                                .testTag("pb_mic_button")
                                         ) {
                                             Box(
                                                 modifier = Modifier.fillMaxSize(),
@@ -4078,7 +4231,7 @@ fun PronunciationBattleGame(
                                                     imageVector = if (isListening) Icons.Filled.Stop else Icons.Filled.Mic,
                                                     contentDescription = "Microphone",
                                                     tint = Color.White,
-                                                    modifier = Modifier.size(34.dp)
+                                                    modifier = Modifier.size(30.dp)
                                                 )
                                             }
                                         }
@@ -4110,20 +4263,193 @@ fun PronunciationBattleGame(
 
                     // Text prompt below orb
                     Text(
-                        text = if (isListening) "Listening... Speak Now" else "Tap to Speak",
-                        color = Color.White,
+                        text = when {
+                            isListening -> "Listening... Tap to Stop"
+                            isProcessing -> "Analyzing Your Speech..."
+                            speechState is com.example.service.SpeechState.Error -> "Tap to Retry Speaking"
+                            evaluation != null -> "Tap to Speak Again"
+                            else -> "Tap to Speak"
+                        },
+                        color = if (isListening) Color(0xFFFCA5A5) else Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
+
+                    if (isListening && partialText.isNotBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF1E1B4B),
+                            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f))
+                        ) {
+                            Text(
+                                text = "🎙️ \"$partialText\"",
+                                fontSize = 12.5.sp,
+                                color = Color(0xFFE0F2FE),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+
+                    // Live Processing / Error / Diagnostic Result immediately below Tap to Speak
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bringIntoViewRequester(resultBringIntoViewRequester),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (isProcessing) {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF0F1E4A),
+                                border = BorderStroke(1.dp, Color(0xFF38BDF8)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("pb_processing_card")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = Color(0xFF38BDF8),
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Scoring battle pronunciation...",
+                                        color = Color.White,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        if (speechState is com.example.service.SpeechState.Error) {
+                            val errMsg = (speechState as com.example.service.SpeechState.Error).message
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFF450A0A),
+                                border = BorderStroke(1.dp, Color(0xFFEF4444)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("pb_error_banner")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Info,
+                                        contentDescription = null,
+                                        tint = Color(0xFFFCA5A5),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = errMsg,
+                                        color = Color(0xFFFEE2E2),
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+
+                        evaluation?.let { eval ->
+                            val passed = eval.pronunciationScore >= current.passingScore
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (passed) Color(0xFF0F2E1E) else Color(0xFF351A08),
+                                border = BorderStroke(1.5.dp, if (passed) Color(0xFF4ADE80) else Color(0xFFFBBF24)),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("pb_evaluation_card")
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = if (passed) "🏆 Battle Won! Accuracy: ${eval.pronunciationScore}%" else "⚡ Score: ${eval.pronunciationScore}% (Need ${current.passingScore}%)",
+                                        fontSize = 15.5.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (passed) Color(0xFF4ADE80) else Color(0xFFFBBF24),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    if (passed) {
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = Color(0xFF064E3B),
+                                            border = BorderStroke(1.dp, Color(0xFFFACC15))
+                                        ) {
+                                            Text(
+                                                text = "🎉 +60 XP • +20 Coins Earned!",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Color(0xFFFDE047),
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+                                    if (eval.spokenText.isNotBlank()) {
+                                        Text(
+                                            text = "🎙️ You said: \"${eval.spokenText}\"",
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFFE2E8F0),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                    if (eval.phonemeAccuracy.isNotEmpty()) {
+                                        FlowRow(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            eval.phonemeAccuracy.forEach { (word, matched) ->
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = if (matched) Color(0xFF065F46) else Color(0xFF7F1D1D),
+                                                    border = BorderStroke(
+                                                        0.8.dp,
+                                                        if (matched) Color(0xFF34D399) else Color(0xFFF87171)
+                                                    )
+                                                ) {
+                                                    Text(
+                                                        text = if (matched) "✓ $word" else "✕ $word",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.White,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = eval.feedback,
+                                        fontSize = 12.sp,
+                                        color = Color.White.copy(alpha = 0.92f),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     // Test with Sample Voice pill
                     Surface(
                         shape = RoundedCornerShape(20.dp),
                         color = Color(0xFF13183B),
                         border = BorderStroke(1.dp, Color(0xFF3B487A)),
-                        modifier = Modifier.clickable {
-                            viewModel.simulateVoiceInput(current.challengeSentence)
-                        }
+                        modifier = Modifier
+                            .clickable {
+                                viewModel.simulateVoiceInput(current.challengeSentence)
+                            }
+                            .testTag("pb_sample_voice_btn")
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -4141,36 +4467,6 @@ fun PronunciationBattleGame(
                                 color = Color.White,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-
-                // Live Diagnostic Evaluation Feedback (if available)
-                evaluation?.let { eval ->
-                    val passed = eval.pronunciationScore >= current.passingScore
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (passed) Color(0xFF0F2E1E) else Color(0xFF351A08),
-                        border = BorderStroke(1.dp, if (passed) Color(0xFF4ADE80) else Color(0xFFFBBF24)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = if (passed) "🏆 Battle Won! Accuracy: ${eval.pronunciationScore}%" else "⚡ Score: ${eval.pronunciationScore}% (Need ${current.passingScore}%)",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = if (passed) Color(0xFF4ADE80) else Color(0xFFFBBF24)
-                            )
-                            Text(
-                                text = eval.feedback,
-                                fontSize = 12.sp,
-                                color = Color.White.copy(alpha = 0.9f),
-                                textAlign = TextAlign.Center
                             )
                         }
                     }

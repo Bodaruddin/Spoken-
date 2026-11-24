@@ -18,13 +18,13 @@ object GeminiSpeechEvaluator {
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
-        .readTimeout(45, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(20, TimeUnit.SECONDS)
         .build()
 
     private val streamingHttpClient = OkHttpClient.Builder()
         .connectTimeout(12, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(20, TimeUnit.SECONDS)
         .build()
 
@@ -1357,7 +1357,7 @@ object GeminiSpeechEvaluator {
 
         for (activeModel in modelsToTry) {
             currentCoroutineContext().ensureActive()
-            val supportsThinking = activeModel.contains("2.5") || activeModel.contains("flash-latest")
+            val supportsThinking = activeModel.contains("2.5") || activeModel.contains("3.") || activeModel.contains("flash-latest")
             val attemptWithThinking = if (supportsThinking) listOf(true, false) else listOf(false)
 
             for (useThinkingConfig in attemptWithThinking) {
@@ -1379,6 +1379,7 @@ object GeminiSpeechEvaluator {
                     val accumulated = StringBuilder()
                     var httpCode = 0
                     var errorBody = ""
+                    var lastFinishReason = ""
 
                     streamingHttpClient.newCall(request).execute().use { response ->
                         httpCode = response.code
@@ -1387,32 +1388,95 @@ object GeminiSpeechEvaluator {
                         } else {
                             val source = response.body?.source()
                             if (source != null) {
-                                while (!source.exhausted()) {
-                                    currentCoroutineContext().ensureActive()
-                                    val line = source.readUtf8Line() ?: break
-                                    if (!line.startsWith("data:")) continue
-                                    val payload = line.removePrefix("data:").trim()
-                                    if (payload.isEmpty() || payload == "[DONE]") continue
-                                    val chunkText = extractGeminiTextFromJson(payload)
+                                val eventBuf = StringBuilder()
+                                suspend fun flushEvent() {
+                                    val payload = eventBuf.toString().trim()
+                                    eventBuf.clear()
+                                    if (payload.isEmpty() || payload == "[DONE]") return
+                                    val (chunkText, finishReason) = extractGeminiChunkAndFinishReason(payload)
+                                    if (!finishReason.isNullOrBlank()) {
+                                        lastFinishReason = finishReason
+                                    }
                                     if (chunkText.isNotEmpty()) {
                                         accumulated.append(chunkText)
                                         onDelta(accumulated.toString())
                                     }
                                 }
+                                while (!source.exhausted()) {
+                                    currentCoroutineContext().ensureActive()
+                                    val line = source.readUtf8Line() ?: break
+                                    if (line.isBlank()) {
+                                        flushEvent()
+                                        continue
+                                    }
+                                    if (!line.startsWith("data:")) continue
+                                    val part = line.removePrefix("data:").trim()
+                                    if (part == "[DONE]") {
+                                        flushEvent()
+                                        break
+                                    }
+                                    eventBuf.append(part)
+                                    // Fast-path flush immediately if single-line JSON is already complete
+                                    if (part.endsWith("}")) {
+                                        flushEvent()
+                                    }
+                                }
+                                flushEvent()
                             }
                         }
                     }
 
                     if (httpCode in 200..299) {
-                        val finalOut = accumulated.toString().trim()
+                        var finalOut = accumulated.toString().trim()
                         if (finalOut.isNotBlank()) {
+                            // Auto-continue seamlessly if MAX_TOKENS or early SSE EOF cut the task in half
+                            var contPass = 0
+                            while (contPass < 2 && needsGeminiContinuation(finalOut, lastFinishReason)) {
+                                currentCoroutineContext().ensureActive()
+                                val contResult = continueGeminiNovaResponse(
+                                    activeModel = activeModel,
+                                    cleanKey = cleanKey,
+                                    systemPrompt = systemPrompt,
+                                    baseContents = contents,
+                                    partialReply = finalOut,
+                                    isPrecisionMode = isPrecisionMode,
+                                    includeThinkingConfig = useThinkingConfig
+                                )
+                                val contChunk = contResult?.first.orEmpty()
+                                val contReason = contResult?.second.orEmpty()
+                                if (contChunk.isBlank()) break
+                                finalOut = mergeContinuationText(finalOut, contChunk)
+                                onDelta(finalOut)
+                                lastFinishReason = contReason.ifBlank { "STOP" }
+                                contPass++
+                            }
                             lastWorkingNovaModel = activeModel
                             return@withContext Result.success(finalOut to activeModel)
                         }
                         // Fallback to single non-streaming request if SSE returned empty
                         val nonStream = executeSingleGeminiNovaRequest(activeModel, cleanKey, jsonBody)
                         if (nonStream.isSuccess) {
-                            val txt = nonStream.getOrThrow()
+                            var (txt, nsFinishReason) = nonStream.getOrThrow()
+                            var contPass = 0
+                            while (contPass < 2 && needsGeminiContinuation(txt, nsFinishReason)) {
+                                currentCoroutineContext().ensureActive()
+                                val contResult = continueGeminiNovaResponse(
+                                    activeModel = activeModel,
+                                    cleanKey = cleanKey,
+                                    systemPrompt = systemPrompt,
+                                    baseContents = contents,
+                                    partialReply = txt,
+                                    isPrecisionMode = isPrecisionMode,
+                                    includeThinkingConfig = useThinkingConfig
+                                )
+                                val contChunk = contResult?.first.orEmpty()
+                                val contReason = contResult?.second.orEmpty()
+                                if (contChunk.isBlank()) break
+                                txt = mergeContinuationText(txt, contChunk)
+                                lastFinishReason = contReason
+                                nsFinishReason = contReason.ifBlank { "STOP" }
+                                contPass++
+                            }
                             lastWorkingNovaModel = activeModel
                             onDelta(txt)
                             return@withContext Result.success(txt to activeModel)
@@ -1428,7 +1492,11 @@ object GeminiSpeechEvaluator {
                             return@withContext Result.failure(lastError)
                         }
                         // If model rejected thinkingConfig with 400, retry same model once without it
-                        if (useThinkingConfig && httpCode == 400 && errMsg.contains("thinking", ignoreCase = true)) {
+                        if (useThinkingConfig && httpCode == 400 &&
+                            (errMsg.contains("thinking", ignoreCase = true) ||
+                                errMsg.contains("budget", ignoreCase = true) ||
+                                errMsg.contains("unknown name", ignoreCase = true))
+                        ) {
                             continue
                         }
                         break
@@ -1561,7 +1629,7 @@ object GeminiSpeechEvaluator {
                 put("model", cleanModel)
                 put("messages", messages)
                 put("temperature", if (isPrecisionMode) 0.15 else 0.65)
-                put("max_tokens", if (isPrecisionMode) 4096 else 3072)
+                put("max_tokens", 8192)
                 put("stream", true)
             }
             val streamReq = Request.Builder()
@@ -1573,6 +1641,7 @@ object GeminiSpeechEvaluator {
 
             val streamed = StringBuilder()
             var streamSuccess = false
+            var customFinishReason = ""
             streamingHttpClient.newCall(streamReq).execute().use { response ->
                 if (response.isSuccessful) {
                     val contentType = response.header("Content-Type")?.lowercase() ?: ""
@@ -1588,8 +1657,12 @@ object GeminiSpeechEvaluator {
                                 if (payload.isEmpty()) continue
                                 try {
                                     val obj = JSONObject(payload)
-                                    val delta = obj.optJSONArray("choices")
-                                        ?.optJSONObject(0)
+                                    val choice0 = obj.optJSONArray("choices")?.optJSONObject(0)
+                                    val fReason = choice0?.optString("finish_reason", "") ?: ""
+                                    if (fReason.isNotBlank() && fReason != "null") {
+                                        customFinishReason = fReason
+                                    }
+                                    val delta = choice0
                                         ?.optJSONObject("delta")
                                         ?.optString("content", "")
                                         ?: ""
@@ -1604,13 +1677,11 @@ object GeminiSpeechEvaluator {
                     } else {
                         // Some proxies ignore stream=true and return normal JSON directly
                         val rawBody = response.body?.string() ?: ""
-                        val directText = try {
-                            JSONObject(rawBody).optJSONArray("choices")
-                                ?.optJSONObject(0)
-                                ?.optJSONObject("message")
-                                ?.optString("content")
-                                ?.trim() ?: ""
-                        } catch (_: Exception) { "" }
+                        val directObj = try {
+                            JSONObject(rawBody).optJSONArray("choices")?.optJSONObject(0)
+                        } catch (_: Exception) { null }
+                        val directText = directObj?.optJSONObject("message")?.optString("content")?.trim() ?: ""
+                        customFinishReason = directObj?.optString("finish_reason", "") ?: ""
                         if (directText.isNotBlank()) {
                             streamed.append(directText)
                             onDelta(directText)
@@ -1621,7 +1692,15 @@ object GeminiSpeechEvaluator {
             }
 
             if (streamSuccess) {
-                return@withContext Result.success(streamed.toString().trim() to cleanModel)
+                var finalOut = streamed.toString().trim()
+                if (customFinishReason == "length" || needsGeminiContinuation(finalOut, customFinishReason)) {
+                    val cont = continueCustomEndpointResponse(completionsUrl, cleanKey, cleanModel, messages, finalOut, isPrecisionMode)
+                    if (cont.isNotBlank()) {
+                        finalOut = mergeContinuationText(finalOut, cont)
+                        onDelta(finalOut)
+                    }
+                }
+                return@withContext Result.success(finalOut to cleanModel)
             }
 
             // Fallback to non-streaming if proxy rejected stream=true
@@ -1629,7 +1708,7 @@ object GeminiSpeechEvaluator {
                 put("model", cleanModel)
                 put("messages", messages)
                 put("temperature", if (isPrecisionMode) 0.15 else 0.65)
-                put("max_tokens", if (isPrecisionMode) 4096 else 3072)
+                put("max_tokens", 8192)
             }
             val fallbackReq = Request.Builder()
                 .url(completionsUrl)
@@ -1791,12 +1870,11 @@ object GeminiSpeechEvaluator {
         put("contents", contents)
         put("generationConfig", JSONObject().apply {
             put("temperature", if (isPrecisionMode) 0.15 else 0.65)
-            put("maxOutputTokens", if (isPrecisionMode) 4096 else 3072)
+            put("maxOutputTokens", 8192)
             if (includeThinkingConfig) {
-                // Prevent gemini-2.5-flash from spending 15-25s on unlimited hidden thinking tokens:
-                // 0 for fast search/general chat (~1s TTFT), 384 for crisp verified math/coding.
+                // Keep latency fast while reserving generous tokens for complete multi-step answers
                 put("thinkingConfig", JSONObject().apply {
-                    put("thinkingBudget", if (isPrecisionMode) 384 else 0)
+                    put("thinkingBudget", if (isPrecisionMode) 512 else 0)
                 })
             }
         })
@@ -1806,7 +1884,7 @@ object GeminiSpeechEvaluator {
         activeModel: String,
         cleanKey: String,
         jsonBody: JSONObject
-    ): Result<String> {
+    ): Result<Pair<String, String>> {
         return try {
             val url = "https://generativelanguage.googleapis.com/v1beta/models/$activeModel:generateContent?key=$cleanKey"
             val request = Request.Builder()
@@ -1818,8 +1896,9 @@ object GeminiSpeechEvaluator {
                 if (!response.isSuccessful) {
                     return Result.failure(Exception(parseApiErrorMessage(body, "Gemini API HTTP ${response.code}")))
                 }
-                val text = extractGeminiTextFromJson(body).trim()
-                if (text.isNotBlank()) Result.success(text)
+                val (text, finishReason) = extractGeminiChunkAndFinishReason(body)
+                val trimmed = text.trim()
+                if (trimmed.isNotBlank()) Result.success(trimmed to (finishReason ?: "STOP"))
                 else Result.failure(Exception("Gemini returned an empty response."))
             }
         } catch (e: Exception) {
@@ -1827,26 +1906,161 @@ object GeminiSpeechEvaluator {
         }
     }
 
-    private fun extractGeminiTextFromJson(rawJson: String): String {
+    internal fun needsGeminiContinuation(partialText: String, finishReason: String): Boolean {
+        val reason = finishReason.trim().uppercase()
+        if (reason == "MAX_TOKENS" || reason == "LENGTH") return true
+        if (reason == "STOP" || reason == "SAFETY" || reason == "RECITATION") return false
+        val t = partialText.trim()
+        if (t.length < 30) return false
+        // Check unclosed blocks or abruptly cut-off lines when no terminal finishReason arrived
+        val dollarPairs = t.split("$$").size - 1
+        if (dollarPairs % 2 == 1) return true
+        val openBracketMath = Regex("\\\\\\[").findAll(t).count()
+        val closeBracketMath = Regex("\\\\\\]").findAll(t).count()
+        if (openBracketMath > closeBracketMath) return true
+        val codeFences = Regex("```").findAll(t).count()
+        if (codeFences % 2 == 1) return true
+        val lastChar = t.lastOrNull() ?: return false
+        if (lastChar in charArrayOf(',', ':', '=', '+', '-', '*', '(', '[', '{', '\\', '$')) return true
+        val lastLine = t.lineSequence().lastOrNull { it.isNotBlank() }?.trim().orEmpty()
+        // If response ended on a bare heading/bullet phrase like "• প্ৰথম n টা পদৰ সমষ্টি" with no ending punctuation
+        if ((lastLine.startsWith("*") || lastLine.startsWith("-") || lastLine.startsWith("•") || lastLine.startsWith("#")) &&
+            !lastLine.endsWith(".") && !lastLine.endsWith("।") && !lastLine.endsWith("?") &&
+            !lastLine.endsWith("!") && !lastLine.endsWith("$") && !lastLine.endsWith(")") &&
+            !lastLine.last().isDigit()
+        ) {
+            return true
+        }
+        return false
+    }
+
+    internal fun mergeContinuationText(prefix: String, continuation: String): String {
+        val a = prefix.trimEnd()
+        val b = continuation.trimStart()
+        if (b.isEmpty()) return a
+        if (a.isEmpty()) return b
+        // Remove accidental small overlap if the model repeated the last few words
+        val maxOverlap = minOf(48, a.length, b.length)
+        for (len in maxOverlap downTo 6) {
+            if (a.endsWith(b.substring(0, len))) {
+                return a + b.substring(len)
+            }
+        }
+        val needsSpaceOrNewline = a.lastOrNull()?.let { !it.isWhitespace() } == true &&
+            b.firstOrNull()?.let { !it.isWhitespace() && it !in charArrayOf('.', ',', '।', ';', ':', ')', ']', '$') } == true
+        return if (needsSpaceOrNewline) "$a $b" else a + b
+    }
+
+    private fun continueGeminiNovaResponse(
+        activeModel: String,
+        cleanKey: String,
+        systemPrompt: String,
+        baseContents: JSONArray,
+        partialReply: String,
+        isPrecisionMode: Boolean,
+        includeThinkingConfig: Boolean
+    ): Pair<String, String>? {
+        val contContents = JSONArray(baseContents.toString()).apply {
+            put(JSONObject().apply {
+                put("role", "model")
+                put("parts", JSONArray().apply {
+                    put(JSONObject().apply { put("text", partialReply) })
+                })
+            })
+            put(JSONObject().apply {
+                put("role", "user")
+                put("parts", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put(
+                            "text",
+                            "Continue seamlessly from the exact point where your previous message stopped without repeating earlier text. Complete every remaining calculation step and end with the final answer."
+                        )
+                    })
+                })
+            })
+        }
+        val contBody = buildNovaGeminiRequestBody(
+            systemPrompt = systemPrompt,
+            contents = contContents,
+            isPrecisionMode = isPrecisionMode,
+            includeThinkingConfig = includeThinkingConfig
+        )
+        return executeSingleGeminiNovaRequest(activeModel, cleanKey, contBody).getOrNull()
+    }
+
+    private fun continueCustomEndpointResponse(
+        completionsUrl: String,
+        cleanKey: String,
+        cleanModel: String,
+        baseMessages: JSONArray,
+        partialReply: String,
+        isPrecisionMode: Boolean
+    ): String {
         return try {
-            val rootJson = JSONObject(rawJson)
-            val partsArr = rootJson.optJSONArray("candidates")
-                ?.optJSONObject(0)
-                ?.optJSONObject("content")
-                ?.optJSONArray("parts")
-                ?: return ""
-            buildString {
-                for (i in 0 until partsArr.length()) {
-                    val part = partsArr.optJSONObject(i) ?: continue
-                    if (part.optBoolean("thought", false)) continue
-                    val chunk = part.optString("text", "")
-                    if (chunk.isNotEmpty()) append(chunk)
-                }
+            val contMessages = JSONArray(baseMessages.toString()).apply {
+                put(JSONObject().apply {
+                    put("role", "assistant")
+                    put("content", partialReply)
+                })
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put(
+                        "content",
+                        "Continue seamlessly from the exact point where your previous message stopped without repeating earlier text. Complete the remaining steps and final answer."
+                    )
+                })
+            }
+            val body = JSONObject().apply {
+                put("model", cleanModel)
+                put("messages", contMessages)
+                put("temperature", if (isPrecisionMode) 0.15 else 0.65)
+                put("max_tokens", 8192)
+            }
+            val req = Request.Builder()
+                .url(completionsUrl)
+                .addHeader("Authorization", "Bearer $cleanKey")
+                .post(body.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+            httpClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return ""
+                val raw = resp.body?.string() ?: return ""
+                JSONObject(raw).optJSONArray("choices")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("message")
+                    ?.optString("content")
+                    ?.trim() ?: ""
             }
         } catch (_: Exception) {
             ""
         }
     }
+
+    private fun extractGeminiChunkAndFinishReason(rawJson: String): Pair<String, String?> {
+        return try {
+            val rootJson = JSONObject(rawJson)
+            val candidate0 = rootJson.optJSONArray("candidates")?.optJSONObject(0)
+            val finishReason = candidate0?.optString("finishReason", "")?.takeIf { it.isNotBlank() && it != "null" }
+            val partsArr = candidate0?.optJSONObject("content")?.optJSONArray("parts")
+            val text = if (partsArr != null) {
+                buildString {
+                    for (i in 0 until partsArr.length()) {
+                        val part = partsArr.optJSONObject(i) ?: continue
+                        if (part.optBoolean("thought", false)) continue
+                        val chunk = part.optString("text", "")
+                        if (chunk.isNotEmpty()) append(chunk)
+                    }
+                }
+            } else {
+                ""
+            }
+            text to finishReason
+        } catch (_: Exception) {
+            "" to null
+        }
+    }
+
+    private fun extractGeminiTextFromJson(rawJson: String): String =
+        extractGeminiChunkAndFinishReason(rawJson).first
 
     private fun parseApiErrorMessage(responseBody: String, fallback: String): String {
         return try {
@@ -1937,10 +2151,10 @@ object GeminiSpeechEvaluator {
         append("MATHEMATICS ACCURACY & CLEAN FORMATTING RULES (CRITICAL):\n")
         append("- When solving ANY math problem (typed or from an attached image/PDF):\n")
         append("  1. Read EVERY digit, negative sign (-), fraction, power/exponent, root, bracket, unit, and EVERY sub-question (i), (ii), (iii)... carefully before starting.\n")
-        append("  2. Solve completely step-by-step without skipping intermediate arithmetic or algebraic steps.\n")
-        append("  3. Silently double-check EVERY addition, subtraction, multiplication, division, sign change, and substitution, and verify your final answer before writing it.\n")
+        append("  2. Solve COMPLETELY from start to finish without stopping early or omitting intermediate arithmetic/algebraic steps, and NEVER stop mid-sentence.\n")
+        append("  3. Silently double-check EVERY addition, subtraction, multiplication, division, sign change, fraction simplification, and substitution, and verify your final answer before writing it.\n")
         append("  4. Follow a clean textbook structure: Heading for each sub-question → Given values (bullet list) → Formula → Step-by-step calculation → Clear Final Answer line starting with '**উত্তৰ:**' (in Assamese) or '**Answer:**' (in English).\n")
-        append("  5. FORMATTING DISCIPLINE: NEVER wrap plain single numbers or simple words in unnecessary '\$' signs (e.g., write 'প্ৰথম পদ (a) = 2' instead of '(\$a\$) = \$2\$'). Put multi-term formulas, fractions, and calculation steps cleanly on their own '\$\$...\$\$' lines (e.g., `\$\$S_n = \\frac{n}{2}[2a + (n - 1)d]\$\$`) so the app renders crisp visual fractions and styled equation cards with zero stray '\$' clutter. For simple inline math symbols, prefer clean Unicode symbols (×, ÷, ±, √, ², ³, ≤, ≥, ≠, π, θ, °, …).\n\n")
+        append("  5. FORMATTING DISCIPLINE: Write ALL fractions using `\\frac{numerator}{denominator}` inside `\$...\$` inline or `\$\$...\$\$` on its own separate line (e.g., `\$\$S_n = \\frac{n}{2}[2a + (n - 1)d]\$\$` or `\$d = \\frac{15}{2}\$`) so every fraction renders with a proper numerator over fraction bar over denominator. NEVER put `\$\$...\$\$` inside a bullet line mixed with prose (use single `\$...\$` inside bullets/sentences, and put `\$\$...\$\$` on its own line). NEVER wrap plain single words in unnecessary '\$' signs. For simple inline symbols, clean Unicode (×, ÷, ±, √, ², ³, ≤, ≥, ≠, π, θ, °) is welcome.\n\n")
 
         append("MODE GUIDANCE:\n")
         when (mode) {

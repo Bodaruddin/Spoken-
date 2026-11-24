@@ -41,6 +41,8 @@ import com.example.data.model.ExamSubmission
 import com.example.ui.MainViewModel
 import com.example.ui.theme.*
 import com.example.util.CertificatePdfGenerator
+import com.example.util.DialogScreenshotProtectionEffect
+import com.example.util.ExamScreenshotProtectionEffect
 import com.example.util.ExamTimeFormatter
 import java.io.File
 
@@ -812,6 +814,7 @@ internal fun LiveExamModal(
     onSubmit: (selectedAnswers: Map<String, Int>, writtenAnswers: Map<String, String>, timeTakenSeconds: Int) -> Unit
 ) {
     val context = LocalContext.current
+    ExamScreenshotProtectionEffect(enabled = true)
     var hasStarted by remember { mutableStateOf(false) }
     var currentQuestionIndex by remember { mutableStateOf(0) }
     val selectedAnswers = remember { mutableStateMapOf<String, Int>() }
@@ -932,34 +935,65 @@ internal fun LiveExamModal(
                             )
                         }
 
-                        // Live Countdown Timer Badge
+                        // Live Countdown Timer Badge & Screenshot Shield Indicator
                         val isLowTime = timeRemainingSeconds < 120
                         val minutes = timeRemainingSeconds / 60
                         val seconds = timeRemainingSeconds % 60
                         val timeStr = String.format("%02d:%02d", minutes, seconds)
 
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isLowTime) Color(0xFF450A0A) else Color(0xFF0B1938),
-                            border = BorderStroke(1.2.dp, if (isLowTime) Color(0xFFEF4444) else Color(0xFF38BDF8))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFF0F172A),
+                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.55f)),
+                                modifier = Modifier.testTag("exam_screenshot_protected_badge")
                             ) {
-                                Icon(
-                                    Icons.Rounded.Alarm,
-                                    contentDescription = null,
-                                    tint = if (isLowTime) Color(0xFFEF4444) else Color(0xFF38BDF8),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = timeStr,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 14.sp,
-                                    color = if (isLowTime) Color(0xFFEF4444) else Color.White
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.VerifiedUser,
+                                        contentDescription = "Screenshots Disabled",
+                                        tint = Color(0xFF34D399),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Text(
+                                        text = "No Capture",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF6EE7B7)
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isLowTime) Color(0xFF450A0A) else Color(0xFF0B1938),
+                                border = BorderStroke(1.2.dp, if (isLowTime) Color(0xFFEF4444) else Color(0xFF38BDF8))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Alarm,
+                                        contentDescription = null,
+                                        tint = if (isLowTime) Color(0xFFEF4444) else Color(0xFF38BDF8),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = timeStr,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp,
+                                        color = if (isLowTime) Color(0xFFEF4444) else Color.White
+                                    )
+                                }
                             }
                         }
                     }
@@ -1297,7 +1331,10 @@ internal fun LiveExamModal(
 
         AlertDialog(
             onDismissRequest = { showSubmitConfirmation = false },
-            title = { Text("Submit Examination?") },
+            title = {
+                DialogScreenshotProtectionEffect(enabled = true)
+                Text("Submit Examination?")
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("You have answered $answeredCount of ${exam.questionsCount} questions.")
@@ -1453,6 +1490,11 @@ private fun PreExamBriefing(
                     )
                     RuleItem(icon = Icons.Rounded.WorkspacePremium, title = "Pass Criteria: ${exam.passingPercentage}% (${exam.passingMarks} Marks)", desc = "Score ${exam.passingPercentage}% or above to generate your official Verified Certificate.")
                     RuleItem(icon = Icons.Rounded.Download, title = "PDF Certificate Download", desc = "Includes your score, award grade, official seal, and faculty digital signatures.")
+                    RuleItem(
+                        icon = Icons.Rounded.VerifiedUser,
+                        title = "Screenshot & Screen Recording Blocked",
+                        desc = "Screenshots, screen recording, and app-switcher previews are disabled during this exam for academic integrity."
+                    )
                 }
             }
         }
@@ -1538,6 +1580,7 @@ internal fun ExamReviewDialog(
     onDismiss: () -> Unit,
     onViewCertificate: () -> Unit
 ) {
+    ExamScreenshotProtectionEffect(enabled = true)
     BackHandler { onDismiss() }
 
     Surface(

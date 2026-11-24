@@ -429,8 +429,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun resetStudentPanelViewModelState() {
         ttsManager.stop()
         speechManager.reset()
+        evaluationJob?.cancel()
+        evaluationJob = null
         _lastEvaluation.value = null
         _isAiEvaluating.value = false
+        _activePronunciationBattleTarget.value = null
         _celebrationReward.value = null
         _activeGame.value = null
         _activeRoleplay.value = null
@@ -1328,6 +1331,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
     val activePronunciationDrill: StateFlow<PronunciationDrill?> = _activePronunciationDrill.asStateFlow()
 
+    private val _activePronunciationBattleTarget = MutableStateFlow<String?>(null)
+    val activePronunciationBattleTarget: StateFlow<String?> = _activePronunciationBattleTarget.asStateFlow()
+
+    private var evaluationJob: kotlinx.coroutines.Job? = null
+
     // Speech Evaluation Result
     private val _lastEvaluation = MutableStateFlow<SpeakingEvaluation?>(null)
     val lastEvaluation: StateFlow<SpeakingEvaluation?> = _lastEvaluation.asStateFlow()
@@ -1588,6 +1596,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_speakingSubTab.value != subTab) {
             ttsManager.stop()
         }
+        evaluationJob?.cancel()
+        evaluationJob = null
+        _isAiEvaluating.value = false
         _speakingSubTab.value = subTab
         _currentStudentTab.value = StudentTab.PRACTICE
         _lastEvaluation.value = null
@@ -2789,7 +2800,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             try {
                 val (replyText, usedModel) = if (isGeminiApiKeyConfigured()) {
-                    val aiResult = kotlinx.coroutines.withTimeoutOrNull(65000L) {
+                    val aiResult = kotlinx.coroutines.withTimeoutOrNull(95000L) {
                         if (_aiProviderType.value == "CUSTOM_ENDPOINT") {
                             GeminiSpeechEvaluator.askNovaGeminiCustomEndpointStream(
                                 endpointUrl = _customEndpointUrl.value,
@@ -3020,12 +3031,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun evaluateInputSpeech(spoken: String, isVoiceInput: Boolean = false) {
         val cleanSpoken = spoken.trim()
-        if (cleanSpoken.isBlank() || _isAiEvaluating.value) return
-        _isAiEvaluating.value = true
+        if (cleanSpoken.isBlank()) return
 
-        val isNovaChat = _speakingSubTab.value == SpeakingSubTab.AI_PARTNER
+        val inGamesTab = _currentStudentTab.value == StudentTab.GAMES
+        val inPracticeTab = _currentStudentTab.value == StudentTab.PRACTICE
+        val activeGameNow = _activeGame.value
+        val activeSubTabNow = _speakingSubTab.value
+
+        val isPronunciationBattleMode =
+            (inGamesTab && activeGameNow == ActiveGameType.PRONUNCIATION_BATTLE) ||
+                (!inPracticeTab && activeGameNow == ActiveGameType.PRONUNCIATION_BATTLE &&
+                    !_activePronunciationBattleTarget.value.isNullOrBlank())
+
+        val isSpeak30Mode = inGamesTab && activeGameNow == ActiveGameType.SPEAK_30_SECONDS
+        val isPronunciationCoachMode =
+            inPracticeTab && activeSubTabNow == SpeakingSubTab.PRONUNCIATION_COACH
+        val isAdventureSpeakingMode =
+            inPracticeTab && activeSubTabNow == SpeakingSubTab.ENGLISH_ADVENTURE &&
+                _activeAdventureMission.value != null
+        val isNovaChat = !inGamesTab && activeSubTabNow == SpeakingSubTab.AI_PARTNER
+
+        if (isNovaChat && _isAiEvaluating.value) return
+        if (!isNovaChat) {
+            evaluationJob?.cancel()
+        }
+
         val activeTopic = _activeConversationTopic.value
+        val effectiveDrillTarget = _activePronunciationDrill.value?.wordOrSentence
+            ?: repository.pronunciationDrills.value.find { it.wordOrSentence.equals("Specifically", ignoreCase = true) }?.wordOrSentence
+            ?: repository.pronunciationDrills.value.firstOrNull()?.wordOrSentence
+
         val target: String? = when {
+            isPronunciationBattleMode -> _activePronunciationBattleTarget.value
+            isSpeak30Mode -> null
+            isPronunciationCoachMode -> effectiveDrillTarget
+            isAdventureSpeakingMode -> _activeAdventureMission.value?.targetSentence
+            isNovaChat -> null
             _activeAdventureMission.value != null -> _activeAdventureMission.value?.targetSentence
             _activePronunciationDrill.value != null -> _activePronunciationDrill.value?.wordOrSentence
             _activeRoleplay.value != null -> {
@@ -3033,9 +3074,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val turn = _activeRoleplay.value?.turns?.getOrNull(idx)
                 turn?.text
             }
-            isNovaChat -> null
             else -> null
         }
+
+        val isTargetPronunciationMode = !target.isNullOrBlank() &&
+            (isPronunciationBattleMode || isPronunciationCoachMode || isAdventureSpeakingMode || !isNovaChat && !isSpeak30Mode)
+
+        // Target-phrase pronunciation drills, battle challenges, and adventure speaking missions
+        // evaluate immediately with word-by-word phoneme accuracy against the exact target phrase.
+        if (isTargetPronunciationMode) {
+            _isAiEvaluating.value = false
+            val eval = EvaluationEngine.evaluateSpeech(
+                spokenText = cleanSpoken,
+                targetPhrase = target
+            )
+            _lastEvaluation.value = eval
+            if (eval.overallScore > 0) {
+                repository.recordSpeakingPracticeResult(eval, practiceMinutesToAdd = 2)
+                if (!isPronunciationBattleMode && eval.overallScore >= 60) {
+                    val xpEarned = (eval.overallScore * 0.4).toInt().coerceAtLeast(10)
+                    val coinsEarned = 10
+                    repository.addRewards(xpEarned, coinsEarned)
+                }
+                syncCurrentStudentProgressToSupabase()
+            }
+            return
+        }
+
+        _isAiEvaluating.value = true
 
         // Capture conversation context & previous question BEFORE appending the student's current turn
         val historyBeforeStudent = if (isNovaChat) _novaChatMessages.value else emptyList()
@@ -3066,7 +3132,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             emptyList()
         }
 
-        viewModelScope.launch {
+        evaluationJob = viewModelScope.launch {
             _isAiEvaluating.value = true
             try {
                 val effectiveKey = getEffectiveGeminiApiKey()
@@ -3630,16 +3696,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Games Management
     fun launchGame(game: ActiveGameType) {
+        evaluationJob?.cancel()
+        evaluationJob = null
+        _isAiEvaluating.value = false
         _activeGame.value = game
         _lastEvaluation.value = null
+        if (game != ActiveGameType.PRONUNCIATION_BATTLE) {
+            _activePronunciationBattleTarget.value = null
+        }
     }
 
     fun closeGame() {
+        evaluationJob?.cancel()
+        evaluationJob = null
+        _isAiEvaluating.value = false
         _activeGame.value = null
+        _activePronunciationBattleTarget.value = null
         _lastEvaluation.value = null
+        speechManager.cancel()
+    }
+
+    fun setActivePronunciationBattleTarget(sentence: String?) {
+        _activePronunciationBattleTarget.value = sentence?.trim()?.takeIf { it.isNotBlank() }
     }
 
     fun clearEvaluation() {
+        evaluationJob?.cancel()
+        evaluationJob = null
+        _isAiEvaluating.value = false
         _lastEvaluation.value = null
     }
 
@@ -3673,12 +3757,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     // Pronunciation Drill
     fun startPronunciationDrill(drill: PronunciationDrill) {
+        evaluationJob?.cancel()
+        evaluationJob = null
+        _isAiEvaluating.value = false
         _activePronunciationDrill.value = drill
         _lastEvaluation.value = null
         speakAudio(drill.wordOrSentence, slow = true)
     }
 
     fun closePronunciationDrill() {
+        evaluationJob?.cancel()
+        evaluationJob = null
+        _isAiEvaluating.value = false
         _activePronunciationDrill.value = null
         _lastEvaluation.value = null
     }

@@ -26,6 +26,7 @@ import com.example.ui.screens.teacher.TeacherMainScreen
 import androidx.compose.ui.graphics.Color
 import com.example.ui.theme.*
 import com.example.util.CertificatePdfGenerator
+import com.example.util.ExamScreenshotProtectionEffect
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +59,9 @@ fun SpeaklyApp(viewModel: MainViewModel = viewModel()) {
     val activeStudentExam by viewModel.activeStudentExam.collectAsState()
     val activeExamReview by viewModel.activeExamReview.collectAsState()
     val activeExamCertificate by viewModel.activeExamCertificate.collectAsState()
+
+    // Prevent screenshots, screen recording, and Recents thumbnails while taking or reviewing an exam
+    ExamScreenshotProtectionEffect(enabled = activeStudentExam != null || activeExamReview != null)
 
     // Runtime Permission for Microphone Audio Recording
     var hasAudioPermission by remember {

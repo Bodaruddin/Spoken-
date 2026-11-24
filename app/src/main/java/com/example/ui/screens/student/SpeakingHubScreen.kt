@@ -15,11 +15,14 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -68,7 +71,9 @@ fun SpeakingHubScreen(
 ) {
     val currentSubTab by viewModel.speakingSubTab.collectAsState()
     val speechState by viewModel.speechManager.speechState.collectAsState()
+    val partialText by viewModel.speechManager.partialText.collectAsState()
     val lastEvaluation by viewModel.lastEvaluation.collectAsState()
+    val isAiEvaluating by viewModel.isAiEvaluating.collectAsState()
     val roleplays by viewModel.roleplays.collectAsState()
     val activeRoleplay by viewModel.activeRoleplay.collectAsState()
     val roleplayTurnIndex by viewModel.roleplayTurnIndex.collectAsState()
@@ -279,7 +284,9 @@ fun SpeakingHubScreen(
                             activeDrill = activeDrill,
                             viewModel = viewModel,
                             speechState = speechState,
-                            evaluation = lastEvaluation
+                            evaluation = lastEvaluation,
+                            partialText = partialText,
+                            isEvaluating = isAiEvaluating
                         )
                     }
                 }
@@ -1266,7 +1273,9 @@ fun PronunciationSection(
     activeDrill: PronunciationDrill?,
     viewModel: MainViewModel,
     speechState: SpeechState,
-    evaluation: com.example.data.model.SpeakingEvaluation?
+    evaluation: com.example.data.model.SpeakingEvaluation?,
+    partialText: String = "",
+    isEvaluating: Boolean = false
 ) {
     var queryInput by remember { mutableStateOf("") }
     val searchedResult by viewModel.searchedPhoneticResult.collectAsState()
@@ -2315,6 +2324,8 @@ fun PronunciationSection(
                 drill = drill,
                 speechState = speechState,
                 evaluation = evaluation,
+                partialText = partialText,
+                isEvaluating = isEvaluating,
                 voicePersonaName = selectedPersona.displayName,
                 onOpenVoiceStudio = { showVoiceStudio = true },
                 onSpeakTip = { tipText ->
@@ -2616,11 +2627,14 @@ fun GlowingLightbulbSquircle(modifier: Modifier = Modifier) {
  * - Pulsating concentric radar rings around primary microphone button
  * - Wide "Test with Sample Voice" button with audio and instant evaluation
  */
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun ActivePronunciationDrillCard(
     drill: PronunciationDrill,
     speechState: SpeechState,
     evaluation: com.example.data.model.SpeakingEvaluation?,
+    partialText: String = "",
+    isEvaluating: Boolean = false,
     voicePersonaName: String = "Ananya",
     onOpenVoiceStudio: () -> Unit = {},
     onSpeakTip: (String) -> Unit = {},
@@ -2631,6 +2645,15 @@ fun ActivePronunciationDrillCard(
     onTestSampleVoice: () -> Unit = onPlayNormal
 ) {
     val isListening = speechState is SpeechState.Listening
+    val isProcessing = speechState is SpeechState.Processing || isEvaluating
+    val resultBringIntoViewRequester = remember { BringIntoViewRequester() }
+
+    LaunchedEffect(evaluation, speechState, isEvaluating) {
+        if (evaluation != null || speechState is SpeechState.Error || isProcessing) {
+            kotlinx.coroutines.delay(90)
+            resultBringIntoViewRequester.bringIntoView()
+        }
+    }
 
     Card(
         shape = RoundedCornerShape(32.dp),
@@ -2714,8 +2737,8 @@ fun ActivePronunciationDrillCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // 1. Top Header Row: Active Practice badge, Indian Voice pill & circular close button
                 Row(
@@ -2858,35 +2881,57 @@ fun ActivePronunciationDrillCard(
                         SoundwaveBarsCanvas(isLeft = false, isListening = isListening)
                     }
 
-                    // Centered Phonetics Pill
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = Color(0xFF26195E).copy(alpha = 0.92f),
-                        border = BorderStroke(1.2.dp, Color(0xFFA855F7).copy(alpha = 0.8f)),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable { onPlayNormal() }
-                            .testTag("active_drill_ipa_pill")
+                    // Centered Phonetics Pill + Inline Score Pill when evaluated
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color(0xFF26195E).copy(alpha = 0.92f),
+                            border = BorderStroke(1.2.dp, Color(0xFFA855F7).copy(alpha = 0.8f)),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .clickable { onPlayNormal() }
+                                .testTag("active_drill_ipa_pill")
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.VolumeUp,
-                                contentDescription = "Listen Phonetic",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = drill.ipaPhonetic,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                maxLines = 1,
-                                softWrap = false
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.VolumeUp,
+                                    contentDescription = "Listen Phonetic",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = drill.ipaPhonetic,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+
+                        evaluation?.let { eval ->
+                            val isGreat = eval.overallScore >= 75
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (isGreat) Color(0xFF064E3B) else Color(0xFF422006),
+                                border = BorderStroke(1.2.dp, if (isGreat) Color(0xFF34D399) else Color(0xFFFBBF24))
+                            ) {
+                                Text(
+                                    text = "🎯 ${eval.overallScore}%",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (isGreat) Color(0xFF6EE7B7) else Color(0xFFFDE68A),
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -3078,14 +3123,14 @@ fun ActivePronunciationDrillCard(
 
                     Box(
                         modifier = Modifier
-                            .size(136.dp)
+                            .size(116.dp)
                             .testTag("active_drill_mic_radar_container"),
                         contentAlignment = Alignment.Center
                     ) {
                         // Outer glowing radar circle 1
                         Box(
                             modifier = Modifier
-                                .size(136.dp * if (isListening) wavePulse else 1f)
+                                .size(116.dp * if (isListening) wavePulse else 1f)
                                 .clip(CircleShape)
                                 .background(
                                     if (isListening) Color(0xFFEF4444).copy(alpha = 0.12f)
@@ -3104,7 +3149,7 @@ fun ActivePronunciationDrillCard(
                         // Outer glowing radar circle 2
                         Box(
                             modifier = Modifier
-                                .size(110.dp * if (isListening) (wavePulse * 0.95f) else 1f)
+                                .size(96.dp * if (isListening) (wavePulse * 0.95f) else 1f)
                                 .clip(CircleShape)
                                 .background(
                                     if (isListening) Color(0xFFDC2626).copy(alpha = 0.18f)
@@ -3123,7 +3168,7 @@ fun ActivePronunciationDrillCard(
                         // Inner glowing halo ring 3
                         Box(
                             modifier = Modifier
-                                .size(92.dp)
+                                .size(80.dp)
                                 .clip(CircleShape)
                                 .border(
                                     BorderStroke(
@@ -3141,7 +3186,7 @@ fun ActivePronunciationDrillCard(
                             color = Color.Transparent,
                             border = BorderStroke(2.5.dp, Color.White),
                             modifier = Modifier
-                                .size(74.dp)
+                                .size(66.dp)
                                 .clip(CircleShape)
                                 .clickable { onToggleMic() }
                                 .testTag("active_drill_mic_button")
@@ -3161,28 +3206,233 @@ fun ActivePronunciationDrillCard(
                                     imageVector = if (isListening) Icons.Rounded.Stop else Icons.Rounded.Mic,
                                     contentDescription = "Tap to Speak",
                                     tint = Color.White,
-                                    modifier = Modifier.size(36.dp)
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
                         }
                     }
 
                     Text(
-                        text = when (speechState) {
-                            is SpeechState.Listening -> "Listening... Tap to Stop"
-                            is SpeechState.Processing -> "Analyzing Pronunciation..."
-                            is SpeechState.Success -> "Tap to Speak Again"
-                            is SpeechState.Error -> "Tap to Retry Speaking"
+                        text = when {
+                            isListening -> "Listening... Tap to Stop"
+                            isProcessing -> "Analyzing Pronunciation..."
+                            speechState is SpeechState.Success -> "Tap to Speak Again"
+                            speechState is SpeechState.Error -> "Tap to Retry Speaking"
                             else -> "Tap to Speak"
                         },
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = if (isListening) Color(0xFFFCA5A5) else Color.White,
                         textAlign = TextAlign.Center
                     )
+
+                    if (isListening && partialText.isNotBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF1E1B4B).copy(alpha = 0.85f),
+                            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.6f))
+                        ) {
+                            Text(
+                                text = "🎙️ \"$partialText\"",
+                                fontSize = 12.5.sp,
+                                color = Color(0xFFE0F2FE),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
                 }
 
-                // 6. Test with Sample Voice Button
+                // 6. Live Processing / Error / Evaluation Result Block (immediately below Tap to Speak so it is visible without scrolling off-screen)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .bringIntoViewRequester(resultBringIntoViewRequester),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (isProcessing) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFF0F1E4A).copy(alpha = 0.95f),
+                            border = BorderStroke(1.2.dp, Color(0xFF38BDF8)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("active_drill_processing_card")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    color = Color(0xFF38BDF8),
+                                    strokeWidth = 2.5.dp,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "Scoring your pronunciation...",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+
+                    if (speechState is SpeechState.Error) {
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFF450A0A).copy(alpha = 0.92f),
+                            border = BorderStroke(1.2.dp, Color(0xFFEF4444)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("active_drill_error_banner")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Info,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFCA5A5),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = speechState.message,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFFFEE2E2),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
+                    evaluation?.let { eval ->
+                        val isPassed = eval.overallScore >= 60
+                        val xpEarned = if (isPassed) (eval.overallScore * 0.4).toInt().coerceAtLeast(10) else 0
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = if (isPassed) Color(0xFF063A30).copy(alpha = 0.96f) else Color(0xFF351A08).copy(alpha = 0.96f),
+                            border = BorderStroke(1.5.dp, if (isPassed) Color(0xFF10B981) else Color(0xFFFBBF24)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("active_drill_evaluation_card")
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text("🎯", fontSize = 16.sp)
+                                        Text(
+                                            "Pronunciation Score: ${eval.overallScore}%",
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 15.sp,
+                                            color = if (isPassed) Color(0xFF34D399) else Color(0xFFFBBF24)
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = if (isPassed) Color(0xFF047857) else Color(0xFF92400E),
+                                        border = BorderStroke(1.dp, if (isPassed) Color(0xFF6EE7B7) else Color(0xFFFDE68A))
+                                    ) {
+                                        Text(
+                                            text = when {
+                                                eval.overallScore >= 85 -> "EXCELLENT"
+                                                eval.overallScore >= 70 -> "GREAT"
+                                                eval.overallScore >= 60 -> "GOOD EFFORT"
+                                                else -> "KEEP TRYING"
+                                            },
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                }
+
+                                if (isPassed) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFF064E3B),
+                                        border = BorderStroke(1.dp, Color(0xFFFACC15).copy(alpha = 0.7f))
+                                    ) {
+                                        Text(
+                                            text = "✨ +$xpEarned XP • +10 Coins Earned!",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color(0xFFFDE047),
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+
+                                if (eval.spokenText.isNotBlank()) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text("🎙️ Heard:", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                                        Text(
+                                            "\"${eval.spokenText}\"",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+
+                                if (eval.phonemeAccuracy.isNotEmpty()) {
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        eval.phonemeAccuracy.forEach { (word, matched) ->
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (matched) Color(0xFF065F46) else Color(0xFF7F1D1D),
+                                                border = BorderStroke(
+                                                    0.8.dp,
+                                                    if (matched) Color(0xFF34D399) else Color(0xFFF87171)
+                                                )
+                                            ) {
+                                                Text(
+                                                    text = if (matched) "✓ $word" else "✕ $word",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (eval.feedback.isNotBlank()) {
+                                    Text(
+                                        text = eval.feedback,
+                                        fontSize = 12.sp,
+                                        color = if (isPassed) Color(0xFFA7F3D0) else Color(0xFFFDE68A),
+                                        lineHeight = 16.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 7. Test with Sample Voice Button
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = Color(0xFF041838).copy(alpha = 0.95f),
@@ -3214,110 +3464,6 @@ fun ActivePronunciationDrillCard(
                             maxLines = 1,
                             softWrap = false
                         )
-                    }
-                }
-
-                // 7. Error or Guidance Hint if Speech encountered an issue
-                if (speechState is SpeechState.Error) {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFF450A0A).copy(alpha = 0.9f),
-                        border = BorderStroke(1.dp, Color(0xFFEF4444)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Info,
-                                contentDescription = null,
-                                tint = Color(0xFFFCA5A5),
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = speechState.message,
-                                fontSize = 12.sp,
-                                color = Color(0xFFFEE2E2),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-
-                // 8. Live Evaluation Results Card
-                evaluation?.let { eval ->
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = Color(0xFF063A30).copy(alpha = 0.95f),
-                        border = BorderStroke(1.5.dp, Color(0xFF10B981)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("active_drill_evaluation_card")
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Text("🎯", fontSize = 16.sp)
-                                    Text(
-                                        "Pronunciation Score: ${eval.overallScore}%",
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 15.sp,
-                                        color = Color(0xFF34D399)
-                                    )
-                                }
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFF047857),
-                                    border = BorderStroke(1.dp, Color(0xFF6EE7B7))
-                                ) {
-                                    Text(
-                                        text = if (eval.overallScore >= 75) "EXCELLENT" else "GOOD EFFORT",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = Color.White,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                    )
-                                }
-                            }
-
-                            if (eval.spokenText.isNotBlank()) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text("🎙️ Heard:", fontSize = 12.sp, color = Color(0xFF94A3B8))
-                                    Text(
-                                        "\"${eval.spokenText}\"",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-
-                            if (eval.feedback.isNotBlank()) {
-                                Text(
-                                    text = eval.feedback,
-                                    fontSize = 12.sp,
-                                    color = Color(0xFFA7F3D0),
-                                    lineHeight = 16.sp
-                                )
-                            }
-                        }
                     }
                 }
             }

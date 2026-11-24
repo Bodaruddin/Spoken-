@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -17,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -62,14 +66,12 @@ fun NovaRichMessageContent(
                         2 -> Color(0xFFA5F3FC)
                         else -> Color(0xFFC4B5FD)
                     }
-                    Text(
-                        text = buildInlineAnnotatedString(
-                            text = block.text,
-                            baseColor = color,
-                            boldColor = Color.White,
-                            mathColor = Color(0xFF67E8F9),
-                            baseBold = true
-                        ),
+                    RichMathText(
+                        rawText = block.text,
+                        baseColor = color,
+                        boldColor = Color.White,
+                        mathColor = Color(0xFF67E8F9),
+                        baseBold = true,
                         fontSize = fontSize,
                         lineHeight = (fontSize.value + 9f).sp,
                         fontWeight = FontWeight.Bold,
@@ -108,8 +110,8 @@ fun NovaRichMessageContent(
                                 .clip(CircleShape)
                                 .background(Color(0xFF38BDF8))
                         )
-                        Text(
-                            text = buildInlineAnnotatedString(block.text),
+                        RichMathText(
+                            rawText = block.text,
                             fontSize = 14.5.sp,
                             lineHeight = 23.sp,
                             color = Color(0xFFF1F5F9),
@@ -133,8 +135,8 @@ fun NovaRichMessageContent(
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF67E8F9)
                         )
-                        Text(
-                            text = buildInlineAnnotatedString(block.text),
+                        RichMathText(
+                            rawText = block.text,
                             fontSize = 14.5.sp,
                             lineHeight = 23.sp,
                             color = Color(0xFFF1F5F9),
@@ -159,8 +161,9 @@ fun NovaRichMessageContent(
                                 .clip(RoundedCornerShape(2.dp))
                                 .background(Color(0xFFA855F7))
                         )
-                        Text(
-                            text = buildInlineAnnotatedString(block.text, baseColor = Color(0xFFE2E8F0)),
+                        RichMathText(
+                            rawText = block.text,
+                            baseColor = Color(0xFFE2E8F0),
                             fontSize = 14.sp,
                             lineHeight = 22.5.sp,
                             modifier = Modifier.weight(1f)
@@ -175,13 +178,11 @@ fun NovaRichMessageContent(
                         border = BorderStroke(1.dp, Color(0xFF34D399).copy(alpha = 0.65f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = buildInlineAnnotatedString(
-                                text = block.text,
-                                baseColor = Color(0xFFECFDF5),
-                                boldColor = Color(0xFF6EE7B7),
-                                mathColor = Color(0xFFA7F3D0)
-                            ),
+                        RichMathText(
+                            rawText = block.text,
+                            baseColor = Color(0xFFECFDF5),
+                            boldColor = Color(0xFF6EE7B7),
+                            mathColor = Color(0xFFA7F3D0),
                             fontSize = 14.5.sp,
                             lineHeight = 23.5.sp,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)
@@ -194,8 +195,8 @@ fun NovaRichMessageContent(
                 }
 
                 is NovaBlock.Paragraph -> {
-                    Text(
-                        text = buildInlineAnnotatedString(block.text),
+                    RichMathText(
+                        rawText = block.text,
                         fontSize = 14.5.sp,
                         lineHeight = 23.5.sp,
                         color = Color(0xFFF1F5F9)
@@ -204,6 +205,39 @@ fun NovaRichMessageContent(
             }
         }
     }
+}
+
+@Composable
+private fun RichMathText(
+    rawText: String,
+    modifier: Modifier = Modifier,
+    baseColor: Color = Color(0xFFF1F5F9),
+    boldColor: Color = Color.White,
+    mathColor: Color = Color(0xFF7DD3FC),
+    baseBold: Boolean = false,
+    fontSize: TextUnit = 14.5.sp,
+    lineHeight: TextUnit = 23.sp,
+    fontWeight: FontWeight? = null,
+    color: Color = Color.Unspecified
+) {
+    val built = remember(rawText, baseColor, boldColor, mathColor, baseBold) {
+        buildInlineRichMath(
+            text = rawText,
+            baseColor = baseColor,
+            boldColor = boldColor,
+            mathColor = mathColor,
+            baseBold = baseBold
+        )
+    }
+    Text(
+        text = built.annotatedString,
+        inlineContent = built.inlineContent,
+        fontSize = fontSize,
+        lineHeight = lineHeight,
+        fontWeight = fontWeight,
+        color = color,
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -355,9 +389,14 @@ private fun MarkdownTableCard(headers: List<String>, rows: List<List<String>>) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     headers.forEach { cell ->
-                        Text(
-                            text = buildInlineAnnotatedString(cell, baseColor = Color(0xFFBAE6FD), baseBold = true),
+                        RichMathText(
+                            rawText = cell,
+                            baseColor = Color(0xFFBAE6FD),
+                            boldColor = Color.White,
+                            mathColor = Color(0xFF67E8F9),
+                            baseBold = true,
                             fontSize = 12.5.sp,
+                            lineHeight = 19.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.widthIn(min = 64.dp, max = 160.dp)
                         )
@@ -370,8 +409,8 @@ private fun MarkdownTableCard(headers: List<String>, rows: List<List<String>>) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     row.forEach { cell ->
-                        Text(
-                            text = buildInlineAnnotatedString(cell),
+                        RichMathText(
+                            rawText = cell,
                             fontSize = 12.5.sp,
                             lineHeight = 19.sp,
                             modifier = Modifier.widthIn(min = 64.dp, max = 160.dp)
@@ -403,7 +442,7 @@ private sealed class NovaBlock {
 private object NovaMarkdownParser {
 
     private val headingRegex = Regex("^(#{1,6})\\s+(.+)$")
-    private val dividerRegex = Regex("^\\s*([-*_])\\s*\\1\\s*\\1[\\s\\1]*$")
+    private val dividerRegex = Regex("^\\s*(?:(?:-\\s*){3,}|(?:\\*\\s*){3,}|(?:_\\s*){3,})$")
     private val bulletRegex = Regex("^(\\s*)[*•-]\\s+(.+)$")
     private val numberedRegex = Regex("^\\s*([0-9০-৯]+|[a-zA-Z]|[ivxIVX]+)[.)]\\s+(.+)$")
     private val answerPrefixRegex = Regex(
@@ -658,23 +697,96 @@ private object NovaMarkdownParser {
 // Inline Markdown + LaTeX -> Compose AnnotatedString
 // ============================================================================================
 
-private fun buildInlineAnnotatedString(
+internal data class InlineRichMathResult(
+    val annotatedString: AnnotatedString,
+    val inlineContent: Map<String, InlineTextContent>
+)
+
+internal fun buildInlineRichMath(
     text: String,
     baseColor: Color = Color(0xFFF1F5F9),
     boldColor: Color = Color.White,
     mathColor: Color = Color(0xFF7DD3FC),
     baseBold: Boolean = false
-): AnnotatedString {
-    // First convert \( ... \) inline math delimiters to $...$ for unified scanning
+): InlineRichMathResult {
+    // Convert \( ... \) and \[ ... \] inline math delimiters to $...$ for unified scanning
     val prepped = text
         .replace(Regex("""\\\((.+?)\\\)""")) { m -> "$${m.groupValues[1].trim()}$" }
+        .replace(Regex("""\\\[(.+?)\\\]""")) { m -> "$${m.groupValues[1].trim()}$" }
+
+    val inlineContent = linkedMapOf<String, InlineTextContent>()
+    var fracCounter = 0
+
+    fun registerStackedFraction(num: String, den: String, color: Color): String {
+        val cleanNum = NovaLatexConverter.toReadableInlineMath(num)
+        val cleanDen = NovaLatexConverter.toReadableInlineMath(den)
+        val id = "frac_${fracCounter++}"
+        val widthSp = estimateFractionWidthSp(cleanNum, cleanDen)
+        inlineContent[id] = InlineTextContent(
+            placeholder = Placeholder(
+                width = widthSp,
+                height = 30.sp,
+                placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+            )
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 2.dp)
+            ) {
+                Text(
+                    text = buildMathAnnotatedString(cleanNum, color = color),
+                    fontSize = 11.sp,
+                    lineHeight = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Box(
+                    modifier = Modifier
+                        .padding(vertical = 1.5.dp)
+                        .fillMaxWidth()
+                        .height(1.3.dp)
+                        .background(color.copy(alpha = 0.85f))
+                )
+                Text(
+                    text = buildMathAnnotatedString(cleanDen, color = color),
+                    fontSize = 11.sp,
+                    lineHeight = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+        }
+        return id
+    }
+
+    fun AnnotatedString.Builder.appendTokenizedMath(rawMath: String, color: Color, weight: FontWeight) {
+        val tokens = NovaLatexConverter.tokenizeForVisualRow(rawMath)
+        tokens.forEach { token ->
+            when (token) {
+                is MathVisualToken.Text -> {
+                    appendMathStyled(token.content, color, weight)
+                }
+                is MathVisualToken.Fraction -> {
+                    val id = registerStackedFraction(token.numerator, token.denominator, color)
+                    appendInlineContent(id, "${token.numerator}/${token.denominator}")
+                }
+            }
+        }
+    }
 
     val baseSpan = SpanStyle(
         color = baseColor,
         fontWeight = if (baseBold) FontWeight.Bold else FontWeight.Normal
     )
 
-    return buildAnnotatedString {
+    val annotated = buildAnnotatedString {
         // CRITICAL for Assamese/Bengali/Hindi (Indic) HarfBuzz shaping:
         // Buffer contiguous plain characters and flush them as ONE single span run
         // instead of wrapping each individual Char in its own SpanStyle (which breaks conjuncts & matras).
@@ -688,121 +800,201 @@ private fun buildInlineAnnotatedString(
             }
         }
 
-        val len = prepped.length
-        var i = 0
-        while (i < len) {
-            // 1. Escaped dollar \$ -> literal $
-            if (prepped[i] == '\\' && i + 1 < len && prepped[i + 1] == '$') {
-                plainBuf.append('$')
-                i += 2
-                continue
-            }
-
-            // 2. Inline Math $...$ (Pandoc rule: no leading/trailing space so currency "$50 and $100" stays intact)
-            if (prepped[i] == '$' && (i + 1 < len && prepped[i + 1] != '$')) {
-                val close = findClosingInlineDollar(prepped, i + 1)
-                if (close > i + 1) {
-                    flushPlain()
-                    val mathInner = prepped.substring(i + 1, close)
-                    val renderedMath = NovaLatexConverter.toReadableInlineMath(mathInner)
-                    appendMathStyled(
-                        text = renderedMath,
-                        color = mathColor,
-                        fontWeight = if (baseBold) FontWeight.Bold else FontWeight.SemiBold
-                    )
-                    i = close + 1
-                    continue
+        fun appendSegment(seg: String, segBaseColor: Color, segBold: Boolean) {
+            val segSpan = SpanStyle(
+                color = segBaseColor,
+                fontWeight = if (segBold) FontWeight.Bold else FontWeight.Normal
+            )
+            fun flushSegPlain() {
+                if (plainBuf.isNotEmpty()) {
+                    withStyle(segSpan) {
+                        append(plainBuf.toString())
+                    }
+                    plainBuf.clear()
                 }
             }
 
-            // 3. Inline code `...`
-            if (prepped[i] == '`') {
-                val close = prepped.indexOf('`', i + 1)
-                if (close > i + 1) {
-                    flushPlain()
-                    withStyle(
-                        SpanStyle(
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF67E8F9),
-                            background = Color(0xFF1E1B4B),
-                            fontSize = 13.sp
+            val len = seg.length
+            var i = 0
+            while (i < len) {
+                // 1. Escaped dollar \$ -> literal $
+                if (seg[i] == '\\' && i + 1 < len && seg[i + 1] == '$') {
+                    plainBuf.append('$')
+                    i += 2
+                    continue
+                }
+
+                // 2a. Double-dollar inline math $$...$$ inside bullets/headings/paragraphs -> strip both $$ cleanly
+                if (i + 1 < len && seg[i] == '$' && seg[i + 1] == '$') {
+                    val closeDouble = seg.indexOf("$$", i + 2)
+                    if (closeDouble > i + 2) {
+                        flushSegPlain()
+                        val mathInner = seg.substring(i + 2, closeDouble)
+                        appendTokenizedMath(
+                            rawMath = mathInner,
+                            color = mathColor,
+                            weight = if (segBold) FontWeight.Bold else FontWeight.SemiBold
                         )
-                    ) {
-                        append(" ${prepped.substring(i + 1, close)} ")
+                        i = closeDouble + 2
+                        continue
                     }
-                    i = close + 1
+                }
+
+                // 2b. Single-dollar inline math $...$
+                if (seg[i] == '$' && (i + 1 < len && seg[i + 1] != '$')) {
+                    val close = findClosingInlineDollar(seg, i + 1)
+                    if (close > i + 1) {
+                        flushSegPlain()
+                        val mathInner = seg.substring(i + 1, close)
+                        appendTokenizedMath(
+                            rawMath = mathInner,
+                            color = mathColor,
+                            weight = if (segBold) FontWeight.Bold else FontWeight.SemiBold
+                        )
+                        i = close + 1
+                        continue
+                    }
+                }
+
+                // 3. Inline code `...`
+                if (seg[i] == '`') {
+                    val close = seg.indexOf('`', i + 1)
+                    if (close > i + 1) {
+                        flushSegPlain()
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFF67E8F9),
+                                background = Color(0xFF1E1B4B),
+                                fontSize = 13.sp
+                            )
+                        ) {
+                            append(" ${seg.substring(i + 1, close)} ")
+                        }
+                        i = close + 1
+                        continue
+                    }
+                }
+
+                // 4. Bold **...** or __...__
+                if (i + 1 < len && ((seg[i] == '*' && seg[i + 1] == '*') || (seg[i] == '_' && seg[i + 1] == '_'))) {
+                    val delim = seg.substring(i, i + 2)
+                    val close = seg.indexOf(delim, i + 2)
+                    if (close > i + 2) {
+                        flushSegPlain()
+                        val inner = seg.substring(i + 2, close)
+                        appendSegment(inner, boldColor, true)
+                        i = close + 2
+                        continue
+                    }
+                }
+
+                // 5. Strikethrough ~~...~~
+                if (i + 1 < len && seg[i] == '~' && seg[i + 1] == '~') {
+                    val close = seg.indexOf("~~", i + 2)
+                    if (close > i + 2) {
+                        flushSegPlain()
+                        withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough, color = segBaseColor.copy(alpha = 0.7f))) {
+                            append(seg.substring(i + 2, close))
+                        }
+                        i = close + 2
+                        continue
+                    }
+                }
+
+                // 6. Italic *...* (only if non-space after opening *)
+                if (seg[i] == '*' && i + 1 < len && !seg[i + 1].isWhitespace() && seg[i + 1] != '*') {
+                    val close = seg.indexOf('*', i + 1)
+                    if (close > i + 1 && !seg[close - 1].isWhitespace()) {
+                        flushSegPlain()
+                        val inner = seg.substring(i + 1, close)
+                        withStyle(SpanStyle(fontStyle = FontStyle.Italic, color = segBaseColor)) {
+                            append(NovaLatexConverter.cleanStrayLatexInText(inner))
+                        }
+                        i = close + 1
+                        continue
+                    }
+                }
+
+                // 7. Stray LaTeX \frac / \dfrac / \tfrac / \sqrt / symbol outside $...$
+                if (seg[i] == '\\' && i + 1 < len && seg[i + 1].isLetter()) {
+                    val fracMatch = NovaLatexConverter.tryConsumeFractionAt(seg, i)
+                    if (fracMatch != null) {
+                        flushSegPlain()
+                        val (num, den, consumedLen) = fracMatch
+                        val id = registerStackedFraction(num, den, mathColor)
+                        appendInlineContent(id, "$num/$den")
+                        i += consumedLen
+                        continue
+                    }
+                    val (converted, consumedLen) = NovaLatexConverter.consumeInlineLatexCommand(seg, i)
+                    if (consumedLen > 0) {
+                        flushSegPlain()
+                        withStyle(SpanStyle(color = mathColor, fontWeight = FontWeight.Medium)) {
+                            append(converted)
+                        }
+                        i += consumedLen
+                        continue
+                    }
+                }
+
+                // 8. Standalone numeric/parenthesized fraction in plain prose (e.g., "d = 15/2", "3/4", "(n-1)/2")
+                val plainFrac = NovaLatexConverter.tryMatchPlainProseFractionAt(seg, i)
+                if (plainFrac != null) {
+                    flushSegPlain()
+                    val (num, den, endIdx) = plainFrac
+                    val id = registerStackedFraction(num, den, mathColor)
+                    appendInlineContent(id, "$num/$den")
+                    i = endIdx
                     continue
                 }
-            }
 
-            // 4. Bold **...** or __...__
-            if (i + 1 < len && ((prepped[i] == '*' && prepped[i + 1] == '*') || (prepped[i] == '_' && prepped[i + 1] == '_'))) {
-                val delim = prepped.substring(i, i + 2)
-                val close = prepped.indexOf(delim, i + 2)
-                if (close > i + 2) {
-                    flushPlain()
-                    val inner = prepped.substring(i + 2, close)
-                    val nested = buildInlineAnnotatedString(
-                        text = inner,
-                        baseColor = boldColor,
-                        boldColor = boldColor,
-                        mathColor = mathColor,
-                        baseBold = true
-                    )
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = boldColor)) {
-                        append(nested)
-                    }
-                    i = close + 2
-                    continue
-                }
+                // Buffer regular characters together so Indic/Assamese shaping stays unbroken
+                plainBuf.append(seg[i])
+                i++
             }
-
-            // 5. Strikethrough ~~...~~
-            if (i + 1 < len && prepped[i] == '~' && prepped[i + 1] == '~') {
-                val close = prepped.indexOf("~~", i + 2)
-                if (close > i + 2) {
-                    flushPlain()
-                    withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough, color = baseColor.copy(alpha = 0.7f))) {
-                        append(prepped.substring(i + 2, close))
-                    }
-                    i = close + 2
-                    continue
-                }
-            }
-
-            // 6. Italic *...* (only if non-space after opening *)
-            if (prepped[i] == '*' && i + 1 < len && !prepped[i + 1].isWhitespace() && prepped[i + 1] != '*') {
-                val close = prepped.indexOf('*', i + 1)
-                if (close > i + 1 && !prepped[close - 1].isWhitespace()) {
-                    flushPlain()
-                    val inner = prepped.substring(i + 1, close)
-                    withStyle(SpanStyle(fontStyle = FontStyle.Italic, color = baseColor)) {
-                        append(NovaLatexConverter.cleanStrayLatexInText(inner))
-                    }
-                    i = close + 1
-                    continue
-                }
-            }
-
-            // 7. Stray LaTeX command outside $...$ (e.g. \times, \frac{a}{b}, \dots)
-            if (prepped[i] == '\\' && i + 1 < len && prepped[i + 1].isLetter()) {
-                val (converted, consumedLen) = NovaLatexConverter.consumeInlineLatexCommand(prepped, i)
-                if (consumedLen > 0) {
-                    flushPlain()
-                    withStyle(SpanStyle(color = mathColor, fontWeight = FontWeight.Medium)) {
-                        append(converted)
-                    }
-                    i += consumedLen
-                    continue
-                }
-            }
-
-            // Buffer regular characters together so Indic/Assamese shaping stays unbroken
-            plainBuf.append(prepped[i])
-            i++
+            flushSegPlain()
         }
+
+        appendSegment(prepped, baseColor, baseBold)
         flushPlain()
     }
+
+    return InlineRichMathResult(annotated, inlineContent)
+}
+
+private fun estimateFractionWidthSp(num: String, den: String): TextUnit {
+    fun visualUnits(s: String): Float {
+        var total = 0f
+        var i = 0
+        while (i < s.length) {
+            if ((s[i] == '^' || s[i] == '_') && i + 1 < s.length) {
+                i++
+                if (s[i] == '{') {
+                    val close = s.indexOf('}', i + 1)
+                    val len = if (close > i) (close - i - 1) else (s.length - i - 1)
+                    total += len * 4.8f
+                    i = if (close > i) close + 1 else s.length
+                    continue
+                }
+                total += 4.8f
+                i++
+                continue
+            }
+            val ch = s[i]
+            total += when {
+                ch in "il1.,|!' " -> 4.2f
+                ch.isUpperCase() || ch in "mwMW@#%&+×=" -> 7.8f
+                ch.code in 0x0980..0x09FF -> 7.8f
+                else -> 6.6f
+            }
+            i++
+        }
+        return total
+    }
+
+    val widest = maxOf(visualUnits(num), visualUnits(den)).coerceAtLeast(10f)
+    return (widest + 12f).coerceIn(24f, 180f).sp
 }
 
 private fun findClosingInlineDollar(text: String, start: Int): Int {
@@ -926,7 +1118,10 @@ internal object NovaLatexConverter {
     private val simpleFractions = mapOf(
         "1/2" to "½", "1/3" to "⅓", "2/3" to "⅔",
         "1/4" to "¼", "3/4" to "¾", "1/5" to "⅕",
-        "2/5" to "⅖", "3/5" to "⅗", "4/5" to "⅘"
+        "2/5" to "⅖", "3/5" to "⅗", "4/5" to "⅘",
+        "1/6" to "⅙", "5/6" to "⅚", "1/7" to "⅐",
+        "1/8" to "⅛", "3/8" to "⅜", "5/8" to "⅝", "7/8" to "⅞",
+        "1/9" to "⅑", "1/10" to "⅒"
     )
 
     private val latexSymbolMap = linkedMapOf(
@@ -1033,13 +1228,16 @@ internal object NovaLatexConverter {
     )
 
     /**
-     * Splits a display equation into alternating Text and stacked Fraction tokens.
+     * Splits an equation into alternating Text and stacked Fraction tokens.
+     * Supports both `\frac{a}{b}` (`\dfrac`, `\tfrac`) and math slash fractions like `15/2`, `n/2`, `(n-1)/2`.
      */
     fun tokenizeForVisualRow(rawLatex: String): List<MathVisualToken> {
         val cleaned = rawLatex
             .trim()
             .removePrefix("$$").removeSuffix("$$")
             .removePrefix("$").removeSuffix("$")
+            .removePrefix("\\[").removeSuffix("\\]")
+            .removePrefix("\\(").removeSuffix("\\)")
             .replace("\\dfrac", "\\frac")
             .replace("\\tfrac", "\\frac")
             .trim()
@@ -1049,29 +1247,37 @@ internal object NovaLatexConverter {
         var i = 0
 
         while (i < cleaned.length) {
-            if (cleaned.startsWith("\\frac", i) &&
-                (i + 5 >= cleaned.length || !cleaned[i + 5].isLetter())
-            ) {
-                var pos = i + 5
-                while (pos < cleaned.length && cleaned[pos].isWhitespace()) pos++
-                val (num, afterNum) = readArg(cleaned, pos)
-                var pos2 = afterNum
-                while (pos2 < cleaned.length && cleaned[pos2].isWhitespace()) pos2++
-                val (den, afterDen) = readArg(cleaned, pos2)
-                if (num.isNotEmpty() && den.isNotEmpty()) {
-                    if (textBuf.isNotEmpty()) {
-                        tokens.add(MathVisualToken.Text(toReadableInlineMath(textBuf.toString())))
-                        textBuf.clear()
-                    }
-                    tokens.add(
-                        MathVisualToken.Fraction(
-                            numerator = toReadableInlineMath(num),
-                            denominator = toReadableInlineMath(den)
-                        )
-                    )
-                    i = afterDen
-                    continue
+            val latexFrac = tryConsumeFractionAt(cleaned, i)
+            if (latexFrac != null) {
+                val (num, den, consumed) = latexFrac
+                if (textBuf.isNotEmpty()) {
+                    tokens.add(MathVisualToken.Text(toReadableInlineMath(textBuf.toString())))
+                    textBuf.clear()
                 }
+                tokens.add(
+                    MathVisualToken.Fraction(
+                        numerator = toReadableInlineMath(num),
+                        denominator = toReadableInlineMath(den)
+                    )
+                )
+                i += consumed
+                continue
+            }
+            val slashFrac = tryMatchMathSlashFractionAt(cleaned, i)
+            if (slashFrac != null) {
+                val (num, den, endIdx) = slashFrac
+                if (textBuf.isNotEmpty()) {
+                    tokens.add(MathVisualToken.Text(toReadableInlineMath(textBuf.toString())))
+                    textBuf.clear()
+                }
+                tokens.add(
+                    MathVisualToken.Fraction(
+                        numerator = toReadableInlineMath(num),
+                        denominator = toReadableInlineMath(den)
+                    )
+                )
+                i = endIdx
+                continue
             }
             textBuf.append(cleaned[i])
             i++
@@ -1083,6 +1289,154 @@ internal object NovaLatexConverter {
         return tokens
     }
 
+    internal fun tryConsumeFractionAt(text: String, start: Int): Triple<String, String, Int>? {
+        val cmdLen = when {
+            text.startsWith("\\frac", start) && (start + 5 >= text.length || !text[start + 5].isLetter()) -> 5
+            text.startsWith("\\dfrac", start) && (start + 6 >= text.length || !text[start + 6].isLetter()) -> 6
+            text.startsWith("\\tfrac", start) && (start + 6 >= text.length || !text[start + 6].isLetter()) -> 6
+            else -> return null
+        }
+        var pos = start + cmdLen
+        while (pos < text.length && text[pos].isWhitespace()) pos++
+        val (num, afterNum) = readArg(text, pos)
+        var pos2 = afterNum
+        while (pos2 < text.length && text[pos2].isWhitespace()) pos2++
+        val (den, afterDen) = readArg(text, pos2)
+        if (num.isEmpty() || den.isEmpty()) return null
+        return Triple(num, den, afterDen - start)
+    }
+
+    /**
+     * Matches plain math slash fractions inside math expressions (`10/2`, `n/2`, `(n-1)/2`, `125/5`),
+     * while ignoring dates (`24/11/2026`), URLs, or multi-letter words (`km/h`).
+     */
+    internal fun tryMatchMathSlashFractionAt(text: String, start: Int): Triple<String, String, Int>? {
+        return matchSlashFractionAt(text, start, allowSingleMathLetters = true)
+    }
+
+    /**
+     * Matches strict numeric / parenthesized fractions inside prose (`d = 15/2`, `3/4`, `(a+b)/2`),
+     * while avoiding dates (`24/11/2026`), academic years (`2025/26`), URLs, and word pairs (`and/or`).
+     */
+    internal fun tryMatchPlainProseFractionAt(text: String, start: Int): Triple<String, String, Int>? {
+        return matchSlashFractionAt(text, start, allowSingleMathLetters = false)
+    }
+
+    private fun matchSlashFractionAt(
+        text: String,
+        start: Int,
+        allowSingleMathLetters: Boolean
+    ): Triple<String, String, Int>? {
+        if (start >= text.length) return null
+        if (start > 0) {
+            val prev = text[start - 1]
+            // Must begin cleanly at boundary (start, space, operator, opening delimiter)
+            if (prev !in charArrayOf(' ', '\t', '\n', '=', '+', '-', '−', '×', '÷', '*', '(', '[', '{', ',', ':', ';')) {
+                return null
+            }
+            if (prev == '/' || prev == '.') return null
+        }
+
+        var pos = start
+        val num: String
+        if (text[pos] == '(') {
+            val closeParen = findMatchingParen(text, pos)
+            if (closeParen <= pos + 1) return null
+            val inner = text.substring(pos + 1, closeParen).trim()
+            if (inner.isEmpty() || inner.length > 18 || inner.contains('/')) return null
+            if (!inner.any { it.isDigit() } && !allowSingleMathLetters) return null
+            num = inner
+            pos = closeParen + 1
+        } else {
+            val startNum = pos
+            if (text[pos].isDigit() || text[pos] in '০'..'৯') {
+                while (pos < text.length && (text[pos].isDigit() || text[pos] in '০'..'৯')) pos++
+                num = text.substring(startNum, pos)
+            } else if (allowSingleMathLetters && text[pos].isLetter()) {
+                pos++
+                // Allow single letter + optional simple subscript digit like a1 / a_1
+                if (pos < text.length && text[pos].isDigit()) pos++
+                if (pos < text.length && text[pos].isLetter()) return null
+                num = text.substring(startNum, pos)
+            } else {
+                return null
+            }
+        }
+
+        // Allow optional single space around '/' only in math mode; usually no space in prose
+        var slashPos = pos
+        if (allowSingleMathLetters) {
+            while (slashPos < text.length && text[slashPos] == ' ') slashPos++
+        }
+        if (slashPos >= text.length || text[slashPos] != '/') return null
+        if (slashPos + 1 < text.length && text[slashPos + 1] == '/') return null
+
+        var denPos = slashPos + 1
+        if (allowSingleMathLetters) {
+            while (denPos < text.length && text[denPos] == ' ') denPos++
+        }
+        if (denPos >= text.length) return null
+
+        val den: String
+        val endIdx: Int
+        if (text[denPos] == '(') {
+            val closeParen = findMatchingParen(text, denPos)
+            if (closeParen <= denPos + 1) return null
+            val inner = text.substring(denPos + 1, closeParen).trim()
+            if (inner.isEmpty() || inner.length > 18 || inner.contains('/')) return null
+            if (!inner.any { it.isDigit() } && !allowSingleMathLetters) return null
+            den = inner
+            endIdx = closeParen + 1
+        } else {
+            val startDen = denPos
+            if (text[denPos].isDigit() || text[denPos] in '০'..'৯') {
+                var p = denPos
+                while (p < text.length && (text[p].isDigit() || text[p] in '০'..'৯')) p++
+                den = text.substring(startDen, p)
+                endIdx = p
+            } else if (allowSingleMathLetters && text[denPos].isLetter()) {
+                var p = denPos + 1
+                if (p < text.length && text[p].isDigit()) p++
+                if (p < text.length && text[p].isLetter()) return null
+                den = text.substring(startDen, p)
+                endIdx = p
+            } else {
+                return null
+            }
+        }
+
+        // Guard trailing boundary: reject multi-part dates like 24/11/2026 or decimal denominators like 1/2.5,
+        // while still allowing sentence-ending periods such as "d = 15/2."
+        if (endIdx < text.length) {
+            val next = text[endIdx]
+            if (next == '/') return null
+            if (next == '.' && endIdx + 1 < text.length && text[endIdx + 1].isDigit()) return null
+            if (!allowSingleMathLetters && next.isLetter()) return null
+        }
+
+        // Avoid converting academic/calendar years like 2025/26 in prose
+        if (!allowSingleMathLetters && num.length == 4 && den.length == 2) {
+            val yr = num.toIntOrNull()
+            if (yr != null && yr in 1900..2100) return null
+        }
+
+        return Triple(num, den, endIdx)
+    }
+
+    private fun findMatchingParen(text: String, openIdx: Int): Int {
+        var depth = 0
+        for (i in openIdx until text.length) {
+            when (text[i]) {
+                '(' -> depth++
+                ')' -> {
+                    depth--
+                    if (depth == 0) return i
+                }
+            }
+        }
+        return -1
+    }
+
     /**
      * Converts a LaTeX math string into clean Unicode math text with zero `$` or raw `\command` noise.
      */
@@ -1091,6 +1445,8 @@ internal object NovaLatexConverter {
             .trim()
             .removePrefix("$$").removeSuffix("$$")
             .removePrefix("$").removeSuffix("$")
+            .removePrefix("\\[").removeSuffix("\\]")
+            .removePrefix("\\(").removeSuffix("\\)")
             .replace("\\dfrac", "\\frac")
             .replace("\\tfrac", "\\frac")
 
@@ -1398,6 +1754,7 @@ object NovaRichTextFormatter {
                     s = s.replace(Regex("^#{1,6}\\s+"), "")
                     s = s.replace(Regex("^(\\s*)[*-]\\s+"), "$1• ")
                     s = s.replace(Regex("""\$\$(.+?)\$\$""")) { m -> NovaLatexConverter.toReadableInlineMath(m.groupValues[1]) }
+                    s = s.replace(Regex("""\\\[(.+?)\\\]""")) { m -> NovaLatexConverter.toReadableInlineMath(m.groupValues[1]) }
                     s = s.replace(Regex("""\\\((.+?)\\\)""")) { m -> NovaLatexConverter.toReadableInlineMath(m.groupValues[1]) }
                     s = s.replace(Regex("""\$([^$\n]+?)\$""")) { m -> NovaLatexConverter.toReadableInlineMath(m.groupValues[1]) }
                     s = NovaLatexConverter.cleanStrayLatexInText(s)
