@@ -77,6 +77,7 @@ class AppPreferences(context: Context) {
         private const val KEY_STUDENT_VOICE_PERSONA_PREFIX = "key_student_voice_persona_"
         private const val KEY_CLOUD_HUMAN_VOICE = "key_cloud_human_voice"
         private const val KEY_NOVA_VOICE_SPEED = "key_nova_voice_speed"
+        private const val KEY_PENDING_GAME_CHALLENGE_SYNCS = "key_pending_game_challenge_syncs"
     }
 
 
@@ -2327,6 +2328,90 @@ class AppPreferences(context: Context) {
 
     fun setNovaVoiceSpeedPreset(speedId: String) {
         prefs.edit().putString(KEY_NOVA_VOICE_SPEED, speedId).apply()
+    }
+
+    // =========================================================================
+    // PENDING CLOUD GAME SYNC QUEUE (Retry queue if offline / transient DB error)
+    // =========================================================================
+
+    fun enqueuePendingGameChallengeSyncs(challenges: List<SupabaseGameChallenge>) {
+        if (challenges.isEmpty()) return
+        try {
+            val existingById = LinkedHashMap<String, SupabaseGameChallenge>()
+            getPendingGameChallengeSyncs().forEach { existingById[it.id] = it }
+            challenges.forEach { ch ->
+                if (ch.id.isNotBlank()) {
+                    existingById[ch.id] = ch
+                }
+            }
+            savePendingGameChallengeSyncsList(existingById.values.toList())
+        } catch (_: Exception) {}
+    }
+
+    fun removePendingGameChallengeSyncIds(ids: Set<String>) {
+        if (ids.isEmpty()) return
+        try {
+            val remaining = getPendingGameChallengeSyncs().filterNot { it.id in ids }
+            savePendingGameChallengeSyncsList(remaining)
+        } catch (_: Exception) {}
+    }
+
+    fun getPendingGameChallengeSyncs(): List<SupabaseGameChallenge> {
+        val raw = prefs.getString(KEY_PENDING_GAME_CHALLENGE_SYNCS, null) ?: return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            val list = mutableListOf<SupabaseGameChallenge>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val id = obj.optString("id", "").trim()
+                if (id.isNotBlank()) {
+                    val optArr = obj.optJSONArray("options")
+                    val opts = mutableListOf<String>()
+                    if (optArr != null) {
+                        for (j in 0 until optArr.length()) {
+                            opts.add(optArr.optString(j, ""))
+                        }
+                    }
+                    list.add(
+                        SupabaseGameChallenge(
+                            id = id,
+                            type = obj.optString("type", ""),
+                            titleOrWord = obj.optString("titleOrWord", ""),
+                            hintOrMeaning = obj.optString("hintOrMeaning", ""),
+                            category = obj.optString("category", "General"),
+                            options = opts,
+                            correctIndex = obj.optInt("correctIndex", 0),
+                            extraData = obj.optString("extraData", ""),
+                            createdBy = obj.optString("createdBy", "Faculty")
+                        )
+                    )
+                }
+            }
+            list
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun savePendingGameChallengeSyncsList(list: List<SupabaseGameChallenge>) {
+        val arr = JSONArray()
+        list.forEach { ch ->
+            val obj = JSONObject().apply {
+                put("id", ch.id)
+                put("type", ch.type)
+                put("titleOrWord", ch.titleOrWord)
+                put("hintOrMeaning", ch.hintOrMeaning)
+                put("category", ch.category)
+                val optArr = JSONArray()
+                ch.options.forEach { optArr.put(it) }
+                put("options", optArr)
+                put("correctIndex", ch.correctIndex)
+                put("extraData", ch.extraData)
+                put("createdBy", ch.createdBy)
+            }
+            arr.put(obj)
+        }
+        prefs.edit().putString(KEY_PENDING_GAME_CHALLENGE_SYNCS, arr.toString()).apply()
     }
 }
 

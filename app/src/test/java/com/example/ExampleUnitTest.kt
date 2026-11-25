@@ -1677,6 +1677,376 @@ class ExampleUnitTest {
         assertFalse(plainCopy.contains("\\frac"))
         assertTrue(plainCopy.contains("15/2"))
     }
+
+    @Test
+    fun testBatchGameAdditionsProduceUniqueIdsAndAdventureRemoteMergePreservesProgress() {
+        val repository = LinguaQuestRepository(null)
+
+        // Rapid batch additions across all game types must produce zero duplicate IDs
+        val wmItems = repository.addWordMatchChallengesBatch(
+            rows = (1..25).map { i ->
+                com.example.util.ParsedGameImportRow.WordMatchRow(
+                    word = "Word$i",
+                    definition = "Meaning $i",
+                    activityType = com.example.data.model.VocabularyActivityType.MEANING_MATCHING
+                )
+            },
+            createdBy = "Prof. Vance"
+        )
+        assertEquals(25, wmItems.map { it.id }.toSet().size)
+
+        val lcItems = repository.addListenChooseChallengesBatch(
+            rows = (1..15).map { i ->
+                com.example.util.ParsedGameImportRow.ListenChooseRow(
+                    audioScript = "Script $i",
+                    question = "Question $i",
+                    options = listOf("A", "B", "C"),
+                    correctIndex = 0
+                )
+            },
+            createdBy = "Prof. Vance"
+        )
+        assertEquals(15, lcItems.map { it.id }.toSet().size)
+
+        val pbItems = repository.addPronunciationBattleChallengesBatch(
+            rows = (1..15).map { i ->
+                com.example.util.ParsedGameImportRow.PronunciationBattleRow(
+                    sentence = "Sentence $i",
+                    phonemeFocus = "/θ/",
+                    difficulty = "Medium",
+                    passingScore = 80
+                )
+            },
+            createdBy = "Prof. Vance"
+        )
+        assertEquals(15, pbItems.map { it.id }.toSet().size)
+
+        val fvItems = repository.addFastVocabularyChallengesBatch(
+            rows = (1..15).map { i ->
+                com.example.util.ParsedGameImportRow.FastVocabularyRow(
+                    word = "Fast$i",
+                    prompt = "Prompt $i",
+                    options = listOf("Yes", "No"),
+                    correctIndex = 0
+                )
+            },
+            createdBy = "Prof. Vance"
+        )
+        assertEquals(15, fvItems.map { it.id }.toSet().size)
+
+        val pvItems = repository.addPictureVocabChallengesBatch(
+            rows = (1..15).map { i ->
+                com.example.util.ParsedGameImportRow.PictureVocabRow(
+                    word = "Pic$i",
+                    emoji = "🌟",
+                    phonetic = "/pɪk/",
+                    clue = "Clue $i",
+                    options = listOf("Pic$i", "Other")
+                )
+            },
+            createdBy = "Prof. Vance"
+        )
+        assertEquals(15, pvItems.map { it.id }.toSet().size)
+
+        val gcItems = repository.addGrammarChallengesBatch(
+            rows = (1..15).map { i ->
+                com.example.util.ParsedGameImportRow.GrammarChallengeRow(
+                    question = "Grammar $i ___",
+                    options = listOf("is", "are"),
+                    correctIndex = 0,
+                    explanation = "Singular subject",
+                    category = "Tenses"
+                )
+            },
+            createdBy = "Prof. Vance"
+        )
+        assertEquals(15, gcItems.map { it.id }.toSet().size)
+
+        val mlItems = repository.bulkImportMissingLettersReturningItems(
+            rows = (1..15).map { i -> Triple("WORDS$i", "Hint $i", "BatchCat") },
+            createdBy = "Prof. Vance"
+        )
+        assertEquals(15, mlItems.map { it.id }.toSet().size)
+
+        val sbItems = repository.bulkImportSentenceBuildersReturningItems(
+            rows = (1..15).map { i -> Triple("Sentence number $i.", "Hint $i", "") },
+            createdBy = "Prof. Vance"
+        )
+        assertEquals(15, sbItems.map { it.id }.toSet().size)
+
+        val targetWorldId = repository.adventureWorlds.value.first().id
+        val advLevels = repository.addAdventureLevelsBatch(
+            worldId = targetWorldId,
+            rows = (1..10).map { i ->
+                com.example.util.ParsedGameImportRow.EnglishAdventureRow(
+                    title = "Stage $i",
+                    description = "Desc $i",
+                    targetSentence = "I speak English clearly in stage $i.",
+                    emoji = "🏆",
+                    xp = 60
+                )
+            }
+        )
+        assertEquals(10, advLevels.map { it.id }.toSet().size)
+        assertTrue(advLevels.all { it.missions.size == 3 })
+
+        // Deleting a level returns levelId + all its mission IDs
+        val removedLevelIds = repository.deleteAdventureLevel(targetWorldId, advLevels.first().id)
+        assertEquals(4, removedLevelIds.size)
+        assertTrue(removedLevelIds.contains(advLevels.first().id))
+
+        // Out-of-order Adventure remote merge (mission before level before world) + progress preservation
+        val existingWorld = repository.adventureWorlds.value.first()
+        val existingLevel = existingWorld.levels.first()
+        repository.completeAdventureMission(existingWorld.id, existingLevel.id, existingLevel.missions.first().id, 95)
+
+        val missionExtra = org.json.JSONObject().apply {
+            put("worldId", "world_remote_custom")
+            put("levelId", "lvl_remote_1")
+            put("missionType", "SPEAKING_CHALLENGE")
+            put("targetSentence", "Practice makes speaking natural.")
+            put("correctAnswer", "Practice makes speaking natural.")
+            put("xp", 50)
+            put("coins", 25)
+        }.toString()
+        val levelExtra = org.json.JSONObject().apply {
+            put("worldId", "world_remote_custom")
+            put("levelNumber", 1)
+            put("iconEmoji", "🏝️")
+            put("coinsReward", 40)
+        }.toString()
+        val worldExtra = org.json.JSONObject().apply {
+            put("order", 9)
+            put("emoji", "🌋")
+            put("isUnlocked", true)
+        }.toString()
+
+        repository.mergeRemoteGameChallenges(
+            listOf(
+                com.example.data.model.SupabaseGameChallenge(
+                    id = "m_remote_1",
+                    type = "ADVENTURE_MISSION",
+                    titleOrWord = "Cloud Speaking Mission",
+                    hintOrMeaning = "Speak clearly",
+                    category = "world_remote_custom::lvl_remote_1",
+                    correctIndex = 50,
+                    extraData = missionExtra,
+                    createdBy = "Remote Teacher"
+                ),
+                com.example.data.model.SupabaseGameChallenge(
+                    id = "lvl_remote_1",
+                    type = "ADVENTURE_LEVEL",
+                    titleOrWord = "Volcano Trail",
+                    hintOrMeaning = "Synced adventure level",
+                    category = "world_remote_custom",
+                    correctIndex = 80,
+                    extraData = levelExtra,
+                    createdBy = "Remote Teacher"
+                ),
+                com.example.data.model.SupabaseGameChallenge(
+                    id = "world_remote_custom",
+                    type = "ADVENTURE_WORLD",
+                    titleOrWord = "Cloud Island",
+                    hintOrMeaning = "Remote custom world",
+                    category = "Explore the cloud!",
+                    correctIndex = 0,
+                    extraData = worldExtra,
+                    createdBy = "Remote Teacher"
+                ),
+                // Also re-sync an existing level with 0 stars -> local earned stars must remain preserved
+                com.example.data.model.SupabaseGameChallenge(
+                    id = existingLevel.id,
+                    type = "ADVENTURE_LEVEL",
+                    titleOrWord = existingLevel.title,
+                    hintOrMeaning = existingLevel.description,
+                    category = existingWorld.id,
+                    correctIndex = existingLevel.xpReward,
+                    extraData = org.json.JSONObject().apply {
+                        put("worldId", existingWorld.id)
+                        put("levelNumber", existingLevel.levelNumber)
+                    }.toString(),
+                    createdBy = "Remote Teacher"
+                )
+            )
+        )
+
+        val mergedWorld = repository.adventureWorlds.value.firstOrNull { it.id == "world_remote_custom" }
+        assertNotNull(mergedWorld)
+        assertEquals("Cloud Island", mergedWorld?.name)
+        assertEquals(1, mergedWorld?.levels?.size)
+        assertEquals("Volcano Trail", mergedWorld?.levels?.first()?.title)
+        assertEquals(1, mergedWorld?.levels?.first()?.missions?.size)
+        assertEquals("Practice makes speaking natural.", mergedWorld?.levels?.first()?.missions?.first()?.targetSentence)
+
+        val preservedExisting = repository.adventureWorlds.value
+            .first { it.id == existingWorld.id }
+            .levels.first { it.id == existingLevel.id }
+        assertTrue(preservedExisting.starsEarned >= 3)
+
+        val removedWorldIds = repository.deleteAdventureWorld("world_remote_custom")
+        assertEquals(3, removedWorldIds.size)
+        assertFalse(repository.adventureWorlds.value.any { it.id == "world_remote_custom" })
+    }
+
+    @Test
+    fun testSupabaseServiceBatchUploadAndPaginatedFetch() {
+        val service = com.example.data.remote.SupabaseService()
+        val capturedPaths = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val capturedBodies = java.util.Collections.synchronizedList(mutableListOf<String>())
+
+        // 1. Mock server supporting batch POST + paginated GET (> 1000 rows)
+        val server = java.net.ServerSocket(0)
+        val port = server.localPort
+        val keepRunning = java.util.concurrent.atomic.AtomicBoolean(true)
+        val serverThread = Thread {
+            while (keepRunning.get()) {
+                try {
+                    val socket = server.accept()
+                    socket.use { client ->
+                        val rawIn = client.getInputStream()
+                        val headerLines = mutableListOf<String>()
+                        val byteBuf = java.io.ByteArrayOutputStream()
+                        while (true) {
+                            val b = rawIn.read()
+                            if (b == -1) break
+                            byteBuf.write(b)
+                            val str = byteBuf.toString("UTF-8")
+                            if (str.endsWith("\r\n\r\n")) break
+                        }
+                        val headerText = byteBuf.toString("UTF-8")
+                        val lines = headerText.split("\r\n")
+                        val requestLine = lines.firstOrNull().orEmpty()
+                        val path = requestLine.split(" ").getOrNull(1).orEmpty()
+                        capturedPaths.add(path)
+                        val contentLength = lines.firstOrNull { it.startsWith("Content-Length:", ignoreCase = true) }
+                            ?.substringAfter(":")?.trim()?.toIntOrNull() ?: 0
+                        val bodyBytes = ByteArray(contentLength)
+                        var readTotal = 0
+                        while (readTotal < contentLength) {
+                            val n = rawIn.read(bodyBytes, readTotal, contentLength - readTotal)
+                            if (n <= 0) break
+                            readTotal += n
+                        }
+                        val bodyStr = String(bodyBytes, Charsets.UTF_8)
+                        if (bodyStr.isNotEmpty()) capturedBodies.add(bodyStr)
+
+                        val respBody = when {
+                            requestLine.startsWith("GET ") && path.contains("game_challenges") && path.contains("offset=0") -> {
+                                val arr = org.json.JSONArray()
+                                for (i in 0 until 1000) {
+                                    arr.put(org.json.JSONObject().apply {
+                                        put("id", "page1_$i")
+                                        put("type", "WORD_MATCH")
+                                        put("title_or_word", "Word$i")
+                                        put("hint_or_meaning", "Def$i")
+                                    })
+                                }
+                                arr.toString()
+                            }
+                            requestLine.startsWith("GET ") && path.contains("game_challenges") && path.contains("offset=1000") -> {
+                                val arr = org.json.JSONArray()
+                                for (i in 0 until 5) {
+                                    arr.put(org.json.JSONObject().apply {
+                                        put("id", "page2_$i")
+                                        put("type", "WORD_MATCH")
+                                        put("title_or_word", "WordPage2_$i")
+                                        put("hint_or_meaning", "Def2_$i")
+                                    })
+                                }
+                                arr.toString()
+                            }
+                            requestLine.startsWith("GET ") -> "[]"
+                            else -> ""
+                        }
+                        val status = if (requestLine.startsWith("POST ")) "201 Created" else "200 OK"
+                        val respBytes = respBody.toByteArray(Charsets.UTF_8)
+                        val header = "HTTP/1.1 $status\r\nContent-Type: application/json\r\nContent-Length: ${respBytes.size}\r\nConnection: close\r\n\r\n"
+                        val out = client.getOutputStream()
+                        out.write(header.toByteArray(Charsets.UTF_8))
+                        out.write(respBytes)
+                        out.flush()
+                    }
+                } catch (_: Exception) {
+                    if (!keepRunning.get()) break
+                }
+            }
+        }
+        serverThread.start()
+
+        service.supabaseUrl = "http://127.0.0.1:$port"
+        service.supabaseAnonKey = "test-anon-key"
+
+        val batchChallenges = (1..45).map { i ->
+            com.example.data.model.SupabaseGameChallenge(
+                id = "batch_test_$i",
+                type = "WORD_MATCH",
+                titleOrWord = "BatchWord$i",
+                hintOrMeaning = "Meaning $i",
+                category = "General",
+                createdBy = "Teacher"
+            )
+        }
+        val batchResult = kotlinx.coroutines.runBlocking {
+            service.saveGameChallengesBatch(batchChallenges, chunkSize = 40)
+        }
+        assertTrue("Expected allSucceeded=true, got error=${batchResult.errorSummary}", batchResult.allSucceeded)
+        assertEquals(45, batchResult.savedCount)
+        assertTrue(batchResult.failedIds.isEmpty())
+        // 45 items in chunks of 40 = 2 batch POSTs to game_challenges + 2 batch POSTs to speaking_evaluations
+        assertEquals(2, capturedPaths.count { it == "/rest/v1/game_challenges" })
+        assertEquals(2, capturedPaths.count { it == "/rest/v1/speaking_evaluations" })
+
+        val fetched = kotlinx.coroutines.runBlocking {
+            service.fetchGameChallenges()
+        }
+        assertEquals(1005, fetched.size)
+        assertTrue(fetched.any { it.id == "page2_4" })
+
+        keepRunning.set(false)
+        server.close()
+        serverThread.join(1000)
+
+        // 2. Mock server returning HTTP 500 -> batch failure reports failedIds & errorSummary cleanly
+        val failServer = java.net.ServerSocket(0)
+        val failPort = failServer.localPort
+        val keepFailRunning = java.util.concurrent.atomic.AtomicBoolean(true)
+        val failThread = Thread {
+            while (keepFailRunning.get()) {
+                try {
+                    failServer.accept().use { client ->
+                        val rawIn = client.getInputStream()
+                        val byteBuf = java.io.ByteArrayOutputStream()
+                        while (true) {
+                            val b = rawIn.read()
+                            if (b == -1) break
+                            byteBuf.write(b)
+                            if (byteBuf.toString("UTF-8").endsWith("\r\n\r\n")) break
+                        }
+                        val errJson = """{"message":"RLS denied"}"""
+                        val header = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: application/json\r\nContent-Length: ${errJson.length}\r\nConnection: close\r\n\r\n$errJson"
+                        client.getOutputStream().write(header.toByteArray(Charsets.UTF_8))
+                        client.getOutputStream().flush()
+                    }
+                } catch (_: Exception) {
+                    if (!keepFailRunning.get()) break
+                }
+            }
+        }
+        failThread.start()
+
+        service.supabaseUrl = "http://127.0.0.1:$failPort"
+        val failResult = kotlinx.coroutines.runBlocking {
+            service.saveGameChallengesBatch(batchChallenges.take(2), chunkSize = 40)
+        }
+        keepFailRunning.set(false)
+        failServer.close()
+        failThread.join(1000)
+
+        assertFalse(failResult.allSucceeded)
+        assertEquals(0, failResult.savedCount)
+        assertEquals(setOf("batch_test_1", "batch_test_2"), failResult.failedIds)
+        assertTrue(!failResult.errorSummary.isNullOrBlank())
+    }
 }
 
 

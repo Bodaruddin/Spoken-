@@ -3622,10 +3622,15 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             authorName = currentUser.name.ifBlank { "Faculty Instructor" },
             onDismiss = { showCreateDialog = false },
             onCreated = {
-                statusMsg = if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack != null) {
-                    "Published sentences into '${activeSentencePack.title}' & synced to Student Panel! 🚀"
+                val syncingSuffix = if (viewModel.supabaseService.isConfigured()) {
+                    " — syncing to Supabase database..."
                 } else {
-                    "Successfully published and synced new challenge for ${selectedCategory.title} to Supabase & student panel! 🚀"
+                    "!"
+                }
+                statusMsg = if (selectedCategory == GameCategoryFilter.SENTENCE_BUILDER && activeSentencePack != null) {
+                    "Saved sentences into '${activeSentencePack.title}'$syncingSuffix"
+                } else {
+                    "Saved new challenge for ${selectedCategory.title}$syncingSuffix"
                 }
                 showCreateDialog = false
             },
@@ -3646,7 +3651,11 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
         BulkImportMissingLettersDialog(
             onDismiss = { showBulkImportMissingLettersDialog = false },
             onImported = { count ->
-                statusMsg = "Successfully imported $count challenges from spreadsheet!"
+                statusMsg = if (viewModel.supabaseService.isConfigured()) {
+                    "Saved $count Missing Letters items locally — syncing to Supabase database..."
+                } else {
+                    "Successfully imported $count challenges from spreadsheet!"
+                }
                 showBulkImportMissingLettersDialog = false
             },
             viewModel = viewModel
@@ -3658,7 +3667,11 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             onDismiss = { showBulkImportSentenceBuilderDialog = false },
             onImported = { count ->
                 val packTitle = activeSentencePack?.title ?: "Sentence Builder"
-                statusMsg = "Successfully imported $count sentences into '$packTitle' & synced to Student Panel!"
+                statusMsg = if (viewModel.supabaseService.isConfigured()) {
+                    "Saved $count sentences into '$packTitle' locally — syncing to Supabase database..."
+                } else {
+                    "Successfully imported $count sentences into '$packTitle'!"
+                }
                 showBulkImportSentenceBuilderDialog = false
             },
             viewModel = viewModel,
@@ -3677,7 +3690,11 @@ fun TeacherGameCreator(viewModel: MainViewModel, modifier: Modifier = Modifier) 
             initialFastVocabPackId = activeFastVocabPack?.id,
             onDismiss = { bulkImportCategory = null },
             onImported = { count, destLabel ->
-                statusMsg = "Successfully imported $count items into '$destLabel' & synced to Student Panel! 🚀"
+                statusMsg = if (viewModel.supabaseService.isConfigured()) {
+                    "Saved $count items into '$destLabel' locally — syncing to Supabase database..."
+                } else {
+                    "Successfully imported $count items into '$destLabel'!"
+                }
                 bulkImportCategory = null
             }
         )

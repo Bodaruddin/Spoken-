@@ -996,6 +996,16 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
     var showCreateVocabChallengeDialog by remember { mutableStateOf(false) }
     var editingVocabChallenge by remember { mutableStateOf<WordMatchChallenge?>(null) }
     var statusMsg by remember { mutableStateOf<String?>(null) }
+    val cloudNotice by viewModel.cloudSyncNotice.collectAsState()
+    LaunchedEffect(Unit) {
+        viewModel.refreshGameChallengesFromCloud()
+    }
+    LaunchedEffect(cloudNotice) {
+        cloudNotice?.let {
+            statusMsg = it
+            viewModel.clearCloudSyncNotice()
+        }
+    }
 
     val wordMatches by viewModel.wordMatchChallenges.collectAsState()
     val vocabularyModeConfigs by viewModel.vocabularyModeConfigs.collectAsState()
@@ -1195,12 +1205,38 @@ fun AdminGamesManagement(viewModel: MainViewModel, modifier: Modifier = Modifier
 
         statusMsg?.let { msg ->
             item {
+                val isError = msg.contains("failed", ignoreCase = true)
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFDCFCE7),
+                    color = if (isError) Color(0xFFFEE2E2) else Color(0xFFDCFCE7),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(msg, color = EmeraldSuccess, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.padding(10.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = msg,
+                            color = if (isError) CoralAccent else EmeraldSuccess,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(
+                            onClick = { statusMsg = null },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Dismiss status notice",
+                                tint = if (isError) CoralAccent else EmeraldSuccess,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
                 }
             }
         }

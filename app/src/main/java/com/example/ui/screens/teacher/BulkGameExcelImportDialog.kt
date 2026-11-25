@@ -933,105 +933,11 @@ private fun commitParsedGameRows(
     fastVocabPackId: String,
     adventureWorldId: String
 ): Int {
-    var imported = 0
-    rows.forEach { row ->
-        when (row) {
-            is ParsedGameImportRow.WordMatchRow -> {
-                viewModel.addWordMatchChallenge(
-                    word = row.word,
-                    definition = row.definition,
-                    category = row.category,
-                    createdBy = authorName,
-                    activityType = row.activityType.name,
-                    pictureEmoji = row.pictureEmoji,
-                    synonym = row.synonym,
-                    antonym = row.antonym,
-                    distractors = row.distractors,
-                    scrambleHint = row.scrambleHint
-                )
-                imported++
-            }
-            is ParsedGameImportRow.ListenChooseRow -> {
-                viewModel.addListenChooseChallenge(
-                    audioScript = row.audioScript,
-                    question = row.question,
-                    options = row.options,
-                    correctIndex = row.correctIndex,
-                    createdBy = authorName
-                )
-                imported++
-            }
-            is ParsedGameImportRow.PronunciationBattleRow -> {
-                viewModel.addPronunciationBattleChallenge(
-                    sentence = row.sentence,
-                    phonemeFocus = row.phonemeFocus,
-                    difficulty = row.difficulty,
-                    passingScore = row.passingScore,
-                    createdBy = authorName
-                )
-                imported++
-            }
-            is ParsedGameImportRow.FastVocabularyRow -> {
-                viewModel.addFastVocabularyChallenge(
-                    word = row.word,
-                    prompt = row.prompt,
-                    options = row.options,
-                    correctIndex = row.correctIndex,
-                    createdBy = authorName,
-                    packId = fastVocabPackId
-                )
-                imported++
-            }
-            is ParsedGameImportRow.PictureVocabRow -> {
-                viewModel.addPictureVocabChallenge(
-                    emoji = row.emoji,
-                    word = row.word,
-                    phonetic = row.phonetic,
-                    clue = row.clue,
-                    options = row.options,
-                    createdBy = authorName
-                )
-                imported++
-            }
-            is ParsedGameImportRow.GrammarChallengeRow -> {
-                viewModel.addGrammarChallenge(
-                    question = row.question,
-                    options = row.options,
-                    correctIndex = row.correctIndex,
-                    explanation = row.explanation,
-                    category = row.category,
-                    createdBy = authorName,
-                    packId = grammarPackId
-                )
-                imported++
-            }
-            is ParsedGameImportRow.EnglishAdventureRow -> {
-                val createdLevel = viewModel.addAdventureLevel(
-                    worldId = adventureWorldId,
-                    title = row.title,
-                    description = row.description,
-                    emoji = row.emoji,
-                    xp = row.xp,
-                    coins = (row.xp / 2).coerceAtLeast(20)
-                )
-                if (createdLevel != null && row.targetSentence.isNotBlank()) {
-                    viewModel.addAdventureMission(
-                        worldId = adventureWorldId,
-                        levelId = createdLevel.id,
-                        title = "${row.title} Speaking Challenge",
-                        description = "Speak this sentence with clear pronunciation.",
-                        type = AdventureMissionType.SPEAKING_CHALLENGE,
-                        targetSentence = row.targetSentence,
-                        options = emptyList(),
-                        correctAnswer = row.targetSentence,
-                        clue = "Listen closely and enunciate clearly.",
-                        xp = (row.xp / 2).coerceAtLeast(20),
-                        coins = 20
-                    )
-                }
-                if (createdLevel != null) imported++
-            }
-        }
-    }
-    return imported
+    return viewModel.bulkImportParsedGames(
+        rows = rows,
+        authorName = authorName,
+        grammarPackId = grammarPackId,
+        fastVocabPackId = fastVocabPackId,
+        adventureWorldId = adventureWorldId
+    )
 }

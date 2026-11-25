@@ -1808,4 +1808,130 @@ class ExampleRobolectricTest {
     assertTrue("Expected stacked denominator '2' nodes to render, found ${denomNodes.size}", denomNodes.size >= 2)
     composeTestRule.onNodeWithText("উত্তৰ:", substring = true).assertIsDisplayed()
   }
+
+  @Test
+  fun `bulkImportParsedGames queues failed syncs locally and flushes batch to supabase on recovery`() {
+    val app = ApplicationProvider.getApplicationContext<Application>()
+    app.getSharedPreferences("linguaquest_prefs", Context.MODE_PRIVATE).edit().clear().commit()
+    val prefs = AppPreferences(app)
+
+    // Configure unreachable port initially so DB upload fails and queues items cleanly
+    val closedSocket = java.net.ServerSocket(0)
+    val deadPort = closedSocket.localPort
+    closedSocket.close()
+    prefs.saveSupabaseConfig("http://127.0.0.1:$deadPort", "test-key")
+
+    val vm = MainViewModel(app)
+    val targetWorldId = vm.adventureWorlds.value.first().id
+    val targetGrammarPackId = vm.grammarChallengePacks.value.first().id
+    val targetFastPackId = vm.fastVocabularyPacks.value.first().id
+
+    val importedCount = vm.bulkImportParsedGames(
+      rows = listOf(
+        com.example.util.ParsedGameImportRow.WordMatchRow(
+          word = "Resilient",
+          definition = "Able to recover quickly from difficulties",
+          activityType = VocabularyActivityType.MEANING_MATCHING
+        ),
+        com.example.util.ParsedGameImportRow.GrammarChallengeRow(
+          question = "She ___ studying for two hours.",
+          options = listOf("has been", "is", "was", "were"),
+          correctIndex = 0,
+          explanation = "Present perfect continuous",
+          category = "Tenses"
+        ),
+        com.example.util.ParsedGameImportRow.EnglishAdventureRow(
+          title = "Harbor Arrival",
+          description = "Practice greeting travelers clearly",
+          targetSentence = "Welcome to the harbor, how can I help you today?",
+          emoji = "⚓",
+          xp = 80
+        )
+      ),
+      authorName = "Prof. Vance",
+      grammarPackId = targetGrammarPackId,
+      fastVocabPackId = targetFastPackId,
+      adventureWorldId = targetWorldId
+    )
+    assertEquals(3, importedCount)
+
+    // Queued items must already be persisted in SharedPreferences (World + Level + 3 Missions + WordMatch + Grammar = 7 records)
+    val queuedBeforeRecovery = prefs.getPendingGameChallengeSyncs()
+    assertEquals(7, queuedBeforeRecovery.size)
+    assertTrue(queuedBeforeRecovery.any { it.type == "WORD_MATCH" && it.titleOrWord == "Resilient" })
+    assertTrue(queuedBeforeRecovery.any { it.type == "GRAMMAR_CHALLENGE" })
+    assertTrue(queuedBeforeRecovery.any { it.type == "ADVENTURE_LEVEL" && it.titleOrWord == "Harbor Arrival" })
+    assertTrue(queuedBeforeRecovery.any { it.type == "ADVENTURE_MISSION" && it.extraData.contains("Welcome to the harbor") })
+
+    // Now start a live mock Supabase server that accepts batch uploads
+    val uploadedPayloads = java.util.Collections.synchronizedList(mutableListOf<String>())
+    val liveServer = java.net.ServerSocket(0)
+    val livePort = liveServer.localPort
+    val keepRunning = java.util.concurrent.atomic.AtomicBoolean(true)
+    val serverThread = Thread {
+      while (keepRunning.get()) {
+        try {
+          liveServer.accept().use { client ->
+            val rawIn = client.getInputStream()
+            val headerBuf = java.io.ByteArrayOutputStream()
+            while (true) {
+              val b = rawIn.read()
+              if (b == -1) break
+              headerBuf.write(b)
+              if (headerBuf.toString("UTF-8").endsWith("\r\n\r\n")) break
+            }
+            val lines = headerBuf.toString("UTF-8").split("\r\n")
+            val contentLength = lines.firstOrNull { it.startsWith("Content-Length:", ignoreCase = true) }
+              ?.substringAfter(":")?.trim()?.toIntOrNull() ?: 0
+            val bodyBytes = ByteArray(contentLength)
+            var readTotal = 0
+            while (readTotal < contentLength) {
+              val n = rawIn.read(bodyBytes, readTotal, contentLength - readTotal)
+              if (n <= 0) break
+              readTotal += n
+            }
+            val bodyStr = String(bodyBytes, Charsets.UTF_8)
+            val requestLine = lines.firstOrNull().orEmpty()
+            if (requestLine.startsWith("POST ") && bodyStr.isNotEmpty()) {
+              uploadedPayloads.add(bodyStr)
+            }
+            val respStatus = if (requestLine.startsWith("POST ")) "201 Created" else "200 OK"
+            val respBody = if (requestLine.startsWith("GET ")) "[]" else ""
+            val respBytes = respBody.toByteArray(Charsets.UTF_8)
+            val header = "HTTP/1.1 $respStatus\r\nContent-Type: application/json\r\nContent-Length: ${respBytes.size}\r\nConnection: close\r\n\r\n"
+            client.getOutputStream().write(header.toByteArray(Charsets.UTF_8))
+            client.getOutputStream().write(respBytes)
+            client.getOutputStream().flush()
+          }
+        } catch (_: Exception) {
+          if (!keepRunning.get()) break
+        }
+      }
+    }
+    serverThread.start()
+
+    vm.supabaseService.supabaseUrl = "http://127.0.0.1:$livePort"
+    val flushResult = kotlinx.coroutines.runBlocking {
+      vm.flushPendingGameChallengeSyncs()
+    }
+
+    keepRunning.set(false)
+    liveServer.close()
+    serverThread.join(1000)
+
+    assertTrue("Expected flush to succeed, error=${flushResult.errorSummary}", flushResult.allSucceeded)
+    assertEquals(7, flushResult.savedCount)
+    assertTrue("Pending sync queue should be empty after flush", prefs.getPendingGameChallengeSyncs().isEmpty())
+    assertTrue(uploadedPayloads.any { it.contains("Harbor Arrival") && it.contains("Resilient") })
+
+    // Reconstruct state in a fresh student repository from the queued payloads to verify full cross-device parity
+    val studentRepo = com.example.data.repository.LinguaQuestRepository(null)
+    studentRepo.mergeRemoteGameChallenges(queuedBeforeRecovery)
+    assertTrue(studentRepo.wordMatchChallenges.value.any { it.word == "Resilient" })
+    assertTrue(studentRepo.grammarChallenges.value.any { it.question == "She ___ studying for two hours." })
+    val syncedWorld = studentRepo.adventureWorlds.value.first { it.id == targetWorldId }
+    val syncedLevel = syncedWorld.levels.firstOrNull { it.title == "Harbor Arrival" }
+    assertNotNull(syncedLevel)
+    assertEquals(3, syncedLevel?.missions?.size)
+  }
 }

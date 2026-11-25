@@ -16,6 +16,8 @@ import com.example.service.HumanConversationEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 enum class StudentTab(val label: String, val iconEmoji: String) {
@@ -129,6 +131,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun syncWithSupabase() {
         if (!supabaseService.isConfigured()) return
+        try {
+            flushPendingGameChallengeSyncs()
+        } catch (_: Exception) { }
         try {
             val remoteTeachers = supabaseService.fetchTeachers()
             if (remoteTeachers.isNotEmpty()) {
@@ -251,6 +256,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (!supabaseService.isConfigured()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                flushPendingGameChallengeSyncs()
                 val remoteChallenges = supabaseService.fetchGameChallenges()
                 if (remoteChallenges.isNotEmpty()) {
                     withContext(Dispatchers.Main) {
@@ -622,7 +628,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return graded
     }
 
-    // Game Management helpers
+    // Game Management helpers & Cloud Batch Sync
+    private val pendingGameSyncMutex = Mutex()
+
     private fun encodeWordMatchExtraData(item: WordMatchChallenge): String {
         return org.json.JSONObject().apply {
             put("activityType", item.activityType)
@@ -631,6 +639,320 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             put("antonym", item.antonym)
             put("scrambleHint", item.scrambleHint)
         }.toString()
+    }
+
+    private fun WordMatchChallenge.toSupabaseChallenge(): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "WORD_MATCH",
+        titleOrWord = word,
+        hintOrMeaning = definition,
+        category = category,
+        options = distractors,
+        extraData = encodeWordMatchExtraData(this),
+        createdBy = createdBy
+    )
+
+    private fun MissingLettersChallenge.toSupabaseChallenge(): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "MISSING_LETTERS",
+        titleOrWord = fullWord,
+        hintOrMeaning = hint,
+        category = category,
+        extraData = missingIndices.joinToString(","),
+        createdBy = createdBy
+    )
+
+    private fun SentenceBuilderPack.toSupabaseChallenge(): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "SENTENCE_BUILDER_PACK",
+        titleOrWord = title,
+        hintOrMeaning = description,
+        category = difficulty,
+        correctIndex = xpReward,
+        createdBy = createdBy
+    )
+
+    private fun SentenceBuilderChallenge.toSupabaseChallenge(): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "SENTENCE_BUILDER",
+        titleOrWord = targetSentence,
+        hintOrMeaning = hint,
+        category = packId,
+        extraData = assameseTranslation,
+        createdBy = createdBy
+    )
+
+    private fun ListenChooseChallenge.toSupabaseChallenge(): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "LISTEN_CHOOSE",
+        titleOrWord = audioScript,
+        hintOrMeaning = question,
+        options = options,
+        correctIndex = correctIndex,
+        createdBy = createdBy
+    )
+
+    private fun PronunciationBattleChallenge.toSupabaseChallenge(): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "PRONUNCIATION_BATTLE",
+        titleOrWord = challengeSentence,
+        hintOrMeaning = targetPhonemeFocus,
+        category = difficulty,
+        extraData = passingScore.toString(),
+        createdBy = createdBy
+    )
+
+    private fun FastVocabularyPack.toSupabaseChallenge(): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "FAST_VOCABULARY_PACK",
+        titleOrWord = title,
+        hintOrMeaning = description,
+        category = themeStyle,
+        correctIndex = xpReward,
+        extraData = durationSeconds.toString(),
+        createdBy = createdBy
+    )
+
+    private fun FastVocabularyChallenge.toSupabaseChallenge(): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "FAST_VOCABULARY",
+        titleOrWord = word,
+        hintOrMeaning = prompt,
+        options = options,
+        correctIndex = correctIndex,
+        extraData = packId,
+        createdBy = createdBy
+    )
+
+    private fun GrammarChallengePack.toSupabaseChallenge(): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "GRAMMAR_CHALLENGE_PACK",
+        titleOrWord = title,
+        hintOrMeaning = description,
+        category = themeStyle,
+        correctIndex = xpReward,
+        createdBy = createdBy
+    )
+
+    private fun GrammarChallengeQuestion.toSupabaseChallenge(): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "GRAMMAR_CHALLENGE",
+        titleOrWord = question,
+        hintOrMeaning = explanation,
+        category = category,
+        options = options,
+        correctIndex = correctIndex,
+        extraData = packId,
+        createdBy = createdBy
+    )
+
+    private fun PictureVocabChallenge.toSupabaseChallenge(): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "PICTURE_VOCAB",
+        titleOrWord = word,
+        hintOrMeaning = clue,
+        category = emoji,
+        options = options,
+        extraData = phonetic,
+        createdBy = createdBy
+    )
+
+    private fun AdventureWorld.toSupabaseChallenge(author: String): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "ADVENTURE_WORLD",
+        titleOrWord = name,
+        hintOrMeaning = description,
+        category = tagline,
+        correctIndex = requiredTotalStars,
+        extraData = org.json.JSONObject().apply {
+            put("order", order)
+            put("emoji", emoji)
+            put("themeColorHex", themeColorHex)
+            put("gradientStartHex", gradientStartHex)
+            put("gradientEndHex", gradientEndHex)
+            put("isUnlocked", isUnlocked)
+        }.toString(),
+        createdBy = author
+    )
+
+    private fun AdventureLevel.toSupabaseChallenge(author: String): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "ADVENTURE_LEVEL",
+        titleOrWord = title,
+        hintOrMeaning = description,
+        category = worldId,
+        correctIndex = xpReward,
+        extraData = org.json.JSONObject().apply {
+            put("worldId", worldId)
+            put("levelNumber", levelNumber)
+            put("iconEmoji", iconEmoji)
+            put("coinsReward", coinsReward)
+            put("requiredStars", requiredStars)
+            put("isUnlocked", isUnlocked)
+        }.toString(),
+        createdBy = author
+    )
+
+    private fun AdventureMission.toSupabaseChallenge(author: String): SupabaseGameChallenge = SupabaseGameChallenge(
+        id = id,
+        type = "ADVENTURE_MISSION",
+        titleOrWord = title,
+        hintOrMeaning = description,
+        category = "$worldId::$levelId",
+        options = options,
+        correctIndex = xp,
+        extraData = org.json.JSONObject().apply {
+            put("worldId", worldId)
+            put("levelId", levelId)
+            put("missionType", type.name)
+            put("targetSentence", targetSentence)
+            put("correctAnswer", correctAnswer)
+            put("clue", clue)
+            put("xp", xp)
+            put("coins", coins)
+            put("audioPrompt", audioPrompt)
+            put("explanation", explanation)
+            put("scrambledWords", org.json.JSONArray(scrambledWords))
+        }.toString(),
+        createdBy = author
+    )
+
+    suspend fun flushPendingGameChallengeSyncs(): com.example.data.remote.SupabaseBatchSyncResult {
+        if (!supabaseService.isConfigured()) {
+            return com.example.data.remote.SupabaseBatchSyncResult(0, 0)
+        }
+        return pendingGameSyncMutex.withLock {
+            val pending = appPreferences.getPendingGameChallengeSyncs()
+            if (pending.isEmpty()) {
+                return@withLock com.example.data.remote.SupabaseBatchSyncResult(0, 0)
+            }
+            val result = supabaseService.saveGameChallengesBatch(pending)
+            val succeededIds = pending.map { it.id }.filterNot { it in result.failedIds }.toSet()
+            appPreferences.removePendingGameChallengeSyncIds(succeededIds)
+            result
+        }
+    }
+
+    private fun syncGameChallengesWithFallback(
+        challenges: List<SupabaseGameChallenge>,
+        itemLabel: String
+    ) {
+        if (challenges.isEmpty()) return
+        appPreferences.enqueuePendingGameChallengeSyncs(challenges)
+        if (!supabaseService.isConfigured()) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = pendingGameSyncMutex.withLock {
+                val res = supabaseService.saveGameChallengesBatch(challenges)
+                val succeededIds = challenges.map { it.id }.filterNot { it in res.failedIds }.toSet()
+                appPreferences.removePendingGameChallengeSyncIds(succeededIds)
+                res
+            }
+            withContext(Dispatchers.Main) {
+                _cloudSyncNotice.value = if (result.allSucceeded) {
+                    if (result.savedCount == 1) {
+                        "Synced $itemLabel to Supabase database! 🚀"
+                    } else {
+                        "Synced ${result.savedCount} $itemLabel to Supabase database! 🚀"
+                    }
+                } else {
+                    "Saved locally; ${result.failedIds.size}/${result.totalCount} failed DB sync (${result.errorSummary ?: "network error"}). Will retry automatically."
+                }
+            }
+        }
+    }
+
+    private fun deleteGameChallengesWithCloud(ids: List<String>) {
+        val cleanIds = ids.filter { it.isNotBlank() }.distinct()
+        if (cleanIds.isEmpty()) return
+        appPreferences.removePendingGameChallengeSyncIds(cleanIds.toSet())
+        if (!supabaseService.isConfigured()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            if (cleanIds.size == 1) {
+                supabaseService.deleteGameChallenge(cleanIds.first())
+            } else {
+                supabaseService.deleteGameChallengesBatch(cleanIds)
+            }
+        }
+    }
+
+    fun bulkImportParsedGames(
+        rows: List<com.example.util.ParsedGameImportRow>,
+        authorName: String,
+        grammarPackId: String,
+        fastVocabPackId: String,
+        adventureWorldId: String
+    ): Int {
+        if (rows.isEmpty()) return 0
+        val cleanAuthor = authorName.trim().ifBlank { currentUser.value.name.ifBlank { "Faculty Instructor" } }
+        var importedCount = 0
+        val challengesToSync = mutableListOf<SupabaseGameChallenge>()
+
+        val wmRows = rows.filterIsInstance<com.example.util.ParsedGameImportRow.WordMatchRow>()
+        if (wmRows.isNotEmpty()) {
+            val created = repository.addWordMatchChallengesBatch(wmRows, cleanAuthor)
+            importedCount += created.size
+            created.forEach { challengesToSync.add(it.toSupabaseChallenge()) }
+        }
+
+        val lcRows = rows.filterIsInstance<com.example.util.ParsedGameImportRow.ListenChooseRow>()
+        if (lcRows.isNotEmpty()) {
+            val created = repository.addListenChooseChallengesBatch(lcRows, cleanAuthor)
+            importedCount += created.size
+            created.forEach { challengesToSync.add(it.toSupabaseChallenge()) }
+        }
+
+        val pbRows = rows.filterIsInstance<com.example.util.ParsedGameImportRow.PronunciationBattleRow>()
+        if (pbRows.isNotEmpty()) {
+            val created = repository.addPronunciationBattleChallengesBatch(pbRows, cleanAuthor)
+            importedCount += created.size
+            created.forEach { challengesToSync.add(it.toSupabaseChallenge()) }
+        }
+
+        val fvRows = rows.filterIsInstance<com.example.util.ParsedGameImportRow.FastVocabularyRow>()
+        if (fvRows.isNotEmpty()) {
+            val created = repository.addFastVocabularyChallengesBatch(fvRows, cleanAuthor, fastVocabPackId)
+            importedCount += created.size
+            created.forEach { challengesToSync.add(it.toSupabaseChallenge()) }
+        }
+
+        val pvRows = rows.filterIsInstance<com.example.util.ParsedGameImportRow.PictureVocabRow>()
+        if (pvRows.isNotEmpty()) {
+            val created = repository.addPictureVocabChallengesBatch(pvRows, cleanAuthor)
+            importedCount += created.size
+            created.forEach { challengesToSync.add(it.toSupabaseChallenge()) }
+        }
+
+        val gcRows = rows.filterIsInstance<com.example.util.ParsedGameImportRow.GrammarChallengeRow>()
+        if (gcRows.isNotEmpty()) {
+            val created = repository.addGrammarChallengesBatch(gcRows, cleanAuthor, grammarPackId)
+            importedCount += created.size
+            created.forEach { challengesToSync.add(it.toSupabaseChallenge()) }
+        }
+
+        val advRows = rows.filterIsInstance<com.example.util.ParsedGameImportRow.EnglishAdventureRow>()
+        if (advRows.isNotEmpty()) {
+            val createdLevels = repository.addAdventureLevelsBatch(adventureWorldId, advRows)
+            importedCount += createdLevels.size
+            val updatedWorld = repository.adventureWorlds.value.find { it.id == adventureWorldId }
+            if (updatedWorld != null) {
+                _selectedAdventureWorld.value = updatedWorld
+                if (createdLevels.isNotEmpty()) {
+                    challengesToSync.add(updatedWorld.toSupabaseChallenge(cleanAuthor))
+                }
+            }
+            createdLevels.forEach { lvl ->
+                challengesToSync.add(lvl.toSupabaseChallenge(cleanAuthor))
+                lvl.missions.forEach { mission ->
+                    challengesToSync.add(mission.toSupabaseChallenge(cleanAuthor))
+                }
+            }
+        }
+
+        if (challengesToSync.isNotEmpty()) {
+            syncGameChallengesWithFallback(challengesToSync, "game items")
+        }
+        return importedCount
     }
 
     fun addWordMatchChallenge(
@@ -657,52 +979,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             distractors = distractors,
             scrambleHint = scrambleHint
         )
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = created.id,
-                    type = "WORD_MATCH",
-                    titleOrWord = created.word,
-                    hintOrMeaning = created.definition,
-                    category = created.category,
-                    options = created.distractors,
-                    extraData = encodeWordMatchExtraData(created),
-                    createdBy = created.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(created.toSupabaseChallenge()), "'${created.word}'")
         return created
     }
     fun deleteWordMatchChallenge(id: String) {
         repository.deleteWordMatchChallenge(id)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                supabaseService.deleteGameChallenge(id)
-            }
-        }
+        deleteGameChallengesWithCloud(listOf(id))
     }
     fun updateVocabularyModeConfig(config: VocabularyModeConfig) {
         repository.updateVocabularyModeConfig(config)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val extra = org.json.JSONObject().apply {
-                    put("questionsPerRound", config.questionsPerRound)
-                    put("isEnabled", config.isEnabled)
-                }.toString()
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = "vm_mode_${config.activityType.name}",
-                    type = "VOCAB_MODE_CONFIG",
-                    titleOrWord = config.title,
-                    hintOrMeaning = config.subtitle,
-                    category = config.activityType.name,
-                    correctIndex = config.xpReward,
-                    extraData = extra,
-                    createdBy = currentUser.value.name
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        val extra = org.json.JSONObject().apply {
+            put("questionsPerRound", config.questionsPerRound)
+            put("isEnabled", config.isEnabled)
+        }.toString()
+        val challenge = SupabaseGameChallenge(
+            id = "vm_mode_${config.activityType.name}",
+            type = "VOCAB_MODE_CONFIG",
+            titleOrWord = config.title,
+            hintOrMeaning = config.subtitle,
+            category = config.activityType.name,
+            correctIndex = config.xpReward,
+            extraData = extra,
+            createdBy = currentUser.value.name
+        )
+        syncGameChallengesWithFallback(listOf(challenge), "'${config.title}' settings")
     }
     fun recordVocabularyChallengeResult(
         activityType: VocabularyActivityType,
@@ -717,28 +1017,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addMissingLettersChallenge(fullWord: String, hint: String, category: String = "General", createdBy: String) {
         val created = repository.addMissingLettersChallenge(fullWord, hint, category, createdBy)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = created.id,
-                    type = "MISSING_LETTERS",
-                    titleOrWord = created.fullWord,
-                    hintOrMeaning = created.hint,
-                    category = created.category,
-                    extraData = created.missingIndices.joinToString(","),
-                    createdBy = created.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(created.toSupabaseChallenge()), "'${created.fullWord}'")
     }
     fun deleteMissingLettersChallenge(id: String) {
         repository.deleteMissingLettersChallenge(id)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                supabaseService.deleteGameChallenge(id)
-            }
-        }
+        deleteGameChallengesWithCloud(listOf(id))
     }
     fun addMissingLettersCategory(category: String): Boolean {
         return repository.addMissingLettersCategory(category)
@@ -750,26 +1033,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         rows: List<Triple<String, String, String>>,
         createdBy: String
     ): Int {
-        val count = repository.bulkImportMissingLetters(rows, createdBy)
-        if (count > 0 && supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val currentChallenges = repository.missingLettersChallenges.value
-                val recent = currentChallenges.takeLast(count)
-                recent.forEach { c ->
-                    val sc = com.example.data.model.SupabaseGameChallenge(
-                        id = c.id,
-                        type = "MISSING_LETTERS",
-                        titleOrWord = c.fullWord,
-                        hintOrMeaning = c.hint,
-                        category = c.category,
-                        extraData = c.missingIndices.joinToString(","),
-                        createdBy = c.createdBy
-                    )
-                    supabaseService.saveGameChallenge(sc)
-                }
-            }
+        val createdItems = repository.bulkImportMissingLettersReturningItems(rows, createdBy)
+        if (createdItems.isNotEmpty()) {
+            syncGameChallengesWithFallback(
+                challenges = createdItems.map { it.toSupabaseChallenge() },
+                itemLabel = "Missing Letters items"
+            )
         }
-        return count
+        return createdItems.size
     }
 
     fun addSentenceBuilderPack(
@@ -780,51 +1051,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         createdBy: String
     ): SentenceBuilderPack {
         val created = repository.addSentenceBuilderPack(title, description, difficulty, xpReward, createdBy)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = created.id,
-                    type = "SENTENCE_BUILDER_PACK",
-                    titleOrWord = created.title,
-                    hintOrMeaning = created.description,
-                    category = created.difficulty,
-                    correctIndex = created.xpReward,
-                    createdBy = created.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(created.toSupabaseChallenge()), "'${created.title}' pack")
         return created
     }
 
     fun updateSentenceBuilderPack(updated: SentenceBuilderPack) {
         repository.updateSentenceBuilderPack(updated)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = updated.id,
-                    type = "SENTENCE_BUILDER_PACK",
-                    titleOrWord = updated.title,
-                    hintOrMeaning = updated.description,
-                    category = updated.difficulty,
-                    correctIndex = updated.xpReward,
-                    createdBy = updated.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(updated.toSupabaseChallenge()), "'${updated.title}' pack")
     }
 
     fun deleteSentenceBuilderPack(packId: String) {
         val removedSentenceIds = repository.deleteSentenceBuilderPack(packId)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                supabaseService.deleteGameChallenge(packId)
-                removedSentenceIds.forEach { sentenceId ->
-                    supabaseService.deleteGameChallenge(sentenceId)
-                }
-            }
-        }
+        deleteGameChallengesWithCloud(listOf(packId) + removedSentenceIds)
     }
 
     fun addSentenceBuilderChallenge(
@@ -835,20 +1073,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         packId: String = "sb_pack_easy"
     ) {
         val created = repository.addSentenceBuilderChallenge(targetSentence, hint, assameseTranslation, createdBy, packId)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = created.id,
-                    type = "SENTENCE_BUILDER",
-                    titleOrWord = created.targetSentence,
-                    hintOrMeaning = created.hint,
-                    category = created.packId,
-                    extraData = created.assameseTranslation,
-                    createdBy = created.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(created.toSupabaseChallenge()), "Sentence Builder item")
     }
 
     fun bulkImportSentenceBuilders(
@@ -856,86 +1081,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         createdBy: String,
         packId: String = "sb_pack_easy"
     ): Int {
-        val count = repository.bulkImportSentenceBuilders(rows, createdBy, packId)
-        if (count > 0 && supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val currentChallenges = repository.sentenceBuilderChallenges.value
-                val recent = currentChallenges.takeLast(count)
-                recent.forEach { item ->
-                    val sc = com.example.data.model.SupabaseGameChallenge(
-                        id = item.id,
-                        type = "SENTENCE_BUILDER",
-                        titleOrWord = item.targetSentence,
-                        hintOrMeaning = item.hint,
-                        category = item.packId,
-                        extraData = item.assameseTranslation,
-                        createdBy = item.createdBy
-                    )
-                    supabaseService.saveGameChallenge(sc)
-                }
-            }
+        val createdItems = repository.bulkImportSentenceBuildersReturningItems(rows, createdBy, packId)
+        if (createdItems.isNotEmpty()) {
+            syncGameChallengesWithFallback(
+                challenges = createdItems.map { it.toSupabaseChallenge() },
+                itemLabel = "Sentence Builder items"
+            )
         }
-        return count
+        return createdItems.size
     }
     fun deleteSentenceBuilderChallenge(id: String) {
         repository.deleteSentenceBuilderChallenge(id)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                supabaseService.deleteGameChallenge(id)
-            }
-        }
+        deleteGameChallengesWithCloud(listOf(id))
     }
 
     fun addListenChooseChallenge(audioScript: String, question: String, options: List<String>, correctIndex: Int, createdBy: String) {
         val created = repository.addListenChooseChallenge(audioScript, question, options, correctIndex, createdBy)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = created.id,
-                    type = "LISTEN_CHOOSE",
-                    titleOrWord = created.audioScript,
-                    hintOrMeaning = created.question,
-                    options = created.options,
-                    correctIndex = created.correctIndex,
-                    createdBy = created.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(created.toSupabaseChallenge()), "Listen & Choose item")
     }
     fun deleteListenChooseChallenge(id: String) {
         repository.deleteListenChooseChallenge(id)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                supabaseService.deleteGameChallenge(id)
-            }
-        }
+        deleteGameChallengesWithCloud(listOf(id))
     }
 
     fun addPronunciationBattleChallenge(sentence: String, phonemeFocus: String, difficulty: String, passingScore: Int, createdBy: String) {
         val created = repository.addPronunciationBattleChallenge(sentence, phonemeFocus, difficulty, passingScore, createdBy)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = created.id,
-                    type = "PRONUNCIATION_BATTLE",
-                    titleOrWord = created.challengeSentence,
-                    hintOrMeaning = created.targetPhonemeFocus,
-                    category = created.difficulty,
-                    extraData = created.passingScore.toString(),
-                    createdBy = created.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(created.toSupabaseChallenge()), "Pronunciation Battle item")
     }
     fun deletePronunciationBattleChallenge(id: String) {
         repository.deletePronunciationBattleChallenge(id)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                supabaseService.deleteGameChallenge(id)
-            }
-        }
+        deleteGameChallengesWithCloud(listOf(id))
     }
 
     fun addFastVocabularyPack(
@@ -947,53 +1122,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         createdBy: String
     ): FastVocabularyPack {
         val created = repository.addFastVocabularyPack(title, description, themeStyle, durationSeconds, xpReward, createdBy)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = created.id,
-                    type = "FAST_VOCABULARY_PACK",
-                    titleOrWord = created.title,
-                    hintOrMeaning = created.description,
-                    category = created.themeStyle,
-                    correctIndex = created.xpReward,
-                    extraData = created.durationSeconds.toString(),
-                    createdBy = created.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(created.toSupabaseChallenge()), "'${created.title}' pack")
         return created
     }
 
     fun updateFastVocabularyPack(updated: FastVocabularyPack) {
         repository.updateFastVocabularyPack(updated)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = updated.id,
-                    type = "FAST_VOCABULARY_PACK",
-                    titleOrWord = updated.title,
-                    hintOrMeaning = updated.description,
-                    category = updated.themeStyle,
-                    correctIndex = updated.xpReward,
-                    extraData = updated.durationSeconds.toString(),
-                    createdBy = updated.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(updated.toSupabaseChallenge()), "'${updated.title}' pack")
     }
 
     fun deleteFastVocabularyPack(packId: String) {
         val removedQuestionIds = repository.deleteFastVocabularyPack(packId)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                supabaseService.deleteGameChallenge(packId)
-                removedQuestionIds.forEach { qId ->
-                    supabaseService.deleteGameChallenge(qId)
-                }
-            }
-        }
+        deleteGameChallengesWithCloud(listOf(packId) + removedQuestionIds)
     }
 
     fun recordFastVocabularyResult(packId: String, correctCount: Int, totalCount: Int, xpAwarded: Int) {
@@ -1009,29 +1149,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         packId: String = "fv_pack_easy"
     ) {
         val created = repository.addFastVocabularyChallenge(word, prompt, options, correctIndex, createdBy, packId)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = created.id,
-                    type = "FAST_VOCABULARY",
-                    titleOrWord = created.word,
-                    hintOrMeaning = created.prompt,
-                    options = created.options,
-                    correctIndex = created.correctIndex,
-                    extraData = created.packId,
-                    createdBy = created.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(created.toSupabaseChallenge()), "'${created.word}'")
     }
     fun deleteFastVocabularyChallenge(id: String) {
         repository.deleteFastVocabularyChallenge(id)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                supabaseService.deleteGameChallenge(id)
-            }
-        }
+        deleteGameChallengesWithCloud(listOf(id))
     }
 
     fun addGrammarChallengePack(
@@ -1042,51 +1164,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         createdBy: String
     ): GrammarChallengePack {
         val created = repository.addGrammarChallengePack(title, description, themeStyle, xpReward, createdBy)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = created.id,
-                    type = "GRAMMAR_CHALLENGE_PACK",
-                    titleOrWord = created.title,
-                    hintOrMeaning = created.description,
-                    category = created.themeStyle,
-                    correctIndex = created.xpReward,
-                    createdBy = created.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(created.toSupabaseChallenge()), "'${created.title}' pack")
         return created
     }
 
     fun updateGrammarChallengePack(updated: GrammarChallengePack) {
         repository.updateGrammarChallengePack(updated)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = updated.id,
-                    type = "GRAMMAR_CHALLENGE_PACK",
-                    titleOrWord = updated.title,
-                    hintOrMeaning = updated.description,
-                    category = updated.themeStyle,
-                    correctIndex = updated.xpReward,
-                    createdBy = updated.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(updated.toSupabaseChallenge()), "'${updated.title}' pack")
     }
 
     fun deleteGrammarChallengePack(packId: String) {
         val removedQuestionIds = repository.deleteGrammarChallengePack(packId)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                supabaseService.deleteGameChallenge(packId)
-                removedQuestionIds.forEach { qId ->
-                    supabaseService.deleteGameChallenge(qId)
-                }
-            }
-        }
+        deleteGameChallengesWithCloud(listOf(packId) + removedQuestionIds)
     }
 
     fun addGrammarChallenge(
@@ -1099,199 +1188,53 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         packId: String = "gc_pack_tenses"
     ) {
         val created = repository.addGrammarChallenge(question, options, correctIndex, explanation, category, createdBy, packId)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = created.id,
-                    type = "GRAMMAR_CHALLENGE",
-                    titleOrWord = created.question,
-                    hintOrMeaning = created.explanation,
-                    category = created.category,
-                    options = created.options,
-                    correctIndex = created.correctIndex,
-                    extraData = created.packId,
-                    createdBy = created.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(created.toSupabaseChallenge()), "Grammar Challenge item")
     }
     fun deleteGrammarChallenge(id: String) {
         repository.deleteGrammarChallenge(id)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                supabaseService.deleteGameChallenge(id)
-            }
-        }
+        deleteGameChallengesWithCloud(listOf(id))
     }
 
     fun updateWordMatchChallenge(updated: WordMatchChallenge) {
         repository.updateWordMatchChallenge(updated)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = updated.id,
-                    type = "WORD_MATCH",
-                    titleOrWord = updated.word,
-                    hintOrMeaning = updated.definition,
-                    category = updated.category,
-                    options = updated.distractors,
-                    extraData = encodeWordMatchExtraData(updated),
-                    createdBy = updated.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(updated.toSupabaseChallenge()), "'${updated.word}'")
     }
     fun updateMissingLettersChallenge(updated: MissingLettersChallenge) {
         repository.updateMissingLettersChallenge(updated)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = updated.id,
-                    type = "MISSING_LETTERS",
-                    titleOrWord = updated.fullWord,
-                    hintOrMeaning = updated.hint,
-                    category = updated.category,
-                    extraData = updated.missingIndices.joinToString(","),
-                    createdBy = updated.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(updated.toSupabaseChallenge()), "'${updated.fullWord}'")
     }
     fun updateSentenceBuilderChallenge(updated: SentenceBuilderChallenge) {
         repository.updateSentenceBuilderChallenge(updated)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = updated.id,
-                    type = "SENTENCE_BUILDER",
-                    titleOrWord = updated.targetSentence,
-                    hintOrMeaning = updated.hint,
-                    category = updated.packId,
-                    extraData = updated.assameseTranslation,
-                    createdBy = updated.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(updated.toSupabaseChallenge()), "Sentence Builder item")
     }
     fun updateListenChooseChallenge(updated: ListenChooseChallenge) {
         repository.updateListenChooseChallenge(updated)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = updated.id,
-                    type = "LISTEN_CHOOSE",
-                    titleOrWord = updated.audioScript,
-                    hintOrMeaning = updated.question,
-                    options = updated.options,
-                    correctIndex = updated.correctIndex,
-                    createdBy = updated.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(updated.toSupabaseChallenge()), "Listen & Choose item")
     }
     fun updatePronunciationBattleChallenge(updated: PronunciationBattleChallenge) {
         repository.updatePronunciationBattleChallenge(updated)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = updated.id,
-                    type = "PRONUNCIATION_BATTLE",
-                    titleOrWord = updated.challengeSentence,
-                    hintOrMeaning = updated.targetPhonemeFocus,
-                    category = updated.difficulty,
-                    extraData = updated.passingScore.toString(),
-                    createdBy = updated.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(updated.toSupabaseChallenge()), "Pronunciation Battle item")
     }
     fun updateFastVocabularyChallenge(updated: FastVocabularyChallenge) {
         repository.updateFastVocabularyChallenge(updated)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = updated.id,
-                    type = "FAST_VOCABULARY",
-                    titleOrWord = updated.word,
-                    hintOrMeaning = updated.prompt,
-                    options = updated.options,
-                    correctIndex = updated.correctIndex,
-                    extraData = updated.packId,
-                    createdBy = updated.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(updated.toSupabaseChallenge()), "'${updated.word}'")
     }
     fun updateGrammarChallenge(updated: GrammarChallengeQuestion) {
         repository.updateGrammarChallenge(updated)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = updated.id,
-                    type = "GRAMMAR_CHALLENGE",
-                    titleOrWord = updated.question,
-                    hintOrMeaning = updated.explanation,
-                    category = updated.category,
-                    options = updated.options,
-                    correctIndex = updated.correctIndex,
-                    extraData = updated.packId,
-                    createdBy = updated.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(updated.toSupabaseChallenge()), "Grammar Challenge item")
     }
 
     fun addPictureVocabChallenge(emoji: String, word: String, phonetic: String, clue: String, options: List<String>, createdBy: String) {
         val created = repository.addPictureVocabChallenge(emoji, word, phonetic, clue, options, createdBy)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = created.id,
-                    type = "PICTURE_VOCAB",
-                    titleOrWord = created.word,
-                    hintOrMeaning = created.clue,
-                    category = created.emoji,
-                    options = created.options,
-                    extraData = created.phonetic,
-                    createdBy = created.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(created.toSupabaseChallenge()), "'${created.word}'")
     }
     fun deletePictureVocabChallenge(id: String) {
         repository.deletePictureVocabChallenge(id)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                supabaseService.deleteGameChallenge(id)
-            }
-        }
+        deleteGameChallengesWithCloud(listOf(id))
     }
     fun updatePictureVocabChallenge(updated: com.example.data.model.PictureVocabChallenge) {
         repository.updatePictureVocabChallenge(updated)
-        if (supabaseService.isConfigured()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val challenge = com.example.data.model.SupabaseGameChallenge(
-                    id = updated.id,
-                    type = "PICTURE_VOCAB",
-                    titleOrWord = updated.word,
-                    hintOrMeaning = updated.clue,
-                    category = updated.emoji,
-                    options = updated.options,
-                    extraData = updated.phonetic,
-                    createdBy = updated.createdBy
-                )
-                supabaseService.saveGameChallenge(challenge)
-            }
-        }
+        syncGameChallengesWithFallback(listOf(updated.toSupabaseChallenge()), "'${updated.word}'")
     }
 
     // Navigation States
@@ -3631,6 +3574,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val w = repository.addAdventureWorld(name, description, tagline, emoji, requiredStars)
         val vocab = repository.adventureWorlds.value.find { it.id == "world_vocab" }
         _selectedAdventureWorld.value = vocab ?: repository.adventureWorlds.value.firstOrNull() ?: w
+        val author = currentUser.value.name.ifBlank { "Faculty Instructor" }
+        syncGameChallengesWithFallback(listOf(w.toSupabaseChallenge(author)), "'${w.name}' world")
         return w
     }
 
@@ -3639,14 +3584,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (_selectedAdventureWorld.value?.id == world.id) {
             _selectedAdventureWorld.value = world
         }
+        val author = currentUser.value.name.ifBlank { "Faculty Instructor" }
+        syncGameChallengesWithFallback(listOf(world.toSupabaseChallenge(author)), "'${world.name}' world")
     }
 
     fun deleteAdventureWorld(worldId: String) {
-        repository.deleteAdventureWorld(worldId)
+        val removedIds = repository.deleteAdventureWorld(worldId)
         if (_selectedAdventureWorld.value?.id == worldId) {
             _selectedAdventureWorld.value = repository.adventureWorlds.value.find { it.id == "world_vocab" }
                 ?: repository.adventureWorlds.value.firstOrNull()
         }
+        deleteGameChallengesWithCloud(removedIds)
     }
 
     fun addAdventureLevel(worldId: String, title: String, description: String, emoji: String, xp: Int, coins: Int): AdventureLevel? {
@@ -3654,6 +3602,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val updatedWorld = repository.adventureWorlds.value.find { it.id == worldId }
         if (updatedWorld != null) {
             _selectedAdventureWorld.value = updatedWorld
+        }
+        if (lvl != null) {
+            val author = currentUser.value.name.ifBlank { "Faculty Instructor" }
+            val toSync = buildList {
+                updatedWorld?.let { add(it.toSupabaseChallenge(author)) }
+                add(lvl.toSupabaseChallenge(author))
+                lvl.missions.forEach { add(it.toSupabaseChallenge(author)) }
+            }
+            syncGameChallengesWithFallback(toSync, "'${lvl.title}' level")
         }
         return lvl
     }
@@ -3664,14 +3621,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (updatedWorld != null && _selectedAdventureWorld.value?.id == worldId) {
             _selectedAdventureWorld.value = updatedWorld
         }
+        val updatedLevel = updatedWorld?.levels?.find { it.id == levelId }
+        if (updatedLevel != null) {
+            val author = currentUser.value.name.ifBlank { "Faculty Instructor" }
+            syncGameChallengesWithFallback(listOf(updatedLevel.toSupabaseChallenge(author)), "'${updatedLevel.title}' level")
+        }
     }
 
     fun deleteAdventureLevel(worldId: String, levelId: String) {
-        repository.deleteAdventureLevel(worldId, levelId)
+        val removedIds = repository.deleteAdventureLevel(worldId, levelId)
         val updatedWorld = repository.adventureWorlds.value.find { it.id == worldId }
         if (updatedWorld != null && _selectedAdventureWorld.value?.id == worldId) {
             _selectedAdventureWorld.value = updatedWorld
         }
+        deleteGameChallengesWithCloud(removedIds)
     }
 
     fun ensureLevelHasMissions(worldId: String, levelId: String, title: String): List<AdventureMission> {
@@ -3683,14 +3646,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return missions
     }
 
-    fun addAdventureMission(worldId: String, levelId: String, title: String, description: String, type: AdventureMissionType, targetSentence: String, options: List<String>, correctAnswer: String, clue: String, xp: Int, coins: Int) =
-        repository.addAdventureMission(worldId, levelId, title, description, type, targetSentence, options, correctAnswer, clue, xp, coins)
+    fun addAdventureMission(worldId: String, levelId: String, title: String, description: String, type: AdventureMissionType, targetSentence: String, options: List<String>, correctAnswer: String, clue: String, xp: Int, coins: Int): AdventureMission? {
+        val created = repository.addAdventureMission(worldId, levelId, title, description, type, targetSentence, options, correctAnswer, clue, xp, coins)
+        if (created != null) {
+            val author = currentUser.value.name.ifBlank { "Faculty Instructor" }
+            val updatedWorld = repository.adventureWorlds.value.find { it.id == worldId }
+            val parentLevel = updatedWorld?.levels?.find { it.id == levelId }
+            val toSync = buildList {
+                updatedWorld?.let { add(it.toSupabaseChallenge(author)) }
+                parentLevel?.let { add(it.toSupabaseChallenge(author)) }
+                add(created.toSupabaseChallenge(author))
+            }
+            syncGameChallengesWithFallback(toSync, "'${created.title}' mission")
+        }
+        return created
+    }
 
-    fun updateAdventureMission(worldId: String, levelId: String, missionId: String, title: String, description: String, type: AdventureMissionType, targetSentence: String, options: List<String>, correctAnswer: String, clue: String, xp: Int, coins: Int) =
+    fun updateAdventureMission(worldId: String, levelId: String, missionId: String, title: String, description: String, type: AdventureMissionType, targetSentence: String, options: List<String>, correctAnswer: String, clue: String, xp: Int, coins: Int) {
         repository.updateAdventureMission(worldId, levelId, missionId, title, description, type, targetSentence, options, correctAnswer, clue, xp, coins)
+        val updatedMission = repository.adventureWorlds.value
+            .find { it.id == worldId }
+            ?.levels?.find { it.id == levelId }
+            ?.missions?.find { it.id == missionId }
+        if (updatedMission != null) {
+            val author = currentUser.value.name.ifBlank { "Faculty Instructor" }
+            syncGameChallengesWithFallback(listOf(updatedMission.toSupabaseChallenge(author)), "'${updatedMission.title}' mission")
+        }
+    }
 
-    fun deleteAdventureMission(worldId: String, levelId: String, missionId: String) =
+    fun deleteAdventureMission(worldId: String, levelId: String, missionId: String) {
         repository.deleteAdventureMission(worldId, levelId, missionId)
+        deleteGameChallengesWithCloud(listOf(missionId))
+    }
 
     fun resetAdventureWorldsToDefault() = repository.resetAdventureWorldsToDefault()
 

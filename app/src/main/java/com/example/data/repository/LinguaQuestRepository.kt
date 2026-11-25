@@ -4329,13 +4329,44 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         appPreferences?.saveVocabularyChallengeProgress(_vocabularyChallengeProgress.value)
     }
 
+    fun addWordMatchChallengesBatch(
+        rows: List<com.example.util.ParsedGameImportRow.WordMatchRow>,
+        createdBy: String
+    ): List<WordMatchChallenge> {
+        if (rows.isEmpty()) return emptyList()
+        val timestamp = System.currentTimeMillis()
+        val batchNonce = java.util.UUID.randomUUID().toString().take(6)
+        val newItems = rows.mapIndexedNotNull { index, row ->
+            val word = row.word.trim()
+            if (word.isBlank()) return@mapIndexedNotNull null
+            WordMatchChallenge(
+                id = "wm_${timestamp}_${batchNonce}_$index",
+                word = word,
+                definition = row.definition.trim(),
+                category = row.category.trim().ifBlank { "General" },
+                createdBy = createdBy,
+                activityType = VocabularyActivityType.fromName(row.activityType.name).name,
+                pictureEmoji = row.pictureEmoji.trim().ifBlank { "✨" },
+                synonym = row.synonym.trim(),
+                antonym = row.antonym.trim(),
+                distractors = row.distractors.map { it.trim() }.filter { it.isNotEmpty() },
+                scrambleHint = row.scrambleHint.trim()
+            )
+        }
+        if (newItems.isNotEmpty()) {
+            _wordMatchChallenges.update { it + newItems }
+            appPreferences?.saveWordMatchChallenges(_wordMatchChallenges.value)
+        }
+        return newItems
+    }
+
     fun addMissingLettersChallenge(
         fullWord: String,
         hint: String,
         category: String = "General",
         createdBy: String
     ): MissingLettersChallenge {
-        val id = "ml_${System.currentTimeMillis()}"
+        val id = "ml_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}"
         val cleaned = fullWord.trim().uppercase()
         // Automatically choose 2-3 vowel or interior indices to mask if length permits
         val indices = if (cleaned.length >= 6) {
@@ -4353,14 +4384,15 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         return item
     }
 
-    fun bulkImportMissingLetters(
+    fun bulkImportMissingLettersReturningItems(
         rows: List<Triple<String, String, String>>,
         createdBy: String
-    ): Int {
-        if (rows.isEmpty()) return 0
+    ): List<MissingLettersChallenge> {
+        if (rows.isEmpty()) return emptyList()
         val timestamp = System.currentTimeMillis()
-        var count = 0
+        val batchNonce = java.util.UUID.randomUUID().toString().take(6)
         val newChallenges = mutableListOf<MissingLettersChallenge>()
+        val categoriesToAdd = linkedSetOf<String>()
 
         rows.forEachIndexed { index, (word, hint, cat) ->
             val cleaned = word.trim().uppercase()
@@ -4373,19 +4405,26 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                     listOf(1)
                 }
                 val targetCat = cat.trim().ifBlank { "General" }
-                addMissingLettersCategory(targetCat)
+                categoriesToAdd.add(targetCat)
                 val finalHint = hint.trim().ifBlank { "English Vocabulary Word" }
-                val id = "ml_${timestamp}_$index"
+                val id = "ml_${timestamp}_${batchNonce}_$index"
                 newChallenges.add(MissingLettersChallenge(id, cleaned, finalHint, indices, targetCat, createdBy))
-                count++
             }
         }
 
+        categoriesToAdd.forEach { addMissingLettersCategory(it) }
         if (newChallenges.isNotEmpty()) {
             _missingLettersChallenges.update { it + newChallenges }
             appPreferences?.saveMissingLettersChallenges(_missingLettersChallenges.value)
         }
-        return count
+        return newChallenges
+    }
+
+    fun bulkImportMissingLetters(
+        rows: List<Triple<String, String, String>>,
+        createdBy: String
+    ): Int {
+        return bulkImportMissingLettersReturningItems(rows, createdBy).size
     }
 
     fun deleteMissingLettersChallenge(id: String) {
@@ -4407,7 +4446,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         xpReward: Int = 40,
         createdBy: String
     ): SentenceBuilderPack {
-        val id = "sb_pack_${System.currentTimeMillis()}"
+        val id = "sb_pack_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}"
         val pack = SentenceBuilderPack(
             id = id,
             title = title.trim().ifBlank { "Custom Challenge" },
@@ -4449,7 +4488,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         createdBy: String,
         packId: String = "sb_pack_easy"
     ): SentenceBuilderChallenge {
-        val id = "sb_${System.currentTimeMillis()}"
+        val id = "sb_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}"
         val resolvedPackId = packId.ifBlank { "sb_pack_easy" }
         val item = SentenceBuilderChallenge(
             id = id,
@@ -4464,15 +4503,15 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         return item
     }
 
-    fun bulkImportSentenceBuilders(
+    fun bulkImportSentenceBuildersReturningItems(
         rows: List<Triple<String, String, String>>,
         createdBy: String,
         packId: String = "sb_pack_easy"
-    ): Int {
-        if (rows.isEmpty()) return 0
+    ): List<SentenceBuilderChallenge> {
+        if (rows.isEmpty()) return emptyList()
         val timestamp = System.currentTimeMillis()
+        val batchNonce = java.util.UUID.randomUUID().toString().take(6)
         val resolvedPackId = packId.ifBlank { "sb_pack_easy" }
-        var count = 0
         val newChallenges = mutableListOf<SentenceBuilderChallenge>()
 
         rows.forEachIndexed { index, (sentence, hint, assamese) ->
@@ -4480,7 +4519,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             if (cleaned.isNotBlank()) {
                 val finalHint = hint.trim().ifBlank { "Assemble syntax" }
                 val finalAssamese = assamese.trim()
-                val id = "sb_${timestamp}_$index"
+                val id = "sb_${timestamp}_${batchNonce}_$index"
                 newChallenges.add(
                     SentenceBuilderChallenge(
                         id = id,
@@ -4491,7 +4530,6 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                         packId = resolvedPackId
                     )
                 )
-                count++
             }
         }
 
@@ -4499,7 +4537,15 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             _sentenceBuilderChallenges.update { it + newChallenges }
             appPreferences?.saveSentenceBuilderChallenges(_sentenceBuilderChallenges.value)
         }
-        return count
+        return newChallenges
+    }
+
+    fun bulkImportSentenceBuilders(
+        rows: List<Triple<String, String, String>>,
+        createdBy: String,
+        packId: String = "sb_pack_easy"
+    ): Int {
+        return bulkImportSentenceBuildersReturningItems(rows, createdBy, packId).size
     }
 
     fun deleteSentenceBuilderChallenge(id: String) {
@@ -4515,11 +4561,39 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     }
 
     fun addListenChooseChallenge(audioScript: String, question: String, options: List<String>, correctIndex: Int, createdBy: String): ListenChooseChallenge {
-        val id = "lc_${System.currentTimeMillis()}"
+        val id = "lc_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}"
         val item = ListenChooseChallenge(id, audioScript.trim(), question.trim(), options.map { it.trim() }, correctIndex, createdBy)
         _listenChooseChallenges.update { it + item }
         appPreferences?.saveListenChooseChallenges(_listenChooseChallenges.value)
         return item
+    }
+
+    fun addListenChooseChallengesBatch(
+        rows: List<com.example.util.ParsedGameImportRow.ListenChooseRow>,
+        createdBy: String
+    ): List<ListenChooseChallenge> {
+        if (rows.isEmpty()) return emptyList()
+        val timestamp = System.currentTimeMillis()
+        val batchNonce = java.util.UUID.randomUUID().toString().take(6)
+        val newItems = rows.mapIndexedNotNull { index, row ->
+            val script = row.audioScript.trim()
+            val q = row.question.trim()
+            val opts = row.options.map { it.trim() }.filter { it.isNotEmpty() }
+            if (script.isBlank() || q.isBlank() || opts.isEmpty()) return@mapIndexedNotNull null
+            ListenChooseChallenge(
+                id = "lc_${timestamp}_${batchNonce}_$index",
+                audioScript = script,
+                question = q,
+                options = opts,
+                correctIndex = row.correctIndex.coerceIn(0, opts.lastIndex),
+                createdBy = createdBy
+            )
+        }
+        if (newItems.isNotEmpty()) {
+            _listenChooseChallenges.update { it + newItems }
+            appPreferences?.saveListenChooseChallenges(_listenChooseChallenges.value)
+        }
+        return newItems
     }
 
     fun deleteListenChooseChallenge(id: String) {
@@ -4535,11 +4609,37 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     }
 
     fun addPronunciationBattleChallenge(sentence: String, phonemeFocus: String, difficulty: String = "Medium", passingScore: Int = 80, createdBy: String): PronunciationBattleChallenge {
-        val id = "pb_${System.currentTimeMillis()}"
+        val id = "pb_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}"
         val item = PronunciationBattleChallenge(id, sentence.trim(), phonemeFocus.trim(), difficulty, passingScore, createdBy)
         _pronunciationBattleChallenges.update { it + item }
         appPreferences?.savePronunciationBattleChallenges(_pronunciationBattleChallenges.value)
         return item
+    }
+
+    fun addPronunciationBattleChallengesBatch(
+        rows: List<com.example.util.ParsedGameImportRow.PronunciationBattleRow>,
+        createdBy: String
+    ): List<PronunciationBattleChallenge> {
+        if (rows.isEmpty()) return emptyList()
+        val timestamp = System.currentTimeMillis()
+        val batchNonce = java.util.UUID.randomUUID().toString().take(6)
+        val newItems = rows.mapIndexedNotNull { index, row ->
+            val sentence = row.sentence.trim()
+            if (sentence.isBlank()) return@mapIndexedNotNull null
+            PronunciationBattleChallenge(
+                id = "pb_${timestamp}_${batchNonce}_$index",
+                challengeSentence = sentence,
+                targetPhonemeFocus = row.phonemeFocus.trim(),
+                difficulty = row.difficulty.trim().ifBlank { "Medium" },
+                passingScore = row.passingScore.coerceIn(40, 100),
+                createdBy = createdBy
+            )
+        }
+        if (newItems.isNotEmpty()) {
+            _pronunciationBattleChallenges.update { it + newItems }
+            appPreferences?.savePronunciationBattleChallenges(_pronunciationBattleChallenges.value)
+        }
+        return newItems
     }
 
     fun deletePronunciationBattleChallenge(id: String) {
@@ -4735,6 +4835,70 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         appPreferences?.saveGrammarChallenges(_grammarChallenges.value)
     }
 
+    fun addFastVocabularyChallengesBatch(
+        rows: List<com.example.util.ParsedGameImportRow.FastVocabularyRow>,
+        createdBy: String,
+        packId: String = "fv_pack_easy"
+    ): List<FastVocabularyChallenge> {
+        if (rows.isEmpty()) return emptyList()
+        val timestamp = System.currentTimeMillis()
+        val batchNonce = java.util.UUID.randomUUID().toString().take(6)
+        val resolvedPackId = packId.ifBlank { "fv_pack_easy" }
+        val newItems = rows.mapIndexedNotNull { index, row ->
+            val cleanWord = row.word.trim()
+            if (cleanWord.isBlank()) return@mapIndexedNotNull null
+            val cleanOptions = row.options.map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { listOf("Option A", "Option B") }
+            val safeIndex = row.correctIndex.coerceIn(0, cleanOptions.lastIndex)
+            FastVocabularyChallenge(
+                id = "fv_${timestamp}_${batchNonce}_$index",
+                word = cleanWord,
+                prompt = row.prompt.trim().ifBlank { "Choose the closest meaning:" },
+                options = cleanOptions,
+                correctIndex = safeIndex,
+                createdBy = createdBy,
+                packId = resolvedPackId
+            )
+        }
+        if (newItems.isNotEmpty()) {
+            _fastVocabularyChallenges.update { it + newItems }
+            appPreferences?.saveFastVocabularyChallenges(_fastVocabularyChallenges.value)
+        }
+        return newItems
+    }
+
+    fun addGrammarChallengesBatch(
+        rows: List<com.example.util.ParsedGameImportRow.GrammarChallengeRow>,
+        createdBy: String,
+        packId: String = "gc_pack_tenses"
+    ): List<GrammarChallengeQuestion> {
+        if (rows.isEmpty()) return emptyList()
+        val timestamp = System.currentTimeMillis()
+        val batchNonce = java.util.UUID.randomUUID().toString().take(6)
+        val newItems = rows.mapIndexedNotNull { index, row ->
+            val q = row.question.trim()
+            if (q.isBlank()) return@mapIndexedNotNull null
+            val resolvedCategory = row.category.trim().ifBlank { "Grammar" }
+            val resolvedPackId = packId.ifBlank { inferGrammarPackId(resolvedCategory) }
+            val cleanOptions = row.options.map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { listOf("Option A", "Option B") }
+            val safeIndex = row.correctIndex.coerceIn(0, cleanOptions.lastIndex)
+            GrammarChallengeQuestion(
+                id = "gc_${timestamp}_${batchNonce}_$index",
+                question = q,
+                options = cleanOptions,
+                correctIndex = safeIndex,
+                explanation = row.explanation.trim(),
+                category = resolvedCategory,
+                createdBy = createdBy,
+                packId = resolvedPackId
+            )
+        }
+        if (newItems.isNotEmpty()) {
+            _grammarChallenges.update { it + newItems }
+            appPreferences?.saveGrammarChallenges(_grammarChallenges.value)
+        }
+        return newItems
+    }
+
     fun addPictureVocabChallenge(
         emoji: String,
         word: String,
@@ -4743,7 +4907,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         options: List<String>,
         createdBy: String
     ): PictureVocabChallenge {
-        val id = "pv_${System.currentTimeMillis()}"
+        val id = "pv_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}"
         val item = PictureVocabChallenge(
             id = id,
             emoji = emoji.trim().ifBlank { "🖼️" },
@@ -4756,6 +4920,34 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         _pictureVocabChallenges.update { it + item }
         appPreferences?.savePictureVocabChallenges(_pictureVocabChallenges.value)
         return item
+    }
+
+    fun addPictureVocabChallengesBatch(
+        rows: List<com.example.util.ParsedGameImportRow.PictureVocabRow>,
+        createdBy: String
+    ): List<PictureVocabChallenge> {
+        if (rows.isEmpty()) return emptyList()
+        val timestamp = System.currentTimeMillis()
+        val batchNonce = java.util.UUID.randomUUID().toString().take(6)
+        val newItems = rows.mapIndexedNotNull { index, row ->
+            val cleanWord = row.word.trim()
+            if (cleanWord.isBlank()) return@mapIndexedNotNull null
+            val opts = row.options.map { it.trim() }.filter { it.isNotBlank() }.ifEmpty { listOf(cleanWord) }
+            PictureVocabChallenge(
+                id = "pv_${timestamp}_${batchNonce}_$index",
+                emoji = row.emoji.trim().ifBlank { "🖼️" },
+                word = cleanWord,
+                phonetic = row.phonetic.trim().ifBlank { "/${cleanWord.lowercase()}/" },
+                clue = row.clue.trim(),
+                options = opts,
+                createdBy = createdBy
+            )
+        }
+        if (newItems.isNotEmpty()) {
+            _pictureVocabChallenges.update { it + newItems }
+            appPreferences?.savePictureVocabChallenges(_pictureVocabChallenges.value)
+        }
+        return newItems
     }
 
     fun deletePictureVocabChallenge(id: String) {
@@ -5225,6 +5417,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         var gcPackChanged = false
         var gcChanged = false
         var pvChanged = false
+        var adventureChanged = false
 
         val currentSbPacks = _sentenceBuilderPacks.value.toMutableList()
         val currentSb = _sentenceBuilderChallenges.value.toMutableList()
@@ -5238,6 +5431,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         val currentGcPacks = _grammarChallengePacks.value.toMutableList()
         val currentGc = _grammarChallenges.value.toMutableList()
         val currentPv = _pictureVocabChallenges.value.toMutableList()
+        val currentAdventureWorlds = _adventureWorlds.value.toMutableList()
+
+        val adventureWorldRecords = mutableListOf<SupabaseGameChallenge>()
+        val adventureLevelRecords = mutableListOf<SupabaseGameChallenge>()
+        val adventureMissionRecords = mutableListOf<SupabaseGameChallenge>()
 
         for (rc in remoteChallenges) {
             when (rc.type.uppercase()) {
@@ -5506,7 +5704,184 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
                     }
                     pvChanged = true
                 }
+                "ADVENTURE_WORLD" -> adventureWorldRecords.add(rc)
+                "ADVENTURE_LEVEL" -> adventureLevelRecords.add(rc)
+                "ADVENTURE_MISSION" -> adventureMissionRecords.add(rc)
             }
+        }
+
+        // Merge English Adventure Worlds -> Levels -> Missions in order so parent entities exist first
+        val advProgress = _adventureProgress.value
+        for (rc in adventureWorldRecords) {
+            val extra = if (rc.extraData.trim().startsWith("{")) {
+                try { org.json.JSONObject(rc.extraData) } catch (_: Exception) { null }
+            } else null
+            val idx = currentAdventureWorlds.indexOfFirst { it.id == rc.id }
+            val existing = if (idx >= 0) currentAdventureWorlds[idx] else null
+            val parsedOrder = extra?.optInt("order", existing?.order ?: (currentAdventureWorlds.size + 1))
+                ?: (existing?.order ?: (currentAdventureWorlds.size + 1))
+            val parsedEmoji = extra?.optString("emoji", existing?.emoji ?: "🗺️").orEmpty().ifBlank { existing?.emoji ?: "🗺️" }
+            val parsedTheme = extra?.optLong("themeColorHex", existing?.themeColorHex ?: 0xFF7C3AEDL)
+                ?: (existing?.themeColorHex ?: 0xFF7C3AEDL)
+            val parsedStart = extra?.optLong("gradientStartHex", existing?.gradientStartHex ?: 0xFF6366F1L)
+                ?: (existing?.gradientStartHex ?: 0xFF6366F1L)
+            val parsedEnd = extra?.optLong("gradientEndHex", existing?.gradientEndHex ?: 0xFF9333EAL)
+                ?: (existing?.gradientEndHex ?: 0xFF9333EAL)
+            val parsedUnlocked = extra?.optBoolean("isUnlocked", rc.correctIndex == 0) ?: (rc.correctIndex == 0)
+
+            val world = AdventureWorld(
+                id = rc.id,
+                name = rc.titleOrWord.ifBlank { existing?.name ?: "Adventure World" },
+                order = parsedOrder,
+                description = rc.hintOrMeaning.ifBlank { existing?.description ?: "" },
+                tagline = rc.category.ifBlank { existing?.tagline ?: "" },
+                emoji = parsedEmoji,
+                themeColorHex = parsedTheme,
+                gradientStartHex = parsedStart,
+                gradientEndHex = parsedEnd,
+                requiredTotalStars = rc.correctIndex.coerceAtLeast(0),
+                isUnlocked = (existing?.isUnlocked == true) || parsedUnlocked || rc.correctIndex == 0 || (rc.id in advProgress.unlockedWorldIds),
+                levels = existing?.levels ?: emptyList()
+            )
+            if (idx >= 0) {
+                currentAdventureWorlds[idx] = world
+            } else {
+                currentAdventureWorlds.add(world)
+            }
+            adventureChanged = true
+        }
+
+        for (rc in adventureLevelRecords) {
+            val extra = if (rc.extraData.trim().startsWith("{")) {
+                try { org.json.JSONObject(rc.extraData) } catch (_: Exception) { null }
+            } else null
+            val resolvedWorldId = extra?.optString("worldId", "").orEmpty()
+                .ifBlank { rc.category }
+                .ifBlank { currentAdventureWorlds.firstOrNull()?.id ?: "world_vocab" }
+
+            var worldIdx = currentAdventureWorlds.indexOfFirst { it.id == resolvedWorldId }
+            if (worldIdx < 0) {
+                // Ensure a parent container world exists if a level synced before its world
+                val fallbackWorld = AdventureWorld(
+                    id = resolvedWorldId,
+                    name = "Adventure World",
+                    order = currentAdventureWorlds.size + 1,
+                    description = "Synced English Adventure World",
+                    tagline = "Explore & Master English",
+                    emoji = "🗺️",
+                    themeColorHex = 0xFF7C3AED,
+                    gradientStartHex = 0xFF6366F1,
+                    gradientEndHex = 0xFF9333EA,
+                    requiredTotalStars = 0,
+                    isUnlocked = true,
+                    levels = emptyList()
+                )
+                currentAdventureWorlds.add(fallbackWorld)
+                worldIdx = currentAdventureWorlds.lastIndex
+            }
+            val targetWorld = currentAdventureWorlds[worldIdx]
+            val updatedLevels = targetWorld.levels.toMutableList()
+            val existingIdx = updatedLevels.indexOfFirst { it.id == rc.id }
+            val existingLevel = if (existingIdx >= 0) updatedLevels[existingIdx] else null
+
+            val parsedLevelNum = extra?.optInt("levelNumber", existingLevel?.levelNumber ?: (updatedLevels.size + 1))
+                ?: (existingLevel?.levelNumber ?: (updatedLevels.size + 1))
+            val parsedEmoji = extra?.optString("iconEmoji", existingLevel?.iconEmoji ?: "⭐").orEmpty().ifBlank { existingLevel?.iconEmoji ?: "⭐" }
+            val parsedCoins = extra?.optInt("coinsReward", existingLevel?.coinsReward ?: 30)
+                ?: (existingLevel?.coinsReward ?: 30)
+            val parsedReqStars = extra?.optInt("requiredStars", existingLevel?.requiredStars ?: 0)
+                ?: (existingLevel?.requiredStars ?: 0)
+            val parsedUnlocked = extra?.optBoolean("isUnlocked", updatedLevels.isEmpty()) ?: updatedLevels.isEmpty()
+
+            val mergedLevel = AdventureLevel(
+                id = rc.id,
+                worldId = resolvedWorldId,
+                levelNumber = parsedLevelNum,
+                title = rc.titleOrWord.ifBlank { existingLevel?.title ?: "Adventure Level" },
+                description = rc.hintOrMeaning.ifBlank { existingLevel?.description ?: "" },
+                iconEmoji = parsedEmoji,
+                missions = existingLevel?.missions ?: emptyList(),
+                xpReward = if (rc.correctIndex > 0) rc.correctIndex else (existingLevel?.xpReward ?: 100),
+                coinsReward = parsedCoins,
+                requiredStars = parsedReqStars,
+                isUnlocked = (existingLevel?.isUnlocked == true) || parsedUnlocked || (rc.id in advProgress.completedLevelIds),
+                isCompleted = (existingLevel?.isCompleted == true) || (rc.id in advProgress.completedLevelIds),
+                starsEarned = maxOf(existingLevel?.starsEarned ?: 0, advProgress.levelStars[rc.id] ?: 0)
+            )
+            if (existingIdx >= 0) {
+                updatedLevels[existingIdx] = mergedLevel
+            } else {
+                updatedLevels.add(mergedLevel)
+            }
+            currentAdventureWorlds[worldIdx] = targetWorld.copy(levels = updatedLevels.sortedBy { it.levelNumber })
+            adventureChanged = true
+        }
+
+        for (rc in adventureMissionRecords) {
+            val extra = if (rc.extraData.trim().startsWith("{")) {
+                try { org.json.JSONObject(rc.extraData) } catch (_: Exception) { null }
+            } else null
+            val catParts = rc.category.split("::")
+            val resolvedWorldId = extra?.optString("worldId", "").orEmpty()
+                .ifBlank { catParts.getOrNull(0).orEmpty() }
+            val resolvedLevelId = extra?.optString("levelId", "").orEmpty()
+                .ifBlank { catParts.getOrNull(1).orEmpty() }
+
+            if (resolvedLevelId.isBlank()) continue
+            var worldIdx = currentAdventureWorlds.indexOfFirst { it.id == resolvedWorldId }
+            if (worldIdx < 0) {
+                worldIdx = currentAdventureWorlds.indexOfFirst { w -> w.levels.any { it.id == resolvedLevelId } }
+            }
+            if (worldIdx < 0) continue
+
+            val targetWorld = currentAdventureWorlds[worldIdx]
+            val levelIdx = targetWorld.levels.indexOfFirst { it.id == resolvedLevelId }
+            if (levelIdx < 0) continue
+
+            val targetLevel = targetWorld.levels[levelIdx]
+            val missionTypeName = extra?.optString("missionType", AdventureMissionType.SPEAKING_CHALLENGE.name).orEmpty()
+            val missionType = try {
+                AdventureMissionType.valueOf(missionTypeName)
+            } catch (_: Exception) {
+                AdventureMissionType.SPEAKING_CHALLENGE
+            }
+            val scrambledList = mutableListOf<String>()
+            val scrambledJson = extra?.optJSONArray("scrambledWords")
+            if (scrambledJson != null) {
+                for (j in 0 until scrambledJson.length()) {
+                    val s = scrambledJson.optString(j, "")
+                    if (s.isNotBlank()) scrambledList.add(s)
+                }
+            }
+            val targetSentence = extra?.optString("targetSentence", "").orEmpty()
+            val mergedMission = AdventureMission(
+                id = rc.id,
+                levelId = resolvedLevelId,
+                worldId = targetWorld.id,
+                title = rc.titleOrWord.ifBlank { "Adventure Quest" },
+                description = rc.hintOrMeaning,
+                type = missionType,
+                targetSentence = targetSentence,
+                options = rc.options,
+                correctAnswer = extra?.optString("correctAnswer", "").orEmpty(),
+                clue = extra?.optString("clue", "").orEmpty(),
+                xp = extra?.optInt("xp", if (rc.correctIndex > 0) rc.correctIndex else 40) ?: 40,
+                coins = extra?.optInt("coins", 20) ?: 20,
+                scrambledWords = scrambledList,
+                audioPrompt = extra?.optString("audioPrompt", targetSentence).orEmpty().ifBlank { targetSentence },
+                explanation = extra?.optString("explanation", "").orEmpty()
+            )
+            val updatedMissions = targetLevel.missions.toMutableList()
+            val existingMissionIdx = updatedMissions.indexOfFirst { it.id == rc.id }
+            if (existingMissionIdx >= 0) {
+                updatedMissions[existingMissionIdx] = mergedMission
+            } else {
+                updatedMissions.add(mergedMission)
+            }
+            val updatedLevels = targetWorld.levels.toMutableList()
+            updatedLevels[levelIdx] = targetLevel.copy(missions = updatedMissions)
+            currentAdventureWorlds[worldIdx] = targetWorld.copy(levels = updatedLevels)
+            adventureChanged = true
         }
 
         if (sbPackChanged) {
@@ -5556,6 +5931,11 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         if (pvChanged) {
             _pictureVocabChallenges.value = currentPv
             appPreferences?.savePictureVocabChallenges(currentPv)
+        }
+        if (adventureChanged) {
+            val sortedWorlds = currentAdventureWorlds.sortedBy { it.order }
+            _adventureWorlds.value = sortedWorlds
+            appPreferences?.saveAdventureWorlds(sortedWorlds)
         }
     }
 
@@ -5878,7 +6258,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         requiredStars: Int
     ): AdventureWorld {
         val newWorld = AdventureWorld(
-            id = "world_${System.currentTimeMillis()}",
+            id = "world_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}",
             name = name.trim(),
             order = _adventureWorlds.value.size + 1,
             description = description.trim(),
@@ -5903,11 +6283,24 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         saveAdventureStateToPreferences()
     }
 
-    fun deleteAdventureWorld(worldId: String) {
+    fun deleteAdventureWorld(worldId: String): List<String> {
+        val existing = _adventureWorlds.value.firstOrNull { it.id == worldId }
+        val removedIds = buildList {
+            if (existing != null) {
+                add(existing.id)
+                existing.levels.forEach { lvl ->
+                    add(lvl.id)
+                    lvl.missions.forEach { m -> add(m.id) }
+                }
+            } else {
+                add(worldId)
+            }
+        }
         _adventureWorlds.update { list ->
             list.filterNot { it.id == worldId }
         }
         saveAdventureStateToPreferences()
+        return removedIds
     }
 
     // Admin Level Management
@@ -5921,7 +6314,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
     ): AdventureLevel? {
         val world = _adventureWorlds.value.find { it.id == worldId } ?: return null
         val levelNum = world.levels.size + 1
-        val levelId = "lvl_${System.currentTimeMillis()}"
+        val levelId = "lvl_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}"
 
         val defaultMissions = listOf(
             AdventureMission(
@@ -5975,6 +6368,94 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         return newLevel
     }
 
+    fun addAdventureLevelsBatch(
+        worldId: String,
+        rows: List<com.example.util.ParsedGameImportRow.EnglishAdventureRow>
+    ): List<AdventureLevel> {
+        if (rows.isEmpty()) return emptyList()
+        val world = _adventureWorlds.value.find { it.id == worldId } ?: return emptyList()
+        val timestamp = System.currentTimeMillis()
+        val batchNonce = java.util.UUID.randomUUID().toString().take(6)
+        val startLevelNum = world.levels.size + 1
+        val canUnlockFirst = world.levels.isEmpty() || world.levels.all { it.isCompleted }
+
+        val newLevels = rows.mapIndexedNotNull { index, row ->
+            val cleanTitle = row.title.trim()
+            if (cleanTitle.isBlank()) return@mapIndexedNotNull null
+            val levelId = "lvl_${timestamp}_${batchNonce}_$index"
+            val coinsReward = (row.xp / 2).coerceAtLeast(20)
+            val baseMissions = mutableListOf(
+                AdventureMission(
+                    id = "m_${levelId}_1",
+                    levelId = levelId,
+                    worldId = worldId,
+                    title = "$cleanTitle Speaking Quest",
+                    description = "Speak this English sentence clearly to master $cleanTitle.",
+                    type = AdventureMissionType.SPEAKING_CHALLENGE,
+                    targetSentence = "I am excited to explore $cleanTitle and master English speaking.",
+                    audioPrompt = "I am excited to explore $cleanTitle and master English speaking.",
+                    correctAnswer = "I am excited to explore $cleanTitle and master English speaking.",
+                    xp = (row.xp / 2).coerceAtLeast(20),
+                    coins = (coinsReward / 2).coerceAtLeast(10)
+                ),
+                AdventureMission(
+                    id = "m_${levelId}_2",
+                    levelId = levelId,
+                    worldId = worldId,
+                    title = "$cleanTitle Vocabulary Quiz",
+                    description = "Choose the best synonym or meaning for $cleanTitle.",
+                    type = AdventureMissionType.QUIZ,
+                    options = listOf("Fluent and confident", "Hesitant", "Silent", "Unprepared"),
+                    correctAnswer = "Fluent and confident",
+                    explanation = "Practicing spoken English adventure quests helps you speak fluently and confidently.",
+                    xp = (row.xp / 2).coerceAtLeast(20),
+                    coins = (coinsReward / 2).coerceAtLeast(10)
+                )
+            )
+            if (row.targetSentence.isNotBlank()) {
+                val sentence = row.targetSentence.trim()
+                baseMissions.add(
+                    AdventureMission(
+                        id = "m_${levelId}_3",
+                        levelId = levelId,
+                        worldId = worldId,
+                        title = "$cleanTitle Speaking Challenge",
+                        description = "Speak this sentence with clear pronunciation.",
+                        type = AdventureMissionType.SPEAKING_CHALLENGE,
+                        targetSentence = sentence,
+                        audioPrompt = sentence,
+                        correctAnswer = sentence,
+                        clue = "Listen closely and enunciate clearly.",
+                        xp = (row.xp / 2).coerceAtLeast(20),
+                        coins = 20
+                    )
+                )
+            }
+            AdventureLevel(
+                id = levelId,
+                worldId = worldId,
+                levelNumber = startLevelNum + index,
+                title = cleanTitle,
+                description = row.description.trim(),
+                iconEmoji = row.emoji.ifBlank { "⭐" },
+                xpReward = row.xp,
+                coinsReward = coinsReward,
+                isUnlocked = index == 0 && canUnlockFirst,
+                missions = baseMissions
+            )
+        }
+
+        if (newLevels.isNotEmpty()) {
+            _adventureWorlds.update { list ->
+                list.map { w ->
+                    if (w.id == worldId) w.copy(levels = w.levels + newLevels) else w
+                }
+            }
+            saveAdventureStateToPreferences()
+        }
+        return newLevels
+    }
+
     fun ensureLevelHasMissions(worldId: String, levelId: String, title: String): List<AdventureMission> {
         val world = _adventureWorlds.value.find { it.id == worldId }
         val lvl = world?.levels?.find { it.id == levelId }
@@ -6021,7 +6502,15 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         return defaultMissions
     }
 
-    fun deleteAdventureLevel(worldId: String, levelId: String) {
+    fun deleteAdventureLevel(worldId: String, levelId: String): List<String> {
+        val targetLevel = _adventureWorlds.value
+            .firstOrNull { it.id == worldId }
+            ?.levels
+            ?.firstOrNull { it.id == levelId }
+        val removedIds = buildList {
+            add(levelId)
+            targetLevel?.missions?.forEach { add(it.id) }
+        }
         _adventureWorlds.update { list ->
             list.map { w ->
                 if (w.id == worldId) {
@@ -6030,6 +6519,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
             }
         }
         saveAdventureStateToPreferences()
+        return removedIds
     }
 
     // Admin Mission Management
@@ -6047,7 +6537,7 @@ class LinguaQuestRepository(private val appPreferences: AppPreferences? = null) 
         coins: Int
     ): AdventureMission? {
         val newMission = AdventureMission(
-            id = "m_${System.currentTimeMillis()}",
+            id = "m_${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}",
             levelId = levelId,
             worldId = worldId,
             title = title.trim(),
