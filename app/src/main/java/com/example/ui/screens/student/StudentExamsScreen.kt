@@ -24,8 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -875,15 +873,7 @@ internal fun LiveExamModal(
     Surface(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF060919))
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Main)
-                        event.changes.forEach { it.consume() }
-                    }
-                }
-            },
+            .background(Color(0xFF060919)),
         color = Color(0xFF060919)
     ) {
             if (!hasStarted) {
@@ -1071,8 +1061,8 @@ internal fun LiveExamModal(
                             Column(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(18.dp)
-                                    .verticalScroll(rememberScrollState()),
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(18.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
                                 // Question Number, Type Badge & Points
@@ -1416,7 +1406,9 @@ private fun PreExamBriefing(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+                .testTag("exam_instructions_scroll_container")
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Card(
@@ -1586,15 +1578,7 @@ internal fun ExamReviewDialog(
     Surface(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF060919))
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Main)
-                        event.changes.forEach { it.consume() }
-                    }
-                }
-            },
+            .background(Color(0xFF060919)),
         color = Color(0xFF060919)
     ) {
             Column(
@@ -1625,82 +1609,89 @@ internal fun ExamReviewDialog(
 
                 val isPendingReview = submission.gradingStatus == "PENDING_REVIEW"
 
-                // Review Score Banner
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = CyberNavySurface),
-                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(exam.title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
-                                Text(
-                                    if (isPendingReview) {
-                                        "Written answers submitted • Current score: ${submission.scoreObtained}/${submission.totalMarks}"
-                                    } else {
-                                        "Score: ${submission.scoreObtained}/${submission.totalMarks} (${submission.percentage}%) • Grade ${submission.displayGrade}"
-                                    },
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF38BDF8)
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = when {
-                                    isPendingReview -> Color(0xFF0284C7)
-                                    submission.isPassed -> EmeraldSuccess
-                                    else -> CoralAccent
-                                }
-                            ) {
-                                Text(
-                                    text = when {
-                                        isPendingReview -> "PENDING"
-                                        submission.isPassed -> "PASSED"
-                                        else -> "RETAKE"
-                                    },
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
-                                    color = Color.White,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-
-                        if (submission.teacherFeedback.isNotBlank()) {
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFF0F172A),
-                                border = BorderStroke(1.dp, Color(0xFF334155)),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "👩‍🏫 Teacher Feedback: ${submission.teacherFeedback}",
-                                    fontSize = 11.5.sp,
-                                    color = Color(0xFFFDE68A),
-                                    modifier = Modifier.padding(10.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Questions List with Student's Choices / Written Answers vs Expected / Correct Answer
+                // Score Banner + Questions List in a single scrollable LazyColumn
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth(),
+                        .fillMaxWidth()
+                        .testTag("exam_review_lazy_column"),
+                    contentPadding = PaddingValues(bottom = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(exam.questions.size) { qIdx ->
+                    item(key = "review_score_banner") {
+                        // Review Score Banner
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = CyberNavySurface),
+                            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(exam.title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                        Text(
+                                            if (isPendingReview) {
+                                                "Written answers submitted • Current score: ${submission.scoreObtained}/${submission.totalMarks}"
+                                            } else {
+                                                "Score: ${submission.scoreObtained}/${submission.totalMarks} (${submission.percentage}%) • Grade ${submission.displayGrade}"
+                                            },
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF38BDF8)
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = when {
+                                            isPendingReview -> Color(0xFF0284C7)
+                                            submission.isPassed -> EmeraldSuccess
+                                            else -> CoralAccent
+                                        }
+                                    ) {
+                                        Text(
+                                            text = when {
+                                                isPendingReview -> "PENDING"
+                                                submission.isPassed -> "PASSED"
+                                                else -> "RETAKE"
+                                            },
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
+                                            color = Color.White,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+
+                                if (submission.teacherFeedback.isNotBlank()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = Color(0xFF0F172A),
+                                        border = BorderStroke(1.dp, Color(0xFF334155)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = "👩‍🏫 Teacher Feedback: ${submission.teacherFeedback}",
+                                            fontSize = 11.5.sp,
+                                            color = Color(0xFFFDE68A),
+                                            modifier = Modifier.padding(10.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    items(
+                        count = exam.questions.size,
+                        key = { qIdx -> exam.questions[qIdx].id.ifBlank { "review_q_$qIdx" } }
+                    ) { qIdx ->
                         val q = exam.questions[qIdx]
 
                         if (q.questionType == ExamQuestionType.LONG_ANSWER) {
@@ -1923,7 +1914,10 @@ internal fun ExamReviewDialog(
                     onClick = onDismiss,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .testTag("exam_review_close_button")
                 ) {
                     Text("Close Review", color = Color.White, fontWeight = FontWeight.Bold)
                 }
